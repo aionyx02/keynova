@@ -7,6 +7,7 @@ mod platform;
 use std::sync::{Arc, Mutex};
 
 use serde_json::{json, Value};
+use tauri::{Emitter, Manager};
 
 use crate::core::{AppEvent, CommandHandler, CommandResult, CommandRouter, EventBus};
 use crate::handlers::{
@@ -118,12 +119,108 @@ fn cmd_ping(name: Option<String>, state: tauri::State<'_, AppState>) -> Result<S
     Ok(message)
 }
 
+/// 隱藏啟動器視窗（App 繼續背景常駐）。
+#[tauri::command]
+fn cmd_hide_launcher(window: tauri::WebviewWindow) -> Result<(), String> {
+    window.hide().map_err(|e| e.to_string())
+}
+
+/// 顯示啟動器視窗並移至最前景。
+#[tauri::command]
+fn cmd_show_launcher(window: tauri::WebviewWindow) -> Result<(), String> {
+    window.show().map_err(|e| e.to_string())?;
+    window.set_focus().map_err(|e| e.to_string())
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_global_shortcut::Builder::new().build())
         .manage(AppState::new())
-        .invoke_handler(tauri::generate_handler![cmd_ping, cmd_dispatch])
+        .setup(|app| {
+            setup_global_shortcut(app)?;
+            setup_tray(app)?;
+            setup_main_window(app)?;
+            Ok(())
+        })
+        .on_window_event(|window, event| {
+            if let tauri::WindowEvent::CloseRequested { api, .. } = event {
+                api.prevent_close();
+                let _ = window.hide();
+            }
+        })
+        .invoke_handler(tauri::generate_handler![
+            cmd_ping,
+            cmd_dispatch,
+            cmd_hide_launcher,
+            cmd_show_launcher,
+        ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
+}
+
+fn setup_global_shortcut(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>> {
+    use tauri_plugin_global_shortcut::{GlobalShortcutExt, ShortcutState};
+
+    let handle = app.handle().clone();
+    app.global_shortcut().on_shortcut("Ctrl+K", move |_app, _shortcut, event| {
+        if event.state() == ShortcutState::Pressed {
+            if let Some(window) = handle.get_webview_window("main") {
+                let visible = window.is_visible().unwrap_or(false);
+                if visible {
+                    let _ = window.hide();
+                } else {
+                    let _ = window.show();
+                    let _ = window.set_focus();
+                }
+            }
+        }
+    })?;
+
+    Ok(())
+}
+
+fn setup_tray(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>> {
+    use tauri::menu::{Menu, MenuItem};
+    use tauri::tray::TrayIconBuilder;
+
+    let show_item = MenuItem::with_id(app, "show", "顯示 Keynova (Ctrl+K)", true, None::<&str>)?;
+    let quit_item = MenuItem::with_id(app, "quit", "退出", true, None::<&str>)?;
+    let menu = Menu::with_items(app, &[&show_item, &quit_item])?;
+
+    let handle = app.handle().clone();
+    TrayIconBuilder::new()
+        .icon(app.default_window_icon().unwrap().clone())
+        .menu(&menu)
+        .tooltip("Keynova")
+        .on_menu_event(move |_tray, event| match event.id.as_ref() {
+            "show" => {
+                if let Some(window) = handle.get_webview_window("main") {
+                    let _ = window.show();
+                    let _ = window.set_focus();
+                }
+            }
+            "quit" => handle.exit(0),
+            _ => {}
+        })
+        .build(app)?;
+
+    Ok(())
+}
+
+fn setup_main_window(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>> {
+    let window = app
+        .get_webview_window("main")
+        .ok_or("main window not found")?;
+
+    let window_clone = window.clone();
+    window.on_window_event(move |event| {
+        if let tauri::WindowEvent::Focused(true) = event {
+            // Emit a Tauri event so the frontend knows to focus the input
+            let _ = window_clone.emit("window-focused", ());
+        }
+    });
+
+    Ok(())
 }
