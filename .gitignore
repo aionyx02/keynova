@@ -1,0 +1,42 @@
+# ── Dependencies ──────────────────────────────────────
+node_modules/
+
+# ── Build output ──────────────────────────────────────
+dist/
+dist-ssr/
+
+# ── Environment / Secrets ─────────────────────────────
+.env
+.env.*
+!.env.example
+
+# Code-signing keys (Tauri updater / Windows signing)
+*.pem
+*.key
+*.pfx
+*.p12
+
+# ── Logs ──────────────────────────────────────────────
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+pnpm-debug.log*
+
+# ── OS ────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# ── IDE：JetBrains RustRover（主要）─────────────────
+.idea/
+*.iml
+*.iws
+*.ipr
+
+# Vim / Emacs swap（偶發使用）
+*.sw?
+*~
+
+# ── Local config overrides ────────────────────────────
+*.local

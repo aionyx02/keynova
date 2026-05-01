@@ -1,0 +1,14 @@
+# ── Cargo build output ────────────────────────────────
+/target/
+
+# ── Tauri generated files ─────────────────────────────
+/gen/schemas
+
+# ── Code-signing keys ─────────────────────────────────
+*.pem
+*.key
+*.pfx
+*.p12
+
+# ── Windows installer tooling (auto-downloaded) ───────
+WixTools/
