@@ -5,9 +5,9 @@
 
 ## 當前狀態
 
-- **進度**：Phase 1 骨架實作完成（feature/phase1-setup 分支，等待使用者審查後合併 dev）
-- **上次完成**：修復 `cmd_ping` 因 EventBus 無訂閱者回傳 `channel closed` 的問題，確認 `cargo check`、`npm run lint`、`npm run build` 通過
-- **下一步**：使用者審查 diff → 確認合併 feature/phase1-setup 到 dev → 實作 1.2 熱鍵 WinAPI RegisterHotKey + message loop（目前為 TODO）
+- **進度**：Phase 1.5 CommandPalette Flow Launcher 風格 UI 精化完成，cargo check + lint + tsc 全部通過
+- **上次完成**：transparent/decorations:false 視窗、背景常駐、全局 Ctrl+K（Rust tauri-plugin-global-shortcut）、系統托盤、CommandPalette 全新設計（輸入框居中、有內容才展開結果區）
+- **下一步**：執行 `npm run tauri dev` 實際視覺驗收 1.5 驗收標準，確認透明視窗、Esc 隱藏、托盤可見
 
 ## 已確認的技術選擇
 
@@ -41,3 +41,5 @@
 | 2026-05-01 | Phase 1 骨架實作：全部 handlers/managers/models/platform/前端組件，feature/phase1-setup 分支，ESLint 通過，等待審查 | 1.2 熱鍵 WinAPI message loop 尚為 TODO placeholder；resize_pty 需 retain master PTY 後再補齊 |
 | 2026-05-01 | 修復 LauncherHandler `list_all` 可變借用，並通過 `cargo check`、`npm run lint`、`npm run build` | 目前 shell 仍需先把 `C:\Users\shawn\.cargo\bin` 加入 PATH，重開終端後應可直接使用 cargo |
 | 2026-05-01 | 修復 `cmd_ping` 將 EventBus 無訂閱者視為 IPC 失敗，避免畫面顯示 `IPC call failed: channel closed` | 無 |
+| 2026-05-01 | App.tsx 改為 Keynova 入口（Ctrl+K 觸發 CommandPalette），IPC 綠燈確認，新增 milestone-commit 規則，2 commits 完成 | CommandPalette 端到端（搜尋→啟動）尚待 tauri dev 測試驗證 |
+| 2026-05-01 | Phase 1.5 UI 精化：transparent 視窗、全局 Ctrl+K（tauri-plugin-global-shortcut）、系統托盤、Flow Launcher 風格 CommandPalette、cargo check + lint + tsc 通過 | 驗收需實際 `npm run tauri dev` 確認透明效果與系統托盤 |

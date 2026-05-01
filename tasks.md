@@ -166,6 +166,40 @@
 
 ---
 
+### 1.5 CommandPalette UI 精化（Flow Launcher 風格）
+
+> 參考：[Flow Launcher](https://www.flowlauncher.com/) — 居中、無邊框、背景常駐、輸入後才展開結果
+
+**Tauri 視窗設定**
+- [x] `tauri.conf.json`：主視窗設定 `transparent: true`、`decorations: false`（無邊框透明視窗）
+- [x] `tauri.conf.json`：主視窗預設 `visible: false`（啟動後立即隱藏，等待熱鍵觸發）
+- [x] 實作系統托盤（System Tray）：`tauri` tray-icon feature，右鍵選單含「顯示」「退出」
+- [x] `tauri-plugin-global-shortcut`：背景常駐全局 Ctrl+K 熱鍵（Rust 端註冊）
+- [x] `on_window_event` CloseRequested → `prevent_close` + `hide`（視窗不真正關閉）
+- [x] `window-focused` Tauri event：視窗重新出現時通知前端清空並自動 focus
+
+**CommandPalette 重設計**
+- [x] 全螢幕透明覆蓋層：`position: fixed; inset: 0`，點擊遮罩呼叫 `hideWindow()`
+- [x] 搜尋框固定於螢幕正中央偏上（`paddingTop: 28vh`），寬度約 640px
+- [x] 無搜尋時：只顯示單行輸入框，無結果區、無外框
+- [x] 輸入後：結果清單從輸入框下方向下展開（`rounded-b-xl` 承接上框）
+- [x] 輸入框樣式：無邊框，深色半透明背景（`bg-gray-900/92`）+ `backdrop-blur-md`，圓角
+
+**行為邏輯**
+- [x] Ctrl+K 觸發：Rust `setup_global_shortcut` 呼叫 `window.show()` + `set_focus()`
+- [x] Escape 或點擊遮罩：呼叫 `getCurrentWindow().hide()`（App 常駐背景）
+- [x] 成功啟動應用程式後自動呼叫 `hideWindow()`
+- [x] 新增 Tauri command：`cmd_show_launcher`、`cmd_hide_launcher`
+- [x] `App.tsx` 簡化：移除 `paletteOpen` 狀態，CommandPalette 常駐，視窗可見性即 UI 可見性
+
+**驗收**
+- [ ] 按 Ctrl+K 後出現居中輸入框，無任何視窗邊框與背景色塊
+- [ ] 未輸入時不顯示結果區
+- [ ] 輸入後結果從框下方滑出展開，風格類似 Flow Launcher
+- [ ] Escape 關閉但 App 仍在背景執行（系統托盤可見）
+
+---
+
 ### Phase 1 端到端驗收標準
 
 - [ ] App Launcher：Win+K → 搜尋 → Enter 開啟應用（冷啟動 <100ms）
