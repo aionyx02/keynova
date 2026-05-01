@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { invoke } from "@tauri-apps/api/core";
+import { invoke, isTauri } from "@tauri-apps/api/core";
 
 function App() {
   const [name, setName] = useState("Keynova");
@@ -25,6 +25,9 @@ function App() {
         <p className="mt-2 text-sm text-slate-600">
           前端透過 Tauri IPC 呼叫 Rust 指令，確認基本通訊鏈路。
         </p>
+        <div className={`mt-2 rounded px-3 py-1 text-xs font-mono ${isTauri() ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"}`}>
+          {isTauri() ? "✓ Tauri runtime 已偵測到（正確）" : "✗ Tauri runtime 未偵測到 — 請用 npm run tauri dev 啟動，不要在瀏覽器直接開啟"}
+        </div>
 
         <form
           className="mt-6 flex flex-col gap-3 sm:flex-row"

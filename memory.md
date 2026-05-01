@@ -5,9 +5,9 @@
 
 ## 當前狀態
 
-- **進度**：Phase 0 完成
-- **上次完成**：更新 .gitignore（移除 VS Code/Visual Studio 殘留，補 JetBrains RustRover 項目）、CLAUDE.md 加開發環境說明、decisions.md 加 ADR-007（IDE 選擇）
-- **下一步**：進入 Phase 1，實作 App Launcher（Win+K）模糊搜尋與啟動應用程式
+- **進度**：Phase 1 骨架實作完成（feature/phase1-setup 分支，等待使用者審查後合併 dev）
+- **上次完成**：修復 `cmd_ping` 因 EventBus 無訂閱者回傳 `channel closed` 的問題，確認 `cargo check`、`npm run lint`、`npm run build` 通過
+- **下一步**：使用者審查 diff → 確認合併 feature/phase1-setup 到 dev → 實作 1.2 熱鍵 WinAPI RegisterHotKey + message loop（目前為 TODO）
 
 ## 已確認的技術選擇
 
@@ -37,3 +37,7 @@
 | 2026-05-01 | 建立 skill.md / AGENTS.md，加入 Git 工作流程規範與 Session 收尾協議 | 無 |
 | 2026-05-01 | 更新 .gitignore（JetBrains RustRover），CLAUDE.md 加開發環境說明，decisions.md 加 ADR-007 | 無 |
 | 2026-05-01 | 完成 Phase 0：ESLint/Prettier、Tailwind、core 架構骨架、CommandRouter、EventBus、前後端 IPC ping 串接 | 本機缺少 cargo 指令，尚未執行 Rust 編譯檢查 |
+| 2026-05-01 | 細化 tasks.md Phase 1（1.0 依賴、1.1 App Launcher、1.2 全局熱鍵、1.3 浮動終端、1.4 鍵盤滑鼠控制，含驗收標準） | 無 |
+| 2026-05-01 | Phase 1 骨架實作：全部 handlers/managers/models/platform/前端組件，feature/phase1-setup 分支，ESLint 通過，等待審查 | 1.2 熱鍵 WinAPI message loop 尚為 TODO placeholder；resize_pty 需 retain master PTY 後再補齊 |
+| 2026-05-01 | 修復 LauncherHandler `list_all` 可變借用，並通過 `cargo check`、`npm run lint`、`npm run build` | 目前 shell 仍需先把 `C:\Users\shawn\.cargo\bin` 加入 PATH，重開終端後應可直接使用 cargo |
+| 2026-05-01 | 修復 `cmd_ping` 將 EventBus 無訂閱者視為 IPC 失敗，避免畫面顯示 `IPC call failed: channel closed` | 無 |
