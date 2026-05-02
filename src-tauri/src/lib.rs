@@ -140,9 +140,9 @@ pub fn run() {
         .plugin(tauri_plugin_global_shortcut::Builder::new().build())
         .manage(AppState::new())
         .setup(|app| {
-            // Pre-scan apps in background so first search has no cold-start delay
             prescan_apps(app);
-            setup_global_shortcuts(app)?;
+            // Shortcut registration is best-effort; conflicts are logged, not fatal
+            setup_global_shortcuts(app);
             setup_tray(app)?;
             setup_main_window(app)?;
             Ok(())
@@ -174,14 +174,16 @@ fn prescan_apps(app: &tauri::App) {
     });
 }
 
-fn setup_global_shortcuts(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>> {
+/// 快捷鍵註冊為 best-effort：衝突時僅 eprintln，不中斷 setup。
+fn setup_global_shortcuts(app: &tauri::App) {
     use tauri_plugin_global_shortcut::{GlobalShortcutExt, ShortcutState};
 
     const STEP: i32 = 15;
+    let gs = app.global_shortcut();
 
     // ── Ctrl+K: toggle launcher window ──
     let handle_k = app.handle().clone();
-    app.global_shortcut().on_shortcut("Ctrl+K", move |_app, _, event| {
+    if let Err(e) = gs.on_shortcut("Ctrl+K", move |_app, _, event| {
         if event.state() == ShortcutState::Pressed {
             if let Some(win) = handle_k.get_webview_window("main") {
                 if win.is_visible().unwrap_or(false) {
@@ -192,11 +194,13 @@ fn setup_global_shortcuts(app: &tauri::App) -> Result<(), Box<dyn std::error::Er
                 }
             }
         }
-    })?;
+    }) {
+        eprintln!("[keynova] Ctrl+K registration failed (conflict?): {e}");
+    }
 
     // ── Alt+M: toggle global mouse-control mode ──
     let handle_m = app.handle().clone();
-    app.global_shortcut().on_shortcut("Alt+M", move |app_h, _, event| {
+    if let Err(e) = gs.on_shortcut("Alt+M", move |app_h, _, event| {
         if event.state() == ShortcutState::Pressed {
             let state = app_h.state::<AppState>();
             let new_val = !state.mouse_active.load(AtomicOrd::Relaxed);
@@ -205,7 +209,9 @@ fn setup_global_shortcuts(app: &tauri::App) -> Result<(), Box<dyn std::error::Er
                 let _ = win.emit("mouse-control-toggled", new_val);
             }
         }
-    })?;
+    }) {
+        eprintln!("[keynova] Alt+M registration failed: {e}");
+    }
 
     // ── Alt+W/A/S/D: cursor movement ──
     for (shortcut, dx, dy) in [
@@ -214,7 +220,7 @@ fn setup_global_shortcuts(app: &tauri::App) -> Result<(), Box<dyn std::error::Er
         ("Alt+S", 0i32, STEP),
         ("Alt+D", STEP, 0i32),
     ] {
-        app.global_shortcut().on_shortcut(shortcut, move |app_h, _, event| {
+        if let Err(e) = gs.on_shortcut(shortcut, move |app_h, _, event| {
             if event.state() == ShortcutState::Pressed {
                 let state = app_h.state::<AppState>();
                 if state.mouse_active.load(AtomicOrd::Relaxed) {
@@ -223,11 +229,13 @@ fn setup_global_shortcuts(app: &tauri::App) -> Result<(), Box<dyn std::error::Er
                         .dispatch("mouse.move_relative", json!({ "dx": dx, "dy": dy }));
                 }
             }
-        })?;
+        }) {
+            eprintln!("[keynova] {shortcut} registration failed: {e}");
+        }
     }
 
     // ── Alt+Return: left click ──
-    app.global_shortcut().on_shortcut("Alt+Return", move |app_h, _, event| {
+    if let Err(e) = gs.on_shortcut("Alt+Return", move |app_h, _, event| {
         if event.state() == ShortcutState::Pressed {
             let state = app_h.state::<AppState>();
             if state.mouse_active.load(AtomicOrd::Relaxed) {
@@ -236,9 +244,9 @@ fn setup_global_shortcuts(app: &tauri::App) -> Result<(), Box<dyn std::error::Er
                     .dispatch("mouse.click", json!({ "button": "left", "count": 1 }));
             }
         }
-    })?;
-
-    Ok(())
+    }) {
+        eprintln!("[keynova] Alt+Return registration failed: {e}");
+    }
 }
 
 fn setup_tray(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>> {
@@ -251,8 +259,10 @@ fn setup_tray(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>> {
     let menu = Menu::with_items(app, &[&show_item, &quit_item])?;
 
     let handle = app.handle().clone();
-    TrayIconBuilder::new()
-        .icon(app.default_window_icon().unwrap().clone())
+
+    // `default_window_icon()` 在開發環境可能回傳 None（icon 檔不存在時）
+    // 使用 if let 避免 unwrap panic；沒有 icon 仍可建立 tray
+    let mut builder = TrayIconBuilder::new()
         .menu(&menu)
         .tooltip("Keynova")
         .on_menu_event(move |_tray, event| match event.id.as_ref() {
@@ -264,9 +274,13 @@ fn setup_tray(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>> {
             }
             "quit" => handle.exit(0),
             _ => {}
-        })
-        .build(app)?;
+        });
 
+    if let Some(icon) = app.default_window_icon() {
+        builder = builder.icon(icon.clone());
+    }
+
+    builder.build(app)?;
     Ok(())
 }
 
