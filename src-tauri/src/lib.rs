@@ -234,8 +234,8 @@ fn setup_global_shortcuts(app: &tauri::App) {
         }
     }
 
-    // ── Alt+Return: left click ──
-    if let Err(e) = gs.on_shortcut("Alt+Return", move |app_h, _, event| {
+    // ── Alt+Enter: left click ──
+    if let Err(e) = gs.on_shortcut("Alt+Enter", move |app_h, _, event| {
         if event.state() == ShortcutState::Pressed {
             let state = app_h.state::<AppState>();
             if state.mouse_active.load(AtomicOrd::Relaxed) {
@@ -245,7 +245,7 @@ fn setup_global_shortcuts(app: &tauri::App) {
             }
         }
     }) {
-        eprintln!("[keynova] Alt+Return registration failed: {e}");
+        eprintln!("[keynova] Alt+Enter registration failed: {e}");
     }
 }
 
