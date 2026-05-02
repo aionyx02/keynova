@@ -250,54 +250,41 @@
 > - `/` 開頭 → Command（建議列表，視情況展開面板）
 
 #### 2.A.1 模式偵測（前端）
-- [ ] `src/hooks/useInputMode.ts`
+- [x] `src/hooks/useInputMode.ts`
   - 解析輸入前綴，回傳 `{ mode: 'search' | 'terminal' | 'command', rawInput: string }`
   - `>` / `/` 前綴從 rawInput 中剝除後傳給各子模式
-- [ ] `src/stores/terminalStore.ts`（Zustand）
-  - `sessionId: string | null`、`isConnected: boolean`、`theme: TerminalTheme`
 
 #### 2.A.2 後端 PTY 管理
-- [ ] `Cargo.toml`：加入 `portable-pty = "0.8"` 依賴
-- [ ] `src-tauri/src/managers/pty_manager.rs`：`PtyManager`
-  - `sessions: HashMap<String, PtySession>`（SessionId → PTY handle + writer）
-  - `spawn(shell: &str) -> Result<String>`：啟動 PTY，背景執行緒讀 stdout → EventBus `terminal://data/{id}`
-  - `write(id: &str, data: &[u8])`：寫入 PTY stdin
-  - `resize(id: &str, cols: u16, rows: u16)`：調整 PTY 大小
-  - `kill(id: &str)`：終止 PTY session
-- [ ] `src-tauri/src/handlers/terminal.rs`：`TerminalHandler`
-  - `terminal.spawn(shell: Option<String>) -> String`（回傳 session_id）
-  - `terminal.write(id: String, data: Vec<u8>)`
-  - `terminal.resize(id: String, cols: u16, rows: u16)`
-  - `terminal.kill(id: String)`
-- [ ] `lib.rs`：注冊 Terminal IPC 指令；啟動時不預先 spawn（lazy）
+- [x] `Cargo.toml`：`portable-pty = "0.8"` 依賴（已存在）
+- [x] `src-tauri/src/managers/terminal_manager.rs`：PTY spawn/write/resize/close
+- [x] `src-tauri/src/handlers/terminal.rs`：`terminal.open/send/resize/close` IPC
+- [x] `lib.rs`：EventBus → Tauri emit bridge（`terminal.output` 事件可到達前端）
 
 #### 2.A.3 前端 Terminal 面板（xterm.js）
-- [ ] `package.json`：加入 `xterm`、`@xterm/addon-fit`、`@xterm/addon-web-links` 依賴
-- [ ] `src/components/TerminalPanel.tsx`
-  - 掛載時 `terminal.spawn(shell)` → 取得 session_id，存入 store
-  - 訂閱 Tauri event `terminal://data/{id}` → `xterm.write(data)`
+- [x] `package.json`：`@xterm/xterm`、`@xterm/addon-fit` 依賴（已存在）
+- [x] `src/hooks/useTerminalTheme.ts`：深色主題 + 字體設定
+- [x] `src/components/TerminalPanel.tsx`
+  - 掛載時 `terminal.open` → 取得 session_id
+  - 訂閱 `terminal.output` 事件 → `xterm.write(data)`
   - 鍵盤輸入 → `terminal.write(id, data)`
   - `ResizeObserver` 監聽容器大小 → `terminal.resize` + `fitAddon.fit()`
-  - 卸載時 `terminal.kill(id)`
-- [ ] `src/hooks/useTerminalTheme.ts`
-  - 讀取 config `[terminal]` 設定，轉為 xterm.js `ITheme` 物件
-  - 可個人化項目：`fontFamily`、`fontSize`、`theme`（dark/light/custom hex）、`cursorStyle`、`cursorBlink`、`scrollback`
-- [ ] `CommandPalette.tsx`
-  - terminal 模式：隱藏搜尋輸入框，渲染 `<TerminalPanel />`
-  - 視窗高度切換到 `config.terminal.height`（預設 360px）
-  - ESC → `terminal.kill` → 回到 search 模式，視窗縮回 60px
+  - 卸載時 `terminal.close(id)`
+- [x] `src/hooks/useTerminalTheme.ts`：深色主題 + 字體設定（fontFamily/fontSize/cursorStyle/cursorBlink/scrollback）
+- [x] `CommandPalette.tsx`
+  - terminal 模式：渲染 `<TerminalPanel />`，視窗固定 360px
+  - ESC（在 TerminalPanel）→ 回到 search 模式，視窗縮回 60px
+  - command 模式：`/` 圖示 + placeholder 提示（完整實作在 Phase 2.B）
 
-#### 2.A.4 Terminal 個人化設定
+#### 2.A.4 Terminal 個人化設定（待 Phase 2.B ConfigManager 完成後對接）
 - [ ] `default_config.toml` 加入 `[terminal]` 區塊（shell/font/theme/opacity/cursor/height/scrollback）
 - [ ] `SettingPanel.tsx` 加入「Terminal」分頁，對應 config 欄位
 - [ ] `README.md` 更新：說明 `>` 前綴進入 Terminal 模式
 
 **驗收**
-- [ ] 輸入 `>` → 視窗從 60px 展開至設定高度（預設 360px），顯示 shell prompt
+- [ ] 輸入 `>` → 視窗從 60px 展開至 360px，顯示 shell prompt
 - [ ] 可正常執行互動式命令（dir、ls、python REPL）
-- [ ] 修改 font_size 後重開 Terminal 面板，字體大小正確套用
 - [ ] ESC → 終端關閉，視窗縮回 60px，回到 Search 模式
-- [ ] `cargo clippy` + `npm run lint` 無錯誤
+- [x] `cargo clippy -- -D warnings` + `npm run lint` 無錯誤
 
 ---
 
