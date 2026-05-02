@@ -4,7 +4,11 @@ import { getCurrentWindow } from "@tauri-apps/api/window";
 import { LogicalSize } from "@tauri-apps/api/dpi";
 import { useIPC } from "../hooks/useIPC";
 import { useAppStore } from "../stores/appStore";
+import { parseInputMode } from "../hooks/useInputMode";
+import { TerminalPanel } from "./TerminalPanel";
 import type { SearchResult } from "../types/search";
+
+const TERMINAL_HEIGHT = 360;
 
 async function hideWindow() {
   try {
@@ -28,6 +32,8 @@ export function CommandPalette() {
   const inputRef = useRef<HTMLInputElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
+  const { mode } = parseInputMode(query);
+
   // Focus on mount
   useEffect(() => {
     inputRef.current?.focus();
@@ -46,10 +52,10 @@ export function CommandPalette() {
     };
   }, [setQuery]);
 
-  // Escape → hide
+  // ESC in search/command mode → hide window
   useEffect(() => {
     function onKeyDown(e: KeyboardEvent) {
-      if (e.key === "Escape") {
+      if (e.key === "Escape" && mode !== "terminal") {
         e.preventDefault();
         setQuery("");
         setResults([]);
@@ -58,21 +64,28 @@ export function CommandPalette() {
     }
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [setQuery]);
+  }, [setQuery, mode]);
 
-  // Resize window to fit content after each render
+  // Window sizing: terminal mode → fixed height; search/command → fit content
   useEffect(() => {
+    if (mode === "terminal") {
+      getCurrentWindow()
+        .setSize(new LogicalSize(640, TERMINAL_HEIGHT))
+        .catch(() => {});
+      return;
+    }
     const el = containerRef.current;
     if (!el) return;
     const h = Math.ceil(el.getBoundingClientRect().height) || 56;
     getCurrentWindow()
       .setSize(new LogicalSize(640, h))
       .catch(() => {});
-  }, [results]);
+  }, [mode, results]);
 
   async function handleQueryChange(value: string) {
     setQuery(value);
-    if (value.trim() === "") {
+    const { mode: newMode, rawInput } = parseInputMode(value);
+    if (newMode !== "search" || rawInput.trim() === "") {
       setResults([]);
       setSelected(0);
       return;
@@ -80,7 +93,7 @@ export function CommandPalette() {
     setLoading(true);
     try {
       const data = await dispatch<SearchResult[]>("search.query", {
-        query: value,
+        query: rawInput,
         limit: 10,
       });
       setResults(data);
@@ -103,6 +116,7 @@ export function CommandPalette() {
   }
 
   function onKeyDown(e: React.KeyboardEvent) {
+    if (mode !== "search") return;
     if (e.key === "ArrowDown") {
       e.preventDefault();
       setSelected((i) => Math.min(i + 1, results.length - 1));
@@ -116,43 +130,64 @@ export function CommandPalette() {
     }
   }
 
-  const hasResults = results.length > 0;
+  // Terminal mode: full-height terminal panel
+  if (mode === "terminal") {
+    return (
+      <div className="w-full">
+        <TerminalPanel
+          onExit={() => {
+            setQuery("");
+            inputRef.current?.focus();
+          }}
+        />
+      </div>
+    );
+  }
+
+  const hasResults = results.length > 0 && mode === "search";
 
   return (
-    // 視窗本身就是搜尋框——不再需要全螢幕覆蓋層
     <div ref={containerRef} className="w-full flex flex-col">
-      {/* Search input */}
+      {/* Input bar */}
       <div
         className={`flex items-center bg-gray-900/95 backdrop-blur-md shadow-2xl ${
           hasResults ? "rounded-t-xl border-b border-gray-700/50" : "rounded-xl"
         }`}
       >
-        <svg
-          className="ml-4 mr-2 h-4 w-4 shrink-0 text-gray-400"
-          fill="none"
-          viewBox="0 0 24 24"
-          stroke="currentColor"
-          strokeWidth={2}
-        >
-          <path
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            d="M21 21l-4.35-4.35M17 11A6 6 0 1 1 5 11a6 6 0 0 1 12 0z"
-          />
-        </svg>
+        {mode === "command" ? (
+          <span className="ml-4 mr-2 text-sm font-bold text-blue-400 select-none">/</span>
+        ) : (
+          <svg
+            className="ml-4 mr-2 h-4 w-4 shrink-0 text-gray-400"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+            strokeWidth={2}
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              d="M21 21l-4.35-4.35M17 11A6 6 0 1 1 5 11a6 6 0 0 1 12 0z"
+            />
+          </svg>
+        )}
         <input
           ref={inputRef}
           value={query}
           onChange={(e) => void handleQueryChange(e.target.value)}
           onKeyDown={onKeyDown}
-          placeholder="搜尋應用程式、檔案或資料夾…"
+          placeholder={
+            mode === "command"
+              ? "輸入指令… 試試 /help"
+              : "搜尋應用程式、檔案或資料夾… 輸入 > 進入終端"
+          }
           className="flex-1 bg-transparent py-4 pr-4 text-base text-gray-100 placeholder-gray-500 outline-none"
           spellCheck={false}
           autoComplete="off"
         />
       </div>
 
-      {/* Results */}
+      {/* Search results */}
       {hasResults && (
         <div className="bg-gray-900/95 backdrop-blur-md rounded-b-xl shadow-2xl overflow-hidden">
           <ul className="max-h-[352px] overflow-y-auto py-1">

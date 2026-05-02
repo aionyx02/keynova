@@ -140,6 +140,23 @@ pub fn run() {
         .plugin(tauri_plugin_global_shortcut::Builder::new().build())
         .manage(AppState::new())
         .setup(|app| {
+            // Bridge: EventBus (Rust broadcast) → Tauri frontend events
+            // Without this, terminal.output and other bus events never reach the JS side.
+            let mut rx = app.state::<AppState>().event_bus.subscribe();
+            let handle = app.handle().clone();
+            tauri::async_runtime::spawn(async move {
+                use tokio::sync::broadcast::error::RecvError;
+                loop {
+                    match rx.recv().await {
+                        Ok(event) => {
+                            let _ = handle.emit(&event.topic, &event.payload);
+                        }
+                        Err(RecvError::Lagged(_)) => continue,
+                        Err(RecvError::Closed) => break,
+                    }
+                }
+            });
+
             prescan_apps(app);
             // Shortcut registration is best-effort; conflicts are logged, not fatal
             setup_global_shortcuts(app);
