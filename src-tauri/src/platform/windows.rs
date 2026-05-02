@@ -233,15 +233,23 @@ fn screen_height() -> i32 {
 
 // ─── Basic File Scanner（無需 Everything）───────────────────────────────────
 
-/// 在常見使用者目錄（Desktop / Downloads / Documents）中搜尋符合 query 的
-/// 檔案與資料夾，最多深入 3 層，回傳 (name, full_path, is_folder)。
-/// 作為 Everything 不可用時的 fallback。
+/// 已知噪音目錄：掃描時略過，避免 AppData / node_modules / build 產物拖慢速度。
+const SKIP_DIRS: &[&str] = &[
+    "AppData", "node_modules", ".git", ".cargo", ".rustup", ".npm",
+    "target", "dist", ".idea", ".vscode", "System Volume Information",
+    "$Recycle.Bin", "Windows", "Program Files", "Program Files (x86)",
+];
+
+/// 搜尋常用使用者目錄中符合 query 的檔案與資料夾，回傳 (name, full_path, is_folder)。
+/// 搜尋範圍：
+///   - Desktop / Downloads / Documents：深度 3（找檔案）
+///   - %USERPROFILE% 根目錄：深度 2（找 RustroverProjects/keynova 這類專案目錄）
 pub fn scan_files_basic(query: &str, max: usize) -> Vec<(String, String, bool)> {
     let query_lower = query.to_lowercase();
     let mut results = Vec::new();
 
-    for dir in user_search_dirs() {
-        scan_dir(&dir, &query_lower, &mut results, max, 3);
+    for (dir, depth) in user_search_dirs() {
+        scan_dir(&dir, &query_lower, &mut results, max, depth);
         if results.len() >= max {
             break;
         }
@@ -251,13 +259,17 @@ pub fn scan_files_basic(query: &str, max: usize) -> Vec<(String, String, bool)> 
     results
 }
 
-fn user_search_dirs() -> Vec<std::path::PathBuf> {
+/// 回傳 (目錄路徑, 最大掃描深度) 清單。
+fn user_search_dirs() -> Vec<(std::path::PathBuf, usize)> {
     let mut dirs = Vec::new();
     if let Ok(home) = std::env::var("USERPROFILE") {
         let home = std::path::PathBuf::from(home);
+        // 常用子目錄：深度 3，找檔案
         for sub in &["Desktop", "Downloads", "Documents"] {
-            dirs.push(home.join(sub));
+            dirs.push((home.join(sub), 3));
         }
+        // 家目錄根：深度 2，找 ~/Projects/keynova 這類專案資料夾
+        dirs.push((home, 2));
     }
     dirs
 }
@@ -283,11 +295,14 @@ fn scan_dir(
         let Some(name) = path.file_name().and_then(|n| n.to_str()) else {
             continue;
         };
-        // 略過隱藏項目（以 . 開頭）
+        // 略過隱藏項目與已知噪音目錄
         if name.starts_with('.') {
             continue;
         }
         let is_dir = path.is_dir();
+        if is_dir && SKIP_DIRS.iter().any(|s| name.eq_ignore_ascii_case(s)) {
+            continue;
+        }
         if name.to_lowercase().contains(query) {
             out.push((name.to_string(), path.to_string_lossy().into_owned(), is_dir));
         }
