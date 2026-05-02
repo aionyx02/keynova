@@ -239,6 +239,7 @@ type FnQueryW = unsafe extern "system" fn(i32) -> i32;
 type FnGetNum = unsafe extern "system" fn() -> u32;
 type FnGetFullPathW = unsafe extern "system" fn(u32, *mut u16, u32) -> u32;
 type FnGetFileNameW = unsafe extern "system" fn(u32) -> *const u16;
+type FnIsFolderResult = unsafe extern "system" fn(u32) -> i32;
 
 struct EvFns {
     set_search_w: FnSetSearchW,
@@ -247,6 +248,7 @@ struct EvFns {
     get_num: FnGetNum,
     get_full_path_w: FnGetFullPathW,
     get_file_name_w: FnGetFileNameW,
+    is_folder_result: FnIsFolderResult,
 }
 
 // fn ptrs are always Send+Sync
@@ -295,6 +297,7 @@ fn load_ev_fns(hlib: windows::Win32::Foundation::HMODULE) -> Option<EvFns> {
             get_num: gp(hlib, b"Everything_GetNumResults\0")?,
             get_full_path_w: gp(hlib, b"Everything_GetResultFullPathNameW\0")?,
             get_file_name_w: gp(hlib, b"Everything_GetResultFileNameW\0")?,
+            is_folder_result: gp(hlib, b"Everything_IsFolderResult\0")?,
         })
     }
 }
@@ -304,9 +307,9 @@ pub fn check_everything() -> bool {
     EV_FNS.get_or_init(init_everything).is_some()
 }
 
-/// 透過 Everything DLL IPC 查詢檔案，回傳 (name, full_path) 清單。
+/// 透過 Everything DLL IPC 查詢，回傳 (name, full_path, is_folder) 清單。
 /// Everything 服務需正在執行，否則回傳空清單。
-pub fn everything_search(query: &str, max_results: u32) -> Vec<(String, String)> {
+pub fn everything_search(query: &str, max_results: u32) -> Vec<(String, String, bool)> {
     let Some(fns) = EV_FNS.get_or_init(init_everything) else {
         return Vec::new();
     };
@@ -339,7 +342,8 @@ pub fn everything_search(query: &str, max_results: u32) -> Vec<(String, String)>
                 continue;
             }
             let name = read_wstr(name_ptr);
-            results.push((name, full_path));
+            let is_folder = (fns.is_folder_result)(i) != 0;
+            results.push((name, full_path, is_folder));
         }
 
         results

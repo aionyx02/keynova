@@ -14,7 +14,7 @@ function App() {
           }`}
         >
           {isTauri()
-            ? "✓ Tauri — Ctrl+K 開關 | Alt+M 滑鼠控制 | Alt+W/A/S/D 移動"
+            ? "✓ Tauri — Ctrl+K 開關 | Ctrl+Alt+M 滑鼠控制 | Ctrl+Alt+W/A/S/D 移動"
             : "✗ 非 Tauri 環境 — 請用 npm run tauri dev 啟動"}
         </div>
       )}

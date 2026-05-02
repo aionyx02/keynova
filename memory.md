@@ -5,9 +5,9 @@
 
 ## 當前狀態
 
-- **進度**：Phase 1.4 全域滑鼠 + Phase 1.5 UI + Phase 1.6（提前）搜尋系統全部完成，cargo check + lint + tsc 通過
-- **上次完成**：全域 Alt+W/A/S/D 滑鼠控制（Rust 全域熱鍵）、UI 僅剩搜尋框、Everything DLL IPC + 統一搜尋（SearchManager/SearchHandler/search.query）、App 啟動時 pre-scan 消除冷啟動延遲
-- **下一步**：`npm run tauri dev` 驗收：透明視窗 + Ctrl+K + 搜尋延遲 + Everything（若已安裝） + Alt+M 滑鼠模式
+- **進度**：Phase 1.4–1.6 完成，Bug Fix：卡鍵修正 + 資料夾搜尋 + Flow Launcher 視窗，cargo check + clippy + lint + tsc 全通過
+- **上次完成**：(1) Alt→Ctrl+Alt 修飾鍵（防卡鍵），(2) Everything IsFolderResult + ResultKind::Folder，(3) 視窗縮小為搜尋框大小（640×60，動態 resize，失焦自動隱藏）
+- **下一步**：`npm run tauri dev` 驗收：Ctrl+K 出現小視窗 + 輸入後展開結果 + 搜尋包含資料夾 + Ctrl+Alt+M 滑鼠模式
 
 ## 已確認的技術選擇
 
@@ -44,3 +44,4 @@
 | 2026-05-01 | App.tsx 改為 Keynova 入口（Ctrl+K 觸發 CommandPalette），IPC 綠燈確認，新增 milestone-commit 規則，2 commits 完成 | CommandPalette 端到端（搜尋→啟動）尚待 tauri dev 測試驗證 |
 | 2026-05-01 | Phase 1.5 UI 精化：transparent 視窗、全局 Ctrl+K（tauri-plugin-global-shortcut）、系統托盤、Flow Launcher 風格 CommandPalette、cargo check + lint + tsc 通過 | 驗收需實際 `npm run tauri dev` 確認透明效果與系統托盤 |
 | 2026-05-02 | 全域 Alt+W/A/S/D 滑鼠控制（Rust 全域熱鍵，Alt+M 切換）、UI 僅剩搜尋框（移除 MouseControlOverlay）、提前完成搜尋架構（Everything DLL IPC + SearchManager + search.query + pre-scan）、全部 cargo check + lint + tsc 通過 | 驗收需 `npm run tauri dev` 確認：透明視窗、無冷啟動延遲、Everything（若安裝）、Alt 系列熱鍵 |
+| 2026-05-02 | Bug Fix：(1) Alt→Ctrl+Alt 防卡鍵，(2) Everything IsFolderResult + ResultKind::Folder，(3) 視窗改為 640×60 搜尋框大小、動態 resize、失焦自動隱藏；cargo check + clippy + lint + tsc 全通過 | 驗收需 `npm run tauri dev`：Ctrl+K 小視窗 + 展開 + 資料夾搜尋 + Ctrl+Alt+M |
