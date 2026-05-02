@@ -3,7 +3,7 @@ import { listen } from "@tauri-apps/api/event";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { useIPC } from "../hooks/useIPC";
 import { useAppStore } from "../stores/appStore";
-import type { AppInfo } from "../types/app";
+import type { SearchResult } from "../types/search";
 
 async function hideWindow() {
   try {
@@ -15,8 +15,8 @@ async function hideWindow() {
 
 export function CommandPalette() {
   const { dispatch } = useIPC();
-  const { searchResults, query, isLoading, setSearchResults, setQuery, setLoading } =
-    useAppStore();
+  const { query, setQuery, setLoading } = useAppStore();
+  const [results, setResults] = useState<SearchResult[]>([]);
   const [selected, setSelected] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -25,18 +25,16 @@ export function CommandPalette() {
     inputRef.current?.focus();
   }, []);
 
-  // Re-focus input and clear state whenever the window comes into focus
+  // Re-focus and clear when window reappears
   useEffect(() => {
     const unlisten = listen<void>("window-focused", () => {
       setQuery("");
-      setSearchResults([]);
+      setResults([]);
       setSelected(0);
       inputRef.current?.focus();
     });
-    return () => {
-      unlisten.then((fn) => fn());
-    };
-  }, [setQuery, setSearchResults]);
+    return () => { unlisten.then((fn) => fn()); };
+  }, [setQuery]);
 
   // Escape → hide window
   useEffect(() => {
@@ -44,39 +42,42 @@ export function CommandPalette() {
       if (e.key === "Escape") {
         e.preventDefault();
         setQuery("");
-        setSearchResults([]);
+        setResults([]);
         void hideWindow();
       }
     }
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [setQuery, setSearchResults]);
+  }, [setQuery]);
 
   async function handleQueryChange(value: string) {
     setQuery(value);
     if (value.trim() === "") {
-      setSearchResults([]);
+      setResults([]);
       setSelected(0);
       return;
     }
     setLoading(true);
     try {
-      const results = await dispatch<AppInfo[]>("launcher.search", { query: value });
-      setSearchResults(results.slice(0, 8));
+      const data = await dispatch<SearchResult[]>("search.query", {
+        query: value,
+        limit: 10,
+      });
+      setResults(data);
       setSelected(0);
     } catch {
-      setSearchResults([]);
+      setResults([]);
     } finally {
       setLoading(false);
     }
   }
 
-  async function launchApp(app: AppInfo) {
+  async function launchResult(result: SearchResult) {
     try {
-      await dispatch("launcher.launch", { path: app.path });
+      await dispatch("launcher.launch", { path: result.path });
     } finally {
       setQuery("");
-      setSearchResults([]);
+      setResults([]);
       void hideWindow();
     }
   }
@@ -84,21 +85,20 @@ export function CommandPalette() {
   function onKeyDown(e: React.KeyboardEvent) {
     if (e.key === "ArrowDown") {
       e.preventDefault();
-      setSelected((i) => Math.min(i + 1, searchResults.length - 1));
+      setSelected((i) => Math.min(i + 1, results.length - 1));
     } else if (e.key === "ArrowUp") {
       e.preventDefault();
       setSelected((i) => Math.max(i - 1, 0));
     } else if (e.key === "Enter") {
       e.preventDefault();
-      const app = searchResults[selected];
-      if (app) void launchApp(app);
+      const r = results[selected];
+      if (r) void launchResult(r);
     }
   }
 
-  const hasResults = searchResults.length > 0 || isLoading;
+  const hasResults = results.length > 0;
 
   return (
-    // Full-screen transparent overlay — click outside to dismiss
     <div
       className="fixed inset-0 flex flex-col items-center"
       style={{ paddingTop: "28vh" }}
@@ -107,7 +107,7 @@ export function CommandPalette() {
       }}
     >
       <div className="w-[640px] max-w-[90vw]">
-        {/* Input */}
+        {/* Search input */}
         <div
           className={`flex items-center bg-gray-900/92 backdrop-blur-md shadow-2xl ${
             hasResults ? "rounded-t-xl border-b border-gray-700/50" : "rounded-xl"
@@ -131,41 +131,50 @@ export function CommandPalette() {
             value={query}
             onChange={(e) => void handleQueryChange(e.target.value)}
             onKeyDown={onKeyDown}
-            placeholder="搜尋應用程式…"
+            placeholder="搜尋應用程式或檔案…"
             className="flex-1 bg-transparent py-4 pr-4 text-base text-gray-100 placeholder-gray-500 outline-none"
             spellCheck={false}
             autoComplete="off"
           />
-          {isLoading && (
-            <span className="mr-4 text-xs text-gray-500">搜尋中…</span>
-          )}
         </div>
 
-        {/* Results — only rendered when there's content */}
-        {(hasResults) && (
+        {/* Results — only when there's something to show */}
+        {hasResults && (
           <div className="bg-gray-900/92 backdrop-blur-md rounded-b-xl shadow-2xl overflow-hidden">
             <ul className="max-h-72 overflow-y-auto py-1">
-              {searchResults.map((app, i) => (
+              {results.map((r, i) => (
                 <li
-                  key={app.path}
-                  onMouseDown={() => void launchApp(app)}
+                  key={r.path}
+                  onMouseDown={() => void launchResult(r)}
                   onMouseEnter={() => setSelected(i)}
-                  className={`flex items-center gap-3 px-5 py-2.5 cursor-pointer text-sm transition-colors ${
+                  className={`flex items-center gap-2 px-4 py-2.5 cursor-pointer text-sm transition-colors ${
                     i === selected
                       ? "bg-blue-600/70 text-white"
                       : "text-gray-300 hover:bg-white/8"
                   }`}
                 >
-                  <span className="truncate">{app.name}</span>
-                  <span className="ml-auto shrink-0 text-xs text-gray-500 truncate max-w-[240px]">
-                    {app.path}
+                  {/* Kind badge */}
+                  <span
+                    className={`shrink-0 rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${
+                      r.kind === "app"
+                        ? "bg-violet-500/30 text-violet-300"
+                        : "bg-sky-500/30 text-sky-300"
+                    }`}
+                  >
+                    {r.kind === "app" ? "App" : "File"}
                   </span>
+                  <span className="truncate font-medium">{r.name}</span>
+                  {r.kind === "file" && (
+                    <span className="ml-auto shrink-0 max-w-[220px] truncate text-xs text-gray-500">
+                      {r.path}
+                    </span>
+                  )}
                 </li>
               ))}
             </ul>
-            <div className="border-t border-gray-700/50 px-4 py-1.5 text-xs text-gray-600 flex justify-between">
+            <div className="border-t border-gray-700/50 px-4 py-1.5 text-[11px] text-gray-600 flex justify-between">
               <span>↑↓ 選擇</span>
-              <span>Enter 啟動</span>
+              <span>Enter 開啟</span>
               <span>Esc 關閉</span>
             </div>
           </div>

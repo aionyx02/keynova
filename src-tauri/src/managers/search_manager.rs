@@ -1,0 +1,86 @@
+use std::sync::{Arc, Mutex};
+
+use crate::managers::app_manager::AppManager;
+use crate::models::search_result::{ResultKind, SearchResult};
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum SearchBackend {
+    Everything,
+    AppCache,
+}
+
+/// 統一搜尋管理器：自動偵測 Everything，否則回退至 App 快取模糊搜尋。
+pub struct SearchManager {
+    app_manager: Arc<Mutex<AppManager>>,
+    pub backend: SearchBackend,
+}
+
+impl SearchManager {
+    pub fn new(app_manager: Arc<Mutex<AppManager>>) -> Self {
+        let backend = Self::detect_backend();
+        Self { app_manager, backend }
+    }
+
+    fn detect_backend() -> SearchBackend {
+        #[cfg(target_os = "windows")]
+        {
+            if crate::platform::windows::check_everything() {
+                return SearchBackend::Everything;
+            }
+        }
+        SearchBackend::AppCache
+    }
+
+    pub fn search(&self, query: &str, limit: usize) -> Vec<SearchResult> {
+        if query.trim().is_empty() {
+            return Vec::new();
+        }
+
+        let mut results = Vec::new();
+
+        // App fuzzy search (always available, instant from cache)
+        if let Ok(mgr) = self.app_manager.lock() {
+            let app_limit = if self.backend == SearchBackend::Everything {
+                limit / 2
+            } else {
+                limit
+            };
+            let apps = mgr.search_apps(query);
+            for app in apps.into_iter().take(app_limit) {
+                results.push(SearchResult {
+                    kind: ResultKind::App,
+                    name: app.name,
+                    path: app.path,
+                    score: 100,
+                });
+            }
+        }
+
+        // File search via Everything IPC (Windows, if available)
+        #[cfg(target_os = "windows")]
+        if self.backend == SearchBackend::Everything {
+            let file_results = crate::platform::windows::everything_search(
+                query,
+                (limit / 2) as u32,
+            );
+            for (name, path) in file_results {
+                results.push(SearchResult {
+                    kind: ResultKind::File,
+                    name,
+                    path,
+                    score: 80,
+                });
+            }
+        }
+
+        results.truncate(limit);
+        results
+    }
+
+    pub fn active_backend_name(&self) -> &'static str {
+        match self.backend {
+            SearchBackend::Everything => "everything",
+            SearchBackend::AppCache => "app_cache",
+        }
+    }
+}
