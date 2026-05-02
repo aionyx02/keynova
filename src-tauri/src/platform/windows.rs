@@ -119,8 +119,8 @@ pub fn simulate_click(button: &str, count: u32) -> Result<(), String> {
 
 pub fn simulate_key(key: &str, _modifiers: &[String]) -> Result<(), String> {
     let vk = match key {
-        "Enter" | "Return" => VK_RETURN.0 as u16,
-        "Space" => VK_SPACE.0 as u16,
+        "Enter" | "Return" => VK_RETURN.0,
+        "Space" => VK_SPACE.0,
         _ => return Err(format!("unsupported key: '{key}'")),
     };
     send_key_input(vk, false)?;
