@@ -5,9 +5,9 @@
 
 ## 當前狀態
 
-- **進度**：Phase 1.4–1.6 完成，Bug Fix：卡鍵修正 + 資料夾搜尋 + Flow Launcher 視窗，cargo check + clippy + lint + tsc 全通過
-- **上次完成**：Phase 1 所有任務完成並驗收，feature/phase1-setup → dev → main 兩段 --no-ff 合併，目前在 main 分支
-- **下一步**：從 dev 建立 feature/phase2 分支，開始 Phase 2（計算機、剪貼簿、系統控制、Tantivy 離線索引）
+- **進度**：Phase 1 完成合併至 main；Phase 2.A / 2.B 架構精化完成，tasks.md 已加入完整子任務
+- **上次完成**：Phase 2.A 改為 xterm.js + portable-pty 真實 PTY 終端（可個人化）；Phase 2.B /command registry 保持最小骨架 + PanelRegistry 擴充點
+- **下一步**：從 dev 建立 feature/phase2 分支，依 2.A.1→2.A.2→2.A.3→2.A.4 順序實作
 
 ## 已確認的技術選擇
 
@@ -43,3 +43,5 @@
 | 2026-05-02 | README.md 改寫為 Keynova 正式文件（快捷鍵速查表，已實作/規劃分組）；tasks.md 加入「快捷鍵文件同步」持續維護規則；CLAUDE.md + skill.md 加入記憶壓縮協議並執行首次壓縮 | 無 |
 | 2026-05-02 | 修復搜尋只找 App 問題：加入 scan_files_basic()（Desktop/Downloads/Documents，深度 3），AppCache fallback 自動呼叫；clippy 通過 | 需 tauri dev 驗收：搜尋結果應出現檔案/資料夾 |
 | 2026-05-02 | Phase 1 全部驗收完成；tasks.md 全打 [x]；feature/phase1-setup → dev → main 兩段 --no-ff 合併；51 files，2799 insertions | 無 |
+| 2026-05-02 | Phase 2 tasks 設計完成：Phase 2.A 搜尋框三模式（Search/Terminal/Command）+ Phase 2.B 內建 /command Registry；移除重複區塊 | — |
+| 2026-05-03 | Phase 2.A 架構精化：Terminal 模式改為 xterm.js + portable-pty 真實 PTY（可個人化 font/theme/shell/opacity）；Phase 2.B 加入 PanelRegistry 擴充點，/command 保持最小骨架；tasks.md 全面重寫 2.A / 2.B | 尚未建立 feature/phase2 分支，尚未開始實作 |
