@@ -242,10 +242,112 @@
 - [ ] `default_config.toml` 加入 `[search]` 區塊（可設定索引路徑、排除目錄）
 - [ ] 單元測試：`test_backend_selection_*`
 
-### 其他 Phase 2 功能
-- [ ] 計算機（Ctrl+=）：單位換算、進位換算
-- [ ] 剪貼簿歷史（Ctrl+Shift+V）：圖片預覽、歷史管理
-- [ ] 系統控制（Win+S）：音量、亮度、WiFi
+### Phase 2.A — 搜尋框多模式系統（Search / Terminal / Command）
+
+> 搜尋框是容器，輸入前綴決定模式與視窗形態。
+> - 無前綴 → Search（現有行為）
+> - `>` 開頭 → Terminal（視窗展開為完整 PTY 終端，xterm.js 渲染）
+> - `/` 開頭 → Command（建議列表，視情況展開面板）
+
+#### 2.A.1 模式偵測（前端）
+- [ ] `src/hooks/useInputMode.ts`
+  - 解析輸入前綴，回傳 `{ mode: 'search' | 'terminal' | 'command', rawInput: string }`
+  - `>` / `/` 前綴從 rawInput 中剝除後傳給各子模式
+- [ ] `src/stores/terminalStore.ts`（Zustand）
+  - `sessionId: string | null`、`isConnected: boolean`、`theme: TerminalTheme`
+
+#### 2.A.2 後端 PTY 管理
+- [ ] `Cargo.toml`：加入 `portable-pty = "0.8"` 依賴
+- [ ] `src-tauri/src/managers/pty_manager.rs`：`PtyManager`
+  - `sessions: HashMap<String, PtySession>`（SessionId → PTY handle + writer）
+  - `spawn(shell: &str) -> Result<String>`：啟動 PTY，背景執行緒讀 stdout → EventBus `terminal://data/{id}`
+  - `write(id: &str, data: &[u8])`：寫入 PTY stdin
+  - `resize(id: &str, cols: u16, rows: u16)`：調整 PTY 大小
+  - `kill(id: &str)`：終止 PTY session
+- [ ] `src-tauri/src/handlers/terminal.rs`：`TerminalHandler`
+  - `terminal.spawn(shell: Option<String>) -> String`（回傳 session_id）
+  - `terminal.write(id: String, data: Vec<u8>)`
+  - `terminal.resize(id: String, cols: u16, rows: u16)`
+  - `terminal.kill(id: String)`
+- [ ] `lib.rs`：注冊 Terminal IPC 指令；啟動時不預先 spawn（lazy）
+
+#### 2.A.3 前端 Terminal 面板（xterm.js）
+- [ ] `package.json`：加入 `xterm`、`@xterm/addon-fit`、`@xterm/addon-web-links` 依賴
+- [ ] `src/components/TerminalPanel.tsx`
+  - 掛載時 `terminal.spawn(shell)` → 取得 session_id，存入 store
+  - 訂閱 Tauri event `terminal://data/{id}` → `xterm.write(data)`
+  - 鍵盤輸入 → `terminal.write(id, data)`
+  - `ResizeObserver` 監聽容器大小 → `terminal.resize` + `fitAddon.fit()`
+  - 卸載時 `terminal.kill(id)`
+- [ ] `src/hooks/useTerminalTheme.ts`
+  - 讀取 config `[terminal]` 設定，轉為 xterm.js `ITheme` 物件
+  - 可個人化項目：`fontFamily`、`fontSize`、`theme`（dark/light/custom hex）、`cursorStyle`、`cursorBlink`、`scrollback`
+- [ ] `CommandPalette.tsx`
+  - terminal 模式：隱藏搜尋輸入框，渲染 `<TerminalPanel />`
+  - 視窗高度切換到 `config.terminal.height`（預設 360px）
+  - ESC → `terminal.kill` → 回到 search 模式，視窗縮回 60px
+
+#### 2.A.4 Terminal 個人化設定
+- [ ] `default_config.toml` 加入 `[terminal]` 區塊（shell/font/theme/opacity/cursor/height/scrollback）
+- [ ] `SettingPanel.tsx` 加入「Terminal」分頁，對應 config 欄位
+- [ ] `README.md` 更新：說明 `>` 前綴進入 Terminal 模式
+
+**驗收**
+- [ ] 輸入 `>` → 視窗從 60px 展開至設定高度（預設 360px），顯示 shell prompt
+- [ ] 可正常執行互動式命令（dir、ls、python REPL）
+- [ ] 修改 font_size 後重開 Terminal 面板，字體大小正確套用
+- [ ] ESC → 終端關閉，視窗縮回 60px，回到 Search 模式
+- [ ] `cargo clippy` + `npm run lint` 無錯誤
+
+---
+
+### Phase 2.B — 內建命令系統（`/command` 可擴充 Registry）
+
+> 最小可擴充骨架：`BuiltinCommand` trait 定義介面，現在只實作 `/help` 與 `/setting`。
+> 新增指令只需實作 trait + 呼叫 `registry.register()`，不改動核心路由。
+
+#### 2.B.1 後端 Registry 骨架
+- [ ] `src-tauri/src/models/builtin_command.rs`
+  - `CommandUiType`：`Inline`（文字回傳）| `Panel(String)`（指定前端 component name）
+  - `CommandResult { text: String, ui_type: CommandUiType }`
+- [ ] `src-tauri/src/core/builtin_command_registry.rs`
+  - `BuiltinCommand` trait：`name()`, `description()`, `ui_type()`, `execute(args, ctx)`
+  - `BuiltinCommandRegistry`：`HashMap<&str, Box<dyn BuiltinCommand + Send + Sync>>`
+  - `register(cmd)` / `run(name, args, ctx)` / `list()`
+- [ ] `src-tauri/src/handlers/builtin_cmd.rs`：`BuiltinCmdHandler`
+  - `cmd.list` → `Vec<{ name, description }>`
+  - `cmd.run(name, args)` → `CommandResult`
+- [ ] `lib.rs`：初始化 registry，注冊所有內建指令
+
+#### 2.B.2 內建指令
+- [ ] `/help`：`execute` 回傳所有指令的 name + description（`CommandUiType::Inline`）
+- [ ] `/setting`：`execute` 回傳 `CommandUiType::Panel("setting")`，前端渲染設定面板
+
+#### 2.B.3 Command 模式前端
+- [ ] `src/hooks/useCommands.ts`：呼叫 `cmd.list`，依輸入過濾建議
+- [ ] `src/components/CommandSuggestions.tsx`：顯示過濾後的指令建議（名稱 + 說明）
+- [ ] `src/components/panel/PanelRegistry.tsx`：`Record<string, React.ComponentType>`，將 Panel name 對應到元件
+  - 初期：`{ setting: SettingPanel }`
+- [ ] `CommandPalette.tsx`
+  - command 模式：渲染 `<CommandSuggestions />`，Enter 呼叫 `cmd.run`
+  - 收到 `Panel(name)` → 從 `PanelRegistry` 取得元件，展開渲染
+  - 視窗高度根據面板內容動態調整
+
+#### 2.B.4 Settings 系統
+- [ ] `src-tauri/src/managers/config_manager.rs`：以 `toml` crate 讀寫 config.toml
+  - `setting.get(key)` / `setting.set(key, value)` / `setting.list_all()` IPC
+- [ ] `default_config.toml`（`src-tauri/`）：hotkeys / features / search / terminal 預設值
+- [ ] `src/components/SettingPanel.tsx`：分頁式表單（General / Terminal / Hotkeys）
+  - 讀取 `setting.list_all()` 渲染各欄位；變更即時呼叫 `setting.set`
+
+**驗收**
+- [ ] 輸入 `/` → 顯示所有指令建議；輸入 `/set` → 只顯示 `/setting`
+- [ ] 輸入 `/help` + Enter → Inline 顯示指令列表
+- [ ] 輸入 `/setting` + Enter → 視窗展開設定面板
+- [ ] 在設定面板修改任一選項，重啟後保留（寫入 config.toml）
+- [ ] 新增第三個指令只需：實作 `BuiltinCommand` + `registry.register()`，前端零改動
+
+---
 
 ### 其他 Phase 2 功能
 - [ ] 計算機（Ctrl+=）：單位換算、進位換算
