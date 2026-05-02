@@ -9,6 +9,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 1. 讀取 `memory.md` — 確認目前進度、上次完成事項、下一步
 2. 讀取 `tasks.md` — 確認當前未完成任務與阻塞項目
 3. 用一句話告訴使用者：「目前進度：[進度]，上次完成：[事項]，今天預計繼續：[下一步]，是否確認？」
+4. 請讀取 'skill.md' 以了解你的能力範圍和限制。
 
 取得使用者確認後才開始工作。
 
@@ -23,7 +24,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ### `memory.md`
 - 更新「上次完成」為剛完成的事項
 - 更新「下一步」為下一個待辦
-- 在「Session 交接紀錄」表格新增一行（格式：`| 今日日期 | 完成事項 | 遺留問題或注意事項 |`）
+- 在「Session 交接紀錄（最近 5 筆）」表格新增一行（格式：`| 今日日期 | 完成事項 | 遺留問題或注意事項 |`）
+- **壓縮檢查**：若「Session 交接紀錄」筆數 ≥ 6，將最舊的若干筆合併摘要至「歷史摘要（已壓縮）」區塊，交接紀錄只保留最新 5 筆
 
 ### `decisions.md`（有新決策時才更新）
 - 若本次工作中確認了新的技術選擇或架構決策，補充對應 ADR
@@ -74,6 +76,7 @@ git merge --no-ff dev
 3. **分支來源**：所有 feature 分支必須從 `dev` 建立，禁止從 `main` 直接開分支
 4. **不跳過審查**：即使程式碼看起來沒問題，也不能省略審查步驟，必須等使用者親眼確認每一行
 5. **合併前檢查清單**：合併前必須確認 lint 通過、tests 通過、使用者已審查 diff
+6. **階段性 commit**：每完成一個可運作的里程碑（例如一個功能的骨架、一個驗收標準通過），必須立即執行 commit，不等到所有功能都完成才一次提交
 
 ## Development Environment
 
