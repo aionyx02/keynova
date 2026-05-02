@@ -5,9 +5,9 @@
 
 ## 當前狀態
 
-- **進度**：Phase 1.5 CommandPalette Flow Launcher 風格 UI 精化完成，cargo check + lint + tsc 全部通過
-- **上次完成**：transparent/decorations:false 視窗、背景常駐、全局 Ctrl+K（Rust tauri-plugin-global-shortcut）、系統托盤、CommandPalette 全新設計（輸入框居中、有內容才展開結果區）
-- **下一步**：執行 `npm run tauri dev` 實際視覺驗收 1.5 驗收標準，確認透明視窗、Esc 隱藏、托盤可見
+- **進度**：Phase 1.4 全域滑鼠 + Phase 1.5 UI + Phase 1.6（提前）搜尋系統全部完成，cargo check + lint + tsc 通過
+- **上次完成**：全域 Alt+W/A/S/D 滑鼠控制（Rust 全域熱鍵）、UI 僅剩搜尋框、Everything DLL IPC + 統一搜尋（SearchManager/SearchHandler/search.query）、App 啟動時 pre-scan 消除冷啟動延遲
+- **下一步**：`npm run tauri dev` 驗收：透明視窗 + Ctrl+K + 搜尋延遲 + Everything（若已安裝） + Alt+M 滑鼠模式
 
 ## 已確認的技術選擇
 
@@ -43,3 +43,4 @@
 | 2026-05-01 | 修復 `cmd_ping` 將 EventBus 無訂閱者視為 IPC 失敗，避免畫面顯示 `IPC call failed: channel closed` | 無 |
 | 2026-05-01 | App.tsx 改為 Keynova 入口（Ctrl+K 觸發 CommandPalette），IPC 綠燈確認，新增 milestone-commit 規則，2 commits 完成 | CommandPalette 端到端（搜尋→啟動）尚待 tauri dev 測試驗證 |
 | 2026-05-01 | Phase 1.5 UI 精化：transparent 視窗、全局 Ctrl+K（tauri-plugin-global-shortcut）、系統托盤、Flow Launcher 風格 CommandPalette、cargo check + lint + tsc 通過 | 驗收需實際 `npm run tauri dev` 確認透明效果與系統托盤 |
+| 2026-05-02 | 全域 Alt+W/A/S/D 滑鼠控制（Rust 全域熱鍵，Alt+M 切換）、UI 僅剩搜尋框（移除 MouseControlOverlay）、提前完成搜尋架構（Everything DLL IPC + SearchManager + search.query + pre-scan）、全部 cargo check + lint + tsc 通過 | 驗收需 `npm run tauri dev` 確認：透明視窗、無冷啟動延遲、Everything（若安裝）、Alt 系列熱鍵 |

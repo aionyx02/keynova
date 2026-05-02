@@ -155,14 +155,21 @@
 **平台層**
 - [x] `src-tauri/src/platform/windows.rs`：`SendInput` WinAPI 整合（MOUSEINPUT + KEYBDINPUT）
 
+**平台層（全域熱鍵，Rust 端）**
+- [x] `lib.rs`：`setup_global_shortcuts` 中直接以 `tauri-plugin-global-shortcut` 全域註冊
+  - `Alt+M`：切換滑鼠控制模式，發出 `mouse-control-toggled` 事件
+  - `Alt+W/A/S/D`：模式啟用時移動游標（步進 15px）
+  - `Alt+Return`：模式啟用時模擬左鍵點擊
+  - `AppState.mouse_active`：`Arc<AtomicBool>` 跨 handler 共享模式狀態
+
 **前端**
-- [x] `src/components/MouseControlOverlay.tsx`：控制模式啟用/關閉狀態列指示器
-- [x] `src/hooks/useMouseControl.ts`：鍵盤滑鼠控制 Hook（模式切換 + 按鍵映射）
+- [x] `src/components/MouseControlOverlay.tsx`：監聽 `mouse-control-toggled` 事件，只顯示狀態（不再掛載至 App.tsx）
+- [x] `src/hooks/useMouseControl.ts`：改為監聽 Tauri 事件，移除 keydown listener
 
 **驗收**
-- [ ] WASD / 方向鍵可控制游標移動（可調整步進速度）
-- [ ] Enter / Space 執行滑鼠左鍵點擊
-- [ ] 切換控制模式時有明確視覺提示
+- [ ] Alt+W/A/S/D 在任意前景應用下均可移動游標（全域，無需 Keynova 視窗 focus）
+- [ ] Alt+Return 執行滑鼠左鍵點擊（全域）
+- [ ] Alt+M 切換模式，切換後 mouse-control-toggled 事件正確傳遞至前端
 
 ---
 
@@ -213,24 +220,32 @@
 
 ## Phase 2 — v1.0（weeks 7–12）
 
-### 檔案搜尋（Ctrl+P）— 拆分為兩個子版本
+### 搜尋系統（提前至 Phase 1.6 完成）
 
-**v1.0：Tantivy 核心實作**
-- [ ] `SearchResult` 模型（含 `backend` 字段）
-- [ ] `SearchManager` 骨架 + `SearchBackend` 枚舉
-- [ ] Tantivy 索引建立 + `search_with_tantivy()`
-- [ ] RPC 命令：`cmd_search`、`cmd_rebuild_search_index`
-- [ ] 前端 `useSearch` hook（含 loading 狀態）
-- [ ] `default_config.toml` 加入 `[search]` 區塊
+> 已提前完成核心搜尋架構與 Everything IPC
 
-**v1.5：Everything IPC 整合（Windows）**
-- [ ] `src-tauri/src/utils/everything_ipc.rs`：`check_availability()` + `search()` 實作（Windows IPC）
-- [ ] `SearchManager::detect_everything_service()`（100ms 逾時偵測）
-- [ ] `SearchManager::select_backend()` 自動選擇邏輯
-- [ ] `search_with_everything()` + `SearchStats` 統計
-- [ ] RPC 命令：`cmd_get_search_backend`、`cmd_get_search_stats`
-- [ ] 前端顯示當前後端（`activeBackend`）
-- [ ] 單元測試：`test_backend_selection_*` 三個情境
+**已完成（提前至 Phase 1）**
+- [x] `src-tauri/src/models/search_result.rs`：`SearchResult` 模型（kind: App/File, name, path, score）
+- [x] `src-tauri/src/managers/search_manager.rs`：`SearchManager` + `SearchBackend` 枚舉（Everything / AppCache）
+  - `detect_backend()` — 啟動時偵測 Everything64.dll 是否可載入
+  - `search(query, limit)` — App 快取模糊搜尋 + Everything 檔案搜尋並合併結果
+- [x] `src-tauri/src/platform/windows.rs`：`check_everything()` + `everything_search()` — DLL 動態載入（LibraryLoader API）
+- [x] `src-tauri/src/handlers/search.rs`：`SearchHandler`（`search.query` / `search.backend`）
+- [x] `src/types/search.ts`：`SearchResult` + `ResultKind` TypeScript 型別
+- [x] `CommandPalette.tsx`：改用 `search.query` 統一搜尋，結果顯示 App / File badge
+- [x] `lib.rs`：啟動時背景 pre-scan apps（消除首次搜尋冷啟動延遲）
+
+**待補齊**
+- [ ] Tantivy 離線索引（Everything 不可用時的完整檔案搜尋後端）
+- [ ] `search.backend` 前端顯示（在搜尋框角落顯示目前使用的後端）
+- [ ] `cmd_rebuild_search_index`：手動重建 Tantivy 索引
+- [ ] `default_config.toml` 加入 `[search]` 區塊（可設定索引路徑、排除目錄）
+- [ ] 單元測試：`test_backend_selection_*`
+
+### 其他 Phase 2 功能
+- [ ] 計算機（Ctrl+=）：單位換算、進位換算
+- [ ] 剪貼簿歷史（Ctrl+Shift+V）：圖片預覽、歷史管理
+- [ ] 系統控制（Win+S）：音量、亮度、WiFi
 
 ### 其他 Phase 2 功能
 - [ ] 計算機（Ctrl+=）：單位換算、進位換算
