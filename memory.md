@@ -5,9 +5,9 @@
 
 ## 當前狀態
 
-- **進度**：Phase 1 完成合併至 main；Phase 2.A / 2.B 架構精化完成，tasks.md 已加入完整子任務
-- **上次完成**：Phase 2.A 改為 xterm.js + portable-pty 真實 PTY 終端（可個人化）；Phase 2.B /command registry 保持最小骨架 + PanelRegistry 擴充點
-- **下一步**：從 dev 建立 feature/phase2 分支，依 2.A.1→2.A.2→2.A.3→2.A.4 順序實作
+- **進度**：Phase 2.A 核心實作完成（feature/phase2 分支）：三模式輸入 + xterm.js PTY 終端 + EventBus 橋接
+- **上次完成**：useInputMode / useTerminalTheme / TerminalPanel / CommandPalette 多模式 / EventBus→emit 橋接；cargo clippy + tsc + lint 全通過
+- **下一步**：實作 Phase 2.B（BuiltinCommand trait + Registry + /help + /setting + ConfigManager + SettingPanel）
 
 ## 已確認的技術選擇
 
@@ -44,4 +44,5 @@
 | 2026-05-02 | 修復搜尋只找 App 問題：加入 scan_files_basic()（Desktop/Downloads/Documents，深度 3），AppCache fallback 自動呼叫；clippy 通過 | 需 tauri dev 驗收：搜尋結果應出現檔案/資料夾 |
 | 2026-05-02 | Phase 1 全部驗收完成；tasks.md 全打 [x]；feature/phase1-setup → dev → main 兩段 --no-ff 合併；51 files，2799 insertions | 無 |
 | 2026-05-02 | Phase 2 tasks 設計完成：Phase 2.A 搜尋框三模式（Search/Terminal/Command）+ Phase 2.B 內建 /command Registry；移除重複區塊 | — |
-| 2026-05-03 | Phase 2.A 架構精化：Terminal 模式改為 xterm.js + portable-pty 真實 PTY（可個人化 font/theme/shell/opacity）；Phase 2.B 加入 PanelRegistry 擴充點，/command 保持最小骨架；tasks.md 全面重寫 2.A / 2.B | 尚未建立 feature/phase2 分支，尚未開始實作 |
+| 2026-05-03 | Phase 2.A 架構精化：Terminal 模式改為 xterm.js + portable-pty 真實 PTY；Phase 2.B 加入 PanelRegistry 擴充點；tasks.md 全面重寫 2.A / 2.B | — |
+| 2026-05-03 | Phase 2.A 實作：useInputMode / useTerminalTheme / TerminalPanel（xterm.js + PTY IPC）/ CommandPalette 三模式 / EventBus→Tauri emit 橋接；feature/phase2 建立；cargo clippy + tsc + lint 通過 | 需 `npm run tauri dev` 驗收：輸入 `>` 展開終端、互動指令、ESC 收回 |
