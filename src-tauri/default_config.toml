@@ -1,0 +1,19 @@
+[hotkeys]
+app_launcher   = "Win+K"
+terminal       = "Ctrl+Alt+T"
+file_search    = "Ctrl+P"
+mouse_control  = "Ctrl+Alt+M"
+
+[launcher]
+scan_paths = []          # 額外掃描路徑（空陣列代表僅掃描系統預設路徑）
+max_results = 10
+cache_ttl_secs = 300     # 應用列表快取時間（秒）
+
+[terminal]
+default_shell = ""       # 空字串代表使用系統預設 shell
+font_size = 14
+scrollback_lines = 1000
+
+[mouse_control]
+step_size = 10           # 每次方向鍵移動的像素距離
+fast_step_size = 50      # 按住 Shift 時的移動距離
