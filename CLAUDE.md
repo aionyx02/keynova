@@ -24,7 +24,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ### `memory.md`
 - 更新「上次完成」為剛完成的事項
 - 更新「下一步」為下一個待辦
-- 在「Session 交接紀錄」表格新增一行（格式：`| 今日日期 | 完成事項 | 遺留問題或注意事項 |`）
+- 在「Session 交接紀錄（最近 5 筆）」表格新增一行（格式：`| 今日日期 | 完成事項 | 遺留問題或注意事項 |`）
+- **壓縮檢查**：若「Session 交接紀錄」筆數 ≥ 6，將最舊的若干筆合併摘要至「歷史摘要（已壓縮）」區塊，交接紀錄只保留最新 5 筆
 
 ### `decisions.md`（有新決策時才更新）
 - 若本次工作中確認了新的技術選擇或架構決策，補充對應 ADR
