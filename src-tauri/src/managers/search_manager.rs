@@ -39,14 +39,10 @@ impl SearchManager {
         let mut results = Vec::new();
 
         // App fuzzy search (always available, instant from cache)
+        let app_slots = limit / 2;
         if let Ok(mgr) = self.app_manager.lock() {
-            let app_limit = if self.backend == SearchBackend::Everything {
-                limit / 2
-            } else {
-                limit
-            };
             let apps = mgr.search_apps(query);
-            for app in apps.into_iter().take(app_limit) {
+            for app in apps.into_iter().take(app_slots) {
                 results.push(SearchResult {
                     kind: ResultKind::App,
                     name: app.name,
@@ -70,6 +66,24 @@ impl SearchManager {
                     path,
                     score: 80,
                 });
+            }
+        }
+
+        // Fallback file/folder scan when Everything is not available
+        // 掃描 Desktop / Downloads / Documents，不依賴 Everything 服務
+        #[cfg(target_os = "windows")]
+        if self.backend == SearchBackend::AppCache {
+            let file_slots = limit.saturating_sub(results.len());
+            if file_slots > 0 {
+                let file_results = crate::platform::windows::scan_files_basic(query, file_slots);
+                for (name, path, is_folder) in file_results {
+                    results.push(SearchResult {
+                        kind: if is_folder { ResultKind::Folder } else { ResultKind::File },
+                        name,
+                        path,
+                        score: 70,
+                    });
+                }
             }
         }
 

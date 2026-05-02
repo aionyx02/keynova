@@ -231,6 +231,72 @@ fn screen_height() -> i32 {
     unsafe { GetSystemMetrics(SM_CYSCREEN) }
 }
 
+// ─── Basic File Scanner（無需 Everything）───────────────────────────────────
+
+/// 在常見使用者目錄（Desktop / Downloads / Documents）中搜尋符合 query 的
+/// 檔案與資料夾，最多深入 3 層，回傳 (name, full_path, is_folder)。
+/// 作為 Everything 不可用時的 fallback。
+pub fn scan_files_basic(query: &str, max: usize) -> Vec<(String, String, bool)> {
+    let query_lower = query.to_lowercase();
+    let mut results = Vec::new();
+
+    for dir in user_search_dirs() {
+        scan_dir(&dir, &query_lower, &mut results, max, 3);
+        if results.len() >= max {
+            break;
+        }
+    }
+
+    results.truncate(max);
+    results
+}
+
+fn user_search_dirs() -> Vec<std::path::PathBuf> {
+    let mut dirs = Vec::new();
+    if let Ok(home) = std::env::var("USERPROFILE") {
+        let home = std::path::PathBuf::from(home);
+        for sub in &["Desktop", "Downloads", "Documents"] {
+            dirs.push(home.join(sub));
+        }
+    }
+    dirs
+}
+
+fn scan_dir(
+    dir: &Path,
+    query: &str,
+    out: &mut Vec<(String, String, bool)>,
+    max: usize,
+    depth: usize,
+) {
+    if depth == 0 || out.len() >= max {
+        return;
+    }
+    let Ok(entries) = std::fs::read_dir(dir) else {
+        return;
+    };
+    for entry in entries.flatten() {
+        if out.len() >= max {
+            break;
+        }
+        let path = entry.path();
+        let Some(name) = path.file_name().and_then(|n| n.to_str()) else {
+            continue;
+        };
+        // 略過隱藏項目（以 . 開頭）
+        if name.starts_with('.') {
+            continue;
+        }
+        let is_dir = path.is_dir();
+        if name.to_lowercase().contains(query) {
+            out.push((name.to_string(), path.to_string_lossy().into_owned(), is_dir));
+        }
+        if is_dir {
+            scan_dir(&path, query, out, max, depth - 1);
+        }
+    }
+}
+
 // ─── Everything IPC ──────────────────────────────────────────────────────────
 
 type FnSetSearchW = unsafe extern "system" fn(*const u16);
