@@ -198,9 +198,10 @@ fn setup_global_shortcuts(app: &tauri::App) {
         eprintln!("[keynova] Ctrl+K registration failed (conflict?): {e}");
     }
 
-    // ── Alt+M: toggle global mouse-control mode ──
+    // ── Ctrl+Alt+M: toggle global mouse-control mode ──
+    // 使用 Ctrl+Alt 而非單獨 Alt，避免 Alt 觸發 Windows 選單列造成修飾鍵殘留（卡鍵）
     let handle_m = app.handle().clone();
-    if let Err(e) = gs.on_shortcut("Alt+M", move |app_h, _, event| {
+    if let Err(e) = gs.on_shortcut("Ctrl+Alt+M", move |app_h, _, event| {
         if event.state() == ShortcutState::Pressed {
             let state = app_h.state::<AppState>();
             let new_val = !state.mouse_active.load(AtomicOrd::Relaxed);
@@ -210,15 +211,15 @@ fn setup_global_shortcuts(app: &tauri::App) {
             }
         }
     }) {
-        eprintln!("[keynova] Alt+M registration failed: {e}");
+        eprintln!("[keynova] Ctrl+Alt+M registration failed: {e}");
     }
 
-    // ── Alt+W/A/S/D: cursor movement ──
+    // ── Ctrl+Alt+W/A/S/D: cursor movement ──
     for (shortcut, dx, dy) in [
-        ("Alt+W", 0i32, -STEP),
-        ("Alt+A", -STEP, 0i32),
-        ("Alt+S", 0i32, STEP),
-        ("Alt+D", STEP, 0i32),
+        ("Ctrl+Alt+W", 0i32, -STEP),
+        ("Ctrl+Alt+A", -STEP, 0i32),
+        ("Ctrl+Alt+S", 0i32, STEP),
+        ("Ctrl+Alt+D", STEP, 0i32),
     ] {
         if let Err(e) = gs.on_shortcut(shortcut, move |app_h, _, event| {
             if event.state() == ShortcutState::Pressed {
@@ -234,8 +235,8 @@ fn setup_global_shortcuts(app: &tauri::App) {
         }
     }
 
-    // ── Alt+Enter: left click ──
-    if let Err(e) = gs.on_shortcut("Alt+Enter", move |app_h, _, event| {
+    // ── Ctrl+Alt+Enter: left click ──
+    if let Err(e) = gs.on_shortcut("Ctrl+Alt+Enter", move |app_h, _, event| {
         if event.state() == ShortcutState::Pressed {
             let state = app_h.state::<AppState>();
             if state.mouse_active.load(AtomicOrd::Relaxed) {
@@ -245,7 +246,7 @@ fn setup_global_shortcuts(app: &tauri::App) {
             }
         }
     }) {
-        eprintln!("[keynova] Alt+Enter registration failed: {e}");
+        eprintln!("[keynova] Ctrl+Alt+Enter registration failed: {e}");
     }
 }
 
@@ -289,10 +290,28 @@ fn setup_main_window(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>>
         .get_webview_window("main")
         .ok_or("main window not found")?;
 
-    let window_clone = window.clone();
+    // 視窗定位：水平置中，垂直約 25% 處（Flow Launcher 風格）
+    if let Ok(Some(monitor)) = window.current_monitor() {
+        let screen = monitor.size();
+        let scale = monitor.scale_factor();
+        let phys_w = (640.0 * scale) as i32;
+        let x = ((screen.width as i32 - phys_w) / 2).max(0);
+        let y = (screen.height as f64 * 0.25) as i32;
+        let _ = window.set_position(tauri::PhysicalPosition::new(x, y));
+    }
+
+    let window_focused = window.clone();
+    let window_blur = window.clone();
     window.on_window_event(move |event| {
-        if let tauri::WindowEvent::Focused(true) = event {
-            let _ = window_clone.emit("window-focused", ());
+        match event {
+            tauri::WindowEvent::Focused(true) => {
+                let _ = window_focused.emit("window-focused", ());
+            }
+            // 失焦時自動隱藏（點擊視窗外部即關閉，不需要透明覆蓋層）
+            tauri::WindowEvent::Focused(false) => {
+                let _ = window_blur.hide();
+            }
+            _ => {}
         }
     });
 

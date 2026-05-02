@@ -56,16 +56,16 @@ impl SearchManager {
             }
         }
 
-        // File search via Everything IPC (Windows, if available)
+        // File/folder search via Everything IPC (Windows, if available)
         #[cfg(target_os = "windows")]
         if self.backend == SearchBackend::Everything {
             let file_results = crate::platform::windows::everything_search(
                 query,
                 (limit / 2) as u32,
             );
-            for (name, path) in file_results {
+            for (name, path, is_folder) in file_results {
                 results.push(SearchResult {
-                    kind: ResultKind::File,
+                    kind: if is_folder { ResultKind::Folder } else { ResultKind::File },
                     name,
                     path,
                     score: 80,

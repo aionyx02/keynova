@@ -14,14 +14,15 @@
       {
         "label": "main",
         "title": "Keynova",
-        "width": 800,
-        "height": 600,
+        "width": 640,
+        "height": 60,
+        "minWidth": 640,
+        "minHeight": 56,
         "transparent": true,
         "decorations": false,
         "visible": false,
         "alwaysOnTop": true,
         "skipTaskbar": true,
-        "center": true,
         "resizable": false,
         "focus": false
       }

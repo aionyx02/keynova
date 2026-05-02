@@ -1,4 +1,4 @@
-export type ResultKind = "app" | "file";
+export type ResultKind = "app" | "file" | "folder";
 
 export interface SearchResult {
   kind: ResultKind;

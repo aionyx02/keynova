@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { listen } from "@tauri-apps/api/event";
 import { getCurrentWindow } from "@tauri-apps/api/window";
+import { LogicalSize } from "@tauri-apps/api/dpi";
 import { useIPC } from "../hooks/useIPC";
 import { useAppStore } from "../stores/appStore";
 import type { SearchResult } from "../types/search";
@@ -13,14 +14,21 @@ async function hideWindow() {
   }
 }
 
+const KIND_BADGE: Record<string, { label: string; cls: string }> = {
+  app: { label: "App", cls: "bg-violet-500/30 text-violet-300" },
+  file: { label: "File", cls: "bg-sky-500/30 text-sky-300" },
+  folder: { label: "Dir", cls: "bg-amber-500/30 text-amber-300" },
+};
+
 export function CommandPalette() {
   const { dispatch } = useIPC();
   const { query, setQuery, setLoading } = useAppStore();
   const [results, setResults] = useState<SearchResult[]>([]);
   const [selected, setSelected] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
 
-  // Focus input on mount
+  // Focus on mount
   useEffect(() => {
     inputRef.current?.focus();
   }, []);
@@ -33,10 +41,12 @@ export function CommandPalette() {
       setSelected(0);
       inputRef.current?.focus();
     });
-    return () => { unlisten.then((fn) => fn()); };
+    return () => {
+      unlisten.then((fn) => fn());
+    };
   }, [setQuery]);
 
-  // Escape → hide window
+  // Escape → hide
   useEffect(() => {
     function onKeyDown(e: KeyboardEvent) {
       if (e.key === "Escape") {
@@ -49,6 +59,16 @@ export function CommandPalette() {
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [setQuery]);
+
+  // Resize window to fit content after each render
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    const h = Math.ceil(el.getBoundingClientRect().height) || 56;
+    getCurrentWindow()
+      .setSize(new LogicalSize(640, h))
+      .catch(() => {});
+  }, [results]);
 
   async function handleQueryChange(value: string) {
     setQuery(value);
@@ -99,50 +119,46 @@ export function CommandPalette() {
   const hasResults = results.length > 0;
 
   return (
-    <div
-      className="fixed inset-0 flex flex-col items-center"
-      style={{ paddingTop: "28vh" }}
-      onMouseDown={(e) => {
-        if (e.target === e.currentTarget) void hideWindow();
-      }}
-    >
-      <div className="w-[640px] max-w-[90vw]">
-        {/* Search input */}
-        <div
-          className={`flex items-center bg-gray-900/92 backdrop-blur-md shadow-2xl ${
-            hasResults ? "rounded-t-xl border-b border-gray-700/50" : "rounded-xl"
-          }`}
+    // 視窗本身就是搜尋框——不再需要全螢幕覆蓋層
+    <div ref={containerRef} className="w-full flex flex-col">
+      {/* Search input */}
+      <div
+        className={`flex items-center bg-gray-900/95 backdrop-blur-md shadow-2xl ${
+          hasResults ? "rounded-t-xl border-b border-gray-700/50" : "rounded-xl"
+        }`}
+      >
+        <svg
+          className="ml-4 mr-2 h-4 w-4 shrink-0 text-gray-400"
+          fill="none"
+          viewBox="0 0 24 24"
+          stroke="currentColor"
+          strokeWidth={2}
         >
-          <svg
-            className="ml-4 mr-2 h-4 w-4 shrink-0 text-gray-400"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-            strokeWidth={2}
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              d="M21 21l-4.35-4.35M17 11A6 6 0 1 1 5 11a6 6 0 0 1 12 0z"
-            />
-          </svg>
-          <input
-            ref={inputRef}
-            value={query}
-            onChange={(e) => void handleQueryChange(e.target.value)}
-            onKeyDown={onKeyDown}
-            placeholder="搜尋應用程式或檔案…"
-            className="flex-1 bg-transparent py-4 pr-4 text-base text-gray-100 placeholder-gray-500 outline-none"
-            spellCheck={false}
-            autoComplete="off"
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            d="M21 21l-4.35-4.35M17 11A6 6 0 1 1 5 11a6 6 0 0 1 12 0z"
           />
-        </div>
+        </svg>
+        <input
+          ref={inputRef}
+          value={query}
+          onChange={(e) => void handleQueryChange(e.target.value)}
+          onKeyDown={onKeyDown}
+          placeholder="搜尋應用程式、檔案或資料夾…"
+          className="flex-1 bg-transparent py-4 pr-4 text-base text-gray-100 placeholder-gray-500 outline-none"
+          spellCheck={false}
+          autoComplete="off"
+        />
+      </div>
 
-        {/* Results — only when there's something to show */}
-        {hasResults && (
-          <div className="bg-gray-900/92 backdrop-blur-md rounded-b-xl shadow-2xl overflow-hidden">
-            <ul className="max-h-72 overflow-y-auto py-1">
-              {results.map((r, i) => (
+      {/* Results */}
+      {hasResults && (
+        <div className="bg-gray-900/95 backdrop-blur-md rounded-b-xl shadow-2xl overflow-hidden">
+          <ul className="max-h-[352px] overflow-y-auto py-1">
+            {results.map((r, i) => {
+              const badge = KIND_BADGE[r.kind] ?? KIND_BADGE.file;
+              return (
                 <li
                   key={r.path}
                   onMouseDown={() => void launchResult(r)}
@@ -153,33 +169,28 @@ export function CommandPalette() {
                       : "text-gray-300 hover:bg-white/8"
                   }`}
                 >
-                  {/* Kind badge */}
                   <span
-                    className={`shrink-0 rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${
-                      r.kind === "app"
-                        ? "bg-violet-500/30 text-violet-300"
-                        : "bg-sky-500/30 text-sky-300"
-                    }`}
+                    className={`shrink-0 rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${badge.cls}`}
                   >
-                    {r.kind === "app" ? "App" : "File"}
+                    {badge.label}
                   </span>
                   <span className="truncate font-medium">{r.name}</span>
-                  {r.kind === "file" && (
+                  {r.kind !== "app" && (
                     <span className="ml-auto shrink-0 max-w-[220px] truncate text-xs text-gray-500">
                       {r.path}
                     </span>
                   )}
                 </li>
-              ))}
-            </ul>
-            <div className="border-t border-gray-700/50 px-4 py-1.5 text-[11px] text-gray-600 flex justify-between">
-              <span>↑↓ 選擇</span>
-              <span>Enter 開啟</span>
-              <span>Esc 關閉</span>
-            </div>
+              );
+            })}
+          </ul>
+          <div className="border-t border-gray-700/50 px-4 py-1.5 text-[11px] text-gray-600 flex justify-between">
+            <span>↑↓ 選擇</span>
+            <span>Enter 開啟</span>
+            <span>Esc 關閉</span>
           </div>
-        )}
-      </div>
+        </div>
+      )}
     </div>
   );
 }
