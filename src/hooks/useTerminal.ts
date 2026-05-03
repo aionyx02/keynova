@@ -7,6 +7,11 @@ interface TerminalOutputEvent {
   output: string;
 }
 
+interface OpenTerminalResponse {
+  id: string;
+  initial_output: string;
+}
+
 export function useTerminal(onOutput: (id: string, data: string) => void) {
   const { dispatch } = useIPC();
 
@@ -15,10 +20,11 @@ export function useTerminal(onOutput: (id: string, data: string) => void) {
     [onOutput],
   );
 
-  useEvents<TerminalOutputEvent>("terminal.output", handleOutput);
+  useEvents<TerminalOutputEvent>("terminal-output", handleOutput);
 
   async function open(): Promise<string> {
-    return dispatch<string>("terminal.open");
+    const resp = await dispatch<OpenTerminalResponse>("terminal.open");
+    return resp.id;
   }
 
   async function send(id: string, input: string): Promise<void> {
