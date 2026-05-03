@@ -60,6 +60,28 @@
   - `.idea/` 整個目錄列入 `.gitignore`，不提交任何 IDE 設定
   - `*.iml` / `*.iws` / `*.ipr` 一併忽略
 
+## ADR-008 Terminal PTY Pre-warm 策略
+
+- 狀態：Accepted
+- 決策：應用啟動時在背景線程中預先 spawn 一個 shell，Windows 預設優先使用 PowerShell/pwsh（可用 `KEYNOVA_TERMINAL_SHELL` 覆寫），等待使用者輸入 `>` 時直接取用
+- 原因：
+  - Windows shell 同步 spawn 需 200-800ms，導致終端初始延遲 >1 秒
+  - Windows Terminal 使用者預期 `clear`、ANSI、PowerShell 命令可直接使用；cmd.exe 不符合此預期
+  - WSL 需繼承 `TERM=xterm-256color` / `COLORTERM=truecolor` 等 terminal capability hints，避免 prompt / cursor 格式錯位
+  - Pre-warm 使第一次開啟終端幾乎零延遲（<50ms）
+  - 取用 warm session 後立即補充下一個，確保重複開啟也快速
+- 關鍵設計約束：
+  - blocking 的 `openpty + spawn_command` 必須在 `Mutex<TerminalManager>` 鎖外執行，避免阻塞其他 IPC 呼叫
+  - Warm session reader thread 先 buffer 輸出（shell prompt），claim 後切換為 live EventBus 模式
+  - `terminal.open` 回傳型別從 `String` 改為 `{ id, initial_output }`，前端可立即寫入初始 prompt
+  - `terminal.open` 接收前端 xterm rows/cols；claim warm session 後立即 resize backend，避免 WSL/ConPTY 使用錯誤欄寬
+  - xterm.js 啟用 `windowsPty: { backend: "conpty" }`，與 Windows ConPTY 行為對齊
+- 影響：
+  - `TerminalManager` 新增 `warm: Option<WarmEntry>` 欄位
+  - `AppState` 新增 `terminal_manager` 欄位以供 setup 觸發 pre-warm
+  - `terminal.open` IPC 回傳型別改變（前後端需同步）
+  - `AppState` 新增短時間 focus guard，避免 ESC 從 terminal 回 search 時被 WebView2 blur-to-hide 誤關閉
+
 ## 待補強事項
 
 - Everything IPC 實作目前仍屬規劃，需補官方 SDK 細節與錯誤處理策略

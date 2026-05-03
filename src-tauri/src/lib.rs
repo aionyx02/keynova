@@ -8,6 +8,7 @@ use std::sync::{
     atomic::{AtomicBool, Ordering as AtomicOrd},
     Arc, Mutex,
 };
+use std::time::{Duration, Instant};
 
 use serde_json::{json, Value};
 use tauri::{Emitter, Manager};
@@ -18,8 +19,11 @@ use crate::handlers::{
     terminal::TerminalHandler,
 };
 use crate::managers::{
-    app_manager::AppManager, hotkey_manager::HotkeyManager, mouse_manager::MouseManager,
-    search_manager::SearchManager, terminal_manager::TerminalManager,
+    app_manager::AppManager,
+    hotkey_manager::HotkeyManager,
+    mouse_manager::MouseManager,
+    search_manager::SearchManager,
+    terminal_manager::{start_prewarm, TerminalManager},
 };
 
 // ─── System handler ──────────────────────────────────────────────────────────
@@ -53,6 +57,10 @@ struct AppState {
     event_bus: EventBus,
     /// 全域滑鼠控制模式是否啟用（Alt+M 切換）
     mouse_active: Arc<AtomicBool>,
+    /// Shared reference for triggering terminal pre-warm from setup
+    terminal_manager: Arc<Mutex<TerminalManager>>,
+    /// Suppresses blur-to-hide while the launcher switches internal UI modes.
+    launcher_focus_guard: Arc<Mutex<Option<Instant>>>,
 }
 
 impl AppState {
@@ -79,7 +87,9 @@ impl AppState {
         command_router.register(Arc::new(SystemHandler));
         command_router.register(Arc::new(LauncherHandler::new(Arc::clone(&app_manager))));
         command_router.register(Arc::new(HotkeyHandler::new(Arc::clone(&hotkey_manager))));
-        command_router.register(Arc::new(TerminalHandler::new(Arc::clone(&terminal_manager))));
+        command_router.register(Arc::new(TerminalHandler::new(Arc::clone(
+            &terminal_manager,
+        ))));
         command_router.register(Arc::new(MouseHandler::new(Arc::clone(&mouse_manager))));
         command_router.register(Arc::new(SearchHandler::new(Arc::clone(&search_manager))));
 
@@ -87,6 +97,8 @@ impl AppState {
             command_router,
             event_bus,
             mouse_active: Arc::new(AtomicBool::new(false)),
+            terminal_manager: Arc::clone(&terminal_manager),
+            launcher_focus_guard: Arc::new(Mutex::new(None)),
         }
     }
 }
@@ -99,7 +111,9 @@ fn cmd_dispatch(
     payload: Option<Value>,
     state: tauri::State<'_, AppState>,
 ) -> Result<Value, String> {
-    state.command_router.dispatch(&route, payload.unwrap_or(Value::Null))
+    state
+        .command_router
+        .dispatch(&route, payload.unwrap_or(Value::Null))
 }
 
 #[tauri::command]
@@ -131,6 +145,18 @@ fn cmd_show_launcher(window: tauri::WebviewWindow) -> Result<(), String> {
     window.set_focus().map_err(|e| e.to_string())
 }
 
+#[tauri::command]
+fn cmd_keep_launcher_open(
+    window: tauri::WebviewWindow,
+    state: tauri::State<'_, AppState>,
+) -> Result<(), String> {
+    if let Ok(mut guard) = state.launcher_focus_guard.lock() {
+        *guard = Some(Instant::now() + Duration::from_millis(600));
+    }
+    window.show().map_err(|e| e.to_string())?;
+    window.set_focus().map_err(|e| e.to_string())
+}
+
 // ─── Entry point ─────────────────────────────────────────────────────────────
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -140,8 +166,8 @@ pub fn run() {
         .plugin(tauri_plugin_global_shortcut::Builder::new().build())
         .manage(AppState::new())
         .setup(|app| {
-            // Bridge: EventBus (Rust broadcast) → Tauri frontend events
-            // Without this, terminal.output and other bus events never reach the JS side.
+            // Bridge: EventBus (Rust broadcast) → Tauri frontend events.
+            // Tauri event names cannot contain '.', so expose dotted internal topics as kebab names.
             let mut rx = app.state::<AppState>().event_bus.subscribe();
             let handle = app.handle().clone();
             tauri::async_runtime::spawn(async move {
@@ -149,7 +175,8 @@ pub fn run() {
                 loop {
                     match rx.recv().await {
                         Ok(event) => {
-                            let _ = handle.emit(&event.topic, &event.payload);
+                            let topic = event.topic.replace('.', "-");
+                            let _ = handle.emit(&topic, &event.payload);
                         }
                         Err(RecvError::Lagged(_)) => continue,
                         Err(RecvError::Closed) => break,
@@ -158,6 +185,8 @@ pub fn run() {
             });
 
             prescan_apps(app);
+            // Pre-warm one terminal session so the first open is nearly instant
+            start_prewarm(Arc::clone(&app.state::<AppState>().terminal_manager));
             // Shortcut registration is best-effort; conflicts are logged, not fatal
             setup_global_shortcuts(app);
             setup_tray(app)?;
@@ -175,6 +204,7 @@ pub fn run() {
             cmd_dispatch,
             cmd_hide_launcher,
             cmd_show_launcher,
+            cmd_keep_launcher_open,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
@@ -187,7 +217,9 @@ fn prescan_apps(app: &tauri::App) {
     let app_handle = app.handle().clone();
     std::thread::spawn(move || {
         let state = app_handle.state::<AppState>();
-        let _ = state.command_router.dispatch("launcher.list_all", Value::Null);
+        let _ = state
+            .command_router
+            .dispatch("launcher.list_all", Value::Null);
     });
 }
 
@@ -271,8 +303,7 @@ fn setup_tray(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>> {
     use tauri::menu::{Menu, MenuItem};
     use tauri::tray::TrayIconBuilder;
 
-    let show_item =
-        MenuItem::with_id(app, "show", "顯示 Keynova (Ctrl+K)", true, None::<&str>)?;
+    let show_item = MenuItem::with_id(app, "show", "顯示 Keynova (Ctrl+K)", true, None::<&str>)?;
     let quit_item = MenuItem::with_id(app, "quit", "退出", true, None::<&str>)?;
     let menu = Menu::with_items(app, &[&show_item, &quit_item])?;
 
@@ -319,6 +350,7 @@ fn setup_main_window(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>>
 
     let window_focused = window.clone();
     let window_blur = window.clone();
+    let blur_guard = app.state::<AppState>().launcher_focus_guard.clone();
     window.on_window_event(move |event| {
         match event {
             tauri::WindowEvent::Focused(true) => {
@@ -326,7 +358,34 @@ fn setup_main_window(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>>
             }
             // 失焦時自動隱藏（點擊視窗外部即關閉，不需要透明覆蓋層）
             tauri::WindowEvent::Focused(false) => {
-                let _ = window_blur.hide();
+                let window_blur = window_blur.clone();
+                let blur_guard = Arc::clone(&blur_guard);
+                tauri::async_runtime::spawn(async move {
+                    tokio::time::sleep(Duration::from_millis(120)).await;
+                    let should_keep_open = blur_guard
+                        .lock()
+                        .map(|mut guard| {
+                            let now = Instant::now();
+                            match guard.as_ref() {
+                                Some(until) if now <= *until => true,
+                                Some(_) => {
+                                    *guard = None;
+                                    false
+                                }
+                                None => false,
+                            }
+                        })
+                        .unwrap_or(false);
+                    if should_keep_open {
+                        let _ = window_blur.show();
+                        let _ = window_blur.set_focus();
+                        return;
+                    }
+                    if window_blur.is_focused().unwrap_or(false) {
+                        return;
+                    }
+                    let _ = window_blur.hide();
+                });
             }
             _ => {}
         }

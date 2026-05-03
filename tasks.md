@@ -281,9 +281,9 @@
 - [ ] `README.md` 更新：說明 `>` 前綴進入 Terminal 模式
 
 **驗收**
-- [ ] 輸入 `>` → 視窗從 60px 展開至 360px，顯示 shell prompt
-- [ ] 可正常執行互動式命令（dir、ls、python REPL）
-- [ ] ESC → 終端關閉，視窗縮回 60px，回到 Search 模式
+- [x] 輸入 `>` → 視窗從 60px 展開至 360px，顯示 shell prompt
+- [x] 可正常執行互動式命令（dir、ls、python REPL）
+- [x] ESC → 終端關閉，視窗縮回 60px，回到 Search 模式
 - [x] `cargo clippy -- -D warnings` + `npm run lint` 無錯誤
 
 ---
