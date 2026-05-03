@@ -1,9 +1,20 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
+import { listen } from "@tauri-apps/api/event";
 
 interface SettingEntry {
   key: string;
   value: string;
+}
+
+interface ConfigReloadedPayload {
+  source: string;
+  changed_keys: string[];
+}
+
+interface ConfigReloadFailedPayload {
+  source: string;
+  error: string;
 }
 
 async function ipcDispatch<T>(route: string, payload?: Record<string, unknown>): Promise<T> {
@@ -35,21 +46,51 @@ export function SettingPanel() {
   const [saving, setSaving] = useState<string | null>(null);
   const [savedKey, setSavedKey] = useState<string | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
+  const [reloadNotice, setReloadNotice] = useState<string | null>(null);
   // Track original values to detect actual changes on blur
   const originalRef = useRef<Record<string, string>>({});
   const savedFlashRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  const loadSettings = useCallback(async () => {
+    if (!window.__TAURI_INTERNALS__) return;
+    const data = await ipcDispatch<SettingEntry[]>("setting.list_all");
+    setEntries(data);
+    const orig: Record<string, string> = {};
+    data.forEach(({ key, value }) => {
+      orig[key] = value;
+    });
+    originalRef.current = orig;
+    setEdits({});
+  }, []);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      void loadSettings().catch(() => {});
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, [loadSettings]);
+
   useEffect(() => {
     if (!window.__TAURI_INTERNALS__) return;
-    ipcDispatch<SettingEntry[]>("setting.list_all")
-      .then((data) => {
-        setEntries(data);
-        const orig: Record<string, string> = {};
-        data.forEach(({ key, value }) => { orig[key] = value; });
-        originalRef.current = orig;
-      })
-      .catch(() => {});
-  }, []);
+    const unlistenReload = listen<ConfigReloadedPayload>("config-reloaded", (event) => {
+      void loadSettings().catch(() => {});
+      const count = event.payload.changed_keys.length;
+      setSaveError(null);
+      setReloadNotice(
+        count === 0
+          ? `Reloaded from ${event.payload.source}`
+          : `Reloaded ${count} setting(s) from ${event.payload.source}`,
+      );
+    });
+    const unlistenFailed = listen<ConfigReloadFailedPayload>("config-reload-failed", (event) => {
+      setReloadNotice(null);
+      setSaveError(`Reload failed (${event.payload.source}): ${event.payload.error}`);
+    });
+    return () => {
+      unlistenReload.then((fn) => fn());
+      unlistenFailed.then((fn) => fn());
+    };
+  }, [loadSettings]);
 
   const visible = entries.filter((e) => e.key.startsWith(`${activeSection}.`));
 
@@ -65,6 +106,7 @@ export function SettingPanel() {
       await ipcDispatch("setting.set", { key, value: newValue });
       originalRef.current[key] = newValue;
       setEntries((prev) => prev.map((e) => (e.key === key ? { ...e, value: newValue } : e)));
+      setReloadNotice(`Applied ${key}`);
       // Flash success indicator for 1.5s
       setSavedKey(key);
       if (savedFlashRef.current) clearTimeout(savedFlashRef.current);
@@ -159,7 +201,11 @@ export function SettingPanel() {
 
       <div className="border-t border-gray-700/50 px-4 py-1.5 text-[11px] text-gray-600 flex justify-between">
         <span>%APPDATA%\Keynova\config.toml</span>
-        {saveError && <span className="text-red-400 truncate ml-2">{saveError}</span>}
+        {saveError ? (
+          <span className="text-red-400 truncate ml-2">{saveError}</span>
+        ) : (
+          reloadNotice && <span className="text-emerald-400 truncate ml-2">{reloadNotice}</span>
+        )}
       </div>
     </div>
   );

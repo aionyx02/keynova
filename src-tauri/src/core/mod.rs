@@ -1,6 +1,7 @@
 pub mod builtin_command_registry;
 pub mod command_router;
 pub mod config_manager;
+pub mod control_plane;
 pub mod event_bus;
 pub mod search_registry;
 

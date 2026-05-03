@@ -21,6 +21,10 @@ interface SettingEntry {
   value: string;
 }
 
+interface ConfigReloadedPayload {
+  changed_keys: string[];
+}
+
 interface Props {
   onExit: () => void | Promise<void>;
 }
@@ -42,6 +46,7 @@ export function TerminalPanel({ onExit }: Props) {
     let cancelled = false;
     let sessionId = "";
     let unlistenOutput: (() => void) | undefined;
+    let unlistenConfig: (() => void) | undefined;
     const pendingOutput = new Map<string, string>();
 
     const handleOutput = (id: string, output: string) => {
@@ -62,8 +67,7 @@ export function TerminalPanel({ onExit }: Props) {
       });
     };
 
-    const init = async () => {
-      // Read terminal config before creating xterm so settings are applied immediately
+    const loadTerminalSettings = async () => {
       let fontSize = termOpts.fontSize;
       let scrollback = termOpts.scrollback;
       if (window.__TAURI_INTERNALS__) {
@@ -79,6 +83,12 @@ export function TerminalPanel({ onExit }: Props) {
           // use theme defaults
         }
       }
+      return { fontSize, scrollback };
+    };
+
+    const init = async () => {
+      // Read terminal config before creating xterm so settings are applied immediately
+      const { fontSize, scrollback } = await loadTerminalSettings();
       if (cancelled) return;
 
       const xterm = new Terminal({
@@ -123,6 +133,21 @@ export function TerminalPanel({ onExit }: Props) {
       });
 
       try {
+        unlistenConfig = await listen<ConfigReloadedPayload>("config-reloaded", (event) => {
+          if (
+            event.payload.changed_keys.length !== 0 &&
+            !event.payload.changed_keys.some((key) => key.startsWith("terminal."))
+          ) {
+            return;
+          }
+          void loadTerminalSettings().then((settings) => {
+            const xterm = xtermRef.current;
+            if (!xterm) return;
+            xterm.options.fontSize = settings.fontSize;
+            xterm.options.scrollback = settings.scrollback;
+            if (sessionId) fitAndResizeBackend(sessionId);
+          });
+        });
         unlistenOutput = await listen<OutputPayload>("terminal-output", (e) => {
           handleOutput(e.payload.id, e.payload.output);
         });
@@ -164,6 +189,7 @@ export function TerminalPanel({ onExit }: Props) {
       cancelled = true;
       ro.disconnect();
       unlistenOutput?.();
+      unlistenConfig?.();
       if (sessionId) {
         void invoke("cmd_dispatch", { route: "terminal.close", payload: { id: sessionId } });
       }
