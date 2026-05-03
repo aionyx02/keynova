@@ -20,15 +20,24 @@ const SECTION_LABELS: Record<Section, string> = {
   mouse_control: "滑鼠控制",
 };
 
+const SECTION_EFFECT_HINT: Record<Section, string> = {
+  hotkeys: "重啟後生效",
+  terminal: "重新進入 > 生效",
+  launcher: "即時生效",
+  mouse_control: "即時生效",
+};
+
 export function SettingPanel() {
   const [entries, setEntries] = useState<SettingEntry[]>([]);
   const [activeSection, setActiveSection] = useState<Section>("hotkeys");
   // Local edits: key → edited value (not yet saved)
   const [edits, setEdits] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState<string | null>(null);
+  const [savedKey, setSavedKey] = useState<string | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
   // Track original values to detect actual changes on blur
   const originalRef = useRef<Record<string, string>>({});
+  const savedFlashRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     if (!window.__TAURI_INTERNALS__) return;
@@ -56,6 +65,10 @@ export function SettingPanel() {
       await ipcDispatch("setting.set", { key, value: newValue });
       originalRef.current[key] = newValue;
       setEntries((prev) => prev.map((e) => (e.key === key ? { ...e, value: newValue } : e)));
+      // Flash success indicator for 1.5s
+      setSavedKey(key);
+      if (savedFlashRef.current) clearTimeout(savedFlashRef.current);
+      savedFlashRef.current = setTimeout(() => setSavedKey(null), 1500);
     } catch (err) {
       setSaveError(String(err));
     } finally {
@@ -102,8 +115,15 @@ export function SettingPanel() {
         ))}
       </div>
 
+      {/* Effect hint for current section */}
+      <div className="px-4 pt-2 pb-0 flex items-center justify-between">
+        <span className="text-[10px] text-gray-600">
+          生效時機：<span className="text-gray-500">{SECTION_EFFECT_HINT[activeSection]}</span>
+        </span>
+      </div>
+
       {/* Settings fields */}
-      <div className="max-h-[280px] overflow-y-auto px-4 py-3 space-y-3">
+      <div className="max-h-[260px] overflow-y-auto px-4 py-3 space-y-3">
         {visible.length === 0 && (
           <p className="text-xs text-gray-600 text-center py-4">無設定項目</p>
         )}
@@ -129,13 +149,16 @@ export function SettingPanel() {
               {saving === key && (
                 <span className="text-[10px] text-gray-500 shrink-0">儲存中…</span>
               )}
+              {savedKey === key && saving !== key && (
+                <span className="text-[10px] text-emerald-400 shrink-0">✓ 已儲存</span>
+              )}
             </div>
           );
         })}
       </div>
 
       <div className="border-t border-gray-700/50 px-4 py-1.5 text-[11px] text-gray-600 flex justify-between">
-        <span>失去焦點時自動儲存至 %APPDATA%\Keynova\config.toml</span>
+        <span>%APPDATA%\Keynova\config.toml</span>
         {saveError && <span className="text-red-400 truncate ml-2">{saveError}</span>}
       </div>
     </div>

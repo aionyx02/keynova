@@ -66,9 +66,14 @@ export function CommandPalette() {
 
   useEffect(() => { modeRef.current = mode; }, [mode]);
 
+  // Split rawInput into command name and trailing args (Minecraft-style)
+  const spaceIdx = rawInput.search(/\s/);
+  const cmdName = spaceIdx === -1 ? rawInput : rawInput.slice(0, spaceIdx);
+  const cmdArgs = spaceIdx === -1 ? "" : rawInput.slice(spaceIdx + 1).trim();
+
   const cmdSuggestions = useMemo(
-    () => (mode === "command" ? filtered(rawInput) : []),
-    [mode, rawInput, filtered],
+    () => (mode === "command" ? filtered(cmdName) : []),
+    [mode, cmdName, filtered],
   );
 
   useEffect(() => {
@@ -168,9 +173,9 @@ export function CommandPalette() {
     }
   }
 
-  async function execCommand(name: string) {
+  async function execCommand(name: string, args = "") {
     try {
-      const result = await runCommand(name);
+      const result = await runCommand(name, args);
       setCmdResult(result);
     } catch {
       // ignore
@@ -193,7 +198,7 @@ export function CommandPalette() {
       else if (e.key === "Enter") {
         e.preventDefault();
         const cmd = cmdSuggestions[selectedCmd];
-        if (cmd) void execCommand(cmd.name);
+        if (cmd) void execCommand(cmd.name, cmdArgs);
       }
     }
   }
@@ -289,7 +294,7 @@ export function CommandPalette() {
             <CommandSuggestions
               commands={cmdSuggestions}
               selectedIndex={selectedCmd}
-              onSelect={(name) => void execCommand(name)}
+              onSelect={(name) => void execCommand(name, cmdArgs)}
               onHover={setSelectedCmd}
             />
           )}
