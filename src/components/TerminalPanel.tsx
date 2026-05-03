@@ -16,6 +16,11 @@ interface OpenResponse {
   initial_output: string;
 }
 
+interface SettingEntry {
+  key: string;
+  value: string;
+}
+
 interface Props {
   onExit: () => void | Promise<void>;
 }
@@ -23,8 +28,8 @@ interface Props {
 export function TerminalPanel({ onExit }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const xtermRef = useRef<Terminal | null>(null);
+  const fitAddonRef = useRef<FitAddon | null>(null);
   const termOpts = useTerminalTheme();
-  // Stable ref so attachCustomKeyEventHandler closure always sees latest onExit
   const onExitRef = useRef(onExit);
   useEffect(() => {
     onExitRef.current = onExit;
@@ -34,49 +39,23 @@ export function TerminalPanel({ onExit }: Props) {
     const el = containerRef.current;
     if (!el) return;
 
-    const xterm = new Terminal({
-      theme: termOpts.theme,
-      fontFamily: termOpts.fontFamily,
-      fontSize: termOpts.fontSize,
-      cursorStyle: termOpts.cursorStyle,
-      cursorBlink: termOpts.cursorBlink,
-      scrollback: termOpts.scrollback,
-      allowTransparency: false,
-      windowsPty: { backend: "conpty" },
-    });
-    const fitAddon = new FitAddon();
-    xterm.loadAddon(fitAddon);
-    xterm.open(el);
-    fitAddon.fit();
-    xtermRef.current = xterm;
-    xterm.focus();
-
     let cancelled = false;
     let sessionId = "";
     let unlistenOutput: (() => void) | undefined;
     const pendingOutput = new Map<string, string>();
 
-    // Intercept ESC before it reaches the PTY. Other keys, including Ctrl+C,
-    // should keep normal terminal semantics.
-    xterm.attachCustomKeyEventHandler((e: KeyboardEvent) => {
-      if (e.type !== "keydown") return true;
-      if (e.key === "Escape") {
-        void Promise.resolve(onExitRef.current());
-        return false;
-      }
-      return true;
-    });
-
     const handleOutput = (id: string, output: string) => {
-      if (id === sessionId) {
-        xterm.write(output);
-        return;
-      }
+      const xterm = xtermRef.current;
+      if (!xterm) return;
+      if (id === sessionId) { xterm.write(output); return; }
       pendingOutput.set(id, `${pendingOutput.get(id) ?? ""}${output}`);
     };
 
     const fitAndResizeBackend = (id: string) => {
-      fitAddon.fit();
+      const xterm = xtermRef.current;
+      const fit = fitAddonRef.current;
+      if (!xterm || !fit) return;
+      fit.fit();
       void invoke("cmd_dispatch", {
         route: "terminal.resize",
         payload: { id, rows: xterm.rows, cols: xterm.cols },
@@ -84,26 +63,77 @@ export function TerminalPanel({ onExit }: Props) {
     };
 
     const init = async () => {
+      // Read terminal config before creating xterm so settings are applied immediately
+      let fontSize = termOpts.fontSize;
+      let scrollback = termOpts.scrollback;
+      if (window.__TAURI_INTERNALS__) {
+        try {
+          const entries = await invoke<SettingEntry[]>("cmd_dispatch", {
+            route: "setting.list_all",
+            payload: null,
+          });
+          const get = (k: string) => entries.find((e) => e.key === k)?.value;
+          fontSize = parseInt(get("terminal.font_size") ?? "") || fontSize;
+          scrollback = parseInt(get("terminal.scrollback_lines") ?? "") || scrollback;
+        } catch {
+          // use theme defaults
+        }
+      }
+      if (cancelled) return;
+
+      const xterm = new Terminal({
+        theme: termOpts.theme,
+        fontFamily: termOpts.fontFamily,
+        fontSize,
+        cursorStyle: termOpts.cursorStyle,
+        cursorBlink: termOpts.cursorBlink,
+        scrollback,
+        allowTransparency: false,
+        windowsPty: { backend: "conpty" },
+      });
+      const fitAddon = new FitAddon();
+      xterm.loadAddon(fitAddon);
+      xterm.open(el);
+      fitAddon.fit();
+
+      if (cancelled) {
+        xterm.dispose();
+        return;
+      }
+
+      xtermRef.current = xterm;
+      fitAddonRef.current = fitAddon;
+      xterm.focus();
+
+      xterm.attachCustomKeyEventHandler((e: KeyboardEvent) => {
+        if (e.type !== "keydown") return true;
+        if (e.key === "Escape") {
+          void Promise.resolve(onExitRef.current());
+          return false;
+        }
+        return true;
+      });
+
+      xterm.onData((data) => {
+        if (!sessionId) return;
+        void invoke("cmd_dispatch", {
+          route: "terminal.send",
+          payload: { id: sessionId, input: data },
+        });
+      });
+
       try {
-        // Subscribe before opening the PTY so fast shell output cannot be missed.
         unlistenOutput = await listen<OutputPayload>("terminal-output", (e) => {
           handleOutput(e.payload.id, e.payload.output);
         });
-        if (cancelled) {
-          unlistenOutput();
-          unlistenOutput = undefined;
-          return;
-        }
+        if (cancelled) { unlistenOutput(); unlistenOutput = undefined; return; }
 
         const resp = await invoke<OpenResponse>("cmd_dispatch", {
           route: "terminal.open",
           payload: { rows: xterm.rows, cols: xterm.cols },
         });
         if (cancelled) {
-          void invoke("cmd_dispatch", {
-            route: "terminal.close",
-            payload: { id: resp.id },
-          });
+          void invoke("cmd_dispatch", { route: "terminal.close", payload: { id: resp.id } });
           return;
         }
 
@@ -112,9 +142,7 @@ export function TerminalPanel({ onExit }: Props) {
         pendingOutput.clear();
         sessionId = resp.id;
         fitAndResizeBackend(resp.id);
-        if (buffered) {
-          xterm.write(buffered);
-        }
+        if (buffered) xterm.write(buffered);
         xterm.focus();
       } catch (err) {
         if (!cancelled) {
@@ -126,19 +154,9 @@ export function TerminalPanel({ onExit }: Props) {
 
     void init();
 
-    xterm.onData((data) => {
-      if (!sessionId) return;
-      void invoke("cmd_dispatch", {
-        route: "terminal.send",
-        payload: { id: sessionId, input: data },
-      });
-    });
-
     const ro = new ResizeObserver(() => {
-      fitAddon.fit();
-      if (sessionId) {
-        fitAndResizeBackend(sessionId);
-      }
+      fitAddonRef.current?.fit();
+      if (sessionId) fitAndResizeBackend(sessionId);
     });
     ro.observe(el);
 
@@ -147,15 +165,13 @@ export function TerminalPanel({ onExit }: Props) {
       ro.disconnect();
       unlistenOutput?.();
       if (sessionId) {
-        void invoke("cmd_dispatch", {
-          route: "terminal.close",
-          payload: { id: sessionId },
-        });
+        void invoke("cmd_dispatch", { route: "terminal.close", payload: { id: sessionId } });
       }
+      const xterm = xtermRef.current;
       xtermRef.current = null;
-      xterm.dispose();
+      fitAddonRef.current = null;
+      xterm?.dispose();
     };
-    // intentionally run once; termOpts are stable values
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
