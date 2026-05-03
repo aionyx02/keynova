@@ -90,8 +90,8 @@
 
 **受影響檔案**：`CommandPalette.tsx`
 
-- [ ] ESC 改為漸進式：有 cmdResult → 清除面板回搜尋模式（不隱藏視窗）；query 非空 → 清空 query；query 空 → 隱藏視窗
-- [ ] 確保 ESC 在 terminal 模式不受此邏輯影響
+- [x] ESC 改為漸進式：有 cmdResult → 清除面板回搜尋模式（不隱藏視窗）；query 非空 → 清空 query；query 空 → 隱藏視窗
+- [x] 確保 ESC 在 terminal 模式不受此邏輯影響
 
 **驗收**
 - [ ] 進入 `/setting` 後按 ESC 回到空白搜尋框（視窗不關閉）
@@ -103,8 +103,8 @@
 
 **受影響檔案**：`CommandPalette.tsx`
 
-- [ ] 在 command 模式 onKeyDown 新增 Tab 鍵處理：將選中指令名稱填入 query（`"/" + cmd.name`）
-- [ ] Tab 不應觸發 focus 切換（preventDefault）
+- [x] 在 command 模式 onKeyDown 新增 Tab 鍵處理：將選中指令名稱填入 query（`"/" + cmd.name`）
+- [x] Tab 不應觸發 focus 切換（preventDefault）
 
 **驗收**
 - [ ] 輸入 `/he` → 選中 `/help` → 按 Tab → query 變為 `/help`
@@ -115,8 +115,8 @@
 
 **受影響檔案**：`TerminalPanel.tsx`、`lib.rs`
 
-- [ ] `TerminalPanel.tsx`：init() 開始時透過 setting.list_all IPC 讀取 terminal.font_size、terminal.scrollback_lines，再以讀取值建立 Terminal
-- [ ] `lib.rs`：W/A/S/D 快捷鍵 lambda 改為每次觸發時從 _config_manager 讀取 mouse_control.step_size（取代 const STEP 硬編碼）
+- [x] `TerminalPanel.tsx`：init() 開始時透過 setting.list_all IPC 讀取 terminal.font_size、terminal.scrollback_lines，再以讀取值建立 Terminal
+- [x] `lib.rs`：W/A/S/D 快捷鍵 lambda 改為每次觸發時從 _config_manager 讀取 mouse_control.step_size（取代 const STEP 硬編碼）
 
 **驗收**
 - [ ] 在 `/setting` 修改 `terminal.font_size = 18`，重新進入 `>` 終端，字體大小改變
@@ -128,9 +128,9 @@
 
 **受影響檔案**：`SettingPanel.tsx`
 
-- [ ] `hotkeys.*` 欄位設為 readOnly，onKeyDown 捕捉組合鍵，自動填入格式化字串（如 `Ctrl+K`）
-- [ ] 純修飾鍵按下不觸發填入，等待主鍵
-- [ ] 填入後維持 onBlur 儲存流程不變
+- [x] `hotkeys.*` 欄位設為 readOnly，onKeyDown 捕捉組合鍵，自動填入格式化字串（如 `Ctrl+K`）
+- [x] 純修飾鍵按下不觸發填入，等待主鍵
+- [x] 填入後立即透過 saveValue() 寫入，不依賴 onBlur
 
 **驗收**
 - [ ] 點選 `hotkeys.app_launcher` 欄位後按 `Ctrl+J`，欄位自動顯示 `Ctrl+J`

@@ -5,9 +5,9 @@
 
 ## 當前狀態
 
-- **進度**：Phase 2 全部完成 + BUG-1~5 修正完成（main 分支）+ Phase 3 詳細任務拆解完成（tasks.md）+ BUG-6~9 加入 tasks.md + feature/bugfix-ux 分支建立中
-- **上次完成**：BUG-6~9 寫入 tasks.md；feature/bugfix-ux 從 dev 建立；private docs（CLAUDE.md/tasks.md/memory.md/decisions.md/skill.md）因 git merge 被誤刪，已從 git 歷史與 session context 全數還原
-- **下一步**：繼續在 feature/bugfix-ux 實作 BUG-6（漸進式 ESC）、BUG-7（Tab 補全）、BUG-8（設定實際生效）、BUG-9（熱鍵捕捉）；完成後展示 diff 等待使用者審查
+- **進度**：Phase 2 全部完成 + BUG-1~9 修正完成（feature/bugfix-ux 分支）
+- **上次完成**：BUG-6（漸進式 ESC）、BUG-7（Tab 補全）、BUG-8（終端字體/捲軸從 config 讀取、滑鼠 step_size 動態讀取）、BUG-9（熱鍵欄位 readOnly + onKeyDown 捕捉）全部實作完成，tsc/lint/clippy 全綠
+- **下一步**：等待使用者審查 diff，確認後合併 feature/bugfix-ux → dev → main
 
 ## 已確認的技術選擇
 
@@ -41,11 +41,11 @@
 
 | 日期 | 完成事項 | 遺留問題 |
 |------|----------|----------|
-| 2026-05-03 | private docs 因 git merge 誤刪，已從 git 歷史與 session context 全數還原；BUG-6~9 加入 tasks.md；feature/bugfix-ux 建立 | 需繼續實作 BUG-6~9 |
-| 2026-05-03 | 讀完 `CLAUDE.md`、`memory.md`、`skill.md` 並完成 Phase 3 任務拆解：`tasks.md` 新增 Phase 3.0~3.8（共用基線、/tr、/ai、workspace、/note、/cal、/history、/system、整合發版） | 待確認 Phase 3 優先順序與第一個實作切入點 |
-| 2026-05-03 | BUG-1~5 全部修正完成並 commit 到 main；cargo clippy/lint/tsc 全通過 | 需手動驗收：BUG-1 快速輸入不卡頓、BUG-2 改 config 重啟生效、BUG-3 blur 才儲存、BUG-4 DevTools 無 CSP 錯誤、BUG-5 npm run build 無 >500KB chunk |
+| 2026-05-03 | BUG-6~9 全部實作完成（漸進式 ESC、Tab 補全、config 生效、熱鍵捕捉）；tsc/lint/clippy 全綠；等待使用者審查合併 | 需手動驗收 BUG-6~9 驗收項目 |
+| 2026-05-03 | private docs 因 git merge 誤刪，已從 git 歷史與 session context 全數還原；BUG-6~9 加入 tasks.md；feature/bugfix-ux 建立 | — |
+| 2026-05-03 | 讀完 `CLAUDE.md`、`memory.md`、`skill.md` 並完成 Phase 3 任務拆解：`tasks.md` 新增 Phase 3.0~3.8 | 待確認 Phase 3 優先順序 |
+| 2026-05-03 | BUG-1~5 全部修正完成並 commit 到 main；cargo clippy/lint/tsc 全通過 | 需手動驗收 BUG-1~5 驗收項目 |
 | 2026-05-03 | Phase 2.B + Task 1（D槽/WSL全域搜尋）全部驗收通過 | — |
-| 2026-05-03 | Phase 2.A terminal fix：PowerShell/pwsh default shell、TERM hints、PTY resize、EventBus 橋接、ESC focus guard | — |
 
 ## 2026-05-03 架構邊界與修正定位索引
 
