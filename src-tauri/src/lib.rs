@@ -271,37 +271,55 @@ fn setup_global_shortcuts(app: &tauri::App) {
         .map(|c| c.get("hotkeys.mouse_control").unwrap_or_else(|| "Ctrl+Alt+M".to_string()))
         .unwrap_or_else(|_| "Ctrl+Alt+M".to_string());
 
-    // ── 開啟 / 關閉啟動器視窗 ──
-    let handle_k = app.handle().clone();
-    if let Err(e) = gs.on_shortcut(launcher_key.as_str(), move |_app, _, event| {
-        if event.state() == ShortcutState::Pressed {
-            if let Some(win) = handle_k.get_webview_window("main") {
-                if win.is_visible().unwrap_or(false) {
-                    let _ = win.hide();
-                } else {
-                    let _ = win.show();
-                    let _ = win.set_focus();
+    // ── 開啟 / 關閉啟動器視窗（設定鍵失敗時自動回退 Ctrl+K）──
+    let candidates: &[&str] = if launcher_key == "Ctrl+K" {
+        &["Ctrl+K"]
+    } else {
+        &[launcher_key.as_str(), "Ctrl+K"]
+    };
+    'launcher: for &key in candidates {
+        let handle_k = app.handle().clone();
+        if let Err(e) = gs.on_shortcut(key, move |_app, _, event| {
+            if event.state() == ShortcutState::Pressed {
+                if let Some(win) = handle_k.get_webview_window("main") {
+                    if win.is_visible().unwrap_or(false) {
+                        let _ = win.hide();
+                    } else {
+                        let _ = win.show();
+                        let _ = win.set_focus();
+                    }
                 }
             }
+        }) {
+            eprintln!("[keynova] {key} registration failed: {e}");
+        } else {
+            break 'launcher;
         }
-    }) {
-        eprintln!("[keynova] {launcher_key} registration failed (conflict?): {e}");
     }
 
-    // ── 切換全域滑鼠控制模式 ──
+    // ── 切換全域滑鼠控制模式（設定鍵失敗時自動回退 Ctrl+Alt+M）──
     // 使用 Ctrl+Alt 而非單獨 Alt，避免 Alt 觸發 Windows 選單列造成修飾鍵殘留（卡鍵）
-    let handle_m = app.handle().clone();
-    if let Err(e) = gs.on_shortcut(mouse_key.as_str(), move |app_h, _, event| {
-        if event.state() == ShortcutState::Pressed {
-            let state = app_h.state::<AppState>();
-            let new_val = !state.mouse_active.load(AtomicOrd::Relaxed);
-            state.mouse_active.store(new_val, AtomicOrd::Relaxed);
-            if let Some(win) = handle_m.get_webview_window("main") {
-                let _ = win.emit("mouse-control-toggled", new_val);
+    let mouse_candidates: &[&str] = if mouse_key == "Ctrl+Alt+M" {
+        &["Ctrl+Alt+M"]
+    } else {
+        &[mouse_key.as_str(), "Ctrl+Alt+M"]
+    };
+    'mouse: for &key in mouse_candidates {
+        let handle_m = app.handle().clone();
+        if let Err(e) = gs.on_shortcut(key, move |app_h, _, event| {
+            if event.state() == ShortcutState::Pressed {
+                let state = app_h.state::<AppState>();
+                let new_val = !state.mouse_active.load(AtomicOrd::Relaxed);
+                state.mouse_active.store(new_val, AtomicOrd::Relaxed);
+                if let Some(win) = handle_m.get_webview_window("main") {
+                    let _ = win.emit("mouse-control-toggled", new_val);
+                }
             }
+        }) {
+            eprintln!("[keynova] {key} (mouse_control) registration failed: {e}");
+        } else {
+            break 'mouse;
         }
-    }) {
-        eprintln!("[keynova] {mouse_key} registration failed: {e}");
     }
 
     // ── Ctrl+Alt+W/A/S/D: cursor movement ──
