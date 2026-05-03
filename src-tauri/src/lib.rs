@@ -13,9 +13,15 @@ use std::time::{Duration, Instant};
 use serde_json::{json, Value};
 use tauri::{Emitter, Manager};
 
-use crate::core::{AppEvent, CommandHandler, CommandResult, CommandRouter, EventBus};
+use crate::core::{AppEvent, BuiltinCommandRegistry, CommandHandler, CommandResult, CommandRouter, EventBus};
+use crate::core::config_manager::ConfigManager;
 use crate::handlers::{
-    hotkey::HotkeyHandler, launcher::LauncherHandler, mouse::MouseHandler, search::SearchHandler,
+    builtin_cmd::{BuiltinCmdHandler, HelpCommand, SettingCommand},
+    hotkey::HotkeyHandler,
+    launcher::LauncherHandler,
+    mouse::MouseHandler,
+    search::SearchHandler,
+    setting::SettingHandler,
     terminal::TerminalHandler,
 };
 use crate::managers::{
@@ -61,6 +67,8 @@ struct AppState {
     terminal_manager: Arc<Mutex<TerminalManager>>,
     /// Suppresses blur-to-hide while the launcher switches internal UI modes.
     launcher_focus_guard: Arc<Mutex<Option<Instant>>>,
+    /// 使用者設定（TOML I/O）
+    _config_manager: Arc<Mutex<ConfigManager>>,
 }
 
 impl AppState {
@@ -82,16 +90,25 @@ impl AppState {
         ))));
 
         let search_manager = Arc::new(Mutex::new(SearchManager::new(Arc::clone(&app_manager))));
+        let config_manager = Arc::new(Mutex::new(ConfigManager::new()));
+
+        // BuiltinCommandRegistry：先建立 Arc，再注冊指令，最後傳給 handler
+        let builtin_registry = Arc::new(Mutex::new(BuiltinCommandRegistry::new()));
+        {
+            let mut reg = builtin_registry.lock().expect("registry init");
+            reg.register(Box::new(HelpCommand));
+            reg.register(Box::new(SettingCommand));
+        }
 
         let mut command_router = CommandRouter::new();
         command_router.register(Arc::new(SystemHandler));
         command_router.register(Arc::new(LauncherHandler::new(Arc::clone(&app_manager))));
         command_router.register(Arc::new(HotkeyHandler::new(Arc::clone(&hotkey_manager))));
-        command_router.register(Arc::new(TerminalHandler::new(Arc::clone(
-            &terminal_manager,
-        ))));
+        command_router.register(Arc::new(TerminalHandler::new(Arc::clone(&terminal_manager))));
         command_router.register(Arc::new(MouseHandler::new(Arc::clone(&mouse_manager))));
         command_router.register(Arc::new(SearchHandler::new(Arc::clone(&search_manager))));
+        command_router.register(Arc::new(BuiltinCmdHandler::new(Arc::clone(&builtin_registry))));
+        command_router.register(Arc::new(SettingHandler::new(Arc::clone(&config_manager))));
 
         Self {
             command_router,
@@ -99,6 +116,7 @@ impl AppState {
             mouse_active: Arc::new(AtomicBool::new(false)),
             terminal_manager: Arc::clone(&terminal_manager),
             launcher_focus_guard: Arc::new(Mutex::new(None)),
+            _config_manager: config_manager,
         }
     }
 }

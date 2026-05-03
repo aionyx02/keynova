@@ -10,7 +10,7 @@ export function parseInputMode(value: string): ParsedInput {
     return { mode: "terminal", rawInput: value.slice(1).trimStart() };
   }
   if (value.startsWith("/")) {
-    return { mode: "command", rawInput: value };
+    return { mode: "command", rawInput: value.slice(1) };
   }
   return { mode: "search", rawInput: value };
 }
