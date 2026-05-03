@@ -5,9 +5,9 @@
 
 ## 當前狀態
 
-- **進度**：Phase 2 全部完成 + BUG-1~9 修正完成（feature/bugfix-ux 分支）
-- **上次完成**：BUG-6（漸進式 ESC）、BUG-7（Tab 補全）、BUG-8（終端字體/捲軸從 config 讀取、滑鼠 step_size 動態讀取）、BUG-9（熱鍵欄位 readOnly + onKeyDown 捕捉）全部實作完成，tsc/lint/clippy 全綠
-- **下一步**：等待使用者審查 diff，確認後合併 feature/bugfix-ux → dev → main
+- **進度**：Phase 2 全部完成 + BUG-1~10 修正 + FEAT-1（feature/bugfix-ux 分支）
+- **上次完成**：BUG-10（/setting 儲存成功閃爍、生效時機 hint）、FEAT-1（`/setting key value` Minecraft 風格內聯設定、BuiltinCmdHandler 注入 ConfigManager、CommandPalette rawInput 拆分 cmdName+cmdArgs）全部完成，tsc/lint/clippy 全綠
+- **下一步**：等待使用者手動驗收後合併 feature/bugfix-ux → dev → main；下一個大功能為 Phase 3 或進一步 BUG 修復
 
 ## 已確認的技術選擇
 
@@ -41,7 +41,8 @@
 
 | 日期 | 完成事項 | 遺留問題 |
 |------|----------|----------|
-| 2026-05-03 | BUG-6~9 全部實作完成（漸進式 ESC、Tab 補全、config 生效、熱鍵捕捉）；tsc/lint/clippy 全綠；等待使用者審查合併 | 需手動驗收 BUG-6~9 驗收項目 |
+| 2026-05-03 | BUG-10 儲存 flash + 生效時機 hint；FEAT-1 /setting key value Minecraft 格式；BuiltinCmdHandler 注入 ConfigManager；CommandPalette rawInput→cmdName+cmdArgs；tsc/lint/clippy 全綠 | 需手動驗收 BUG-10、FEAT-1 |
+| 2026-05-03 | BUG-6~9 全部實作完成（漸進式 ESC、Tab 補全、config 生效、熱鍵捕捉）；tsc/lint/clippy 全綠 | — |
 | 2026-05-03 | private docs 因 git merge 誤刪，已從 git 歷史與 session context 全數還原；BUG-6~9 加入 tasks.md；feature/bugfix-ux 建立 | — |
 | 2026-05-03 | 讀完 `CLAUDE.md`、`memory.md`、`skill.md` 並完成 Phase 3 任務拆解：`tasks.md` 新增 Phase 3.0~3.8 | 待確認 Phase 3 優先順序 |
 | 2026-05-03 | BUG-1~5 全部修正完成並 commit 到 main；cargo clippy/lint/tsc 全通過 | 需手動驗收 BUG-1~5 驗收項目 |
