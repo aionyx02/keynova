@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState, Suspense } from "react";
 import { listen } from "@tauri-apps/api/event";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { LogicalSize } from "@tauri-apps/api/dpi";
@@ -7,11 +7,14 @@ import { useIPC } from "../hooks/useIPC";
 import { useAppStore } from "../stores/appStore";
 import { parseInputMode } from "../hooks/useInputMode";
 import { useCommands } from "../hooks/useCommands";
-import { TerminalPanel } from "./TerminalPanel";
 import { CommandSuggestions } from "./CommandSuggestions";
 import { PanelRegistry } from "./panel/PanelRegistry";
 import type { SearchResult } from "../types/search";
 import type { BuiltinCommandResult } from "../hooks/useCommands";
+
+const TerminalPanel = React.lazy(() =>
+  import("./TerminalPanel").then((m) => ({ default: m.TerminalPanel })),
+);
 
 const TERMINAL_HEIGHT = 360;
 
@@ -55,6 +58,8 @@ export function CommandPalette() {
 
   const inputRef = useRef<HTMLInputElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const searchIdRef = useRef(0);
 
   const { mode, rawInput } = parseInputMode(query);
   const modeRef = useRef(mode);
@@ -115,7 +120,7 @@ export function CommandPalette() {
     getCurrentWindow().setSize(new LogicalSize(640, h)).catch(() => {});
   }, [mode, results, cmdSuggestions, cmdResult]);
 
-  async function handleQueryChange(value: string) {
+  function handleQueryChange(value: string) {
     setQuery(value);
     setCmdResult(null);
     setSelectedCmd(0);
@@ -123,18 +128,24 @@ export function CommandPalette() {
     if (newMode !== "search" || ri.trim() === "") {
       setResults([]);
       setSelected(0);
+      if (debounceRef.current) clearTimeout(debounceRef.current);
       return;
     }
-    setLoading(true);
-    try {
-      const data = await dispatch<SearchResult[]>("search.query", { query: ri, limit: 10 });
-      setResults(data);
-      setSelected(0);
-    } catch {
-      setResults([]);
-    } finally {
-      setLoading(false);
-    }
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(async () => {
+      const reqId = ++searchIdRef.current;
+      setLoading(true);
+      try {
+        const data = await dispatch<SearchResult[]>("search.query", { query: ri, limit: 10 });
+        if (reqId !== searchIdRef.current) return;
+        setResults(data);
+        setSelected(0);
+      } catch {
+        if (reqId === searchIdRef.current) setResults([]);
+      } finally {
+        if (reqId === searchIdRef.current) setLoading(false);
+      }
+    }, 200);
   }
 
   async function launchResult(result: SearchResult) {
@@ -183,14 +194,16 @@ export function CommandPalette() {
   return (
     <div ref={containerRef} tabIndex={-1} className="w-full outline-none">
       {mode === "terminal" ? (
-        <TerminalPanel
-          onExit={async () => {
-            await keepLauncherOpen();
-            containerRef.current?.focus();
-            setQuery("");
-            requestAnimationFrame(() => inputRef.current?.focus());
-          }}
-        />
+        <Suspense fallback={<div className="h-[360px] bg-gray-900/95 rounded-xl" />}>
+          <TerminalPanel
+            onExit={async () => {
+              await keepLauncherOpen();
+              containerRef.current?.focus();
+              setQuery("");
+              requestAnimationFrame(() => inputRef.current?.focus());
+            }}
+          />
+        </Suspense>
       ) : (
         <div className="flex flex-col">
           {/* Input bar */}
