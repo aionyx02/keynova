@@ -220,6 +220,18 @@
 
 ## Phase 2 — v1.0（weeks 7–12）
 
+### 搜尋擴展 — 全域檔案搜尋（Task 1）
+
+> 擴充 `scan_files_basic`，使 Everything 不可用時也能搜尋 D 槽與 WSL home。
+
+- [x] `src-tauri/src/platform/windows.rs`：擴充 `SKIP_DIRS`（補充 `ProgramData`、`Recovery`、`boot`、`$WinREAgent`）
+- [x] `user_search_dirs()`：補充 `Pictures`、`Music`、`Videos`（depth 3）
+- [x] 新增 `extra_drive_dirs()`：枚舉 D–Z 槽（depth 3），跳過 SKIP_DIRS
+- [x] 新增 `wsl_home_dirs()`：嘗試 `\\wsl.localhost` 與 `\\wsl$` UNC，枚舉各發行版 `/home` 目錄（depth 3）
+- [ ] 驗收：在 Keynova 搜尋框輸入已知的 D 槽檔案名稱，確認搜尋結果出現；有 WSL 時同步驗證
+
+---
+
 ### 搜尋系統（提前至 Phase 1.6 完成）
 
 > 已提前完成核心搜尋架構與 Everything IPC
