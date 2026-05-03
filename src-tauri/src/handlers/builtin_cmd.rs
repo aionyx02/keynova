@@ -2,6 +2,7 @@ use std::sync::{Arc, Mutex};
 use serde_json::{json, Value};
 
 use crate::core::{BuiltinCommandRegistry, CommandHandler, CommandResult};
+use crate::core::config_manager::ConfigManager;
 use crate::models::builtin_command::{BuiltinCommandResult, CommandUiType};
 use crate::core::builtin_command_registry::BuiltinCommand;
 
@@ -37,11 +38,12 @@ impl BuiltinCommand for SettingCommand {
 /// 處理 `cmd.*` 命名空間的 IPC 請求。
 pub struct BuiltinCmdHandler {
     registry: Arc<Mutex<BuiltinCommandRegistry>>,
+    config: Arc<Mutex<ConfigManager>>,
 }
 
 impl BuiltinCmdHandler {
-    pub fn new(registry: Arc<Mutex<BuiltinCommandRegistry>>) -> Self {
-        Self { registry }
+    pub fn new(registry: Arc<Mutex<BuiltinCommandRegistry>>, config: Arc<Mutex<ConfigManager>>) -> Self {
+        Self { registry, config }
     }
 }
 
@@ -60,7 +62,33 @@ impl CommandHandler for BuiltinCmdHandler {
                     .ok_or_else(|| "missing 'name' field".to_string())?;
                 let args = payload.get("args")
                     .and_then(Value::as_str)
-                    .unwrap_or("");
+                    .unwrap_or("")
+                    .trim();
+
+                // /setting <key> [value] — Minecraft 風格內聯設定
+                if name == "setting" && !args.is_empty() {
+                    let mut parts = args.splitn(2, ' ');
+                    let key = parts.next().unwrap_or("").trim();
+                    let value_opt = parts.next().map(str::trim).filter(|s| !s.is_empty());
+                    return match value_opt {
+                        Some(value) => {
+                            let mut cfg = self.config.lock().map_err(|e| e.to_string())?;
+                            cfg.set(key, value).map_err(|e| e.to_string())?;
+                            Ok(json!(BuiltinCommandResult {
+                                text: format!("✓ {} = {}", key, value),
+                                ui_type: CommandUiType::Inline,
+                            }))
+                        }
+                        None => {
+                            let cfg = self.config.lock().map_err(|e| e.to_string())?;
+                            let current = cfg.get(key).unwrap_or_else(|| "(找不到此設定)".to_string());
+                            Ok(json!(BuiltinCommandResult {
+                                text: format!("{} = {}", key, current),
+                                ui_type: CommandUiType::Inline,
+                            }))
+                        }
+                    };
+                }
 
                 // /help 在 handler 內特殊處理，避免 Mutex 鎖重入
                 if name == "help" {

@@ -107,7 +107,7 @@ impl AppState {
         command_router.register(Arc::new(TerminalHandler::new(Arc::clone(&terminal_manager))));
         command_router.register(Arc::new(MouseHandler::new(Arc::clone(&mouse_manager))));
         command_router.register(Arc::new(SearchHandler::new(Arc::clone(&search_manager))));
-        command_router.register(Arc::new(BuiltinCmdHandler::new(Arc::clone(&builtin_registry))));
+        command_router.register(Arc::new(BuiltinCmdHandler::new(Arc::clone(&builtin_registry), Arc::clone(&config_manager))));
         command_router.register(Arc::new(SettingHandler::new(Arc::clone(&config_manager))));
 
         Self {
@@ -254,7 +254,6 @@ fn start_file_index() {
 fn setup_global_shortcuts(app: &tauri::App) {
     use tauri_plugin_global_shortcut::{GlobalShortcutExt, ShortcutState};
 
-    const STEP: i32 = 15;
     let gs = app.global_shortcut();
 
     // ── 讀取設定中的快捷鍵（修改 config.toml 並重啟後生效）──
@@ -322,20 +321,28 @@ fn setup_global_shortcuts(app: &tauri::App) {
         }
     }
 
-    // ── Ctrl+Alt+W/A/S/D: cursor movement ──
-    for (shortcut, dx, dy) in [
-        ("Ctrl+Alt+W", 0i32, -STEP),
-        ("Ctrl+Alt+A", -STEP, 0i32),
-        ("Ctrl+Alt+S", 0i32, STEP),
-        ("Ctrl+Alt+D", STEP, 0i32),
+    // ── Ctrl+Alt+W/A/S/D: cursor movement (step_size read from config each press) ──
+    for (shortcut, dx_dir, dy_dir) in [
+        ("Ctrl+Alt+W", 0i32, -1i32),
+        ("Ctrl+Alt+A", -1i32, 0i32),
+        ("Ctrl+Alt+S", 0i32, 1i32),
+        ("Ctrl+Alt+D", 1i32, 0i32),
     ] {
         if let Err(e) = gs.on_shortcut(shortcut, move |app_h, _, event| {
             if event.state() == ShortcutState::Pressed {
                 let state = app_h.state::<AppState>();
                 if state.mouse_active.load(AtomicOrd::Relaxed) {
-                    let _ = state
-                        .command_router
-                        .dispatch("mouse.move_relative", json!({ "dx": dx, "dy": dy }));
+                    let step = state
+                        ._config_manager
+                        .lock()
+                        .ok()
+                        .and_then(|c| c.get("mouse_control.step_size"))
+                        .and_then(|v| v.parse::<i32>().ok())
+                        .unwrap_or(15);
+                    let _ = state.command_router.dispatch(
+                        "mouse.move_relative",
+                        json!({ "dx": dx_dir * step, "dy": dy_dir * step }),
+                    );
                 }
             }
         }) {
