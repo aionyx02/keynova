@@ -203,6 +203,7 @@ pub fn run() {
             });
 
             prescan_apps(app);
+            start_file_index();
             // Pre-warm one terminal session so the first open is nearly instant
             start_prewarm(Arc::clone(&app.state::<AppState>().terminal_manager));
             // Shortcut registration is best-effort; conflicts are logged, not fatal
@@ -241,6 +242,14 @@ fn prescan_apps(app: &tauri::App) {
     });
 }
 
+/// 在背景執行緒建立檔案索引快取（Windows only），之後查詢只讀記憶體，不掃碟。
+fn start_file_index() {
+    #[cfg(target_os = "windows")]
+    std::thread::spawn(|| {
+        crate::platform::windows::build_file_index();
+    });
+}
+
 /// 快捷鍵註冊為 best-effort：衝突時僅 eprintln，不中斷 setup。
 fn setup_global_shortcuts(app: &tauri::App) {
     use tauri_plugin_global_shortcut::{GlobalShortcutExt, ShortcutState};
@@ -248,37 +257,69 @@ fn setup_global_shortcuts(app: &tauri::App) {
     const STEP: i32 = 15;
     let gs = app.global_shortcut();
 
-    // ── Ctrl+K: toggle launcher window ──
-    let handle_k = app.handle().clone();
-    if let Err(e) = gs.on_shortcut("Ctrl+K", move |_app, _, event| {
-        if event.state() == ShortcutState::Pressed {
-            if let Some(win) = handle_k.get_webview_window("main") {
-                if win.is_visible().unwrap_or(false) {
-                    let _ = win.hide();
-                } else {
-                    let _ = win.show();
-                    let _ = win.set_focus();
+    // ── 讀取設定中的快捷鍵（修改 config.toml 並重啟後生效）──
+    let launcher_key = app
+        .state::<AppState>()
+        ._config_manager
+        .lock()
+        .map(|c| c.get("hotkeys.app_launcher").unwrap_or_else(|| "Ctrl+K".to_string()))
+        .unwrap_or_else(|_| "Ctrl+K".to_string());
+    let mouse_key = app
+        .state::<AppState>()
+        ._config_manager
+        .lock()
+        .map(|c| c.get("hotkeys.mouse_control").unwrap_or_else(|| "Ctrl+Alt+M".to_string()))
+        .unwrap_or_else(|_| "Ctrl+Alt+M".to_string());
+
+    // ── 開啟 / 關閉啟動器視窗（設定鍵失敗時自動回退 Ctrl+K）──
+    let candidates: &[&str] = if launcher_key == "Ctrl+K" {
+        &["Ctrl+K"]
+    } else {
+        &[launcher_key.as_str(), "Ctrl+K"]
+    };
+    'launcher: for &key in candidates {
+        let handle_k = app.handle().clone();
+        if let Err(e) = gs.on_shortcut(key, move |_app, _, event| {
+            if event.state() == ShortcutState::Pressed {
+                if let Some(win) = handle_k.get_webview_window("main") {
+                    if win.is_visible().unwrap_or(false) {
+                        let _ = win.hide();
+                    } else {
+                        let _ = win.show();
+                        let _ = win.set_focus();
+                    }
                 }
             }
+        }) {
+            eprintln!("[keynova] {key} registration failed: {e}");
+        } else {
+            break 'launcher;
         }
-    }) {
-        eprintln!("[keynova] Ctrl+K registration failed (conflict?): {e}");
     }
 
-    // ── Ctrl+Alt+M: toggle global mouse-control mode ──
+    // ── 切換全域滑鼠控制模式（設定鍵失敗時自動回退 Ctrl+Alt+M）──
     // 使用 Ctrl+Alt 而非單獨 Alt，避免 Alt 觸發 Windows 選單列造成修飾鍵殘留（卡鍵）
-    let handle_m = app.handle().clone();
-    if let Err(e) = gs.on_shortcut("Ctrl+Alt+M", move |app_h, _, event| {
-        if event.state() == ShortcutState::Pressed {
-            let state = app_h.state::<AppState>();
-            let new_val = !state.mouse_active.load(AtomicOrd::Relaxed);
-            state.mouse_active.store(new_val, AtomicOrd::Relaxed);
-            if let Some(win) = handle_m.get_webview_window("main") {
-                let _ = win.emit("mouse-control-toggled", new_val);
+    let mouse_candidates: &[&str] = if mouse_key == "Ctrl+Alt+M" {
+        &["Ctrl+Alt+M"]
+    } else {
+        &[mouse_key.as_str(), "Ctrl+Alt+M"]
+    };
+    'mouse: for &key in mouse_candidates {
+        let handle_m = app.handle().clone();
+        if let Err(e) = gs.on_shortcut(key, move |app_h, _, event| {
+            if event.state() == ShortcutState::Pressed {
+                let state = app_h.state::<AppState>();
+                let new_val = !state.mouse_active.load(AtomicOrd::Relaxed);
+                state.mouse_active.store(new_val, AtomicOrd::Relaxed);
+                if let Some(win) = handle_m.get_webview_window("main") {
+                    let _ = win.emit("mouse-control-toggled", new_val);
+                }
             }
+        }) {
+            eprintln!("[keynova] {key} (mouse_control) registration failed: {e}");
+        } else {
+            break 'mouse;
         }
-    }) {
-        eprintln!("[keynova] Ctrl+Alt+M registration failed: {e}");
     }
 
     // ── Ctrl+Alt+W/A/S/D: cursor movement ──

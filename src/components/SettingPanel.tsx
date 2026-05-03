@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 
 interface SettingEntry {
@@ -23,22 +23,42 @@ const SECTION_LABELS: Record<Section, string> = {
 export function SettingPanel() {
   const [entries, setEntries] = useState<SettingEntry[]>([]);
   const [activeSection, setActiveSection] = useState<Section>("hotkeys");
+  // Local edits: key → edited value (not yet saved)
+  const [edits, setEdits] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState<string | null>(null);
+  const [saveError, setSaveError] = useState<string | null>(null);
+  // Track original values to detect actual changes on blur
+  const originalRef = useRef<Record<string, string>>({});
 
   useEffect(() => {
     if (!window.__TAURI_INTERNALS__) return;
     ipcDispatch<SettingEntry[]>("setting.list_all")
-      .then(setEntries)
+      .then((data) => {
+        setEntries(data);
+        const orig: Record<string, string> = {};
+        data.forEach(({ key, value }) => { orig[key] = value; });
+        originalRef.current = orig;
+      })
       .catch(() => {});
   }, []);
 
   const visible = entries.filter((e) => e.key.startsWith(`${activeSection}.`));
 
-  async function handleChange(key: string, value: string) {
-    setEntries((prev) => prev.map((e) => (e.key === key ? { ...e, value } : e)));
+  function handleChange(key: string, value: string) {
+    setEdits((prev) => ({ ...prev, [key]: value }));
+  }
+
+  async function handleBlur(key: string) {
+    const edited = edits[key];
+    if (edited === undefined || edited === originalRef.current[key]) return;
     setSaving(key);
+    setSaveError(null);
     try {
-      await ipcDispatch("setting.set", { key, value });
+      await ipcDispatch("setting.set", { key, value: edited });
+      originalRef.current[key] = edited;
+      setEntries((prev) => prev.map((e) => (e.key === key ? { ...e, value: edited } : e)));
+    } catch (err) {
+      setSaveError(String(err));
     } finally {
       setSaving(null);
     }
@@ -70,24 +90,30 @@ export function SettingPanel() {
         )}
         {visible.map(({ key, value }) => {
           const label = key.split(".").slice(1).join(".");
+          const displayValue = edits[key] ?? value;
           return (
             <div key={key} className="flex items-center gap-3">
               <label className="w-40 shrink-0 text-xs text-gray-400 truncate">{label}</label>
               <input
-                value={value}
-                onChange={(e) => void handleChange(key, e.target.value)}
+                value={displayValue}
+                onChange={(e) => handleChange(key, e.target.value)}
+                onBlur={() => void handleBlur(key)}
                 className={`flex-1 rounded bg-gray-800 px-2 py-1 text-sm text-gray-100 outline-none focus:ring-1 focus:ring-blue-500 ${
                   saving === key ? "opacity-60" : ""
                 }`}
                 spellCheck={false}
               />
+              {saving === key && (
+                <span className="text-[10px] text-gray-500 shrink-0">儲存中…</span>
+              )}
             </div>
           );
         })}
       </div>
 
-      <div className="border-t border-gray-700/50 px-4 py-1.5 text-[11px] text-gray-600">
-        變更即時儲存至 %APPDATA%\Keynova\config.toml
+      <div className="border-t border-gray-700/50 px-4 py-1.5 text-[11px] text-gray-600 flex justify-between">
+        <span>失去焦點時自動儲存至 %APPDATA%\Keynova\config.toml</span>
+        {saveError && <span className="text-red-400 truncate ml-2">{saveError}</span>}
       </div>
     </div>
   );
