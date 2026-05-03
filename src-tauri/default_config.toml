@@ -1,7 +1,5 @@
 [hotkeys]
-app_launcher   = "Win+K"
-terminal       = "Ctrl+Alt+T"
-file_search    = "Ctrl+P"
+app_launcher   = "Ctrl+K"
 mouse_control  = "Ctrl+Alt+M"
 
 [launcher]

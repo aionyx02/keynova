@@ -40,3 +40,17 @@ Desktop.ini
 
 # ── Local config overrides ────────────────────────────
 *.local
+
+# ── 專案私人文件（不上傳 GitHub）────────────────────
+CLAUDE.md
+AGENTS.md
+tasks.md
+memory.md
+decisions.md
+skill.md
+
+# ── IDE：VS Code ──────────────────────────────────────
+.vscode/
+
+# ── 設計文件資料夾 ────────────────────────────────────
+files/

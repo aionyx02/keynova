@@ -18,19 +18,19 @@ npm run tauri build # 生產構建
 
 ## ⌨️ 快捷鍵速查
 
-### 已實作（v0.1）
+### 已實作（Phase 2.A / 2.B）
 
-#### 搜尋與啟動
+#### 搜尋、終端、指令
 
 | 快捷鍵 / 前綴 | 功能 | 說明 |
 |--------|------|------|
-| `Ctrl+K` | 開啟 / 關閉搜尋框 | 全域，任意前景視窗均可觸發；視窗已開啟時再按則關閉 |
-| 無前綴 | 搜尋模式 | 模糊搜尋 App + 檔案（Everything 優先，否則 fallback 掃描） |
-| `>` 前綴 | 終端模式 | 視窗展開為 PTY 終端（xterm.js），支援 PowerShell / cmd |
-| `/` 前綴 | 命令模式 | 顯示內建指令建議（`/help`、`/setting`…） |
-| `↑` / `↓` | 在搜尋結果中移動選取 | 搜尋框內使用 |
-| `Enter` | 啟動所選項目 | 應用程式直接開啟；檔案以系統預設程式開啟 |
-| `Escape` | 關閉搜尋框 / 退出終端 | App 常駐背景，不真正退出 |
+| `Ctrl+K` | 開啟 / 關閉搜尋框 | 全域，任意前景視窗均可觸發 |
+| 無前綴 | 搜尋模式 | 模糊搜尋 App + 檔案（Everything 優先，否則 fallback 掃描 C / D / WSL） |
+| `>` 前綴 | 終端模式 | 視窗展開為 PTY 終端（xterm.js + pre-warm），支援 PowerShell / cmd |
+| `/` 前綴 | 指令模式 | 顯示內建指令建議，`/help` 列出所有指令、`/setting` 開啟設定面板 |
+| `↑` / `↓` | 移動選取 | 搜尋結果或指令建議中導航 |
+| `Enter` | 執行所選項目 | 開啟 App / 檔案，或執行指令 |
+| `Escape` | 關閉 / 退出終端 | App 常駐背景，不真正退出 |
 
 #### 全域滑鼠控制
 
@@ -39,7 +39,7 @@ npm run tauri build # 生產構建
 | 快捷鍵 | 功能 | 說明 |
 |--------|------|------|
 | `Ctrl+Alt+M` | 切換滑鼠控制模式 | 開啟 / 關閉，狀態變更會通知前端 UI |
-| `Ctrl+Alt+W` | 游標向上移動 | 每次步進 15px（全域，不需要 Keynova 視窗聚焦） |
+| `Ctrl+Alt+W` | 游標向上移動 | 每次步進 15px（全域） |
 | `Ctrl+Alt+A` | 游標向左移動 | 同上 |
 | `Ctrl+Alt+S` | 游標向下移動 | 同上 |
 | `Ctrl+Alt+D` | 游標向右移動 | 同上 |
@@ -49,17 +49,10 @@ npm run tauri build # 生產構建
 
 ### 規劃中
 
-#### Phase 1（MVP v0.1）
+#### Phase 2 剩餘（v1.0）
 
 | 快捷鍵 | 功能 | 說明 |
 |--------|------|------|
-| `Ctrl+Alt+T` | 開啟 / 關閉浮動終端 | 內建 PTY，支援多分頁；Phase 1.3 |
-
-#### Phase 2（v1.0）
-
-| 快捷鍵 | 功能 | 說明 |
-|--------|------|------|
-| `Ctrl+P` | 全域檔案搜尋 | Windows 優先使用 Everything IPC，否則 tantivy 索引 |
 | `Ctrl+=` | 快速計算機 | 支援單位轉換、進位換算 |
 | `Ctrl+Shift+V` | 剪貼簿歷史 | 文字 + 圖片預覽，快速貼上 |
 | `Win+S` | 系統控制面板 | 音量、亮度、WiFi 快速調整 |
@@ -77,21 +70,50 @@ npm run tauri build # 生產構建
 ## 架構
 
 ```
-Presentation   → React 18 + TypeScript（CommandPalette、TerminalView）
-IPC Bridge     → Tauri + EventBus（命令路由、事件推送）
-Core           → CommandRouter / EventBus / ConfigManager / SearchRegistry
-Business       → Handlers → Managers（launcher, hotkey, terminal, mouse, search）
-Indexer        → tantivy（離線）/ Everything IPC（Windows 加速）
+Presentation   → React 18 + TypeScript（CommandPalette、TerminalPanel、SettingPanel）
+IPC Bridge     → Tauri + EventBus（cmd_dispatch 路由、terminal-output 事件推送）
+Core           → CommandRouter / EventBus / ConfigManager / BuiltinCommandRegistry
+Business       → Handlers → Managers（launcher, hotkey, terminal, mouse, search, builtin_cmd, setting）
+Indexer        → Everything IPC（Windows 加速）/ fallback 掃描（C/D/WSL home）/ tantivy（規劃中）
 Platform       → #[cfg] 條件編譯隔離 Windows / Linux / macOS
 ```
+
+### 搜尋優先順序（Windows）
+
+```
+1. Everything IPC  ← 已安裝 Everything 且服務運行時
+2. Fallback 掃描   ← Desktop / Downloads / Documents / Pictures /
+                      D:–Z: 槽 / \\wsl.localhost\<Distro>\home
+```
+
+### 擴展指令
+
+新增 `/command` 只需：
+
+```rust
+// 1. 實作 trait
+struct MyCmd;
+impl BuiltinCommand for MyCmd {
+    fn name(&self) -> &'static str { "mycmd" }
+    fn description(&self) -> &'static str { "做某件事" }
+    fn execute(&self, _args: &str) -> BuiltinCommandResult { ... }
+}
+
+// 2. 在 lib.rs 注冊
+reg.register(Box::new(MyCmd));
+// 前端自動顯示於 / 建議列表，零改動
+```
+
+---
 
 ## 開發命令
 
 ```bash
-npm run lint        # ESLint
-npm run build       # TypeScript + Vite 構建
-cargo clippy -- -D warnings  # Rust lint
-cargo test          # Rust 單元測試
+npm run lint                  # ESLint
+npm run build                 # TypeScript + Vite 構建
+cargo clippy -- -D warnings   # Rust lint
+cargo test                    # Rust 單元測試
+npm run tauri dev             # 完整開發環境（熱重載）
 ```
 
 ---

@@ -69,13 +69,12 @@ impl SearchManager {
             }
         }
 
-        // Fallback file/folder scan when Everything is not available
-        // 掃描 Desktop / Downloads / Documents，不依賴 Everything 服務
+        // Fallback file/folder search from in-memory cache (no disk I/O at query time)
         #[cfg(target_os = "windows")]
         if self.backend == SearchBackend::AppCache {
             let file_slots = limit.saturating_sub(results.len());
             if file_slots > 0 {
-                let file_results = crate::platform::windows::scan_files_basic(query, file_slots);
+                let file_results = crate::platform::windows::scan_files_from_cache(query, file_slots);
                 for (name, path, is_folder) in file_results {
                     results.push(SearchResult {
                         kind: if is_folder { ResultKind::Folder } else { ResultKind::File },
