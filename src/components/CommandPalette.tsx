@@ -18,6 +18,15 @@ const TerminalPanel = React.lazy(() =>
 
 const TERMINAL_HEIGHT = 360;
 
+interface SettingEntry {
+  key: string;
+  value: string;
+}
+
+interface ConfigReloadedPayload {
+  changed_keys: string[];
+}
+
 async function hideWindow() {
   try {
     await getCurrentWindow().hide();
@@ -60,6 +69,7 @@ export function CommandPalette() {
   const containerRef = useRef<HTMLDivElement>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const searchIdRef = useRef(0);
+  const searchLimitRef = useRef(10);
 
   const { mode, rawInput } = parseInputMode(query);
   const modeRef = useRef(mode);
@@ -78,6 +88,40 @@ export function CommandPalette() {
 
   useEffect(() => {
     inputRef.current?.focus();
+  }, []);
+
+  useEffect(() => {
+    if (!window.__TAURI_INTERNALS__) return;
+
+    async function refreshLauncherSettings() {
+      try {
+        const entries = await invoke<SettingEntry[]>("cmd_dispatch", {
+          route: "setting.list_all",
+          payload: null,
+        });
+        const maxResults = entries.find((entry) => entry.key === "launcher.max_results")?.value;
+        const parsed = Number.parseInt(maxResults ?? "", 10);
+        if (Number.isFinite(parsed) && parsed > 0) {
+          searchLimitRef.current = parsed;
+        }
+      } catch {
+        // keep current search limit
+      }
+    }
+
+    void refreshLauncherSettings();
+    const unlisten = listen<ConfigReloadedPayload>("config-reloaded", (event) => {
+      if (
+        event.payload.changed_keys.length === 0 ||
+        event.payload.changed_keys.includes("launcher.max_results")
+      ) {
+        void refreshLauncherSettings();
+      }
+    });
+
+    return () => {
+      unlisten.then((fn) => fn());
+    };
   }, []);
 
   useEffect(() => {
@@ -151,7 +195,10 @@ export function CommandPalette() {
       const reqId = ++searchIdRef.current;
       setLoading(true);
       try {
-        const data = await dispatch<SearchResult[]>("search.query", { query: ri, limit: 10 });
+        const data = await dispatch<SearchResult[]>("search.query", {
+          query: ri,
+          limit: searchLimitRef.current,
+        });
         if (reqId !== searchIdRef.current) return;
         setResults(data);
         setSelected(0);

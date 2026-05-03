@@ -73,9 +73,9 @@
 - [x] `lib.rs`：`BuiltinCmdHandler::new` 傳入 `Arc::clone(&config_manager)`
 
 **驗收**
-- [ ] 輸入 `/setting terminal.font_size 18` 按 Enter → 回傳 `✓ terminal.font_size = 18`，config.toml 更新
-- [ ] 輸入 `/setting terminal.font_size` 按 Enter → 回傳目前值
-- [ ] 輸入 `/setting` 按 Enter → 仍開啟面板
+- [x] 輸入 `/setting terminal.font_size 18` 按 Enter → 回傳 `✓ terminal.font_size = 18`，config.toml 更新
+- [x] 輸入 `/setting terminal.font_size` 按 Enter → 回傳目前值
+- [x] 輸入 `/setting` 按 Enter → 仍開啟面板
 
 ---
 
@@ -92,23 +92,23 @@
 
 **受影響檔案（預計）**：`src-tauri/src/main.rs`、`lib.rs`、`core/config_manager.rs`、`handlers/setting.rs`、`SettingPanel.tsx`、`src/hooks/useEvents.ts`、`Cargo.toml`
 
-- [ ] A1. CLI 入口：`src-tauri/src/bin/keynova.rs`（建議 `clap`），`start/down/reload/status` 子命令
-- [ ] A2. 控制通道模組：`core/control_plane.rs`，local socket server/client + request/response schema
-- [ ] A3. App 啟動時啟動 control server（背景 thread）；`down` graceful exit、`reload` 觸發 runtime reload
-- [ ] A4. `ConfigManager` 擴充 `reload_from_disk()`、`snapshot()`、`diff()`
-- [ ] A5. 新增 `ConfigApplier`：hotkeys 重新綁定、mouse/terminal/launcher 即時更新策略
-- [ ] A6. 檔案監看（`notify` crate）監聽 `%APPDATA%\Keynova\config.toml`，外部修改自動 reload
-- [ ] A7. `setting.set` 完成後觸發同一條 apply pipeline（不只寫檔）
-- [ ] A8. 事件橋接：前端 `SettingPanel` 顯示「已套用 / 套用失敗」
-- [ ] A9. 命令層：新增 `/reload`、`/down` 供 App 內命令列操作
-- [ ] A10. 文件：`README.md` 補 `keynova` CLI 用法、reload 生效矩陣、失敗排查
+- [x] A1. CLI 入口：`src-tauri/src/bin/keynova.rs`（建議 `clap`），`start/down/reload/status` 子命令
+- [x] A2. 控制通道模組：`core/control_plane.rs`，local socket server/client + request/response schema
+- [x] A3. App 啟動時啟動 control server（背景 thread）；`down` graceful exit、`reload` 觸發 runtime reload
+- [x] A4. `ConfigManager` 擴充 `reload_from_disk()`、`snapshot()`、`diff()`
+- [x] A5. 新增 `ConfigApplier`：hotkeys 重新綁定、mouse/terminal/launcher 即時更新策略
+- [x] A6. 檔案監看（`notify` crate）監聽 `%APPDATA%\Keynova\config.toml`，外部修改自動 reload
+- [x] A7. `setting.set` 完成後觸發同一條 apply pipeline（不只寫檔）
+- [x] A8. 事件橋接：前端 `SettingPanel` 顯示「已套用 / 套用失敗」
+- [x] A9. 命令層：新增 `/reload`、`/down` 供 App 內命令列操作
+- [x] A10. 文件：`README.md` 補 `keynova` CLI 用法、reload 生效矩陣、失敗排查
 
 **驗收**
-- [ ] `keynova start`：未啟動時啟動；已啟動時 bring-to-front，不重複開實例
-- [ ] `keynova down`：3 秒內關閉常駐進程與 tray
-- [ ] `keynova reload`：修改 `hotkeys.app_launcher` 後無需重啟即生效
-- [ ] 直接編輯 config.toml 存檔，App 於 1 秒內自動套用並顯示提示
-- [ ] reload 失敗時前端有錯誤訊息、stderr 有路徑與原因，不破壞現有配置
+- [x] `keynova start`：未啟動時啟動；已啟動時 bring-to-front，不重複開實例
+- [x] `keynova down`：3 秒內關閉常駐進程與 tray
+- [x] `keynova reload`：修改 `hotkeys.app_launcher` 後無需重啟即生效
+- [x] 直接編輯 config.toml 存檔，App 於 1 秒內自動套用並顯示提示
+- [x] reload 失敗時前端有錯誤訊息、stderr 有路徑與原因，不破壞現有配置
 
 ---
 

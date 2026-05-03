@@ -41,6 +41,7 @@
 
 | 日期 | 完成事項 | 遺留問題 |
 |------|----------|----------|
+| 2026-05-03 | FEAT-2 完成：本機 `feature/feat1-feat2-control-plane` 分支、`keynova start/down/reload/status` CLI、loopback control plane、config reload snapshot/diff、hotkey re-register、notify watcher、`/reload` `/down`、設定面板 reload 事件；實測 CLI start/status/reload/down、temp APPDATA reload diff、外部存檔 watcher 自動套用 | 未 push 遠端 |
 | 2026-05-03 | BUG-10 儲存 flash + 生效時機 hint；FEAT-1 /setting key value Minecraft 格式；BuiltinCmdHandler 注入 ConfigManager；CommandPalette rawInput→cmdName+cmdArgs；tsc/lint/clippy 全綠 | 需手動驗收 BUG-10、FEAT-1 |
 | 2026-05-03 | BUG-6~9 全部實作完成（漸進式 ESC、Tab 補全、config 生效、熱鍵捕捉）；tsc/lint/clippy 全綠 | — |
 | 2026-05-03 | private docs 因 git merge 誤刪，已從 git 歷史與 session context 全數還原；BUG-6~9 加入 tasks.md；feature/bugfix-ux 建立 | — |
