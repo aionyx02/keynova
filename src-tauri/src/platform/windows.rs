@@ -236,8 +236,10 @@ fn screen_height() -> i32 {
 /// 已知噪音目錄：掃描時略過，避免 AppData / node_modules / build 產物拖慢速度。
 const SKIP_DIRS: &[&str] = &[
     "AppData", "node_modules", ".git", ".cargo", ".rustup", ".npm",
-    "target", "dist", ".idea", ".vscode", "System Volume Information",
-    "$Recycle.Bin", "Windows", "Program Files", "Program Files (x86)",
+    "target", "dist", ".idea", ".vscode",
+    "System Volume Information", "$Recycle.Bin", "$WinREAgent",
+    "Windows", "Program Files", "Program Files (x86)",
+    "ProgramData", "Recovery", "boot",
 ];
 
 /// 搜尋常用使用者目錄中符合 query 的檔案與資料夾，回傳 (name, full_path, is_folder)。
@@ -264,14 +266,81 @@ fn user_search_dirs() -> Vec<(std::path::PathBuf, usize)> {
     let mut dirs = Vec::new();
     if let Ok(home) = std::env::var("USERPROFILE") {
         let home = std::path::PathBuf::from(home);
-        // 常用子目錄：深度 3，找檔案
-        for sub in &["Desktop", "Downloads", "Documents"] {
-            dirs.push((home.join(sub), 3));
+        for sub in &["Desktop", "Downloads", "Documents", "Pictures", "Music", "Videos"] {
+            let p = home.join(sub);
+            if p.exists() {
+                dirs.push((p, 3));
+            }
         }
-        // 家目錄根：深度 2，找 ~/Projects/keynova 這類專案資料夾
         dirs.push((home, 2));
     }
+    dirs.extend(extra_drive_dirs());
+    dirs.extend(wsl_home_dirs());
     dirs
+}
+
+/// 枚舉 D–Z 槽，各以深度 3 掃描（跳過 SKIP_DIRS 定義的系統目錄）。
+fn extra_drive_dirs() -> Vec<(std::path::PathBuf, usize)> {
+    let mut dirs = Vec::new();
+    for letter in b'D'..=b'Z' {
+        let path = std::path::PathBuf::from(format!("{}:\\", letter as char));
+        if path.exists() {
+            dirs.push((path, 3));
+        }
+    }
+    dirs
+}
+
+/// 透過 wsl.exe --list 取得已安裝的發行版名稱，
+/// 再直接構建 \\wsl.localhost\<Distro>\home 路徑（WSL2 執行中時可存取）。
+fn wsl_home_dirs() -> Vec<(std::path::PathBuf, usize)> {
+    let mut dirs = Vec::new();
+    let distros = wsl_distro_names();
+
+    // 先嘗試 wsl.localhost（Windows 11+），再嘗試舊版 wsl$
+    for prefix in &[r"\\wsl.localhost", r"\\wsl$"] {
+        for distro in &distros {
+            let home = std::path::PathBuf::from(format!(r"{}\{}\home", prefix, distro));
+            if home.exists() {
+                dirs.push((home, 3));
+            }
+        }
+        if !dirs.is_empty() {
+            break;
+        }
+    }
+    dirs
+}
+
+/// 呼叫 `wsl.exe --list --quiet` 取得發行版清單（輸出為 UTF-16 LE）。
+/// 失敗時回退至常見發行版名稱清單。
+fn wsl_distro_names() -> Vec<String> {
+    if let Ok(out) = std::process::Command::new("wsl.exe")
+        .args(["--list", "--quiet"])
+        .output()
+    {
+        if out.status.success() && !out.stdout.is_empty() {
+            // wsl.exe 輸出 UTF-16 LE，含 BOM
+            let words: Vec<u16> = out.stdout
+                .chunks_exact(2)
+                .map(|c| u16::from_le_bytes([c[0], c[1]]))
+                .collect();
+            let text = String::from_utf16_lossy(&words);
+            let names: Vec<String> = text
+                .lines()
+                .map(|l| l.trim().trim_matches('\0').to_string())
+                .filter(|l| !l.is_empty() && l != "\u{feff}")
+                .collect();
+            if !names.is_empty() {
+                return names;
+            }
+        }
+    }
+    // 無 WSL 或解析失敗時的備用清單
+    vec![
+        "Ubuntu".into(), "Ubuntu-22.04".into(), "Ubuntu-24.04".into(),
+        "Ubuntu-20.04".into(), "Debian".into(), "kali-linux".into(),
+    ]
 }
 
 fn scan_dir(

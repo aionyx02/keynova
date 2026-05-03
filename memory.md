@@ -7,7 +7,7 @@
 
 - **進度**：Phase 2.A 核心實作完成（feature/phase2 分支）：三模式輸入 + xterm.js PTY 終端 + EventBus 橋接
 - **上次完成**：修復終端機兩個 UX bug：(1) 終端無法輸入 (2) ESC 後搜尋框不出現。根本原因：WebView2 `Focused(false)→window.hide()` 在 DOM focus gap 時觸發。修復：CommandPalette 改用單一持久 wrapper div（tabIndex=-1），onExit 先 focus wrapper 再 setQuery；TerminalPanel 加 xtermRef + onClick click-to-focus。lint 通過。
-- **下一步**：`npm run tauri dev` 驗收兩個修復，然後實作 Phase 2.B（BuiltinCommand trait + Registry + /help + /setting + ConfigManager + SettingPanel）
+- **下一步**：(1) Task 1 — 擴充 `windows.rs` `scan_files_basic` 加入 D 槽 + WSL home 全域搜尋；(2) Phase 2.B — BuiltinCommand trait + Registry + /help + /setting + ConfigManager + SettingPanel（詳見 tasks.md Phase 2 → 搜尋擴展 / Phase 2.B）
 
 ## 已確認的技術選擇
 
@@ -40,6 +40,7 @@
 
 | 日期 | 完成事項 | 遺留問題 |
 |------|----------|----------|
+| 2026-05-03 | 規劃 Task 1（全域搜尋擴展）+ Phase 2.B 任務細化，寫入 tasks.md / memory.md；未開始實作 | — |
 | 2026-05-03 | Phase 2.A terminal fix: PowerShell/pwsh default shell, TERM/WSLENV hints, real PTY resize, terminal-output event, ESC focus guard | Verified with `npm run tauri dev`: `>` opens prompt, `clear` works, WSL cursor stays aligned, ESC returns to 60px Search UI; lint/tsc/clippy passed |
 | 2026-05-03 | Phase 2.A 架構精化：Terminal 模式改為 xterm.js + portable-pty 真實 PTY；Phase 2.B 加入 PanelRegistry 擴充點；tasks.md 全面重寫 2.A / 2.B | — |
 | 2026-05-03 | Phase 2.A 架構精化：Terminal 模式改為 xterm.js + portable-pty 真實 PTY；Phase 2.B 加入 PanelRegistry 擴充點；tasks.md 全面重寫 2.A / 2.B | — |
