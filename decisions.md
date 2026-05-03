@@ -82,6 +82,32 @@
   - `terminal.open` IPC 回傳型別改變（前後端需同步）
   - `AppState` 新增短時間 focus guard，避免 ESC 從 terminal 回 search 時被 WebView2 blur-to-hide 誤關閉
 
+## ADR-009 BuiltinCommand 可擴展指令 Registry
+
+- 狀態：Accepted
+- 決策：在 `core/builtin_command_registry.rs` 定義 `BuiltinCommand` trait + `BuiltinCommandRegistry`；具體指令（HelpCommand、SettingCommand）實作於 `handlers/builtin_cmd.rs`
+- 原因：
+  - 遵循專案既有擴展模式：新功能 = 實作 trait + 注冊，不修改 core
+  - 指令清單（`cmd.list`）可供前端動態渲染，無需前後端硬編碼
+  - `/help` 的執行在 handler 內特殊處理，避免 `Mutex<BuiltinCommandRegistry>` 鎖重入
+- 影響：
+  - 新增 `models/builtin_command.rs`（CommandUiType::Inline|Panel，BuiltinCommandResult）
+  - `lib.rs` AppState 持有 `Arc<Mutex<BuiltinCommandRegistry>>`
+  - 前端 `PanelRegistry` 以 Record 形式映射 panel name → React 元件，擴展零前端改動
+
+## ADR-010 ConfigManager TOML I/O
+
+- 狀態：Accepted
+- 決策：以 `toml` crate 讀寫 `%APPDATA%\Keynova\config.toml`；內部以 flat dot-key HashMap 表示（如 `hotkeys.app_launcher`），讀取時遞迴攤平 TOML Table，寫回時以 dotted key 格式序列化
+- 原因：
+  - 避免引入 JSON 之外的額外序列化格式；TOML 與既有 `default_config.toml` 格式一致
+  - Flat HashMap 使 `setting.get/set` IPC 介面簡單，鍵名可直接作為 UI label
+  - 使用者設定優先；缺少時 fallback 至 `default_config.toml`（套件內）
+- 影響：
+  - `core/config_manager.rs` 完全取代先前的 stub
+  - `handlers/setting.rs` 新增，提供 `setting.get/set/list_all` IPC
+  - 前端 `SettingPanel` 分四 tab 呈現，onChange 直接呼叫 `setting.set`
+
 ## 待補強事項
 
 - Everything IPC 實作目前仍屬規劃，需補官方 SDK 細節與錯誤處理策略

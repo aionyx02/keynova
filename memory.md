@@ -5,9 +5,9 @@
 
 ## 當前狀態
 
-- **進度**：Phase 2.A 核心實作完成（feature/phase2 分支）：三模式輸入 + xterm.js PTY 終端 + EventBus 橋接
-- **上次完成**：修復終端機兩個 UX bug：(1) 終端無法輸入 (2) ESC 後搜尋框不出現。根本原因：WebView2 `Focused(false)→window.hide()` 在 DOM focus gap 時觸發。修復：CommandPalette 改用單一持久 wrapper div（tabIndex=-1），onExit 先 focus wrapper 再 setQuery；TerminalPanel 加 xtermRef + onClick click-to-focus。lint 通過。
-- **下一步**：(1) Task 1 — 擴充 `windows.rs` `scan_files_basic` 加入 D 槽 + WSL home 全域搜尋；(2) Phase 2.B — BuiltinCommand trait + Registry + /help + /setting + ConfigManager + SettingPanel（詳見 tasks.md Phase 2 → 搜尋擴展 / Phase 2.B）
+- **進度**：Phase 2.A 完成 + Task 1（全域搜尋）完成 + Phase 2.B 實作完成（feature/phase2 分支）
+- **上次完成**：Phase 2.B 全部實作：BuiltinCommandRegistry trait + HelpCommand/SettingCommand + BuiltinCmdHandler + SettingHandler + ConfigManager TOML I/O + useCommands + CommandSuggestions + SettingPanel + PanelRegistry + CommandPalette command 模式接線；cargo clippy + npm lint 全通過
+- **下一步**：commit Phase 2.B 成果 → 等待使用者審查並決定是否合併 dev；接著可繼續 Phase 2 剩餘功能（計算機、剪貼簿歷史、Tantivy 離線索引）
 
 ## 已確認的技術選擇
 
@@ -29,17 +29,14 @@
 
 ## 歷史摘要（已壓縮）
 
-- 規劃與文件設計（2026-05-01）：建立 CLAUDE.md / memory.md / decisions.md / tasks.md / skill.md / AGENTS.md；完成 Everything 雙後端搜尋架構設計（ADR-006）
-- 專案初始化（2026-05-01）：Tauri scaffold（React-TS 模板）、.gitignore / ADR-007 設定、開發環境說明補充
-- Phase 0 完成（2026-05-01）：ESLint / Prettier / Tailwind / CommandRouter / EventBus / 前後端 IPC ping 串接；tasks.md Phase 1 全部驗收標準細化
-- Phase 1 骨架與 UI 精化（2026-05-01）：handlers / managers / models / platform / 前端組件全部骨架建立；早期修復；App.tsx Keynova 入口整合；Phase 1.5 Flow Launcher 風格 UI（transparent 視窗、全局 Ctrl+K、系統托盤、CommandPalette 重設計）
-- Phase 1 完成（2026-05-02）：全域滑鼠控制 / Everything 搜尋架構 / Bug 修復 / README 文件 / 全驗收通過；51 files 合併進 main
+- 規劃 → Phase 0 → Phase 1 完成（2026-05-01 ~ 05-02）：文件建立、Tauri scaffold、ESLint/Tailwind、CommandRouter/EventBus、handlers/managers/models/platform 骨架、Flow Launcher 風格 UI、全域滑鼠控制、Everything 搜尋架構、51 files 合併進 main
 - Phase 2 規劃（2026-05-02）：tasks 設計完成；Phase 2.A 搜尋框三模式 + Phase 2.B /command Registry；feature/phase2 分支建立
 
 ## Session 交接紀錄（最近 5 筆）
 
 | 日期 | 完成事項 | 遺留問題 |
 |------|----------|----------|
+| 2026-05-03 | Phase 2.B + Task 1（D槽/WSL全域搜尋）全部驗收通過；BuiltinCommandRegistry / HelpCommand / SettingCommand / BuiltinCmdHandler / SettingHandler / ConfigManager TOML I/O / 前端 useCommands + CommandSuggestions + SettingPanel + PanelRegistry + CommandPalette command 模式 | — |
 | 2026-05-03 | 規劃 Task 1（全域搜尋擴展）+ Phase 2.B 任務細化，寫入 tasks.md / memory.md；未開始實作 | — |
 | 2026-05-03 | Phase 2.A terminal fix: PowerShell/pwsh default shell, TERM/WSLENV hints, real PTY resize, terminal-output event, ESC focus guard | Verified with `npm run tauri dev`: `>` opens prompt, `clear` works, WSL cursor stays aligned, ESC returns to 60px Search UI; lint/tsc/clippy passed |
 | 2026-05-03 | Phase 2.A 架構精化：Terminal 模式改為 xterm.js + portable-pty 真實 PTY；Phase 2.B 加入 PanelRegistry 擴充點；tasks.md 全面重寫 2.A / 2.B | — |

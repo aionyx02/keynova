@@ -228,7 +228,7 @@
 - [x] `user_search_dirs()`：補充 `Pictures`、`Music`、`Videos`（depth 3）
 - [x] 新增 `extra_drive_dirs()`：枚舉 D–Z 槽（depth 3），跳過 SKIP_DIRS
 - [x] 新增 `wsl_home_dirs()`：嘗試 `\\wsl.localhost` 與 `\\wsl$` UNC，枚舉各發行版 `/home` 目錄（depth 3）
-- [ ] 驗收：在 Keynova 搜尋框輸入已知的 D 槽檔案名稱，確認搜尋結果出現；有 WSL 時同步驗證
+- [x] 驗收：在 Keynova 搜尋框輸入已知的 D 槽檔案名稱，確認搜尋結果出現；有 WSL 時同步驗證
 
 ---
 
@@ -306,45 +306,36 @@
 > 新增指令只需實作 trait + 呼叫 `registry.register()`，不改動核心路由。
 
 #### 2.B.1 後端 Registry 骨架
-- [ ] `src-tauri/src/models/builtin_command.rs`
-  - `CommandUiType`：`Inline`（文字回傳）| `Panel(String)`（指定前端 component name）
-  - `CommandResult { text: String, ui_type: CommandUiType }`
-- [ ] `src-tauri/src/core/builtin_command_registry.rs`
-  - `BuiltinCommand` trait：`name()`, `description()`, `ui_type()`, `execute(args, ctx)`
-  - `BuiltinCommandRegistry`：`HashMap<&str, Box<dyn BuiltinCommand + Send + Sync>>`
-  - `register(cmd)` / `run(name, args, ctx)` / `list()`
-- [ ] `src-tauri/src/handlers/builtin_cmd.rs`：`BuiltinCmdHandler`
-  - `cmd.list` → `Vec<{ name, description }>`
-  - `cmd.run(name, args)` → `CommandResult`
-- [ ] `lib.rs`：初始化 registry，注冊所有內建指令
+- [x] `src-tauri/src/models/builtin_command.rs`（CommandUiType, BuiltinCommandResult）
+- [x] `src-tauri/src/core/builtin_command_registry.rs`（BuiltinCommand trait + Registry + 單元測試）
+- [x] `src-tauri/src/handlers/builtin_cmd.rs`（HelpCommand, SettingCommand, BuiltinCmdHandler）
+- [x] `src-tauri/src/handlers/setting.rs`（SettingHandler：setting.get/set/list_all）
+- [x] `src-tauri/src/core/config_manager.rs`（TOML I/O，取代 stub）
+- [x] `Cargo.toml`：新增 toml = "0.8"
+- [x] `lib.rs`：初始化 registry，注冊 HelpCommand / SettingCommand / BuiltinCmdHandler / SettingHandler
 
 #### 2.B.2 內建指令
-- [ ] `/help`：`execute` 回傳所有指令的 name + description（`CommandUiType::Inline`）
-- [ ] `/setting`：`execute` 回傳 `CommandUiType::Panel("setting")`，前端渲染設定面板
+- [x] `/help`：Inline 顯示所有指令的 name + description
+- [x] `/setting`：Panel("setting") 觸發前端渲染設定面板
 
 #### 2.B.3 Command 模式前端
-- [ ] `src/hooks/useCommands.ts`：呼叫 `cmd.list`，依輸入過濾建議
-- [ ] `src/components/CommandSuggestions.tsx`：顯示過濾後的指令建議（名稱 + 說明）
-- [ ] `src/components/panel/PanelRegistry.tsx`：`Record<string, React.ComponentType>`，將 Panel name 對應到元件
-  - 初期：`{ setting: SettingPanel }`
-- [ ] `CommandPalette.tsx`
-  - command 模式：渲染 `<CommandSuggestions />`，Enter 呼叫 `cmd.run`
-  - 收到 `Panel(name)` → 從 `PanelRegistry` 取得元件，展開渲染
-  - 視窗高度根據面板內容動態調整
+- [x] `src/hooks/useInputMode.ts`：修正 rawInput 剝除 `/` 前綴
+- [x] `src/hooks/useCommands.ts`：cmd.list + 過濾 + runCommand
+- [x] `src/components/CommandSuggestions.tsx`：指令建議列表（名稱 + 說明 + 鍵盤導航）
+- [x] `src/components/panel/PanelRegistry.tsx`：{ setting: SettingPanel }
+- [x] `src/components/CommandPalette.tsx`：command 模式完整接線（建議/執行/Inline/Panel）
 
 #### 2.B.4 Settings 系統
-- [ ] `src-tauri/src/managers/config_manager.rs`：以 `toml` crate 讀寫 config.toml
-  - `setting.get(key)` / `setting.set(key, value)` / `setting.list_all()` IPC
-- [ ] `default_config.toml`（`src-tauri/`）：hotkeys / features / search / terminal 預設值
-- [ ] `src/components/SettingPanel.tsx`：分頁式表單（General / Terminal / Hotkeys）
-  - 讀取 `setting.list_all()` 渲染各欄位；變更即時呼叫 `setting.set`
+- [x] `src-tauri/src/core/config_manager.rs`：真實 TOML I/O（讀 user config → fallback default）
+- [x] `default_config.toml`（已存在）：hotkeys / terminal / launcher / mouse_control 預設值
+- [x] `src/components/SettingPanel.tsx`：分頁式表單（快捷鍵 / 終端機 / 啟動器 / 滑鼠控制）
 
 **驗收**
-- [ ] 輸入 `/` → 顯示所有指令建議；輸入 `/set` → 只顯示 `/setting`
-- [ ] 輸入 `/help` + Enter → Inline 顯示指令列表
-- [ ] 輸入 `/setting` + Enter → 視窗展開設定面板
-- [ ] 在設定面板修改任一選項，重啟後保留（寫入 config.toml）
-- [ ] 新增第三個指令只需：實作 `BuiltinCommand` + `registry.register()`，前端零改動
+- [x] 輸入 `/` → 顯示所有指令建議；輸入 `/set` → 只顯示 `/setting`
+- [x] 輸入 `/help` + Enter → Inline 顯示指令列表
+- [x] 輸入 `/setting` + Enter → 視窗展開設定面板
+- [x] 在設定面板修改任一選項，重啟後保留（寫入 config.toml）
+- [x] 新增第三個指令只需：實作 `BuiltinCommand` + `registry.register()`，前端零改動
 
 ---
 
