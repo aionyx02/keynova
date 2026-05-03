@@ -27,21 +27,8 @@ impl CommandHandler for HotkeyHandler {
                 let hotkeys = mgr.list_hotkeys();
                 Ok(serde_json::to_value(hotkeys).map_err(|e| e.to_string())?)
             }
-            "register" => {
-                let config: HotkeyConfig =
-                    serde_json::from_value(payload).map_err(|e| e.to_string())?;
-                let mut mgr = self.manager.lock().map_err(|e| e.to_string())?;
-                mgr.register_global_hotkey(&config)?;
-                Ok(Value::Null)
-            }
-            "unregister" => {
-                let id = payload["id"]
-                    .as_str()
-                    .ok_or("missing field: id")?
-                    .to_string();
-                let mut mgr = self.manager.lock().map_err(|e| e.to_string())?;
-                mgr.unregister_hotkey(&id)?;
-                Ok(Value::Null)
+            "register" | "unregister" => {
+                Err("NotImplemented: hotkeys are managed via config.toml + restart; runtime registration is not supported".into())
             }
             "check_conflict" => {
                 let config: HotkeyConfig =

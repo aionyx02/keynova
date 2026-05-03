@@ -1,8 +1,8 @@
 #![cfg(target_os = "windows")]
 
 use crate::models::app::AppInfo;
-use crate::models::hotkey::HotkeyConfig;
 use std::path::Path;
+use std::sync::{Arc, Mutex, OnceLock};
 use windows::Win32::UI::Input::KeyboardAndMouse::{
     SendInput, INPUT, INPUT_0, INPUT_MOUSE, INPUT_KEYBOARD,
     MOUSEEVENTF_MOVE, MOUSEEVENTF_ABSOLUTE, MOUSEEVENTF_LEFTDOWN, MOUSEEVENTF_LEFTUP,
@@ -74,20 +74,6 @@ pub fn launch_app(path: &str) -> Result<(), String> {
         .args(["/C", "start", "", path])
         .spawn()
         .map_err(|e| e.to_string())?;
-    Ok(())
-}
-
-// ─── Hotkey ─────────────────────────────────────────────────────────────────
-
-/// 向 Windows 註冊全局快捷鍵（RegisterHotKey）。
-/// 目前為骨架實作，完整 message loop 整合於後續 PR 補齊。
-pub fn register_hotkey(_config: &HotkeyConfig) -> Result<(), String> {
-    // TODO: 呼叫 RegisterHotKey WinAPI + 啟動 message loop thread
-    Ok(())
-}
-
-pub fn unregister_hotkey(_id: &str) -> Result<(), String> {
-    // TODO: 呼叫 UnregisterHotKey WinAPI
     Ok(())
 }
 
@@ -242,24 +228,69 @@ const SKIP_DIRS: &[&str] = &[
     "ProgramData", "Recovery", "boot",
 ];
 
-/// 搜尋常用使用者目錄中符合 query 的檔案與資料夾，回傳 (name, full_path, is_folder)。
-/// 搜尋範圍：
-///   - Desktop / Downloads / Documents：深度 3（找檔案）
-///   - %USERPROFILE% 根目錄：深度 2（找 RustroverProjects/keynova 這類專案目錄）
-pub fn scan_files_basic(query: &str, max: usize) -> Vec<(String, String, bool)> {
-    let query_lower = query.to_lowercase();
-    let mut results = Vec::new();
+// ─── In-memory file index cache ─────────────────────────────────────────────
 
+type FileEntry = (String, String, bool); // (name, path, is_folder)
+
+static FILE_CACHE: OnceLock<Arc<Mutex<Vec<FileEntry>>>> = OnceLock::new();
+
+fn file_cache() -> Arc<Mutex<Vec<FileEntry>>> {
+    Arc::clone(FILE_CACHE.get_or_init(|| Arc::new(Mutex::new(Vec::new()))))
+}
+
+/// 背景啟動後呼叫一次，將所有搜尋路徑的檔案條目寫入記憶體快取。
+pub fn build_file_index() {
+    let mut entries: Vec<FileEntry> = Vec::new();
     for (dir, depth) in user_search_dirs() {
-        scan_dir(&dir, &query_lower, &mut results, max, depth);
-        if results.len() >= max {
-            break;
+        collect_all(&dir, &mut entries, depth);
+    }
+    let cache = file_cache();
+    let Ok(mut guard) = cache.lock() else { return };
+    *guard = entries;
+}
+
+/// 從記憶體快取中搜尋符合 query 的條目，不觸發磁碟 I/O。
+pub fn scan_files_from_cache(query: &str, max: usize) -> Vec<FileEntry> {
+    let q = query.to_lowercase();
+    let cache = file_cache();
+    let Ok(guard) = cache.lock() else {
+        return Vec::new();
+    };
+    guard
+        .iter()
+        .filter(|(name, _, _)| name.to_lowercase().contains(&q))
+        .take(max)
+        .cloned()
+        .collect()
+}
+
+/// 掃描目錄樹，不做 query 過濾，只收集全部條目（供 build_file_index 使用）。
+fn collect_all(dir: &Path, out: &mut Vec<FileEntry>, depth: usize) {
+    if depth == 0 {
+        return;
+    }
+    let Ok(entries) = std::fs::read_dir(dir) else {
+        return;
+    };
+    for entry in entries.flatten() {
+        let path = entry.path();
+        let Some(name) = path.file_name().and_then(|n| n.to_str()) else {
+            continue;
+        };
+        if name.starts_with('.') {
+            continue;
+        }
+        let is_dir = path.is_dir();
+        if is_dir && SKIP_DIRS.iter().any(|s| name.eq_ignore_ascii_case(s)) {
+            continue;
+        }
+        out.push((name.to_string(), path.to_string_lossy().into_owned(), is_dir));
+        if is_dir {
+            collect_all(&path, out, depth - 1);
         }
     }
-
-    results.truncate(max);
-    results
 }
+
 
 /// 回傳 (目錄路徑, 最大掃描深度) 清單。
 fn user_search_dirs() -> Vec<(std::path::PathBuf, usize)> {
@@ -341,44 +372,6 @@ fn wsl_distro_names() -> Vec<String> {
         "Ubuntu".into(), "Ubuntu-22.04".into(), "Ubuntu-24.04".into(),
         "Ubuntu-20.04".into(), "Debian".into(), "kali-linux".into(),
     ]
-}
-
-fn scan_dir(
-    dir: &Path,
-    query: &str,
-    out: &mut Vec<(String, String, bool)>,
-    max: usize,
-    depth: usize,
-) {
-    if depth == 0 || out.len() >= max {
-        return;
-    }
-    let Ok(entries) = std::fs::read_dir(dir) else {
-        return;
-    };
-    for entry in entries.flatten() {
-        if out.len() >= max {
-            break;
-        }
-        let path = entry.path();
-        let Some(name) = path.file_name().and_then(|n| n.to_str()) else {
-            continue;
-        };
-        // 略過隱藏項目與已知噪音目錄
-        if name.starts_with('.') {
-            continue;
-        }
-        let is_dir = path.is_dir();
-        if is_dir && SKIP_DIRS.iter().any(|s| name.eq_ignore_ascii_case(s)) {
-            continue;
-        }
-        if name.to_lowercase().contains(query) {
-            out.push((name.to_string(), path.to_string_lossy().into_owned(), is_dir));
-        }
-        if is_dir {
-            scan_dir(&path, query, out, max, depth - 1);
-        }
-    }
 }
 
 // ─── Everything IPC ──────────────────────────────────────────────────────────

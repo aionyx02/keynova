@@ -203,6 +203,7 @@ pub fn run() {
             });
 
             prescan_apps(app);
+            start_file_index();
             // Pre-warm one terminal session so the first open is nearly instant
             start_prewarm(Arc::clone(&app.state::<AppState>().terminal_manager));
             // Shortcut registration is best-effort; conflicts are logged, not fatal
@@ -241,6 +242,14 @@ fn prescan_apps(app: &tauri::App) {
     });
 }
 
+/// 在背景執行緒建立檔案索引快取（Windows only），之後查詢只讀記憶體，不掃碟。
+fn start_file_index() {
+    #[cfg(target_os = "windows")]
+    std::thread::spawn(|| {
+        crate::platform::windows::build_file_index();
+    });
+}
+
 /// 快捷鍵註冊為 best-effort：衝突時僅 eprintln，不中斷 setup。
 fn setup_global_shortcuts(app: &tauri::App) {
     use tauri_plugin_global_shortcut::{GlobalShortcutExt, ShortcutState};
@@ -248,9 +257,23 @@ fn setup_global_shortcuts(app: &tauri::App) {
     const STEP: i32 = 15;
     let gs = app.global_shortcut();
 
-    // ── Ctrl+K: toggle launcher window ──
+    // ── 讀取設定中的快捷鍵（修改 config.toml 並重啟後生效）──
+    let launcher_key = app
+        .state::<AppState>()
+        ._config_manager
+        .lock()
+        .map(|c| c.get("hotkeys.app_launcher").unwrap_or_else(|| "Ctrl+K".to_string()))
+        .unwrap_or_else(|_| "Ctrl+K".to_string());
+    let mouse_key = app
+        .state::<AppState>()
+        ._config_manager
+        .lock()
+        .map(|c| c.get("hotkeys.mouse_control").unwrap_or_else(|| "Ctrl+Alt+M".to_string()))
+        .unwrap_or_else(|_| "Ctrl+Alt+M".to_string());
+
+    // ── 開啟 / 關閉啟動器視窗 ──
     let handle_k = app.handle().clone();
-    if let Err(e) = gs.on_shortcut("Ctrl+K", move |_app, _, event| {
+    if let Err(e) = gs.on_shortcut(launcher_key.as_str(), move |_app, _, event| {
         if event.state() == ShortcutState::Pressed {
             if let Some(win) = handle_k.get_webview_window("main") {
                 if win.is_visible().unwrap_or(false) {
@@ -262,13 +285,13 @@ fn setup_global_shortcuts(app: &tauri::App) {
             }
         }
     }) {
-        eprintln!("[keynova] Ctrl+K registration failed (conflict?): {e}");
+        eprintln!("[keynova] {launcher_key} registration failed (conflict?): {e}");
     }
 
-    // ── Ctrl+Alt+M: toggle global mouse-control mode ──
+    // ── 切換全域滑鼠控制模式 ──
     // 使用 Ctrl+Alt 而非單獨 Alt，避免 Alt 觸發 Windows 選單列造成修飾鍵殘留（卡鍵）
     let handle_m = app.handle().clone();
-    if let Err(e) = gs.on_shortcut("Ctrl+Alt+M", move |app_h, _, event| {
+    if let Err(e) = gs.on_shortcut(mouse_key.as_str(), move |app_h, _, event| {
         if event.state() == ShortcutState::Pressed {
             let state = app_h.state::<AppState>();
             let new_val = !state.mouse_active.load(AtomicOrd::Relaxed);
@@ -278,7 +301,7 @@ fn setup_global_shortcuts(app: &tauri::App) {
             }
         }
     }) {
-        eprintln!("[keynova] Ctrl+Alt+M registration failed: {e}");
+        eprintln!("[keynova] {mouse_key} registration failed: {e}");
     }
 
     // ── Ctrl+Alt+W/A/S/D: cursor movement ──
