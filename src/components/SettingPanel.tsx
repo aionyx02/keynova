@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 
 interface SettingEntry {
@@ -48,20 +48,39 @@ export function SettingPanel() {
     setEdits((prev) => ({ ...prev, [key]: value }));
   }
 
-  async function handleBlur(key: string) {
-    const edited = edits[key];
-    if (edited === undefined || edited === originalRef.current[key]) return;
+  async function saveValue(key: string, newValue: string) {
+    if (newValue === originalRef.current[key]) return;
     setSaving(key);
     setSaveError(null);
     try {
-      await ipcDispatch("setting.set", { key, value: edited });
-      originalRef.current[key] = edited;
-      setEntries((prev) => prev.map((e) => (e.key === key ? { ...e, value: edited } : e)));
+      await ipcDispatch("setting.set", { key, value: newValue });
+      originalRef.current[key] = newValue;
+      setEntries((prev) => prev.map((e) => (e.key === key ? { ...e, value: newValue } : e)));
     } catch (err) {
       setSaveError(String(err));
     } finally {
       setSaving(null);
     }
+  }
+
+  async function handleBlur(key: string) {
+    const edited = edits[key];
+    if (edited === undefined) return;
+    await saveValue(key, edited);
+  }
+
+  function captureHotkey(e: React.KeyboardEvent<HTMLInputElement>, key: string) {
+    e.preventDefault();
+    if (["Control", "Alt", "Shift", "Meta"].includes(e.key)) return;
+    const parts: string[] = [];
+    if (e.ctrlKey) parts.push("Ctrl");
+    if (e.altKey) parts.push("Alt");
+    if (e.shiftKey) parts.push("Shift");
+    if (e.metaKey) parts.push("Super");
+    parts.push(e.key.length === 1 ? e.key.toUpperCase() : e.key);
+    const combo = parts.join("+");
+    handleChange(key, combo);
+    void saveValue(key, combo);
   }
 
   return (
@@ -91,16 +110,20 @@ export function SettingPanel() {
         {visible.map(({ key, value }) => {
           const label = key.split(".").slice(1).join(".");
           const displayValue = edits[key] ?? value;
+          const isHotkey = key.startsWith("hotkeys.");
           return (
             <div key={key} className="flex items-center gap-3">
               <label className="w-40 shrink-0 text-xs text-gray-400 truncate">{label}</label>
               <input
                 value={displayValue}
-                onChange={(e) => handleChange(key, e.target.value)}
-                onBlur={() => void handleBlur(key)}
-                className={`flex-1 rounded bg-gray-800 px-2 py-1 text-sm text-gray-100 outline-none focus:ring-1 focus:ring-blue-500 ${
-                  saving === key ? "opacity-60" : ""
-                }`}
+                readOnly={isHotkey}
+                onChange={isHotkey ? () => {} : (e) => handleChange(key, e.target.value)}
+                onKeyDown={isHotkey ? (e) => captureHotkey(e, key) : undefined}
+                onBlur={isHotkey ? undefined : () => void handleBlur(key)}
+                placeholder={isHotkey ? "點選後按組合鍵…" : undefined}
+                className={`flex-1 rounded bg-gray-800 px-2 py-1 text-sm text-gray-100 outline-none focus:ring-1 ${
+                  isHotkey ? "focus:ring-violet-500 cursor-pointer" : "focus:ring-blue-500"
+                } ${saving === key ? "opacity-60" : ""}`}
                 spellCheck={false}
               />
               {saving === key && (

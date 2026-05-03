@@ -98,15 +98,25 @@ export function CommandPalette() {
     function onKeyDown(e: KeyboardEvent) {
       if (e.key === "Escape" && mode !== "terminal") {
         e.preventDefault();
-        setQuery("");
-        setResults([]);
-        setCmdResult(null);
-        void hideWindow();
+        if (cmdResult !== null) {
+          // Close panel → return to search mode without hiding
+          setCmdResult(null);
+          setQuery("");
+          setResults([]);
+          requestAnimationFrame(() => inputRef.current?.focus());
+        } else if (query !== "") {
+          // Clear input but stay visible
+          setQuery("");
+          setResults([]);
+          inputRef.current?.focus();
+        } else {
+          void hideWindow();
+        }
       }
     }
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [setQuery, mode]);
+  }, [setQuery, mode, query, cmdResult]);
 
   // Window sizing
   useEffect(() => {
@@ -175,6 +185,11 @@ export function CommandPalette() {
     } else if (mode === "command") {
       if (e.key === "ArrowDown") { e.preventDefault(); setSelectedCmd((i) => Math.min(i + 1, cmdSuggestions.length - 1)); }
       else if (e.key === "ArrowUp") { e.preventDefault(); setSelectedCmd((i) => Math.max(i - 1, 0)); }
+      else if (e.key === "Tab") {
+        e.preventDefault();
+        const cmd = cmdSuggestions[selectedCmd];
+        if (cmd) setQuery("/" + cmd.name);
+      }
       else if (e.key === "Enter") {
         e.preventDefault();
         const cmd = cmdSuggestions[selectedCmd];
