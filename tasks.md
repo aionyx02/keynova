@@ -82,7 +82,7 @@
 
 - [x] `TerminalView.tsx`、`useTerminal.ts`、`App.css` 確認未引用，已刪除
 - [x] `TerminalPanel.tsx`：改為 React.lazy + Suspense，xterm.js 只在進入 `>` 時才載入
-- [ ] `npm run build` 確認無 `>500KB chunk` 警告（需手動驗收）
+- [x] `npm run build` 確認無 `>500KB chunk` 警告（需手動驗收）
 
 ---
 
@@ -94,8 +94,8 @@
 - [x] 確保 ESC 在 terminal 模式不受此邏輯影響
 
 **驗收**
-- [ ] 進入 `/setting` 後按 ESC 回到空白搜尋框（視窗不關閉）
-- [ ] 再按一次 ESC 才關閉視窗
+- [x] 進入 `/setting` 後按 ESC 回到空白搜尋框（視窗不關閉）
+- [x] 再按一次 ESC 才關閉視窗
 
 ---
 
@@ -107,7 +107,7 @@
 - [x] Tab 不應觸發 focus 切換（preventDefault）
 
 **驗收**
-- [ ] 輸入 `/he` → 選中 `/help` → 按 Tab → query 變為 `/help`
+- [x] 輸入 `/he` → 選中 `/help` → 按 Tab → query 變為 `/help`
 
 ---
 
@@ -135,6 +135,42 @@
 **驗收**
 - [ ] 點選 `hotkeys.app_launcher` 欄位後按 `Ctrl+J`，欄位自動顯示 `Ctrl+J`
 - [ ] 離開欄位後儲存到 config.toml
+
+---
+
+### BUG-10 /setting 儲存可靠性 + 生效時機不明
+
+**受影響檔案**：`SettingPanel.tsx`、`config_manager.rs`
+
+- [ ] `SettingPanel.tsx`：`saveValue` 成功後顯示 "✓ 已儲存" 閃爍提示（1.5s 後消失）
+- [ ] `SettingPanel.tsx`：saveError 持續顯示，不因下次 save 前才清空
+- [ ] `SettingPanel.tsx`：每個 section 欄位加入「生效時機」小標籤（`terminal.*` → 重新進入 > 生效；`hotkeys.*` → 重啟後生效；`mouse_control.*` → 即時生效）
+- [ ] `config_manager.rs`：`persist()` 失敗時印出詳細路徑與錯誤至 stderr（方便 DevTools 追蹤）
+
+**驗收**
+- [ ] 在欄位輸入值後離焦，出現 "✓ 已儲存" 提示
+- [ ] `persist()` 失敗時，前端 saveError 顯示具體錯誤訊息
+- [ ] 每個欄位旁有明確「何時生效」標籤
+
+---
+
+### FEAT-1 `/setting [key] [value]` Minecraft 風格命令
+
+**受影響檔案**：`CommandPalette.tsx`、`builtin_cmd.rs`、`lib.rs`
+
+命令規格（仿 Minecraft `/gamerule` 格式）：
+- `/setting` → 開啟設定面板（現有行為不變）
+- `/setting <key>` → 顯示該 key 目前值（Inline 回傳）
+- `/setting <key> <value>` → 直接設定並顯示確認（Inline 回傳 `✓ key = value`）
+
+- [ ] `CommandPalette.tsx`：rawInput 以第一個空格拆分為 cmdName + cmdArgs；suggestion filtering 只比對 cmdName；Enter 時將 cmdArgs 傳給 execCommand
+- [ ] `builtin_cmd.rs`：`BuiltinCmdHandler` 加入 `config: Arc<Mutex<ConfigManager>>`；在 `cmd.run` 中特殊處理 `setting` + 非空 args
+- [ ] `lib.rs`：建立 `BuiltinCmdHandler` 時傳入 `Arc::clone(&config_manager)`
+
+**驗收**
+- [ ] 輸入 `/setting terminal.font_size 18` 按 Enter，回傳 "✓ terminal.font_size = 18"，config.toml 同步更新
+- [ ] 輸入 `/setting terminal.font_size` 按 Enter，回傳目前值
+- [ ] 輸入 `/setting` 按 Enter，仍開啟面板
 
 ---
 

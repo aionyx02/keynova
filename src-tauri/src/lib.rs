@@ -107,7 +107,7 @@ impl AppState {
         command_router.register(Arc::new(TerminalHandler::new(Arc::clone(&terminal_manager))));
         command_router.register(Arc::new(MouseHandler::new(Arc::clone(&mouse_manager))));
         command_router.register(Arc::new(SearchHandler::new(Arc::clone(&search_manager))));
-        command_router.register(Arc::new(BuiltinCmdHandler::new(Arc::clone(&builtin_registry))));
+        command_router.register(Arc::new(BuiltinCmdHandler::new(Arc::clone(&builtin_registry), Arc::clone(&config_manager))));
         command_router.register(Arc::new(SettingHandler::new(Arc::clone(&config_manager))));
 
         Self {
