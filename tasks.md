@@ -26,6 +26,7 @@
 | BUG-7 | `/command` Tab 補全：選中指令 → Tab → 填入 query，不觸發 focus 跳出 |
 | BUG-8 | 設定實際生效：terminal init 讀 font_size/scrollback；W/A/S/D 每次按鍵讀 step_size |
 | BUG-9 | 快捷鍵欄位捕捉：readOnly + onKeyDown 格式化組合鍵（Ctrl+K 等），立即儲存 |
+| BUG-11 | 終端執行 `ipconfig` 後 ESC 無反應：實測確認實體 ESC 會先進 xterm custom key handler 的 `keyup`，不是 DOM/window `keydown`；改為 Escape `keydown` / `keyup` 皆退出，並保留 terminal data `\x1b` / `\x1b[O` 保底、吞掉 focus-in `\x1b[I`；移除 output RAF 推測修補；`npm run build` / `npm run lint` / `cargo check --manifest-path src-tauri/Cargo.toml` 通過 |
 
 ---
 
@@ -38,6 +39,7 @@
 | BUG-1 | DevTools → Performance，確認搜尋無多餘 IPC round-trip |
 | BUG-2 | 呼叫 `hotkey.register` IPC 收到明確的 `NotImplemented` 錯誤 |
 | BUG-4 | DevTools Console 無 CSP violation；所有功能在 CSP 啟用後仍正常 |
+| BUG-11 | 進入 `>` 終端後執行 `ipconfig`，實體 ESC 應立即退回搜尋模式且視窗不隱藏 |
 
 ---
 
