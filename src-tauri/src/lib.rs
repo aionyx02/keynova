@@ -1,4 +1,4 @@
-mod core;
+pub mod core;
 mod handlers;
 mod managers;
 mod models;
@@ -13,10 +13,11 @@ use std::time::{Duration, Instant};
 use serde_json::{json, Value};
 use tauri::{Emitter, Manager};
 
+use crate::core::config_manager::{ConfigChange, ConfigManager};
+use crate::core::control_plane::{self, ControlCommand, ControlRequest, ControlResponse};
 use crate::core::{AppEvent, BuiltinCommandRegistry, CommandHandler, CommandResult, CommandRouter, EventBus};
-use crate::core::config_manager::ConfigManager;
 use crate::handlers::{
-    builtin_cmd::{BuiltinCmdHandler, HelpCommand, SettingCommand},
+    builtin_cmd::{BuiltinCmdHandler, DownCommand, HelpCommand, ReloadCommand, SettingCommand},
     hotkey::HotkeyHandler,
     launcher::LauncherHandler,
     mouse::MouseHandler,
@@ -31,6 +32,7 @@ use crate::managers::{
     search_manager::SearchManager,
     terminal_manager::{start_prewarm, TerminalManager},
 };
+use crate::models::builtin_command::{BuiltinCommandResult, CommandUiType};
 
 // ─── System handler ──────────────────────────────────────────────────────────
 
@@ -69,6 +71,7 @@ struct AppState {
     launcher_focus_guard: Arc<Mutex<Option<Instant>>>,
     /// 使用者設定（TOML I/O）
     _config_manager: Arc<Mutex<ConfigManager>>,
+    _config_watcher: Arc<Mutex<Option<notify::RecommendedWatcher>>>,
 }
 
 impl AppState {
@@ -98,6 +101,8 @@ impl AppState {
             let mut reg = builtin_registry.lock().expect("registry init");
             reg.register(Box::new(HelpCommand));
             reg.register(Box::new(SettingCommand));
+            reg.register(Box::new(ReloadCommand));
+            reg.register(Box::new(DownCommand));
         }
 
         let mut command_router = CommandRouter::new();
@@ -117,6 +122,7 @@ impl AppState {
             terminal_manager: Arc::clone(&terminal_manager),
             launcher_focus_guard: Arc::new(Mutex::new(None)),
             _config_manager: config_manager,
+            _config_watcher: Arc::new(Mutex::new(None)),
         }
     }
 }
@@ -127,11 +133,38 @@ impl AppState {
 fn cmd_dispatch(
     route: String,
     payload: Option<Value>,
+    app: tauri::AppHandle,
     state: tauri::State<'_, AppState>,
 ) -> Result<Value, String> {
-    state
-        .command_router
-        .dispatch(&route, payload.unwrap_or(Value::Null))
+    let payload = payload.unwrap_or(Value::Null);
+
+    if let Some(name) = builtin_control_command(&route, &payload) {
+        return run_builtin_control_command(&app, name);
+    }
+
+    let before = should_apply_config_after_dispatch(&route, &payload)
+        .then(|| {
+            state
+                ._config_manager
+                .lock()
+                .map(|cfg| cfg.snapshot())
+                .map_err(|e| e.to_string())
+        })
+        .transpose()?;
+
+    let result = state.command_router.dispatch(&route, payload)?;
+
+    if let Some(before) = before {
+        let after = state
+            ._config_manager
+            .lock()
+            .map(|cfg| cfg.snapshot())
+            .map_err(|e| e.to_string())?;
+        let changes = ConfigManager::diff(&before, &after);
+        apply_config_changes(&app, changes, "setting.set", false)?;
+    }
+
+    Ok(result)
 }
 
 #[tauri::command]
@@ -175,15 +208,153 @@ fn cmd_keep_launcher_open(
     window.set_focus().map_err(|e| e.to_string())
 }
 
+fn builtin_control_command<'a>(route: &str, payload: &'a Value) -> Option<&'a str> {
+    if route != "cmd.run" {
+        return None;
+    }
+    let name = payload.get("name").and_then(Value::as_str)?;
+    matches!(name, "reload" | "down").then_some(name)
+}
+
+fn should_apply_config_after_dispatch(route: &str, payload: &Value) -> bool {
+    if route == "setting.set" {
+        return true;
+    }
+    if route != "cmd.run" {
+        return false;
+    }
+    let Some("setting") = payload.get("name").and_then(Value::as_str) else {
+        return false;
+    };
+    payload
+        .get("args")
+        .and_then(Value::as_str)
+        .map(|args| args.split_once(' ').is_some_and(|(_, v)| !v.trim().is_empty()))
+        .unwrap_or(false)
+}
+
+fn run_builtin_control_command(app: &tauri::AppHandle, name: &str) -> Result<Value, String> {
+    match name {
+        "reload" => {
+            let changes = reload_config_from_disk(app, "command", true)?;
+            Ok(json!(BuiltinCommandResult {
+                text: format!("Reloaded config ({} change(s))", changes.len()),
+                ui_type: CommandUiType::Inline,
+            }))
+        }
+        "down" => {
+            schedule_shutdown(app);
+            Ok(json!(BuiltinCommandResult {
+                text: "Keynova is shutting down".into(),
+                ui_type: CommandUiType::Inline,
+            }))
+        }
+        _ => Err(format!("unknown control command '/{name}'")),
+    }
+}
+
+fn reload_config_from_disk(
+    app: &tauri::AppHandle,
+    source: &str,
+    emit_on_empty: bool,
+) -> Result<Vec<ConfigChange>, String> {
+    let state = app.state::<AppState>();
+    let changes = match state._config_manager.lock() {
+        Ok(mut cfg) => cfg.reload_from_disk(),
+        Err(e) => Err(e.to_string()),
+    };
+
+    match changes {
+        Ok(changes) => {
+            apply_config_changes(app, changes.clone(), source, emit_on_empty)?;
+            Ok(changes)
+        }
+        Err(error) => {
+            publish_config_reload_failed(app, source, &error);
+            Err(error)
+        }
+    }
+}
+
+fn apply_config_changes(
+    app: &tauri::AppHandle,
+    changes: Vec<ConfigChange>,
+    source: &str,
+    emit_on_empty: bool,
+) -> Result<(), String> {
+    if changes.iter().any(|change| change.key.starts_with("hotkeys.")) {
+        setup_global_shortcuts(app, true);
+    }
+
+    if emit_on_empty || !changes.is_empty() {
+        publish_config_reloaded(app, source, &changes);
+    }
+
+    Ok(())
+}
+
+fn publish_config_reloaded(app: &tauri::AppHandle, source: &str, changes: &[ConfigChange]) {
+    let state = app.state::<AppState>();
+    let changed_keys: Vec<_> = changes.iter().map(|change| change.key.clone()).collect();
+    let _ = state.event_bus.publish(AppEvent::new(
+        "config.reloaded",
+        json!({
+            "source": source,
+            "changed_keys": changed_keys,
+            "changes": changes,
+        }),
+    ));
+}
+
+fn publish_config_reload_failed(app: &tauri::AppHandle, source: &str, error: &str) {
+    let state = app.state::<AppState>();
+    let _ = state.event_bus.publish(AppEvent::new(
+        "config.reload_failed",
+        json!({
+            "source": source,
+            "error": error,
+        }),
+    ));
+}
+
+fn schedule_shutdown(app: &tauri::AppHandle) {
+    let handle = app.clone();
+    tauri::async_runtime::spawn(async move {
+        tokio::time::sleep(Duration::from_millis(75)).await;
+        handle.exit(0);
+    });
+}
+
+fn show_launcher(app: &tauri::AppHandle) -> Result<(), String> {
+    let window = app
+        .get_webview_window("main")
+        .ok_or_else(|| "main window not found".to_string())?;
+    let _ = window.unminimize();
+    window.show().map_err(|e| e.to_string())?;
+    window.set_focus().map_err(|e| e.to_string())
+}
+
 // ─── Entry point ─────────────────────────────────────────────────────────────
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    tauri::Builder::default()
+    let mut builder = tauri::Builder::default();
+    #[cfg(any(target_os = "macos", target_os = "windows", target_os = "linux"))]
+    {
+        builder = builder.plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
+            let _ = show_launcher(app);
+        }));
+    }
+
+    builder
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_global_shortcut::Builder::new().build())
         .manage(AppState::new())
         .setup(|app| {
+            if !start_control_server(app) {
+                return Ok(());
+            }
+
             // Bridge: EventBus (Rust broadcast) → Tauri frontend events.
             // Tauri event names cannot contain '.', so expose dotted internal topics as kebab names.
             let mut rx = app.state::<AppState>().event_bus.subscribe();
@@ -207,7 +378,8 @@ pub fn run() {
             // Pre-warm one terminal session so the first open is nearly instant
             start_prewarm(Arc::clone(&app.state::<AppState>().terminal_manager));
             // Shortcut registration is best-effort; conflicts are logged, not fatal
-            setup_global_shortcuts(app);
+            setup_global_shortcuts(app.handle(), false);
+            setup_config_watcher(app);
             setup_tray(app)?;
             setup_main_window(app)?;
             Ok(())
@@ -231,6 +403,159 @@ pub fn run() {
 
 // ─── Setup helpers ───────────────────────────────────────────────────────────
 
+/// Starts the localhost control plane used by the `keynova` CLI.
+/// Returns false when this process handed off to an already running instance.
+fn start_control_server(app: &tauri::App) -> bool {
+    let listener = match control_plane::bind_listener() {
+        Ok(listener) => listener,
+        Err(bind_error) => {
+            match control_plane::send_request(ControlCommand::Start, Duration::from_millis(400)) {
+                Ok(response) if response.ok => {
+                    eprintln!("[keynova] existing instance detected, handing off and exiting");
+                    let handle = app.handle().clone();
+                    schedule_shutdown(&handle);
+                    return false;
+                }
+                _ => {
+                    eprintln!("[keynova] control plane disabled: {bind_error}");
+                    return true;
+                }
+            }
+        }
+    };
+
+    let handle = app.handle().clone();
+    std::thread::spawn(move || {
+        let handler: Arc<dyn Fn(ControlRequest) -> ControlResponse + Send + Sync> = {
+            let handle = handle.clone();
+            Arc::new(move |request| handle_control_request(&handle, request))
+        };
+        if let Err(e) = control_plane::serve_listener(listener, handler) {
+            eprintln!("[keynova] control plane disabled: {e}");
+        }
+    });
+
+    true
+}
+
+fn handle_control_request(app: &tauri::AppHandle, request: ControlRequest) -> ControlResponse {
+    match request.command {
+        ControlCommand::Start => match show_launcher(app) {
+            Ok(()) => ControlResponse::ok("Keynova is focused", json!({ "visible": true })),
+            Err(e) => ControlResponse::error(e),
+        },
+        ControlCommand::Down => {
+            schedule_shutdown(app);
+            ControlResponse::ok("Keynova is shutting down", json!(null))
+        }
+        ControlCommand::Reload => match reload_config_from_disk(app, "cli", true) {
+            Ok(changes) => ControlResponse::ok(
+                format!("Reloaded config ({} change(s))", changes.len()),
+                json!({ "changed_keys": changes.iter().map(|c| c.key.clone()).collect::<Vec<_>>() }),
+            ),
+            Err(e) => ControlResponse::error(e),
+        },
+        ControlCommand::Status => {
+            let state = app.state::<AppState>();
+            let config_path = state
+                ._config_manager
+                .lock()
+                .map(|cfg| cfg.config_path().display().to_string())
+                .unwrap_or_else(|_| "<locked>".into());
+            ControlResponse::ok(
+                "Keynova is running",
+                json!({
+                    "config_path": config_path,
+                    "handlers": state.command_router.handler_count(),
+                }),
+            )
+        }
+    }
+}
+
+fn setup_config_watcher(app: &tauri::App) {
+    let handle = app.handle().clone();
+    let state = app.state::<AppState>();
+    let config_path = match state._config_manager.lock() {
+        Ok(cfg) => cfg.config_path(),
+        Err(e) => {
+            eprintln!("[keynova] config watcher skipped: {e}");
+            return;
+        }
+    };
+
+    match start_config_watcher(handle, config_path) {
+        Ok(watcher) => {
+            if let Ok(mut slot) = state._config_watcher.lock() {
+                *slot = Some(watcher);
+            }
+        }
+        Err(e) => eprintln!("[keynova] config watcher disabled: {e}"),
+    }
+}
+
+fn start_config_watcher(
+    app: tauri::AppHandle,
+    config_path: std::path::PathBuf,
+) -> Result<notify::RecommendedWatcher, String> {
+    use notify::{Config, EventKind, RecommendedWatcher, RecursiveMode, Watcher};
+
+    let watch_dir = config_path
+        .parent()
+        .map(std::path::Path::to_path_buf)
+        .ok_or_else(|| "invalid config path".to_string())?;
+    std::fs::create_dir_all(&watch_dir).map_err(|e| e.to_string())?;
+
+    let (tx, rx) = std::sync::mpsc::channel();
+    let mut watcher = RecommendedWatcher::new(
+        move |event| {
+            let _ = tx.send(event);
+        },
+        Config::default(),
+    )
+    .map_err(|e| e.to_string())?;
+    watcher
+        .watch(&watch_dir, RecursiveMode::NonRecursive)
+        .map_err(|e| e.to_string())?;
+
+    std::thread::spawn(move || {
+        let mut last_reload = Instant::now() - Duration::from_secs(1);
+        for event in rx {
+            let Ok(event) = event else {
+                continue;
+            };
+            if !is_config_file_event(&event, &config_path) {
+                continue;
+            }
+            if !matches!(
+                event.kind,
+                EventKind::Create(_) | EventKind::Modify(_) | EventKind::Remove(_)
+            ) {
+                continue;
+            }
+            if last_reload.elapsed() < Duration::from_millis(250) {
+                continue;
+            }
+            last_reload = Instant::now();
+            std::thread::sleep(Duration::from_millis(150));
+            if let Err(e) = reload_config_from_disk(&app, "watcher", false) {
+                eprintln!("[keynova] config watcher reload failed: {e}");
+            }
+        }
+    });
+
+    Ok(watcher)
+}
+
+fn is_config_file_event(event: &notify::Event, config_path: &std::path::Path) -> bool {
+    let Some(wanted_name) = config_path.file_name() else {
+        return false;
+    };
+    event.paths.iter().any(|path| {
+        path == config_path || path.file_name().is_some_and(|name| name == wanted_name)
+    })
+}
+
 /// 在背景執行緒預先掃描應用程式清單，確保首次搜尋無冷啟動延遲。
 fn prescan_apps(app: &tauri::App) {
     let app_handle = app.handle().clone();
@@ -251,10 +576,15 @@ fn start_file_index() {
 }
 
 /// 快捷鍵註冊為 best-effort：衝突時僅 eprintln，不中斷 setup。
-fn setup_global_shortcuts(app: &tauri::App) {
+fn setup_global_shortcuts(app: &tauri::AppHandle, reset_existing: bool) {
     use tauri_plugin_global_shortcut::{GlobalShortcutExt, ShortcutState};
 
     let gs = app.global_shortcut();
+    if reset_existing {
+        if let Err(e) = gs.unregister_all() {
+            eprintln!("[keynova] shortcut unregister_all failed: {e}");
+        }
+    }
 
     // ── 讀取設定中的快捷鍵（修改 config.toml 並重啟後生效）──
     let launcher_key = app
@@ -277,7 +607,7 @@ fn setup_global_shortcuts(app: &tauri::App) {
         &[launcher_key.as_str(), "Ctrl+K"]
     };
     'launcher: for &key in candidates {
-        let handle_k = app.handle().clone();
+        let handle_k = app.clone();
         if let Err(e) = gs.on_shortcut(key, move |_app, _, event| {
             if event.state() == ShortcutState::Pressed {
                 if let Some(win) = handle_k.get_webview_window("main") {
@@ -304,7 +634,7 @@ fn setup_global_shortcuts(app: &tauri::App) {
         &[mouse_key.as_str(), "Ctrl+Alt+M"]
     };
     'mouse: for &key in mouse_candidates {
-        let handle_m = app.handle().clone();
+        let handle_m = app.clone();
         if let Err(e) = gs.on_shortcut(key, move |app_h, _, event| {
             if event.state() == ShortcutState::Pressed {
                 let state = app_h.state::<AppState>();

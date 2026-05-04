@@ -119,3 +119,51 @@ npm run tauri dev             # 完整開發環境（熱重載）
 ---
 
 **文件詳見 [`files/`](./files/) 目錄**
+ 
+## Keynova CLI
+
+The Tauri package also builds a small local-control binary named `keynova`.
+It talks to the running app over `127.0.0.1` JSON control messages and does not
+use any remote branch or external network service.
+
+```bash
+keynova start   # Launch Keynova if needed, or focus the running launcher
+keynova down    # Gracefully quit the running app
+keynova reload  # Reload %APPDATA%\Keynova\config.toml and apply runtime settings
+keynova status  # Check whether the app control plane is alive
+```
+
+If `keynova` is not recognized in your shell during development, use:
+
+```bash
+npm run keynova -- start
+npm run keynova -- status
+```
+
+To make `keynova` available globally in PowerShell/CMD, install it once:
+
+```bash
+cargo install --path src-tauri --bin keynova --force
+```
+
+Runtime config changes flow through the same reload pipeline whether they come
+from `/setting key value`, the settings panel, `keynova reload`, `/reload`, or
+an external edit to `%APPDATA%\Keynova\config.toml`. Hotkeys are re-registered
+in place; launcher, terminal, and mouse settings are refreshed without a full
+app restart.
+
+---
+
+### Reload Scope
+
+| Setting area | Runtime behavior |
+| --- | --- |
+| `hotkeys.*` | Re-registers global shortcuts in place |
+| `launcher.max_results` | Refreshes the command palette search limit |
+| `terminal.font_size`, `terminal.scrollback_lines` | Updates open terminal views and applies to new sessions |
+| `mouse_control.step_size` | Applies on the next keyboard mouse movement |
+
+If `keynova reload` fails, check that the app is running with `keynova status`
+and validate `%APPDATA%\Keynova\config.toml` as TOML. The app emits
+`config-reload-failed` to the settings panel and writes the detailed error to
+stderr.

@@ -1,30 +1,46 @@
 use std::sync::{Arc, Mutex};
+
 use serde_json::{json, Value};
 
-use crate::core::{BuiltinCommandRegistry, CommandHandler, CommandResult};
-use crate::core::config_manager::ConfigManager;
-use crate::models::builtin_command::{BuiltinCommandResult, CommandUiType};
 use crate::core::builtin_command_registry::BuiltinCommand;
+use crate::core::config_manager::ConfigManager;
+use crate::core::{BuiltinCommandRegistry, CommandHandler, CommandResult};
+use crate::models::builtin_command::{BuiltinCommandResult, CommandUiType};
 
-// ─── Concrete commands ───────────────────────────────────────────────────────
-
-/// /help — 元資料僅供 cmd.list 顯示；實際執行由 BuiltinCmdHandler 特殊處理以避免鎖重入。
 pub struct HelpCommand;
 
 impl BuiltinCommand for HelpCommand {
-    fn name(&self) -> &'static str { "help" }
-    fn description(&self) -> &'static str { "顯示所有可用指令" }
+    fn name(&self) -> &'static str {
+        "help"
+    }
+
+    fn description(&self) -> &'static str {
+        "Show available commands"
+    }
+
     fn execute(&self, _args: &str) -> BuiltinCommandResult {
-        BuiltinCommandResult { text: String::new(), ui_type: CommandUiType::Inline }
+        BuiltinCommandResult {
+            text: String::new(),
+            ui_type: CommandUiType::Inline,
+        }
     }
 }
 
-/// /setting — 通知前端開啟設定面板。
 pub struct SettingCommand;
 
 impl BuiltinCommand for SettingCommand {
-    fn name(&self) -> &'static str { "setting" }
-    fn description(&self) -> &'static str { "開啟設定面板" }
+    fn name(&self) -> &'static str {
+        "setting"
+    }
+
+    fn description(&self) -> &'static str {
+        "Open or edit settings"
+    }
+
+    fn args_hint(&self) -> Option<&'static str> {
+        Some("[key] [value]")
+    }
+
     fn execute(&self, _args: &str) -> BuiltinCommandResult {
         BuiltinCommandResult {
             text: String::new(),
@@ -33,22 +49,62 @@ impl BuiltinCommand for SettingCommand {
     }
 }
 
-// ─── Handler ─────────────────────────────────────────────────────────────────
+pub struct ReloadCommand;
 
-/// 處理 `cmd.*` 命名空間的 IPC 請求。
+impl BuiltinCommand for ReloadCommand {
+    fn name(&self) -> &'static str {
+        "reload"
+    }
+
+    fn description(&self) -> &'static str {
+        "Reload config from disk"
+    }
+
+    fn execute(&self, _args: &str) -> BuiltinCommandResult {
+        BuiltinCommandResult {
+            text: "Reload requested".into(),
+            ui_type: CommandUiType::Inline,
+        }
+    }
+}
+
+pub struct DownCommand;
+
+impl BuiltinCommand for DownCommand {
+    fn name(&self) -> &'static str {
+        "down"
+    }
+
+    fn description(&self) -> &'static str {
+        "Gracefully quit Keynova"
+    }
+
+    fn execute(&self, _args: &str) -> BuiltinCommandResult {
+        BuiltinCommandResult {
+            text: "Shutdown requested".into(),
+            ui_type: CommandUiType::Inline,
+        }
+    }
+}
+
 pub struct BuiltinCmdHandler {
     registry: Arc<Mutex<BuiltinCommandRegistry>>,
     config: Arc<Mutex<ConfigManager>>,
 }
 
 impl BuiltinCmdHandler {
-    pub fn new(registry: Arc<Mutex<BuiltinCommandRegistry>>, config: Arc<Mutex<ConfigManager>>) -> Self {
+    pub fn new(
+        registry: Arc<Mutex<BuiltinCommandRegistry>>,
+        config: Arc<Mutex<ConfigManager>>,
+    ) -> Self {
         Self { registry, config }
     }
 }
 
 impl CommandHandler for BuiltinCmdHandler {
-    fn namespace(&self) -> &'static str { "cmd" }
+    fn namespace(&self) -> &'static str {
+        "cmd"
+    }
 
     fn execute(&self, command: &str, payload: Value) -> CommandResult {
         match command {
@@ -57,15 +113,16 @@ impl CommandHandler for BuiltinCmdHandler {
                 Ok(json!(reg.list()))
             }
             "run" => {
-                let name = payload.get("name")
+                let name = payload
+                    .get("name")
                     .and_then(Value::as_str)
                     .ok_or_else(|| "missing 'name' field".to_string())?;
-                let args = payload.get("args")
+                let args = payload
+                    .get("args")
                     .and_then(Value::as_str)
                     .unwrap_or("")
                     .trim();
 
-                // /setting <key> [value] — Minecraft 風格內聯設定
                 if name == "setting" && !args.is_empty() {
                     let mut parts = args.splitn(2, ' ');
                     let key = parts.next().unwrap_or("").trim();
@@ -81,7 +138,7 @@ impl CommandHandler for BuiltinCmdHandler {
                         }
                         None => {
                             let cfg = self.config.lock().map_err(|e| e.to_string())?;
-                            let current = cfg.get(key).unwrap_or_else(|| "(找不到此設定)".to_string());
+                            let current = cfg.get(key).unwrap_or_else(|| "(not set)".to_string());
                             Ok(json!(BuiltinCommandResult {
                                 text: format!("{} = {}", key, current),
                                 ui_type: CommandUiType::Inline,
@@ -90,14 +147,14 @@ impl CommandHandler for BuiltinCmdHandler {
                     };
                 }
 
-                // /help 在 handler 內特殊處理，避免 Mutex 鎖重入
                 if name == "help" {
                     let list = {
                         let reg = self.registry.lock().map_err(|e| e.to_string())?;
                         reg.list()
                     };
-                    let text = list.iter()
-                        .map(|m| format!("/{} — {}", m.name, m.description))
+                    let text = list
+                        .iter()
+                        .map(|meta| format!("/{} - {}", meta.name, meta.description))
                         .collect::<Vec<_>>()
                         .join("\n");
                     return Ok(json!(BuiltinCommandResult {
@@ -111,8 +168,30 @@ impl CommandHandler for BuiltinCmdHandler {
                     reg.run(name, args)
                 };
                 result
-                    .map(|r| json!(r))
+                    .map(|result| json!(result))
                     .ok_or_else(|| format!("unknown command '/{name}'"))
+            }
+            "suggest_args" => {
+                let name = payload
+                    .get("name")
+                    .and_then(Value::as_str)
+                    .ok_or_else(|| "missing 'name'".to_string())?;
+                let partial = payload
+                    .get("partial")
+                    .and_then(Value::as_str)
+                    .unwrap_or("")
+                    .to_lowercase();
+                if name == "setting" {
+                    let cfg = self.config.lock().map_err(|e| e.to_string())?;
+                    let keys: Vec<String> = cfg
+                        .list_all()
+                        .into_iter()
+                        .filter(|(k, _)| partial.is_empty() || k.starts_with(&partial))
+                        .map(|(k, _)| k)
+                        .collect();
+                    return Ok(json!(keys));
+                }
+                Ok(json!(Vec::<String>::new()))
             }
             _ => Err(format!("unknown cmd command '{command}'")),
         }

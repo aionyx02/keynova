@@ -28,6 +28,11 @@ export function CommandSuggestions({ commands, selectedIndex, onSelect, onHover 
               CMD
             </span>
             <span className="font-medium">/{cmd.name}</span>
+            {cmd.args_hint && (
+              <span className={`text-xs font-mono ${i === selectedIndex ? "text-blue-300" : "text-gray-600"}`}>
+                {cmd.args_hint}
+              </span>
+            )}
             <span className={`ml-auto text-xs truncate ${i === selectedIndex ? "text-blue-200" : "text-gray-500"}`}>
               {cmd.description}
             </span>
