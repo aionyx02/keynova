@@ -342,7 +342,7 @@ pub fn run() {
     #[cfg(any(target_os = "macos", target_os = "windows", target_os = "linux"))]
     {
         builder = builder.plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
-            let _ = show_launcher(&app);
+            let _ = show_launcher(app);
         }));
     }
 

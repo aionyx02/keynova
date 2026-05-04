@@ -41,15 +41,14 @@ const SECTION_EFFECT_HINT: Record<Section, string> = {
 export function SettingPanel() {
   const [entries, setEntries] = useState<SettingEntry[]>([]);
   const [activeSection, setActiveSection] = useState<Section>("hotkeys");
-  // Local edits: key → edited value (not yet saved)
   const [edits, setEdits] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState<string | null>(null);
   const [savedKey, setSavedKey] = useState<string | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [reloadNotice, setReloadNotice] = useState<string | null>(null);
-  // Track original values to detect actual changes on blur
   const originalRef = useRef<Record<string, string>>({});
   const savedFlashRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const inputRefs = useRef<Array<HTMLInputElement | null>>([]);
 
   const loadSettings = useCallback(async () => {
     if (!window.__TAURI_INTERNALS__) return;
@@ -93,6 +92,69 @@ export function SettingPanel() {
   }, [loadSettings]);
 
   const visible = entries.filter((e) => e.key.startsWith(`${activeSection}.`));
+
+  // Auto-focus first input when entries load or section switches
+  useEffect(() => {
+    if (entries.length === 0) return;
+    const timer = window.setTimeout(() => {
+      inputRefs.current[0]?.focus();
+    }, 50);
+    return () => window.clearTimeout(timer);
+  }, [entries.length, activeSection]);
+
+  function switchSection(dir: 1 | -1) {
+    const idx = SECTIONS.indexOf(activeSection);
+    const next = SECTIONS[Math.max(0, Math.min(SECTIONS.length - 1, idx + dir))];
+    if (next && next !== activeSection) setActiveSection(next);
+  }
+
+  function handleInputKeyDown(
+    e: React.KeyboardEvent<HTMLInputElement>,
+    key: string,
+    rowIdx: number,
+    displayValue: string,
+    isHotkey: boolean,
+  ) {
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      inputRefs.current[rowIdx + 1]?.focus();
+      return;
+    }
+    if (e.key === "ArrowUp") {
+      e.preventDefault();
+      inputRefs.current[rowIdx - 1]?.focus();
+      return;
+    }
+    if (e.key === "ArrowLeft") {
+      // Hotkey fields have no cursor, always switch section; normal fields only at pos 0
+      if (isHotkey || (e.currentTarget.selectionStart === 0 && e.currentTarget.selectionEnd === 0)) {
+        e.preventDefault();
+        switchSection(-1);
+      }
+      return;
+    }
+    if (e.key === "ArrowRight") {
+      if (isHotkey) {
+        e.preventDefault();
+        switchSection(1);
+      } else {
+        const len = e.currentTarget.value.length;
+        if (e.currentTarget.selectionStart === len && e.currentTarget.selectionEnd === len) {
+          e.preventDefault();
+          switchSection(1);
+        }
+      }
+      return;
+    }
+    if (isHotkey) {
+      captureHotkey(e, key);
+      return;
+    }
+    if (e.key === "Enter") {
+      e.preventDefault();
+      void saveValue(key, displayValue);
+    }
+  }
 
   function handleChange(key: string, value: string) {
     setEdits((prev) => ({ ...prev, [key]: value }));
@@ -169,7 +231,7 @@ export function SettingPanel() {
         {visible.length === 0 && (
           <p className="text-xs text-gray-600 text-center py-4">無設定項目</p>
         )}
-        {visible.map(({ key, value }) => {
+        {visible.map(({ key, value }, rowIdx) => {
           const label = key.split(".").slice(1).join(".");
           const displayValue = edits[key] ?? value;
           const isHotkey = key.startsWith("hotkeys.");
@@ -177,10 +239,11 @@ export function SettingPanel() {
             <div key={key} className="flex items-center gap-3">
               <label className="w-40 shrink-0 text-xs text-gray-400 truncate">{label}</label>
               <input
+                ref={(el) => { inputRefs.current[rowIdx] = el; }}
                 value={displayValue}
                 readOnly={isHotkey}
                 onChange={isHotkey ? () => {} : (e) => handleChange(key, e.target.value)}
-                onKeyDown={isHotkey ? (e) => captureHotkey(e, key) : undefined}
+                onKeyDown={(e) => handleInputKeyDown(e, key, rowIdx, displayValue, isHotkey)}
                 onBlur={isHotkey ? undefined : () => void handleBlur(key)}
                 placeholder={isHotkey ? "點選後按組合鍵…" : undefined}
                 className={`flex-1 rounded bg-gray-800 px-2 py-1 text-sm text-gray-100 outline-none focus:ring-1 ${

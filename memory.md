@@ -5,9 +5,9 @@
 
 ## 當前狀態
 
-- **進度**：Phase 2 全部完成 + BUG-1~10 修正 + FEAT-1（feature/bugfix-ux 分支）
-- **上次完成**：BUG-10（/setting 儲存成功閃爍、生效時機 hint）、FEAT-1（`/setting key value` Minecraft 風格內聯設定、BuiltinCmdHandler 注入 ConfigManager、CommandPalette rawInput 拆分 cmdName+cmdArgs）全部完成，tsc/lint/clippy 全綠
-- **下一步**：等待使用者手動驗收後合併 feature/bugfix-ux → dev → main；下一個大功能為 Phase 3 或進一步 BUG 修復
+- **進度**：Phase 2 全部完成 + BUG-1~10 + FEAT-1~5（feature/feat1-feat2-control-plane 分支）
+- **上次完成**：FEAT-3（指令參數提示）、FEAT-4（終端內容保留）、FEAT-5（設定表格鍵盤導航）全部實作完成，tsc/lint/clippy 全綠
+- **下一步**：手動驗收 FEAT-3~5；驗收通過後合併 feature/feat1-feat2-control-plane → dev → main
 
 ## 已確認的技術選擇
 
@@ -35,19 +35,17 @@
 
 - 規劃 → Phase 0 → Phase 1 完成（2026-05-01 ~ 05-02）：文件建立、Tauri scaffold、ESLint/Tailwind、CommandRouter/EventBus、handlers/managers/models/platform 骨架、Flow Launcher 風格 UI、全域滑鼠控制、Everything 搜尋架構、51 files 合併進 main
 - Phase 2 規劃（2026-05-02）：tasks 設計完成；Phase 2.A 搜尋框三模式 + Phase 2.B /command Registry；feature/phase2 分支建立
-- Phase 2 全部完成 + BUG-1~5 修正（2026-05-03）：merge 進 main
+- Phase 2 全部完成 + BUG-1~5 修正 + Task 1（D槽/WSL 搜尋）+ Phase 3 tasks 拆解（2026-05-03）：merge 進 main
 
 ## Session 交接紀錄（最近 5 筆）
 
 | 日期 | 完成事項 | 遺留問題 |
 |------|----------|----------|
-| 2026-05-03 | FEAT-2 完成：本機 `feature/feat1-feat2-control-plane` 分支、`keynova start/down/reload/status` CLI、loopback control plane、config reload snapshot/diff、hotkey re-register、notify watcher、`/reload` `/down`、設定面板 reload 事件；實測 CLI start/status/reload/down、temp APPDATA reload diff、外部存檔 watcher 自動套用 | 未 push 遠端 |
-| 2026-05-03 | BUG-10 儲存 flash + 生效時機 hint；FEAT-1 /setting key value Minecraft 格式；BuiltinCmdHandler 注入 ConfigManager；CommandPalette rawInput→cmdName+cmdArgs；tsc/lint/clippy 全綠 | 需手動驗收 BUG-10、FEAT-1 |
+| 2026-05-04 | FEAT-3（指令參數提示：CommandMeta args_hint、cmd.suggest_args、hint bar + arg suggestions 下拉）、FEAT-4（終端內容保留：terminalMounted + CSS display、TerminalPanel isActive prop）、FEAT-5（設定鍵盤導航：inputRefs、auto-focus、↑↓←→ + Enter）；tsc/lint/clippy 全綠 | 需手動驗收三個功能 |
+| 2026-05-03 | FEAT-2 完成：`keynova start/down/reload/status` CLI、loopback control plane、config reload snapshot/diff、hotkey re-register、notify watcher、`/reload` `/down`；外部存檔 watcher 自動套用 | 未 push 遠端 |
+| 2026-05-03 | BUG-10 儲存 flash + 生效時機 hint；FEAT-1 /setting key value Minecraft 格式；BuiltinCmdHandler 注入 ConfigManager；tsc/lint/clippy 全綠 | 需手動驗收 BUG-10、FEAT-1 |
 | 2026-05-03 | BUG-6~9 全部實作完成（漸進式 ESC、Tab 補全、config 生效、熱鍵捕捉）；tsc/lint/clippy 全綠 | — |
-| 2026-05-03 | private docs 因 git merge 誤刪，已從 git 歷史與 session context 全數還原；BUG-6~9 加入 tasks.md；feature/bugfix-ux 建立 | — |
-| 2026-05-03 | 讀完 `CLAUDE.md`、`memory.md`、`skill.md` 並完成 Phase 3 任務拆解：`tasks.md` 新增 Phase 3.0~3.8 | 待確認 Phase 3 優先順序 |
-| 2026-05-03 | BUG-1~5 全部修正完成並 commit 到 main；cargo clippy/lint/tsc 全通過 | 需手動驗收 BUG-1~5 驗收項目 |
-| 2026-05-03 | Phase 2.B + Task 1（D槽/WSL全域搜尋）全部驗收通過 | — |
+| 2026-05-03 | private docs 因 git merge 誤刪，已從 git 歷史還原；BUG-6~9 加入 tasks.md；feature/bugfix-ux 建立 | — |
 
 ## 2026-05-03 架構邊界與修正定位索引
 

@@ -4,6 +4,7 @@ import { invoke } from "@tauri-apps/api/core";
 export interface CommandMeta {
   name: string;
   description: string;
+  args_hint?: string;
 }
 
 export interface CommandUiType {
@@ -46,5 +47,12 @@ export function useCommands() {
     [],
   );
 
-  return { all, filtered, runCommand };
+  const suggestArgs = useCallback(
+    async (name: string, partial: string): Promise<string[]> => {
+      return ipcDispatch<string[]>("cmd.suggest_args", { name, partial });
+    },
+    [],
+  );
+
+  return { all, filtered, runCommand, suggestArgs };
 }

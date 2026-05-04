@@ -49,8 +49,8 @@
 
 - [x] `SettingPanel.tsx`：`saveValue` 成功後顯示 "✓ 已儲存" 閃爍提示（1.5s 後消失）
 - [x] `SettingPanel.tsx`：每個 section 加入「生效時機」小標籤
-- [ ] `SettingPanel.tsx`：saveError 改為不自動清空（目前每次 save 前清空）
-- [ ] `config_manager.rs`：`persist()` 失敗時 eprintln 詳細路徑與錯誤，方便 DevTools 追蹤
+- [x] `SettingPanel.tsx`：saveError 改為不自動清空（目前每次 save 前清空）
+- [x] `config_manager.rs`：`persist()` 失敗時 eprintln 詳細路徑與錯誤，方便 DevTools 追蹤
 
 **驗收**
 - [x] 在欄位輸入值後離焦，出現 "✓ 已儲存" 提示
@@ -109,6 +109,59 @@
 - [x] `keynova reload`：修改 `hotkeys.app_launcher` 後無需重啟即生效
 - [x] 直接編輯 config.toml 存檔，App 於 1 秒內自動套用並顯示提示
 - [x] reload 失敗時前端有錯誤訊息、stderr 有路徑與原因，不破壞現有配置
+
+---
+
+---
+
+### FEAT-3 指令參數提示（Command Argument Hints）
+
+**受影響檔案**：`builtin_command_registry.rs`、`builtin_cmd.rs`、`useCommands.ts`、`CommandPalette.tsx`、`CommandSuggestions.tsx`
+
+- [x] `BuiltinCommand` trait 加 `args_hint()` 預設方法；`CommandMeta` 加 `args_hint` 欄位
+- [x] `SettingCommand` 實作 `args_hint() -> Some("[key] [value]")`
+- [x] `BuiltinCmdHandler` 新增 `cmd.suggest_args { name, partial }` handler（setting 回傳 config keys）
+- [x] `useCommands.ts`：`CommandMeta` 加 `args_hint?: string`；新增 `suggestArgs()` function
+- [x] `CommandSuggestions.tsx`：指令旁顯示 `args_hint` 標籤
+- [x] `CommandPalette.tsx`：偵測 args phase（spaceIdx !== -1 且 cmdName 完全匹配）；hint bar + arg suggestions 下拉；↑↓ 選擇、Tab 填入、Enter 執行
+
+**驗收**
+- [ ] 輸入 `/setting`（出現在指令列表時）旁顯示 `[key] [value]` 標籤
+- [ ] 輸入 `/setting ` 出現 hint bar 和 config keys 補全列表
+- [ ] 輸入 `/setting terminal.` 過濾只顯示 terminal.* keys
+- [ ] Tab 填入選中的 key（後面自動加空格）；Enter 執行指令
+
+---
+
+### FEAT-4 終端機退出後內容保留（Terminal Persistence）
+
+**受影響檔案**：`CommandPalette.tsx`、`TerminalPanel.tsx`
+
+- [x] `CommandPalette.tsx`：`terminalMounted` state；第一次進入 `>` 時在 `handleQueryChange` 設為 true
+- [x] `CommandPalette.tsx`：改用 CSS `display: none/block` 控制終端可見性，不再 unmount
+- [x] `TerminalPanel.tsx`：新增 `isActive: boolean` prop；`isActive` 變 true 時重新 fit + focus
+
+**驗收**
+- [ ] 進入終端輸入指令後，按 ESC 退回搜尋模式，再按 `> ` 重新進入，歷史記錄保留
+- [ ] PTY session 在背景繼續存活（不關閉）
+
+---
+
+### FEAT-5 設定表格鍵盤導航（Settings Keyboard Navigation）
+
+**受影響檔案**：`SettingPanel.tsx`
+
+- [x] `inputRefs` array ref 儲存所有欄位 DOM refs
+- [x] `useEffect([entries.length, activeSection])`：entries 載入或 section 切換時自動聚焦第一欄
+- [x] `switchSection(dir)` helper：左右切換 tab
+- [x] `handleInputKeyDown` 統一 handler：↑↓ 移行、←→ 切 tab（邊界偵測）、Enter 立即儲存、hotkey 欄位方向鍵路由正確
+
+**驗收**
+- [ ] 開啟 /setting 後第一個欄位自動聚焦
+- [ ] ↑↓ 在設定欄位間移動焦點
+- [ ] → 在最後位置觸發切換到下一個 tab；← 同理
+- [ ] Enter 立即儲存並閃爍 ✓
+- [ ] hotkey 欄位方向鍵不被捕捉為快捷鍵
 
 ---
 
@@ -186,9 +239,11 @@
 ---
 
 ## Phase 4 — v3.0+
-
+- [ ] 個人化（主題、字體、配色方案）
+- [ ] 工作區同步（OneDrive/Google Drive）
 - [ ] Plugin System（JS/Python 擴展）
-- [ ] 雲端同步
+- [ ] 流程自動化（類似 AutoHotkey 的腳本功能）
+- [ ] 跨平台優化（Linux/macOS 支援、WSL 深度整合）
 - [ ] 公開 API
 
 ---
