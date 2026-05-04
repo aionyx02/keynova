@@ -6,6 +6,8 @@ use crate::models::builtin_command::BuiltinCommandResult;
 pub trait BuiltinCommand: Send + Sync {
     fn name(&self) -> &'static str;
     fn description(&self) -> &'static str;
+    /// 參數語法提示，例如 `"[key] [value]"`；無參數的指令回傳 None。
+    fn args_hint(&self) -> Option<&'static str> { None }
     fn execute(&self, args: &str) -> BuiltinCommandResult;
 }
 
@@ -14,6 +16,7 @@ pub trait BuiltinCommand: Send + Sync {
 pub struct CommandMeta {
     pub name: &'static str,
     pub description: &'static str,
+    pub args_hint: Option<&'static str>,
 }
 
 /// 集中管理所有已注冊的內建指令。
@@ -40,7 +43,7 @@ impl BuiltinCommandRegistry {
     /// 回傳所有指令的元資料，依名稱排序。
     pub fn list(&self) -> Vec<CommandMeta> {
         let mut metas: Vec<CommandMeta> = self.commands.values()
-            .map(|c| CommandMeta { name: c.name(), description: c.description() })
+            .map(|c| CommandMeta { name: c.name(), description: c.description(), args_hint: c.args_hint() })
             .collect();
         metas.sort_by_key(|m| m.name);
         metas

@@ -26,6 +26,7 @@
 | BUG-7 | `/command` Tab 補全：選中指令 → Tab → 填入 query，不觸發 focus 跳出 |
 | BUG-8 | 設定實際生效：terminal init 讀 font_size/scrollback；W/A/S/D 每次按鍵讀 step_size |
 | BUG-9 | 快捷鍵欄位捕捉：readOnly + onKeyDown 格式化組合鍵（Ctrl+K 等），立即儲存 |
+| BUG-11 | 終端執行 `ipconfig` 後 ESC 無反應：實測確認實體 ESC 會先進 xterm custom key handler 的 `keyup`，不是 DOM/window `keydown`；改為 Escape `keydown` / `keyup` 皆退出，並保留 terminal data `\x1b` / `\x1b[O` 保底、吞掉 focus-in `\x1b[I`；移除 output RAF 推測修補；`npm run build` / `npm run lint` / `cargo check --manifest-path src-tauri/Cargo.toml` 通過 |
 
 ---
 
@@ -38,6 +39,7 @@
 | BUG-1 | DevTools → Performance，確認搜尋無多餘 IPC round-trip |
 | BUG-2 | 呼叫 `hotkey.register` IPC 收到明確的 `NotImplemented` 錯誤 |
 | BUG-4 | DevTools Console 無 CSP violation；所有功能在 CSP 啟用後仍正常 |
+| BUG-11 | 進入 `>` 終端後執行 `ipconfig`，實體 ESC 應立即退回搜尋模式且視窗不隱藏 |
 
 ---
 
@@ -49,13 +51,13 @@
 
 - [x] `SettingPanel.tsx`：`saveValue` 成功後顯示 "✓ 已儲存" 閃爍提示（1.5s 後消失）
 - [x] `SettingPanel.tsx`：每個 section 加入「生效時機」小標籤
-- [ ] `SettingPanel.tsx`：saveError 改為不自動清空（目前每次 save 前清空）
-- [ ] `config_manager.rs`：`persist()` 失敗時 eprintln 詳細路徑與錯誤，方便 DevTools 追蹤
+- [x] `SettingPanel.tsx`：saveError 改為不自動清空（目前每次 save 前清空）
+- [x] `config_manager.rs`：`persist()` 失敗時 eprintln 詳細路徑與錯誤，方便 DevTools 追蹤
 
 **驗收**
 - [x] 在欄位輸入值後離焦，出現 "✓ 已儲存" 提示
 - [x] 每個欄位旁有明確「何時生效」標籤
-- [ ] `persist()` 失敗時，前端 saveError 顯示具體錯誤訊息
+- [x] `persist()` 失敗時，前端 saveError 顯示具體錯誤訊息
 
 ---
 
@@ -73,9 +75,9 @@
 - [x] `lib.rs`：`BuiltinCmdHandler::new` 傳入 `Arc::clone(&config_manager)`
 
 **驗收**
-- [ ] 輸入 `/setting terminal.font_size 18` 按 Enter → 回傳 `✓ terminal.font_size = 18`，config.toml 更新
-- [ ] 輸入 `/setting terminal.font_size` 按 Enter → 回傳目前值
-- [ ] 輸入 `/setting` 按 Enter → 仍開啟面板
+- [x] 輸入 `/setting terminal.font_size 18` 按 Enter → 回傳 `✓ terminal.font_size = 18`，config.toml 更新
+- [x] 輸入 `/setting terminal.font_size` 按 Enter → 回傳目前值
+- [x] 輸入 `/setting` 按 Enter → 仍開啟面板
 
 ---
 
@@ -92,23 +94,76 @@
 
 **受影響檔案（預計）**：`src-tauri/src/main.rs`、`lib.rs`、`core/config_manager.rs`、`handlers/setting.rs`、`SettingPanel.tsx`、`src/hooks/useEvents.ts`、`Cargo.toml`
 
-- [ ] A1. CLI 入口：`src-tauri/src/bin/keynova.rs`（建議 `clap`），`start/down/reload/status` 子命令
-- [ ] A2. 控制通道模組：`core/control_plane.rs`，local socket server/client + request/response schema
-- [ ] A3. App 啟動時啟動 control server（背景 thread）；`down` graceful exit、`reload` 觸發 runtime reload
-- [ ] A4. `ConfigManager` 擴充 `reload_from_disk()`、`snapshot()`、`diff()`
-- [ ] A5. 新增 `ConfigApplier`：hotkeys 重新綁定、mouse/terminal/launcher 即時更新策略
-- [ ] A6. 檔案監看（`notify` crate）監聽 `%APPDATA%\Keynova\config.toml`，外部修改自動 reload
-- [ ] A7. `setting.set` 完成後觸發同一條 apply pipeline（不只寫檔）
-- [ ] A8. 事件橋接：前端 `SettingPanel` 顯示「已套用 / 套用失敗」
-- [ ] A9. 命令層：新增 `/reload`、`/down` 供 App 內命令列操作
-- [ ] A10. 文件：`README.md` 補 `keynova` CLI 用法、reload 生效矩陣、失敗排查
+- [x] A1. CLI 入口：`src-tauri/src/bin/keynova.rs`（建議 `clap`），`start/down/reload/status` 子命令
+- [x] A2. 控制通道模組：`core/control_plane.rs`，local socket server/client + request/response schema
+- [x] A3. App 啟動時啟動 control server（背景 thread）；`down` graceful exit、`reload` 觸發 runtime reload
+- [x] A4. `ConfigManager` 擴充 `reload_from_disk()`、`snapshot()`、`diff()`
+- [x] A5. 新增 `ConfigApplier`：hotkeys 重新綁定、mouse/terminal/launcher 即時更新策略
+- [x] A6. 檔案監看（`notify` crate）監聽 `%APPDATA%\Keynova\config.toml`，外部修改自動 reload
+- [x] A7. `setting.set` 完成後觸發同一條 apply pipeline（不只寫檔）
+- [x] A8. 事件橋接：前端 `SettingPanel` 顯示「已套用 / 套用失敗」
+- [x] A9. 命令層：新增 `/reload`、`/down` 供 App 內命令列操作
+- [x] A10. 文件：`README.md` 補 `keynova` CLI 用法、reload 生效矩陣、失敗排查
 
 **驗收**
-- [ ] `keynova start`：未啟動時啟動；已啟動時 bring-to-front，不重複開實例
-- [ ] `keynova down`：3 秒內關閉常駐進程與 tray
-- [ ] `keynova reload`：修改 `hotkeys.app_launcher` 後無需重啟即生效
-- [ ] 直接編輯 config.toml 存檔，App 於 1 秒內自動套用並顯示提示
-- [ ] reload 失敗時前端有錯誤訊息、stderr 有路徑與原因，不破壞現有配置
+- [x] `keynova start`：未啟動時啟動；已啟動時 bring-to-front，不重複開實例
+- [x] `keynova down`：3 秒內關閉常駐進程與 tray
+- [x] `keynova reload`：修改 `hotkeys.app_launcher` 後無需重啟即生效
+- [x] 直接編輯 config.toml 存檔，App 於 1 秒內自動套用並顯示提示
+- [x] reload 失敗時前端有錯誤訊息、stderr 有路徑與原因，不破壞現有配置
+
+---
+
+---
+
+### FEAT-3 指令參數提示（Command Argument Hints）
+
+**受影響檔案**：`builtin_command_registry.rs`、`builtin_cmd.rs`、`useCommands.ts`、`CommandPalette.tsx`、`CommandSuggestions.tsx`
+
+- [x] `BuiltinCommand` trait 加 `args_hint()` 預設方法；`CommandMeta` 加 `args_hint` 欄位
+- [x] `SettingCommand` 實作 `args_hint() -> Some("[key] [value]")`
+- [x] `BuiltinCmdHandler` 新增 `cmd.suggest_args { name, partial }` handler（setting 回傳 config keys）
+- [x] `useCommands.ts`：`CommandMeta` 加 `args_hint?: string`；新增 `suggestArgs()` function
+- [x] `CommandSuggestions.tsx`：指令旁顯示 `args_hint` 標籤
+- [x] `CommandPalette.tsx`：偵測 args phase（spaceIdx !== -1 且 cmdName 完全匹配）；hint bar + arg suggestions 下拉；↑↓ 選擇、Tab 填入、Enter 執行
+
+**驗收**
+- [x] 輸入 `/setting`（出現在指令列表時）旁顯示 `[key] [value]` 標籤
+- [x] 輸入 `/setting ` 出現 hint bar 和 config keys 補全列表
+- [x] 輸入 `/setting terminal.` 過濾只顯示 terminal.* keys
+- [x] Tab 填入選中的 key（後面自動加空格）；Enter 執行指令
+
+---
+
+### FEAT-4 終端機退出後內容保留（Terminal Persistence）
+
+**受影響檔案**：`CommandPalette.tsx`、`TerminalPanel.tsx`
+
+- [x] `CommandPalette.tsx`：`terminalMounted` state；第一次進入 `>` 時在 `handleQueryChange` 設為 true
+- [x] `CommandPalette.tsx`：改用 CSS `display: none/block` 控制終端可見性，不再 unmount
+- [x] `TerminalPanel.tsx`：新增 `isActive: boolean` prop；`isActive` 變 true 時重新 fit + focus
+
+**驗收**
+- [x] 進入終端輸入指令後，按 ESC 退回搜尋模式，再按 `> ` 重新進入，歷史記錄保留
+- [x] PTY session 在背景繼續存活（不關閉）
+
+---
+
+### FEAT-5 設定表格鍵盤導航（Settings Keyboard Navigation）
+
+**受影響檔案**：`SettingPanel.tsx`
+
+- [x] `inputRefs` array ref 儲存所有欄位 DOM refs
+- [x] `useEffect([entries.length, activeSection])`：entries 載入或 section 切換時自動聚焦第一欄
+- [x] `switchSection(dir)` helper：左右切換 tab
+- [x] `handleInputKeyDown` 統一 handler：↑↓ 移行、←→ 切 tab（邊界偵測）、Enter 立即儲存、hotkey 欄位方向鍵路由正確
+
+**驗收**
+- [x] 開啟 /setting 後第一個欄位自動聚焦
+- [x] ↑↓ 在設定欄位間移動焦點
+- [x] → 在最後位置觸發切換到下一個 tab；← 同理
+- [x] Enter 立即儲存並閃爍 ✓
+- [x] hotkey 欄位方向鍵不被捕捉為快捷鍵
 
 ---
 
@@ -186,9 +241,11 @@
 ---
 
 ## Phase 4 — v3.0+
-
+- [ ] 個人化（主題、字體、配色方案）
+- [ ] 工作區同步（OneDrive/Google Drive）
 - [ ] Plugin System（JS/Python 擴展）
-- [ ] 雲端同步
+- [ ] 流程自動化（類似 AutoHotkey 的腳本功能）
+- [ ] 跨平台優化（Linux/macOS 支援、WSL 深度整合）
 - [ ] 公開 API
 
 ---

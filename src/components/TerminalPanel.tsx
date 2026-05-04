@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, type KeyboardEvent as ReactKeyboardEvent } from "react";
 import { Terminal } from "@xterm/xterm";
 import { FitAddon } from "@xterm/addon-fit";
 import "@xterm/xterm/css/xterm.css";
@@ -21,11 +21,16 @@ interface SettingEntry {
   value: string;
 }
 
+interface ConfigReloadedPayload {
+  changed_keys: string[];
+}
+
 interface Props {
+  isActive: boolean;
   onExit: () => void | Promise<void>;
 }
 
-export function TerminalPanel({ onExit }: Props) {
+export function TerminalPanel({ isActive, onExit }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const xtermRef = useRef<Terminal | null>(null);
   const fitAddonRef = useRef<FitAddon | null>(null);
@@ -35,6 +40,15 @@ export function TerminalPanel({ onExit }: Props) {
     onExitRef.current = onExit;
   }, [onExit]);
 
+  // Re-focus and re-fit whenever the panel becomes visible again
+  useEffect(() => {
+    if (!isActive) return;
+    requestAnimationFrame(() => {
+      fitAddonRef.current?.fit();
+      xtermRef.current?.focus();
+    });
+  }, [isActive]);
+
   useEffect(() => {
     const el = containerRef.current;
     if (!el) return;
@@ -42,6 +56,7 @@ export function TerminalPanel({ onExit }: Props) {
     let cancelled = false;
     let sessionId = "";
     let unlistenOutput: (() => void) | undefined;
+    let unlistenConfig: (() => void) | undefined;
     const pendingOutput = new Map<string, string>();
 
     const handleOutput = (id: string, output: string) => {
@@ -62,8 +77,7 @@ export function TerminalPanel({ onExit }: Props) {
       });
     };
 
-    const init = async () => {
-      // Read terminal config before creating xterm so settings are applied immediately
+    const loadTerminalSettings = async () => {
       let fontSize = termOpts.fontSize;
       let scrollback = termOpts.scrollback;
       if (window.__TAURI_INTERNALS__) {
@@ -79,6 +93,12 @@ export function TerminalPanel({ onExit }: Props) {
           // use theme defaults
         }
       }
+      return { fontSize, scrollback };
+    };
+
+    const init = async () => {
+      // Read terminal config before creating xterm so settings are applied immediately
+      const { fontSize, scrollback } = await loadTerminalSettings();
       if (cancelled) return;
 
       const xterm = new Terminal({
@@ -106,8 +126,11 @@ export function TerminalPanel({ onExit }: Props) {
       xterm.focus();
 
       xterm.attachCustomKeyEventHandler((e: KeyboardEvent) => {
-        if (e.type !== "keydown") return true;
-        if (e.key === "Escape") {
+        // In WebView2/xterm, a physical Escape can surface as keyup only.
+        if (
+          (e.type === "keydown" || e.type === "keyup") &&
+          (e.key === "Escape" || e.code === "Escape")
+        ) {
           void Promise.resolve(onExitRef.current());
           return false;
         }
@@ -116,6 +139,13 @@ export function TerminalPanel({ onExit }: Props) {
 
       xterm.onData((data) => {
         if (!sessionId) return;
+        // On Windows/WebView2, a physical Escape can reach xterm as the
+        // focus-out escape sequence instead of a DOM keydown.
+        if (data === "\x1b" || data === "\x1b[O") {
+          void Promise.resolve(onExitRef.current());
+          return;
+        }
+        if (data === "\x1b[I") return;
         void invoke("cmd_dispatch", {
           route: "terminal.send",
           payload: { id: sessionId, input: data },
@@ -123,6 +153,21 @@ export function TerminalPanel({ onExit }: Props) {
       });
 
       try {
+        unlistenConfig = await listen<ConfigReloadedPayload>("config-reloaded", (event) => {
+          if (
+            event.payload.changed_keys.length !== 0 &&
+            !event.payload.changed_keys.some((key) => key.startsWith("terminal."))
+          ) {
+            return;
+          }
+          void loadTerminalSettings().then((settings) => {
+            const xterm = xtermRef.current;
+            if (!xterm) return;
+            xterm.options.fontSize = settings.fontSize;
+            xterm.options.scrollback = settings.scrollback;
+            if (sessionId) fitAndResizeBackend(sessionId);
+          });
+        });
         unlistenOutput = await listen<OutputPayload>("terminal-output", (e) => {
           handleOutput(e.payload.id, e.payload.output);
         });
@@ -164,6 +209,7 @@ export function TerminalPanel({ onExit }: Props) {
       cancelled = true;
       ro.disconnect();
       unlistenOutput?.();
+      unlistenConfig?.();
       if (sessionId) {
         void invoke("cmd_dispatch", { route: "terminal.close", payload: { id: sessionId } });
       }
@@ -175,8 +221,18 @@ export function TerminalPanel({ onExit }: Props) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  const handleKeyDownCapture = (event: ReactKeyboardEvent<HTMLDivElement>) => {
+    if (event.key !== "Escape" && event.key !== "Esc" && event.code !== "Escape") return;
+    event.preventDefault();
+    event.stopPropagation();
+    void Promise.resolve(onExitRef.current());
+  };
+
   return (
-    <div className="w-full bg-gray-900 rounded-xl overflow-hidden shadow-2xl">
+    <div
+      className="w-full bg-gray-900 rounded-xl overflow-hidden shadow-2xl"
+      onKeyDownCapture={handleKeyDownCapture}
+    >
       <div className="flex items-center px-3 py-1.5 bg-gray-800/60 border-b border-gray-700/40">
         <span className="text-[11px] font-mono text-emerald-400 select-none">Terminal</span>
         <span className="ml-auto text-[11px] text-gray-600 select-none">Esc to exit</span>

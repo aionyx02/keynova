@@ -169,10 +169,3 @@ max_results = 10
 [mouse_control]
 step_size = 15
 ```
-
-## Development Phases
-
-- **v0.1 MVP**: App launcher + terminal + keyboard mouse control (weeks 1–6)
-- **v1.0**: File search, calculator, clipboard, system control (weeks 7–12)
-- **v2.0**: AI assistant (Claude API), virtual workspaces, quick notes (weeks 13–18)
-- **v3.0+**: Plugin system (JS/Python extensions), cloud sync, API exposure
