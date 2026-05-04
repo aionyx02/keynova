@@ -1,6 +1,9 @@
 [hotkeys]
 app_launcher   = "Ctrl+K"
 mouse_control  = "Ctrl+Alt+M"
+workspace_1    = "Ctrl+Alt+1"
+workspace_2    = "Ctrl+Alt+2"
+workspace_3    = "Ctrl+Alt+3"
 
 [launcher]
 scan_paths = []          # 額外掃描路徑（空陣列代表僅掃描系統預設路徑）
@@ -15,3 +18,36 @@ scrollback_lines = 1000
 [mouse_control]
 step_size = 10           # 每次方向鍵移動的像素距離
 fast_step_size = 50      # 按住 Shift 時的移動距離
+
+[features]
+ai = true
+translation = true
+notes = true
+history = true
+calculator = true
+system = true
+
+[ai]
+provider = "claude"
+api_key = ""
+model = "claude-sonnet-4-6"
+max_tokens = 4096
+timeout_secs = 30
+
+[translation]
+default_src = "auto"
+default_dst = "zh-TW"
+provider = "claude"
+
+[notes]
+storage_dir = ""         # 空字串代表 AppData/Keynova/notes/
+default_extension = "md"
+
+[history]
+max_items = 200
+ignore_duplicates = true
+
+[system]
+enable_volume_control = true
+enable_brightness_control = true
+enable_wifi_info = true

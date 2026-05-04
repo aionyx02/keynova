@@ -108,6 +108,51 @@
   - `handlers/setting.rs` 新增，提供 `setting.get/set/list_all` IPC
   - 前端 `SettingPanel` 分四 tab 呈現，onBlur 才呼叫 `setting.set` IPC（非 onChange）
 
+## ADR-011 AI Provider 抽象化
+
+- 狀態：Accepted
+- 決策：以 `AiProvider` / `TranslationProvider` trait 定義介面；MVP 實作為 `ClaudeProvider`（reqwest blocking + std::thread）；結果透過 `EventBus → Tauri event → 前端 listen` 非同步推送
+- 原因：
+  - Claude 是目前最佳選擇，但日後可能切換至 Gemini / GPT / 本地模型
+  - reqwest blocking 運行於 std::thread，不阻塞 tokio executor（CommandHandler::execute 同步呼叫即可）
+  - EventBus 推送模式已在 terminal.output 驗證，複用現有基礎設施
+- 關鍵設計約束：
+  - API key 存於 ConfigManager（`ai.api_key`），不硬編碼，不暴露於前端 bundle
+  - 請求 ID（`request_id`）由前端產生，後端 event payload 帶回，前端用來對應 pending 狀態
+  - 多輪對話歷史保留最近 20 訊息，避免 token overflow
+  - timeout 預設 30 秒，可透過 `ai.timeout_secs` 設定
+- 影響：
+  - `managers/ai_manager.rs`、`managers/translation_manager.rs`：各持 publish_event callback
+  - `handlers/ai.rs`、`handlers/translation.rs`：注入 ConfigManager 讀取 API key
+  - 前端 `useAi.ts`、`useHistory.ts` listen `ai-response` / `translation-result` 事件
+
+## ADR-012 筆記同步策略
+
+- 狀態：Accepted
+- 決策：筆記以 Markdown 檔案儲存於 `%APPDATA%\Keynova\notes\`；前端 NoteEditor 每次開啟時從 IPC 讀取，儲存時立即寫回；外部編輯器修改由使用者手動重新整理（MVP 不做即時監看）
+- 原因：
+  - 簡單可靠：無資料庫、無同步衝突、可直接用任何編輯器開啟
+  - CRDT / OT 等即時同步方案複雜度遠超 MVP 需求
+  - 進階需求（OneDrive/Obsidian 整合）留在 Phase 4
+- 影響：
+  - `managers/note_manager.rs`：純 file I/O，filename = sanitize(name) + ".md"
+  - `handlers/note.rs`：list / get / save / create / delete / rename IPC
+  - 前端 `NoteEditor.tsx` 含 auto-save（800ms debounce）+ Ctrl+S 立即儲存
+
+## ADR-013 System Control 權限範圍
+
+- 狀態：Accepted
+- 決策：音量控制使用 Win32 `IAudioEndpointVolume` COM API；亮度透過 PowerShell WMI 呼叫（非 Win32 直接調用）；WiFi 狀態透過 `netsh wlan show interfaces`；所有平台特定實作包在 `#[cfg(target_os)]` 後，非 Windows 回傳 `NotImplemented` 錯誤
+- 原因：
+  - COM API 音量控制是 Windows 官方推薦方案，無需額外驅動
+  - 亮度 API（IOCTL_VIDEO_QUERY_SUPPORTED_BRIGHTNESS 等）需要管理員權限；PowerShell WMI 方案在標準使用者下可運行
+  - WiFi 連線管理（切換網路）需要 UAC；MVP 僅顯示狀態，不執行連線
+  - Tauri 沙盒（capabilities）不需特別開放，因為音量/亮度均由 Rust backend 處理，非 WebView API
+- 影響：
+  - `managers/system_manager.rs`：Windows 實作 + stub
+  - `handlers/system_control.rs`：namespace "system"，含 volume.get/set/mute、brightness.get/set、wifi.info
+  - lib.rs 中原有的 inline `SystemHandler`（只有 ping）已由 `SystemControlHandler` 完全取代
+
 ## 待補強事項
 
 - Everything IPC 實作目前仍屬規劃，需補官方 SDK 細節與錯誤處理策略

@@ -9,8 +9,10 @@ import { parseInputMode } from "../hooks/useInputMode";
 import { useCommands } from "../hooks/useCommands";
 import { CommandSuggestions } from "./CommandSuggestions";
 import { PanelRegistry } from "./panel/PanelRegistry";
+import { WorkspaceIndicator } from "./WorkspaceIndicator";
 import type { SearchResult } from "../types/search";
 import type { BuiltinCommandResult } from "../hooks/useCommands";
+import type { WorkspaceState } from "../hooks/useWorkspace";
 
 const TerminalPanel = React.lazy(() =>
   import("./TerminalPanel").then((m) => ({ default: m.TerminalPanel })),
@@ -170,6 +172,20 @@ export function CommandPalette() {
       setSelected(0);
       setCmdResult(null);
       inputRef.current?.focus();
+    });
+    return () => { unlisten.then((fn) => fn()); };
+  }, [setQuery]);
+
+  // 工作區切換：載入切換後的 query 並重置 UI 狀態
+  useEffect(() => {
+    if (!window.__TAURI_INTERNALS__) return;
+    const unlisten = listen<WorkspaceState>("workspace-switched", (event) => {
+      const ws = event.payload;
+      setQuery(ws.query ?? "");
+      setResults([]);
+      setSelected(0);
+      setCmdResult(null);
+      requestAnimationFrame(() => inputRef.current?.focus());
     });
     return () => { unlisten.then((fn) => fn()); };
   }, [setQuery]);
@@ -369,10 +385,13 @@ export function CommandPalette() {
                   ? "輸入指令… 試試 /help 或 /setting"
                   : "搜尋應用程式、檔案或資料夾… 輸入 > 進入終端"
               }
-              className="flex-1 bg-transparent py-4 pr-4 text-base text-gray-100 placeholder-gray-500 outline-none"
+              className="flex-1 bg-transparent py-4 text-base text-gray-100 placeholder-gray-500 outline-none"
               spellCheck={false}
               autoComplete="off"
             />
+            <div className="pr-3">
+              <WorkspaceIndicator />
+            </div>
           </div>
 
           {/* Search results */}
