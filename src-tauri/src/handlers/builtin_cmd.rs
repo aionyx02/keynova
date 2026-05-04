@@ -37,6 +37,10 @@ impl BuiltinCommand for SettingCommand {
         "Open or edit settings"
     }
 
+    fn args_hint(&self) -> Option<&'static str> {
+        Some("[key] [value]")
+    }
+
     fn execute(&self, _args: &str) -> BuiltinCommandResult {
         BuiltinCommandResult {
             text: String::new(),
@@ -166,6 +170,28 @@ impl CommandHandler for BuiltinCmdHandler {
                 result
                     .map(|result| json!(result))
                     .ok_or_else(|| format!("unknown command '/{name}'"))
+            }
+            "suggest_args" => {
+                let name = payload
+                    .get("name")
+                    .and_then(Value::as_str)
+                    .ok_or_else(|| "missing 'name'".to_string())?;
+                let partial = payload
+                    .get("partial")
+                    .and_then(Value::as_str)
+                    .unwrap_or("")
+                    .to_lowercase();
+                if name == "setting" {
+                    let cfg = self.config.lock().map_err(|e| e.to_string())?;
+                    let keys: Vec<String> = cfg
+                        .list_all()
+                        .into_iter()
+                        .filter(|(k, _)| partial.is_empty() || k.starts_with(&partial))
+                        .map(|(k, _)| k)
+                        .collect();
+                    return Ok(json!(keys));
+                }
+                Ok(json!(Vec::<String>::new()))
             }
             _ => Err(format!("unknown cmd command '{command}'")),
         }

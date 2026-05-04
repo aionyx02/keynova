@@ -56,7 +56,7 @@ const KIND_BADGE: Record<string, { label: string; cls: string }> = {
 export function CommandPalette() {
   const { dispatch } = useIPC();
   const { query, setQuery, setLoading } = useAppStore();
-  const { filtered, runCommand } = useCommands();
+  const { all, filtered, runCommand, suggestArgs } = useCommands();
 
   const [results, setResults] = useState<SearchResult[]>([]);
   const [selected, setSelected] = useState(0);
@@ -65,9 +65,17 @@ export function CommandPalette() {
   const [selectedCmd, setSelectedCmd] = useState(0);
   const [cmdResult, setCmdResult] = useState<BuiltinCommandResult | null>(null);
 
+  // Mount terminal once and keep it alive; only toggle visibility via CSS
+  const [terminalMounted, setTerminalMounted] = useState(false);
+
+  // Arg suggestions state (shown when user types space after an exact command match)
+  const [argSuggestions, setArgSuggestions] = useState<string[]>([]);
+  const [selectedArg, setSelectedArg] = useState(0);
+
   const inputRef = useRef<HTMLInputElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const argDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const searchIdRef = useRef(0);
   const searchLimitRef = useRef(10);
 
@@ -75,6 +83,7 @@ export function CommandPalette() {
   const modeRef = useRef(mode);
 
   useEffect(() => { modeRef.current = mode; }, [mode]);
+
 
   // Split rawInput into command name and trailing args (Minecraft-style)
   const spaceIdx = rawInput.search(/\s/);
@@ -85,6 +94,28 @@ export function CommandPalette() {
     () => (mode === "command" ? filtered(cmdName) : []),
     [mode, cmdName, filtered],
   );
+
+  // Args phase: user typed a space after a known command name
+  const exactCmd = mode === "command" && spaceIdx !== -1
+    ? (all.find((c) => c.name === cmdName) ?? null)
+    : null;
+  const isArgsPhase = exactCmd !== null;
+
+  // Fetch arg suggestions whenever the args phase is active and cmdArgs changes.
+  // Clearing on phase exit is handled in handleQueryChange to avoid synchronous setState in effect.
+  useEffect(() => {
+    if (!isArgsPhase || !exactCmd) return;
+    if (argDebounceRef.current) clearTimeout(argDebounceRef.current);
+    argDebounceRef.current = setTimeout(() => {
+      suggestArgs(exactCmd.name, cmdArgs)
+        .then((results) => { setArgSuggestions(results); setSelectedArg(0); })
+        .catch(() => {});
+    }, 150);
+    return () => {
+      if (argDebounceRef.current) clearTimeout(argDebounceRef.current);
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isArgsPhase, exactCmd?.name, cmdArgs]);
 
   useEffect(() => {
     inputRef.current?.focus();
@@ -177,13 +208,17 @@ export function CommandPalette() {
     if (!el) return;
     const h = Math.ceil(el.getBoundingClientRect().height) || 56;
     getCurrentWindow().setSize(new LogicalSize(640, h)).catch(() => {});
-  }, [mode, results, cmdSuggestions, cmdResult]);
+  }, [mode, results, cmdSuggestions, cmdResult, argSuggestions]);
 
   function handleQueryChange(value: string) {
     setQuery(value);
     setCmdResult(null);
     setSelectedCmd(0);
+    setSelectedArg(0);
+    setArgSuggestions([]);
     const { mode: newMode, rawInput: ri } = parseInputMode(value);
+    // Mount terminal on first "> " entry; avoids useEffect setState cascade
+    if (newMode === "terminal") setTerminalMounted(true);
     if (newMode !== "search" || ri.trim() === "") {
       setResults([]);
       setSelected(0);
@@ -235,48 +270,69 @@ export function CommandPalette() {
       else if (e.key === "ArrowUp") { e.preventDefault(); setSelected((i) => Math.max(i - 1, 0)); }
       else if (e.key === "Enter") { e.preventDefault(); const r = results[selected]; if (r) void launchResult(r); }
     } else if (mode === "command") {
-      if (e.key === "ArrowDown") { e.preventDefault(); setSelectedCmd((i) => Math.min(i + 1, cmdSuggestions.length - 1)); }
-      else if (e.key === "ArrowUp") { e.preventDefault(); setSelectedCmd((i) => Math.max(i - 1, 0)); }
-      else if (e.key === "Tab") {
+      if (e.key === "ArrowDown") {
         e.preventDefault();
-        const cmd = cmdSuggestions[selectedCmd];
-        if (cmd) setQuery("/" + cmd.name);
-      }
-      else if (e.key === "Enter") {
+        if (isArgsPhase) setSelectedArg((i) => Math.min(i + 1, argSuggestions.length - 1));
+        else setSelectedCmd((i) => Math.min(i + 1, cmdSuggestions.length - 1));
+      } else if (e.key === "ArrowUp") {
         e.preventDefault();
-        const cmd = cmdSuggestions[selectedCmd];
-        if (cmd) void execCommand(cmd.name, cmdArgs);
+        if (isArgsPhase) setSelectedArg((i) => Math.max(i - 1, 0));
+        else setSelectedCmd((i) => Math.max(i - 1, 0));
+      } else if (e.key === "Tab") {
+        e.preventDefault();
+        if (isArgsPhase && argSuggestions.length > 0) {
+          // Fill in the selected config key and add a trailing space for value input
+          const arg = argSuggestions[selectedArg];
+          if (arg) setQuery(`/${cmdName} ${arg} `);
+        } else if (!isArgsPhase) {
+          const cmd = cmdSuggestions[selectedCmd];
+          if (cmd) setQuery("/" + cmd.name);
+        }
+      } else if (e.key === "Enter") {
+        e.preventDefault();
+        if (isArgsPhase) {
+          void execCommand(cmdName, cmdArgs);
+        } else {
+          const cmd = cmdSuggestions[selectedCmd];
+          if (cmd) void execCommand(cmd.name, cmdArgs);
+        }
       }
     }
   }
 
   const hasResults = results.length > 0 && mode === "search";
-  const hasCmdSuggestions = cmdSuggestions.length > 0 && mode === "command" && !cmdResult;
+  const hasCmdSuggestions = cmdSuggestions.length > 0 && mode === "command" && !cmdResult && !isArgsPhase;
+  const hasArgSuggestions = isArgsPhase && argSuggestions.length > 0 && !cmdResult;
 
   // Resolve panel component if cmd result is a Panel type
   const PanelComponent = cmdResult?.ui_type.type === "Panel"
     ? (PanelRegistry[cmdResult.ui_type.value ?? ""] ?? null)
     : null;
 
+  const terminalOnExit = async () => {
+    await keepLauncherOpen();
+    containerRef.current?.focus();
+    setQuery("");
+    requestAnimationFrame(() => inputRef.current?.focus());
+  };
+
   return (
     <div ref={containerRef} tabIndex={-1} className="w-full outline-none">
-      {mode === "terminal" ? (
-        <Suspense fallback={<div className="h-[360px] bg-gray-900/95 rounded-xl" />}>
-          <TerminalPanel
-            onExit={async () => {
-              await keepLauncherOpen();
-              containerRef.current?.focus();
-              setQuery("");
-              requestAnimationFrame(() => inputRef.current?.focus());
-            }}
-          />
-        </Suspense>
-      ) : (
+      {/* Terminal: mounted once on first visit, hidden via CSS when not active */}
+      {terminalMounted && (
+        <div style={{ display: mode === "terminal" ? "block" : "none" }}>
+          <Suspense fallback={<div className="h-[360px] bg-gray-900/95 rounded-xl" />}>
+            <TerminalPanel isActive={mode === "terminal"} onExit={terminalOnExit} />
+          </Suspense>
+        </div>
+      )}
+
+      <div style={{ display: mode === "terminal" ? "none" : "block" }}>
         <div className="flex flex-col">
           {/* Input bar */}
           <div
             className={`flex items-center bg-gray-900/95 backdrop-blur-md shadow-2xl ${
-              hasResults || hasCmdSuggestions || cmdResult
+              hasResults || hasCmdSuggestions || cmdResult || isArgsPhase
                 ? "rounded-t-xl border-b border-gray-700/50"
                 : "rounded-xl"
             }`}
@@ -346,6 +402,40 @@ export function CommandPalette() {
             />
           )}
 
+          {/* Args phase: syntax hint bar */}
+          {isArgsPhase && exactCmd && !cmdResult && (
+            <div className="bg-gray-900/95 backdrop-blur-md px-4 py-1.5 text-xs text-gray-500 border-t border-gray-700/30">
+              <span className="text-blue-400">/{exactCmd.name}</span>
+              {exactCmd.args_hint && (
+                <span className="ml-1 font-mono text-gray-600">{exactCmd.args_hint}</span>
+              )}
+              <span className="ml-3 text-gray-700">Tab 填入 · Enter 執行</span>
+            </div>
+          )}
+
+          {/* Args suggestions dropdown */}
+          {hasArgSuggestions && (
+            <div className="bg-gray-900/95 backdrop-blur-md rounded-b-xl shadow-2xl overflow-hidden">
+              <ul className="max-h-[220px] overflow-y-auto py-1">
+                {argSuggestions.map((arg, i) => (
+                  <li
+                    key={arg}
+                    onMouseDown={() => { setQuery(`/${cmdName} ${arg} `); setSelectedArg(i); }}
+                    onMouseEnter={() => setSelectedArg(i)}
+                    className={`flex items-center gap-2 px-4 py-2 cursor-pointer text-sm font-mono transition-colors ${
+                      i === selectedArg ? "bg-blue-600/70 text-white" : "text-gray-300 hover:bg-white/8"
+                    }`}
+                  >
+                    {arg}
+                  </li>
+                ))}
+              </ul>
+              <div className="border-t border-gray-700/50 px-4 py-1.5 text-[11px] text-gray-600 flex justify-between">
+                <span>↑↓ 選擇</span><span>Tab 填入</span><span>Enter 執行</span>
+              </div>
+            </div>
+          )}
+
           {/* Inline command result */}
           {cmdResult?.ui_type.type === "Inline" && cmdResult.text && (
             <div className="bg-gray-900/95 backdrop-blur-md rounded-b-xl shadow-2xl px-4 py-3">
@@ -356,7 +446,7 @@ export function CommandPalette() {
           {/* Panel command result */}
           {PanelComponent && <PanelComponent />}
         </div>
-      )}
+      </div>
     </div>
   );
 }

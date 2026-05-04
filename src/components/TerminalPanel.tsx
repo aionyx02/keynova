@@ -26,10 +26,11 @@ interface ConfigReloadedPayload {
 }
 
 interface Props {
+  isActive: boolean;
   onExit: () => void | Promise<void>;
 }
 
-export function TerminalPanel({ onExit }: Props) {
+export function TerminalPanel({ isActive, onExit }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const xtermRef = useRef<Terminal | null>(null);
   const fitAddonRef = useRef<FitAddon | null>(null);
@@ -38,6 +39,15 @@ export function TerminalPanel({ onExit }: Props) {
   useEffect(() => {
     onExitRef.current = onExit;
   }, [onExit]);
+
+  // Re-focus and re-fit whenever the panel becomes visible again
+  useEffect(() => {
+    if (!isActive) return;
+    requestAnimationFrame(() => {
+      fitAddonRef.current?.fit();
+      xtermRef.current?.focus();
+    });
+  }, [isActive]);
 
   useEffect(() => {
     const el = containerRef.current;
