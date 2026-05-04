@@ -57,7 +57,7 @@
 **驗收**
 - [x] 在欄位輸入值後離焦，出現 "✓ 已儲存" 提示
 - [x] 每個欄位旁有明確「何時生效」標籤
-- [ ] `persist()` 失敗時，前端 saveError 顯示具體錯誤訊息
+- [x] `persist()` 失敗時，前端 saveError 顯示具體錯誤訊息
 
 ---
 
@@ -128,10 +128,10 @@
 - [x] `CommandPalette.tsx`：偵測 args phase（spaceIdx !== -1 且 cmdName 完全匹配）；hint bar + arg suggestions 下拉；↑↓ 選擇、Tab 填入、Enter 執行
 
 **驗收**
-- [ ] 輸入 `/setting`（出現在指令列表時）旁顯示 `[key] [value]` 標籤
-- [ ] 輸入 `/setting ` 出現 hint bar 和 config keys 補全列表
-- [ ] 輸入 `/setting terminal.` 過濾只顯示 terminal.* keys
-- [ ] Tab 填入選中的 key（後面自動加空格）；Enter 執行指令
+- [x] 輸入 `/setting`（出現在指令列表時）旁顯示 `[key] [value]` 標籤
+- [x] 輸入 `/setting ` 出現 hint bar 和 config keys 補全列表
+- [x] 輸入 `/setting terminal.` 過濾只顯示 terminal.* keys
+- [x] Tab 填入選中的 key（後面自動加空格）；Enter 執行指令
 
 ---
 
@@ -144,8 +144,8 @@
 - [x] `TerminalPanel.tsx`：新增 `isActive: boolean` prop；`isActive` 變 true 時重新 fit + focus
 
 **驗收**
-- [ ] 進入終端輸入指令後，按 ESC 退回搜尋模式，再按 `> ` 重新進入，歷史記錄保留
-- [ ] PTY session 在背景繼續存活（不關閉）
+- [x] 進入終端輸入指令後，按 ESC 退回搜尋模式，再按 `> ` 重新進入，歷史記錄保留
+- [x] PTY session 在背景繼續存活（不關閉）
 
 ---
 
@@ -159,11 +159,11 @@
 - [x] `handleInputKeyDown` 統一 handler：↑↓ 移行、←→ 切 tab（邊界偵測）、Enter 立即儲存、hotkey 欄位方向鍵路由正確
 
 **驗收**
-- [ ] 開啟 /setting 後第一個欄位自動聚焦
-- [ ] ↑↓ 在設定欄位間移動焦點
-- [ ] → 在最後位置觸發切換到下一個 tab；← 同理
-- [ ] Enter 立即儲存並閃爍 ✓
-- [ ] hotkey 欄位方向鍵不被捕捉為快捷鍵
+- [x] 開啟 /setting 後第一個欄位自動聚焦
+- [x] ↑↓ 在設定欄位間移動焦點
+- [x] → 在最後位置觸發切換到下一個 tab；← 同理
+- [x] Enter 立即儲存並閃爍 ✓
+- [x] hotkey 欄位方向鍵不被捕捉為快捷鍵
 
 ---
 
