@@ -176,26 +176,38 @@ export function CommandPalette() {
 
   useEffect(() => {
     function onKeyDown(e: KeyboardEvent) {
-      if (e.key === "Escape" && mode !== "terminal") {
-        e.preventDefault();
-        if (cmdResult !== null) {
-          // Close panel → return to search mode without hiding
-          setCmdResult(null);
-          setQuery("");
-          setResults([]);
-          requestAnimationFrame(() => inputRef.current?.focus());
-        } else if (query !== "") {
-          // Clear input but stay visible
-          setQuery("");
-          setResults([]);
-          inputRef.current?.focus();
-        } else {
-          void hideWindow();
-        }
+      if (e.key !== "Escape") return;
+      e.preventDefault();
+      e.stopPropagation();
+      e.stopImmediatePropagation();
+
+      if (mode === "terminal") {
+        // Safety net: exit terminal mode even when xterm lost keyboard focus.
+        // Capture phase lets us run before xterm can consume the key event.
+        containerRef.current?.focus();
+        setQuery("");
+        requestAnimationFrame(() => inputRef.current?.focus());
+        void keepLauncherOpen();
+        return;
+      }
+
+      if (cmdResult !== null) {
+        // Close panel → return to search mode without hiding
+        setCmdResult(null);
+        setQuery("");
+        setResults([]);
+        requestAnimationFrame(() => inputRef.current?.focus());
+      } else if (query !== "") {
+        // Clear input but stay visible
+        setQuery("");
+        setResults([]);
+        inputRef.current?.focus();
+      } else {
+        void hideWindow();
       }
     }
-    window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
+    window.addEventListener("keydown", onKeyDown, true);
+    return () => window.removeEventListener("keydown", onKeyDown, true);
   }, [setQuery, mode, query, cmdResult]);
 
   // Window sizing
@@ -309,11 +321,14 @@ export function CommandPalette() {
     ? (PanelRegistry[cmdResult.ui_type.value ?? ""] ?? null)
     : null;
 
-  const terminalOnExit = async () => {
-    await keepLauncherOpen();
+  const terminalOnExit = () => {
+    // Move focus to container first so terminal becoming display:none
+    // doesn't shift focus to document.body and risk hiding the window
     containerRef.current?.focus();
     setQuery("");
     requestAnimationFrame(() => inputRef.current?.focus());
+    // Keep window open asynchronously — fire and forget
+    void keepLauncherOpen();
   };
 
   return (

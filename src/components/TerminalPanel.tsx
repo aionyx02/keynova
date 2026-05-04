@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, type KeyboardEvent as ReactKeyboardEvent } from "react";
 import { Terminal } from "@xterm/xterm";
 import { FitAddon } from "@xterm/addon-fit";
 import "@xterm/xterm/css/xterm.css";
@@ -126,8 +126,11 @@ export function TerminalPanel({ isActive, onExit }: Props) {
       xterm.focus();
 
       xterm.attachCustomKeyEventHandler((e: KeyboardEvent) => {
-        if (e.type !== "keydown") return true;
-        if (e.key === "Escape") {
+        // In WebView2/xterm, a physical Escape can surface as keyup only.
+        if (
+          (e.type === "keydown" || e.type === "keyup") &&
+          (e.key === "Escape" || e.code === "Escape")
+        ) {
           void Promise.resolve(onExitRef.current());
           return false;
         }
@@ -136,6 +139,13 @@ export function TerminalPanel({ isActive, onExit }: Props) {
 
       xterm.onData((data) => {
         if (!sessionId) return;
+        // On Windows/WebView2, a physical Escape can reach xterm as the
+        // focus-out escape sequence instead of a DOM keydown.
+        if (data === "\x1b" || data === "\x1b[O") {
+          void Promise.resolve(onExitRef.current());
+          return;
+        }
+        if (data === "\x1b[I") return;
         void invoke("cmd_dispatch", {
           route: "terminal.send",
           payload: { id: sessionId, input: data },
@@ -211,8 +221,18 @@ export function TerminalPanel({ isActive, onExit }: Props) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  const handleKeyDownCapture = (event: ReactKeyboardEvent<HTMLDivElement>) => {
+    if (event.key !== "Escape" && event.key !== "Esc" && event.code !== "Escape") return;
+    event.preventDefault();
+    event.stopPropagation();
+    void Promise.resolve(onExitRef.current());
+  };
+
   return (
-    <div className="w-full bg-gray-900 rounded-xl overflow-hidden shadow-2xl">
+    <div
+      className="w-full bg-gray-900 rounded-xl overflow-hidden shadow-2xl"
+      onKeyDownCapture={handleKeyDownCapture}
+    >
       <div className="flex items-center px-3 py-1.5 bg-gray-800/60 border-b border-gray-700/40">
         <span className="text-[11px] font-mono text-emerald-400 select-none">Terminal</span>
         <span className="ml-auto text-[11px] text-gray-600 select-none">Esc to exit</span>
