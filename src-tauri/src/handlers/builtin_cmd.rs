@@ -68,6 +68,74 @@ impl BuiltinCommand for ReloadCommand {
     }
 }
 
+// ─── Phase 3 builtin commands ────────────────────────────────────────────────
+
+pub struct TrCommand;
+
+impl BuiltinCommand for TrCommand {
+    fn name(&self) -> &'static str { "tr" }
+    fn description(&self) -> &'static str { "Translate text" }
+    fn args_hint(&self) -> Option<&'static str> { Some("<src> <dst> <text>  or  default <text>") }
+    fn execute(&self, _args: &str) -> BuiltinCommandResult {
+        BuiltinCommandResult { text: String::new(), ui_type: CommandUiType::Panel("translation".into()) }
+    }
+}
+
+pub struct AiCommand;
+
+impl BuiltinCommand for AiCommand {
+    fn name(&self) -> &'static str { "ai" }
+    fn description(&self) -> &'static str { "Ask AI assistant" }
+    fn args_hint(&self) -> Option<&'static str> { Some("<question>") }
+    fn execute(&self, _args: &str) -> BuiltinCommandResult {
+        BuiltinCommandResult { text: String::new(), ui_type: CommandUiType::Panel("ai".into()) }
+    }
+}
+
+pub struct NoteCommand;
+
+impl BuiltinCommand for NoteCommand {
+    fn name(&self) -> &'static str { "note" }
+    fn description(&self) -> &'static str { "Quick notes" }
+    fn args_hint(&self) -> Option<&'static str> { Some("[note-name]") }
+    fn execute(&self, _args: &str) -> BuiltinCommandResult {
+        BuiltinCommandResult { text: String::new(), ui_type: CommandUiType::Panel("note".into()) }
+    }
+}
+
+pub struct CalCommand;
+
+impl BuiltinCommand for CalCommand {
+    fn name(&self) -> &'static str { "cal" }
+    fn description(&self) -> &'static str { "Calculator & unit conversion" }
+    fn args_hint(&self) -> Option<&'static str> { Some("<expr>  e.g. 2+2, 5 km to m") }
+    fn execute(&self, _args: &str) -> BuiltinCommandResult {
+        BuiltinCommandResult { text: String::new(), ui_type: CommandUiType::Panel("calculator".into()) }
+    }
+}
+
+pub struct HistoryCommand;
+
+impl BuiltinCommand for HistoryCommand {
+    fn name(&self) -> &'static str { "history" }
+    fn description(&self) -> &'static str { "Clipboard history" }
+    fn args_hint(&self) -> Option<&'static str> { Some("[search]") }
+    fn execute(&self, _args: &str) -> BuiltinCommandResult {
+        BuiltinCommandResult { text: String::new(), ui_type: CommandUiType::Panel("history".into()) }
+    }
+}
+
+pub struct SysCtlCommand;
+
+impl BuiltinCommand for SysCtlCommand {
+    fn name(&self) -> &'static str { "system" }
+    fn description(&self) -> &'static str { "System control: volume, brightness, wifi" }
+    fn args_hint(&self) -> Option<&'static str> { Some("volume|brightness|wifi [value]") }
+    fn execute(&self, _args: &str) -> BuiltinCommandResult {
+        BuiltinCommandResult { text: String::new(), ui_type: CommandUiType::Panel("system".into()) }
+    }
+}
+
 pub struct DownCommand;
 
 impl BuiltinCommand for DownCommand {

@@ -181,62 +181,63 @@
 
 ### Phase 3.0 基線與共用能力（Week 13）
 
-- [ ] 新增 `ai.*`、`translation.*`、`workspace.*`、`note.*`、`calculator.*`、`history.*`、`system.*` 指令 namespace
-- [ ] 擴充 `default_config.toml`：`[features]`、`[ai]`、`[translation]`、`[notes]`、`[history]`、`[system]`
-- [ ] `CommandSuggestions` 新增 `/ai`、`/tr`、`/note`、`/cal`、`/history`、`/system` discoverability
-- [ ] 建立 Phase 3 測試骨架：Rust 單元測試、前端 hook/component 測試、端到端驗收腳本
-- [ ] 新增 ADR：AI provider abstraction、note 同步策略、system-control 權限範圍
+- [x] 新增 `ai.*`、`translation.*`、`workspace.*`、`note.*`、`calculator.*`、`history.*`、`system.*` 指令 namespace
+- [x] 擴充 `default_config.toml`：`[features]`、`[ai]`、`[translation]`、`[notes]`、`[history]`、`[system]`
+- [x] `CommandSuggestions` 新增 `/ai`、`/tr`、`/note`、`/cal`、`/history`、`/system` discoverability（BuiltinCommandRegistry）
+- [x] 建立 Phase 3 測試骨架：Rust 單元測試 16 個（calculator/workspace/history/note manager）
+- [x] 新增 ADR：ADR-011 AI provider abstraction、ADR-012 note 同步策略、ADR-013 system-control 權限範圍
 
 ### Phase 3.1 翻譯（/tr）
 
-- [ ] 命令規格：`/tr <src> <dst> <text>` 與 `/tr default <text>`
-- [ ] `TranslationManager` + `TranslationHandler`，provider trait（先接 Claude，保留可替換）
-- [ ] 前端 i18n：抽離 UI 文案、`zh-TW` / `en-US` 資源、語言切換設定持久化
-- [ ] 翻譯結果 UX：顯示來源語言偵測、目標語言、一鍵複製
+- [x] 命令規格：`/tr <src> <dst> <text>` 與 `/tr default <text>`
+- [x] `TranslationManager` + `TranslationHandler`（reqwest blocking + std::thread + EventBus）
+- [x] 前端 i18n：`zh-TW` / `en-US` 資源、`useI18n` hook（navigator.language 偵測）
+- [x] 翻譯結果 UX：`TranslationPanel`，一鍵複製，監聽 `translation-result` 事件
 
 ### Phase 3.2 AI 助理（/ai）
 
-- [ ] `AiManager` + `AiHandler` + `AiProvider` 抽象（Claude 為預設）
-- [ ] 進入 `/ai` 後 `>` 切換為 AI 對話模式（多輪、取消、錯誤提示）
-- [ ] MVP：程式碼解釋、文件草稿、快速提問
-- [ ] 安全限制：timeout/retry/token 上限、API key 設定檢查
+- [x] `AiManager` + `AiHandler`（Claude Sonnet 4.6，reqwest blocking + std::thread）
+- [x] 多輪對話、樂觀更新、error 顯示
+- [x] MVP：`AiPanel`（Enter 送出、Shift+Enter 換行、清除對話）
+- [x] 安全限制：timeout/max_tokens 可設定，API key 缺少時明確提示
 
 ### Phase 3.3 虛擬工作區（Ctrl+Alt+1/2/3）
 
-- [ ] Workspace domain model（3 槽位）與持久化
-- [ ] Hotkey 註冊/切換 + 衝突檢查
-- [ ] 狀態隔離：query、search results、命令歷史按 workspace 分離
-- [ ] UI 指示：目前 workspace 編號與快速切換提示
+- [x] `WorkspaceManager`（3 槽位）+ JSON 持久化（AppData/Keynova/workspaces.json）
+- [x] Ctrl+Alt+1/2/3 全域熱鍵 + `workspace-switched` 事件推送
+- [x] 狀態隔離：切換時恢復 query、mode
+- [x] `WorkspaceIndicator` UI（3 按鈕，高亮當前槽位）
 
 ### Phase 3.4 快速筆記（/note）
 
-- [ ] `NoteManager` + `NoteHandler`：Markdown 讀寫、命名規則、衝突處理
-- [ ] 內建 nano 風格編輯器 MVP（快捷鍵、儲存提示、離開確認）
-- [ ] 外部編輯器同步：檔案監看與重新載入
+- [x] `NoteManager` + `NoteHandler`：Markdown 讀寫、sanitize 命名、列表/建立/刪除/重命名
+- [x] `NoteEditor`：側欄選單 + 右側編輯器，800ms debounce auto-save，Ctrl+S 立即儲存
+- [ ] 外部編輯器同步：檔案監看與重新載入（MVP 未實作，defer Phase 4）
 
 ### Phase 3.5 計算機（/cal）
 
-- [ ] `mathjs` + 安全 sandbox；支援 `+-*/`、括號、LaTeX 基本公式
-- [ ] 進階：單位換算、進位轉換（bin/dec/hex）、歷史重算
-- [ ] UI：輸入即時計算、結果可複製、錯誤可讀化
+- [x] 純 Rust recursive-descent 運算式解析（無外部依賴），支援 `+-*/%^`、括號、函式、常數
+- [x] 進階：單位換算（長度/重量/時間/面積/速度/資料）、進位轉換（bin/dec/hex/oct）
+- [x] `CalculatorPanel`：300ms debounce 即時計算、結果複製、歷史點擊重算
 
 ### Phase 3.6 剪貼簿歷史（/history）
 
-- [ ] Clipboard watcher（Windows 先行）+ `HistoryManager`（容量上限、去重）
-- [ ] 支援文字與圖片 metadata
-- [ ] `/history` 面板：搜尋、貼回、釘選、刪除、隱私設定
+- [x] Clipboard watcher（PowerShell Get-Clipboard，2s 輪詢）+ `HistoryManager`（FNV-1a dedup，max_items）
+- [x] 文字歷史（圖片 metadata defer Phase 4）
+- [x] `HistoryPanel`：搜尋、Enter 複製、釘選/取消釘選、刪除、清除未釘選
 
 ### Phase 3.7 系統控制（/system）
 
-- [ ] 命令規格：音量、亮度、WiFi 查詢/調整/切換
-- [ ] `SystemManager` + `SystemHandler`（Windows API；其他平台回傳 `NotImplemented`）
+- [x] 命令規格：`system.volume.get/set/mute`、`system.brightness.get/set`、`system.wifi.info`
+- [x] `SystemManager` + `SystemControlHandler`（Windows: COM IAudioEndpointVolume + PowerShell WMI；非 Windows: NotImplemented）
 
 ### Phase 3.8 整合、效能、發版準備（Week 18）
 
-- [ ] `npm run lint`、`cargo clippy -- -D warnings`、`cargo test` 全綠
-- [ ] `npm run tauri build` 包體積檢查（目標 ~50MB）
-- [ ] Regression：Search / Terminal / Command / Setting / Hotkey / Mouse 全面回歸
-- [ ] 更新文件：`README.md`、`memory.md`
+- [x] `npm run lint`、`cargo clippy -- -D warnings`、`cargo test` 全綠（16 tests）
+- [x] `npm run build`（TypeScript + Vite 前端）通過，tsc 無錯誤
+- [ ] `npm run tauri build` 完整包體積檢查（需手動執行，目標 ~50MB）
+- [ ] Regression：Search / Terminal / Command / Setting / Hotkey / Mouse 全面回歸（需手動測試）
+- [x] 更新文件：`memory.md` 更新
 
 ---
 
