@@ -1,5 +1,8 @@
 import React from "react";
 import { SettingPanel } from "../SettingPanel";
+import type { PanelProps } from "../../types/panel";
+
+export type { PanelProps };
 
 const AiPanel = React.lazy(() =>
   import("../AiPanel").then((m) => ({ default: m.AiPanel })),
@@ -19,11 +22,6 @@ const HistoryPanel = React.lazy(() =>
 const SystemPanel = React.lazy(() =>
   import("../SystemPanel").then((m) => ({ default: m.SystemPanel })),
 );
-
-/** Props shared by every panel rendered from the registry. */
-export interface PanelProps {
-  onClose: () => void;
-}
 
 /** 將後端回傳的 panel name 對應至 React 元件。新增面板只需在此 Record 加一筆。 */
 export const PanelRegistry: Record<string, React.ComponentType<PanelProps>> = {

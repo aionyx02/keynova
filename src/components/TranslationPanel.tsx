@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { listen } from "@tauri-apps/api/event";
 import { invoke } from "@tauri-apps/api/core";
 import { useI18n } from "../i18n/useI18n";
-import type { PanelProps } from "./panel/PanelRegistry";
+import type { PanelProps } from "../types/panel";
 
 interface TranslationResponsePayload {
   request_id: string;

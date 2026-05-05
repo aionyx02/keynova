@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { useI18n } from "../i18n/useI18n";
-import type { PanelProps } from "./panel/PanelRegistry";
+import type { PanelProps } from "../types/panel";
 
 interface VolumeInfo { level: number; muted: boolean; }
 interface WifiInfo { ssid: string; signal: number; connected: boolean; }

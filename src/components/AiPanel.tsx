@@ -1,7 +1,7 @@
-import { useEffect, useRef, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { useAi } from "../hooks/useAi";
 import { useI18n } from "../i18n/useI18n";
-import type { PanelProps } from "./panel/PanelRegistry";
+import type { PanelProps } from "../types/panel";
 
 export function AiPanel({ onClose }: PanelProps) {
   const t = useI18n();
