@@ -59,40 +59,23 @@
 
 ## 進行中
 
-### BUG-12 ESC 在 panel 模式（/ai、/command 等）無反應
-
-**現象**：進入 `/ai`、`/command` 等指令面板後，按 ESC 沒有任何反應，無法退出。
-
-**根因推測**：CommandPalette 的 ESC 處理在 panel 顯示時，focus 可能跑到 panel 內部元素（textarea、input），導致 window 層的 keydown 未被觸發；或 panel 元件本身未攔截 Escape。
-
-**受影響檔案**：`CommandPalette.tsx`、`AiPanel.tsx`、`NoteEditor.tsx`、`HistoryPanel.tsx`、`CalculatorPanel.tsx`、`SystemPanel.tsx`、`TranslationPanel.tsx`
-
-- [ ] 確認 CommandPalette ESC handler 在各 panel 開啟時是否仍能接收 keydown
-- [ ] 各 panel 的 textarea/input 加入 `onKeyDown` 攔截 `Escape`，呼叫上層 `onClose` callback
-- [ ] 統一 pattern：panel props 加 `onClose: () => void`，Escape 時呼叫
+### ~~BUG-12~~ ✅ ESC 在 panel 模式（/ai、/command 等）無反應
+- [x] `PanelProps.onClose` 加入所有 panel；各 panel textarea/input 攔截 Escape 呼叫 `onClose()`
+- [x] CommandPalette 傳 `handlePanelClose` 並加 Suspense 包裝
+- [x] ESC handler 改為 `deps=[setQuery]` 只註冊一次；refs 透過 `useLayoutEffect`（無 deps）同步，解決 stale closure
 - [ ] 驗收：/ai、/tr、/note、/cal、/history、/system 面板按 ESC 均可退出，回到搜尋模式
 
 ---
 
-### BUG-13 /command 模式，↑ 鍵應返回頂部輸入框
-
-**現象**：在 `/command` 指令列表中，選擇第一項後繼續按 ↑，焦點沒有跳回搜尋輸入框。
-
-**受影響檔案**：`CommandPalette.tsx`（command mode keyDown handler）
-
-- [ ] command mode 鍵盤導航：當 `selectedIndex === 0` 且再按 ↑，將 `selectedIndex` 設回 -1 並 `inputRef.current?.focus()`
-- [ ] 驗收：在 /command 指令列表最頂項按 ↑，焦點回到搜尋框
+### ~~BUG-13~~ ✅ /command 模式，↑ 鍵應返回頂部輸入框
+- [x] ArrowUp 邏輯改為 `(i <= 0 ? -1 : i - 1)`，消除 0↔-1 振盪
+- [ ] 驗收：/command 最頂項按 ↑，焦點回到搜尋框
 
 ---
 
-### BUG-14 搜尋模式，↓ 鍵選擇結果時搜尋框不跟隨滾動
-
-**現象**：搜尋出現結果後，按 ↓ 選擇下方項目時，搜尋輸入框不 sticky，導致輸入框被推出可視區，使用者看不到自己在哪個選項。
-
-**受影響檔案**：`CommandPalette.tsx`（search results container 佈局）
-
-- [ ] 搜尋輸入框改為 sticky top（CSS `position: sticky; top: 0`），結果列表向下滾動時輸入框固定在頂部
-- [ ] 確認 selected item 有 scroll-into-view（`scrollIntoView({ block: "nearest" })`）
+### ~~BUG-14~~ ✅ 搜尋模式，↓ 鍵選擇結果時搜尋框不跟隨滾動
+- [x] 還原內層捲動（`max-h` 放在 `<ul>`），搜尋框固定在上方，不使用 sticky
+- [x] selected `<li>` 加 `scrollIntoView({ block: "nearest" })`
 - [ ] 驗收：搜尋結果超出視窗高度時，↓ 鍵選到下方項目，輸入框仍可見
 
 ---
