@@ -81,7 +81,7 @@ export function NoteEditor({ onClose }: PanelProps) {
   }
 
   return (
-    <div className="bg-gray-900/95 backdrop-blur-md rounded-b-xl shadow-2xl flex" style={{ height: 380 }}>
+    <div className="min-h-h-[350] bg-gray-900/95 backdrop-blur-md rounded-b-xl shadow-2xl flex" style={{ height: 380 }}>
       {/* Sidebar: note list */}
       <div className="w-36 border-r border-gray-700/50 flex flex-col">
         <div className="flex items-center justify-between px-2 py-2 border-b border-gray-700/30">

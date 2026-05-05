@@ -74,7 +74,7 @@ export function TranslationPanel({ onClose }: PanelProps) {
   }
 
   return (
-    <div className="bg-gray-900/95 backdrop-blur-md rounded-b-xl shadow-2xl flex flex-col gap-2 p-4">
+    <div className="min-h-[350px] bg-gray-900/95 backdrop-blur-md rounded-b-xl shadow-2xl flex flex-col p-4 gap-3">
       <div className="flex items-center gap-2">
         <span className="text-xs font-semibold text-blue-400 uppercase tracking-wide">{t.translation.title}</span>
       </div>

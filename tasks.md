@@ -63,7 +63,7 @@
 - [x] `PanelProps.onClose` 加入所有 panel；各 panel textarea/input 攔截 Escape 呼叫 `onClose()`
 - [x] CommandPalette 傳 `handlePanelClose` 並加 Suspense 包裝
 - [x] ESC handler 改為 `deps=[setQuery]` 只註冊一次；refs 透過 `useLayoutEffect`（無 deps）同步，解決 stale closure
-- [ ] 驗收：/ai、/tr、/note、/cal、/history、/system 面板按 ESC 均可退出，回到搜尋模式
+- [x] 驗收：/ai、/tr、/note、/cal、/history、/system 面板按 ESC 均可退出，回到搜尋模式
 
 ---
 
