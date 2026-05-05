@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useHistory } from "../hooks/useHistory";
 import { useI18n } from "../i18n/useI18n";
 import type { ClipboardEntry } from "../hooks/useHistory";
-import type { PanelProps } from "./panel/PanelRegistry";
+import type { PanelProps } from "../types/panel";
 
 export function HistoryPanel({ onClose }: PanelProps) {
   const t = useI18n();

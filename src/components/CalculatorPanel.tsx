@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { useI18n } from "../i18n/useI18n";
-import type { PanelProps } from "./panel/PanelRegistry";
+import type { PanelProps } from "../types/panel";
 
 interface CalcEntry {
   expr: string;
