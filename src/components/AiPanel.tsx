@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState } from "react";
 import { useAi } from "../hooks/useAi";
 import { useI18n } from "../i18n/useI18n";
+import type { PanelProps } from "./panel/PanelRegistry";
 
-export function AiPanel() {
+export function AiPanel({ onClose }: PanelProps) {
   const t = useI18n();
   const { messages, loading, send, clearHistory } = useAi();
   const [input, setInput] = useState("");
@@ -18,6 +19,7 @@ export function AiPanel() {
   }, []);
 
   function handleKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
+    if (e.key === "Escape") { e.preventDefault(); onClose(); return; }
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
       void handleSend();

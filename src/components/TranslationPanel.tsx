@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { listen } from "@tauri-apps/api/event";
 import { invoke } from "@tauri-apps/api/core";
 import { useI18n } from "../i18n/useI18n";
+import type { PanelProps } from "./panel/PanelRegistry";
 
 interface TranslationResponsePayload {
   request_id: string;
@@ -16,7 +17,7 @@ async function ipcDispatch<T>(route: string, payload?: Record<string, unknown>):
   return invoke<T>("cmd_dispatch", { route, payload: payload ?? null });
 }
 
-export function TranslationPanel() {
+export function TranslationPanel({ onClose }: PanelProps) {
   const t = useI18n();
   const [src, setSrc] = useState("auto");
   const [dst, setDst] = useState("zh-TW");
@@ -99,7 +100,10 @@ export function TranslationPanel() {
       <textarea
         value={text}
         onChange={(e) => setText(e.target.value)}
-        onKeyDown={(e) => { if (e.key === "Enter" && e.ctrlKey) { e.preventDefault(); void translate(); } }}
+        onKeyDown={(e) => {
+          if (e.key === "Escape") { e.preventDefault(); onClose(); return; }
+          if (e.key === "Enter" && e.ctrlKey) { e.preventDefault(); void translate(); }
+        }}
         placeholder={t.translation.textPlaceholder}
         rows={3}
         className="bg-gray-800/60 text-gray-200 text-sm rounded px-3 py-2 outline-none resize-none placeholder-gray-600"
