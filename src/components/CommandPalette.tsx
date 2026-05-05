@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState, Suspense } from "react";
+import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, Suspense } from "react";
 import { listen } from "@tauri-apps/api/event";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { LogicalSize } from "@tauri-apps/api/dpi";
@@ -82,9 +82,17 @@ export function CommandPalette() {
   const searchLimitRef = useRef(10);
 
   const { mode, rawInput } = parseInputMode(query);
-  const modeRef = useRef(mode);
 
-  useEffect(() => { modeRef.current = mode; }, [mode]);
+  // Refs always hold the latest values — read inside the ESC handler
+  // to avoid stale closures when the listener is registered only once.
+  const modeRef = useRef(mode);
+  const cmdResultRef = useRef(cmdResult);
+  const queryRef = useRef(query);
+  useLayoutEffect(() => {
+    modeRef.current = mode;
+    cmdResultRef.current = cmdResult;
+    queryRef.current = query;
+  });
 
 
   // Split rawInput into command name and trailing args (Minecraft-style)
@@ -190,6 +198,8 @@ export function CommandPalette() {
     return () => { unlisten.then((fn) => fn()); };
   }, [setQuery]);
 
+  // ESC handler — registered once; reads always-current values via refs
+  // so there is no stale-closure race between setCmdResult and effect re-run.
   useEffect(() => {
     function onKeyDown(e: KeyboardEvent) {
       if (e.key !== "Escape") return;
@@ -197,9 +207,7 @@ export function CommandPalette() {
       e.stopPropagation();
       e.stopImmediatePropagation();
 
-      if (mode === "terminal") {
-        // Safety net: exit terminal mode even when xterm lost keyboard focus.
-        // Capture phase lets us run before xterm can consume the key event.
+      if (modeRef.current === "terminal") {
         containerRef.current?.focus();
         setQuery("");
         requestAnimationFrame(() => inputRef.current?.focus());
@@ -207,14 +215,12 @@ export function CommandPalette() {
         return;
       }
 
-      if (cmdResult !== null) {
-        // Close panel → return to search mode without hiding
+      if (cmdResultRef.current !== null) {
         setCmdResult(null);
         setQuery("");
         setResults([]);
         requestAnimationFrame(() => inputRef.current?.focus());
-      } else if (query !== "") {
-        // Clear input but stay visible
+      } else if (queryRef.current !== "") {
         setQuery("");
         setResults([]);
         inputRef.current?.focus();
@@ -224,7 +230,7 @@ export function CommandPalette() {
     }
     window.addEventListener("keydown", onKeyDown, true);
     return () => window.removeEventListener("keydown", onKeyDown, true);
-  }, [setQuery, mode, query, cmdResult]);
+  }, [setQuery]); // stable Zustand setter — listener registered exactly once
 
   // Window sizing
   useEffect(() => {
@@ -306,12 +312,11 @@ export function CommandPalette() {
         e.preventDefault();
         if (isArgsPhase) {
           setSelectedArg((i) => Math.max(i - 1, 0));
-        } else if (selectedCmd === 0) {
-          // BUG-13: at the top of the list, ↑ returns focus to the search input
-          setSelectedCmd(-1);
-          inputRef.current?.focus();
         } else {
-          setSelectedCmd((i) => Math.max(i - 1, 0));
+          // At index 0 or already unselected (-1): deselect all (visual cursor
+          // returns to the input bar). Prevents the 0↔-1 oscillation that
+          // occurred when Math.max(-2, 0) kept snapping back to 0.
+          setSelectedCmd((i) => (i <= 0 ? -1 : i - 1));
         }
       } else if (e.key === "Tab") {
         e.preventDefault();
@@ -374,11 +379,10 @@ export function CommandPalette() {
       )}
 
       <div style={{ display: mode === "terminal" ? "none" : "block" }}>
-        {/* BUG-14: scroll viewport so the sticky input bar stays visible when results overflow */}
-        <div className="flex flex-col overflow-y-auto max-h-[440px] rounded-xl">
-          {/* Input bar: sticky so it remains visible when scrolling through results */}
+        <div className="flex flex-col">
+          {/* Input bar */}
           <div
-            className={`sticky top-0 z-10 flex items-center bg-gray-900/95 backdrop-blur-md shadow-2xl ${
+            className={`flex items-center bg-gray-900/95 backdrop-blur-md shadow-2xl ${
               hasResults || hasCmdSuggestions || cmdResult || isArgsPhase
                 ? "rounded-t-xl border-b border-gray-700/50"
                 : "rounded-xl"
@@ -412,8 +416,8 @@ export function CommandPalette() {
 
           {/* Search results */}
           {hasResults && (
-            <div className="bg-gray-900/95 backdrop-blur-md rounded-b-xl shadow-2xl">
-              <ul className="py-1">
+            <div className="bg-gray-900/95 backdrop-blur-md rounded-b-xl shadow-2xl overflow-hidden">
+              <ul className="max-h-[352px] overflow-y-auto py-1">
                 {results.map((r, i) => {
                   const badge = KIND_BADGE[r.kind] ?? KIND_BADGE.file;
                   return (
