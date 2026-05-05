@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState, Suspense } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState, Suspense } from "react";
 import { listen } from "@tauri-apps/api/event";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { LogicalSize } from "@tauri-apps/api/dpi";
@@ -304,8 +304,15 @@ export function CommandPalette() {
         else setSelectedCmd((i) => Math.min(i + 1, cmdSuggestions.length - 1));
       } else if (e.key === "ArrowUp") {
         e.preventDefault();
-        if (isArgsPhase) setSelectedArg((i) => Math.max(i - 1, 0));
-        else setSelectedCmd((i) => Math.max(i - 1, 0));
+        if (isArgsPhase) {
+          setSelectedArg((i) => Math.max(i - 1, 0));
+        } else if (selectedCmd === 0) {
+          // BUG-13: at the top of the list, ↑ returns focus to the search input
+          setSelectedCmd(-1);
+          inputRef.current?.focus();
+        } else {
+          setSelectedCmd((i) => Math.max(i - 1, 0));
+        }
       } else if (e.key === "Tab") {
         e.preventDefault();
         if (isArgsPhase && argSuggestions.length > 0) {
@@ -347,6 +354,14 @@ export function CommandPalette() {
     void keepLauncherOpen();
   };
 
+  // BUG-12: passed to every panel so Escape inside textarea/input can close the panel
+  const handlePanelClose = useCallback(() => {
+    setCmdResult(null);
+    setQuery("");
+    setResults([]);
+    requestAnimationFrame(() => inputRef.current?.focus());
+  }, [setQuery]);
+
   return (
     <div ref={containerRef} tabIndex={-1} className="w-full outline-none">
       {/* Terminal: mounted once on first visit, hidden via CSS when not active */}
@@ -359,10 +374,11 @@ export function CommandPalette() {
       )}
 
       <div style={{ display: mode === "terminal" ? "none" : "block" }}>
-        <div className="flex flex-col">
-          {/* Input bar */}
+        {/* BUG-14: scroll viewport so the sticky input bar stays visible when results overflow */}
+        <div className="flex flex-col overflow-y-auto max-h-[440px] rounded-xl">
+          {/* Input bar: sticky so it remains visible when scrolling through results */}
           <div
-            className={`flex items-center bg-gray-900/95 backdrop-blur-md shadow-2xl ${
+            className={`sticky top-0 z-10 flex items-center bg-gray-900/95 backdrop-blur-md shadow-2xl ${
               hasResults || hasCmdSuggestions || cmdResult || isArgsPhase
                 ? "rounded-t-xl border-b border-gray-700/50"
                 : "rounded-xl"
@@ -396,13 +412,14 @@ export function CommandPalette() {
 
           {/* Search results */}
           {hasResults && (
-            <div className="bg-gray-900/95 backdrop-blur-md rounded-b-xl shadow-2xl overflow-hidden">
-              <ul className="max-h-[352px] overflow-y-auto py-1">
+            <div className="bg-gray-900/95 backdrop-blur-md rounded-b-xl shadow-2xl">
+              <ul className="py-1">
                 {results.map((r, i) => {
                   const badge = KIND_BADGE[r.kind] ?? KIND_BADGE.file;
                   return (
                     <li
                       key={r.path}
+                      ref={(el) => { if (i === selected && el) el.scrollIntoView({ block: "nearest" }); }}
                       onMouseDown={() => void launchResult(r)}
                       onMouseEnter={() => setSelected(i)}
                       className={`flex items-center gap-2 px-4 py-2.5 cursor-pointer text-sm transition-colors ${
@@ -478,7 +495,11 @@ export function CommandPalette() {
           )}
 
           {/* Panel command result */}
-          {PanelComponent && <PanelComponent />}
+          {PanelComponent && (
+            <Suspense fallback={<div className="h-16 bg-gray-900/95 rounded-b-xl" />}>
+              <PanelComponent onClose={handlePanelClose} />
+            </Suspense>
+          )}
         </div>
       </div>
     </div>

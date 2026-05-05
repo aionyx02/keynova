@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useNotes } from "../hooks/useNotes";
 import { useI18n } from "../i18n/useI18n";
+import type { PanelProps } from "./panel/PanelRegistry";
 
-export function NoteEditor() {
+export function NoteEditor({ onClose }: PanelProps) {
   const t = useI18n();
   const { notes, getNote, saveNote, createNote, deleteNote } = useNotes();
   const [selectedNote, setSelectedNote] = useState<string | null>(null);
@@ -48,10 +49,17 @@ export function NoteEditor() {
         setSaveStatus("saved");
         setTimeout(() => setSaveStatus("idle"), 1500);
       });
+      return;
     }
     if (e.key === "Escape") {
-      setSelectedNote(null);
-      setContent("");
+      e.preventDefault();
+      // First Escape: deselect note; second Escape (no note selected): close panel
+      if (selectedNote !== null) {
+        setSelectedNote(null);
+        setContent("");
+      } else {
+        onClose();
+      }
     }
   }
 

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { useI18n } from "../i18n/useI18n";
+import type { PanelProps } from "./panel/PanelRegistry";
 
 interface VolumeInfo { level: number; muted: boolean; }
 interface WifiInfo { ssid: string; signal: number; connected: boolean; }
@@ -9,7 +10,7 @@ async function ipcDispatch<T>(route: string, payload?: Record<string, unknown>):
   return invoke<T>("cmd_dispatch", { route, payload: payload ?? null });
 }
 
-export function SystemPanel() {
+export function SystemPanel({ onClose }: PanelProps) {
   const t = useI18n();
   const [volume, setVolume] = useState<VolumeInfo | null>(null);
   const [brightness, setBrightness] = useState<number | null>(null);
@@ -62,7 +63,10 @@ export function SystemPanel() {
   }
 
   return (
-    <div className="bg-gray-900/95 backdrop-blur-md rounded-b-xl shadow-2xl flex flex-col p-4 gap-4">
+    <div
+      className="bg-gray-900/95 backdrop-blur-md rounded-b-xl shadow-2xl flex flex-col p-4 gap-4"
+      onKeyDown={(e) => { if (e.key === "Escape") { e.preventDefault(); onClose(); } }}
+    >
       <div className="flex items-center gap-2">
         <span className="text-xs font-semibold text-blue-400 uppercase tracking-wide">{t.system.title}</span>
         <button onClick={() => void load()} className="text-[10px] text-gray-600 hover:text-gray-400 ml-auto">⟳ 重整</button>

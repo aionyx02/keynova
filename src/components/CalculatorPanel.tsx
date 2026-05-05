@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { useI18n } from "../i18n/useI18n";
+import type { PanelProps } from "./panel/PanelRegistry";
 
 interface CalcEntry {
   expr: string;
@@ -11,7 +12,7 @@ async function ipcDispatch<T>(route: string, payload?: Record<string, unknown>):
   return invoke<T>("cmd_dispatch", { route, payload: payload ?? null });
 }
 
-export function CalculatorPanel() {
+export function CalculatorPanel({ onClose }: PanelProps) {
   const t = useI18n();
   const [expr, setExpr] = useState("");
   const [result, setResult] = useState("");
@@ -67,7 +68,10 @@ export function CalculatorPanel() {
           ref={inputRef}
           value={expr}
           onChange={(e) => handleChange(e.target.value)}
-          onKeyDown={(e) => { if (e.key === "Enter") { if (debounceRef.current) clearTimeout(debounceRef.current); void evaluate(expr); } }}
+          onKeyDown={(e) => {
+            if (e.key === "Escape") { e.preventDefault(); onClose(); return; }
+            if (e.key === "Enter") { if (debounceRef.current) clearTimeout(debounceRef.current); void evaluate(expr); }
+          }}
           placeholder={t.calculator.placeholder}
           className="w-full bg-gray-800/60 text-gray-200 text-sm rounded px-3 py-2 outline-none placeholder-gray-600 font-mono"
         />

@@ -2,8 +2,9 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useHistory } from "../hooks/useHistory";
 import { useI18n } from "../i18n/useI18n";
 import type { ClipboardEntry } from "../hooks/useHistory";
+import type { PanelProps } from "./panel/PanelRegistry";
 
-export function HistoryPanel() {
+export function HistoryPanel({ onClose }: PanelProps) {
   const t = useI18n();
   const { entries, search, deleteEntry, pinEntry, clearAll } = useHistory();
   const [query, setQuery] = useState("");
@@ -38,6 +39,7 @@ export function HistoryPanel() {
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent<HTMLInputElement>) => {
+      if (e.key === "Escape") { e.preventDefault(); onClose(); return; }
       if (e.key === "ArrowDown") { e.preventDefault(); setSelected((i) => Math.min(i + 1, filtered.length - 1)); }
       else if (e.key === "ArrowUp") { e.preventDefault(); setSelected((i) => Math.max(i - 1, 0)); }
       else if (e.key === "Enter") {
@@ -45,7 +47,7 @@ export function HistoryPanel() {
         if (entry) void copyEntry(entry);
       }
     },
-    [filtered, selected],
+    [filtered, selected, onClose],
   );
 
   const displayList = query ? filtered : entries;
