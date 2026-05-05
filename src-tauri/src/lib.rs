@@ -20,12 +20,14 @@ use crate::handlers::{
     ai::AiHandler,
     builtin_cmd::{
         AiCommand, BuiltinCmdHandler, CalCommand, DownCommand, HelpCommand, HistoryCommand,
-        NoteCommand, ReloadCommand, SettingCommand, SysCtlCommand, TrCommand,
+        ModelDownloadCommand, ModelListCommand, NoteCommand, ReloadCommand, SettingCommand,
+        SysCtlCommand, TrCommand,
     },
     calculator::CalculatorHandler,
     history::HistoryHandler,
     hotkey::HotkeyHandler,
     launcher::LauncherHandler,
+    model::ModelHandler,
     mouse::MouseHandler,
     note::NoteHandler,
     search::SearchHandler,
@@ -41,6 +43,7 @@ use crate::managers::{
     calculator_manager::CalculatorManager,
     history_manager::HistoryManager,
     hotkey_manager::HotkeyManager,
+    model_manager::ModelManager,
     mouse_manager::MouseManager,
     note_manager::NoteManager,
     search_manager::SearchManager,
@@ -75,6 +78,7 @@ impl AppState {
         let system_manager = Arc::new(Mutex::new(SystemManager::new()));
         let calculator_manager = Arc::new(Mutex::new(CalculatorManager::new()));
         let workspace_manager = Arc::new(Mutex::new(WorkspaceManager::new()));
+        let model_manager = Arc::new(ModelManager::new());
 
         // Config manager (shared)
         let config_manager = Arc::new(Mutex::new(ConfigManager::new()));
@@ -130,6 +134,8 @@ impl AppState {
             // Phase 3 commands
             reg.register(Box::new(TrCommand));
             reg.register(Box::new(AiCommand));
+            reg.register(Box::new(ModelDownloadCommand));
+            reg.register(Box::new(ModelListCommand));
             reg.register(Box::new(NoteCommand));
             reg.register(Box::new(CalCommand));
             reg.register(Box::new(HistoryCommand));
@@ -137,19 +143,35 @@ impl AppState {
         }
 
         let mut command_router = CommandRouter::new();
-        command_router.register(Arc::new(SystemControlHandler::new(Arc::clone(&system_manager))));
+        command_router.register(Arc::new(SystemControlHandler::new(Arc::clone(
+            &system_manager,
+        ))));
         command_router.register(Arc::new(LauncherHandler::new(Arc::clone(&app_manager))));
         command_router.register(Arc::new(HotkeyHandler::new(Arc::clone(&hotkey_manager))));
-        command_router.register(Arc::new(TerminalHandler::new(Arc::clone(&terminal_manager))));
+        command_router.register(Arc::new(TerminalHandler::new(Arc::clone(
+            &terminal_manager,
+        ))));
         command_router.register(Arc::new(MouseHandler::new(Arc::clone(&mouse_manager))));
         command_router.register(Arc::new(SearchHandler::new(Arc::clone(&search_manager))));
+        let eb_for_model = event_bus.clone();
+        command_router.register(Arc::new(ModelHandler::new(
+            Arc::clone(&model_manager),
+            Arc::clone(&config_manager),
+            Arc::new(move |event| {
+                let _ = eb_for_model.publish(event);
+            }),
+        )));
         command_router.register(Arc::new(BuiltinCmdHandler::new(
             Arc::clone(&builtin_registry),
             Arc::clone(&config_manager),
         )));
         command_router.register(Arc::new(SettingHandler::new(Arc::clone(&config_manager))));
-        command_router.register(Arc::new(CalculatorHandler::new(Arc::clone(&calculator_manager))));
-        command_router.register(Arc::new(WorkspaceHandler::new(Arc::clone(&workspace_manager))));
+        command_router.register(Arc::new(CalculatorHandler::new(Arc::clone(
+            &calculator_manager,
+        ))));
+        command_router.register(Arc::new(WorkspaceHandler::new(Arc::clone(
+            &workspace_manager,
+        ))));
         command_router.register(Arc::new(NoteHandler::new(Arc::clone(&note_manager))));
         command_router.register(Arc::new(HistoryHandler::new(Arc::clone(&history_manager))));
         command_router.register(Arc::new(AiHandler::new(
@@ -277,7 +299,10 @@ fn should_apply_config_after_dispatch(route: &str, payload: &Value) -> bool {
     payload
         .get("args")
         .and_then(Value::as_str)
-        .map(|args| args.split_once(' ').is_some_and(|(_, v)| !v.trim().is_empty()))
+        .map(|args| {
+            args.split_once(' ')
+                .is_some_and(|(_, v)| !v.trim().is_empty())
+        })
         .unwrap_or(false)
 }
 
@@ -330,7 +355,10 @@ fn apply_config_changes(
     source: &str,
     emit_on_empty: bool,
 ) -> Result<(), String> {
-    if changes.iter().any(|change| change.key.starts_with("hotkeys.")) {
+    if changes
+        .iter()
+        .any(|change| change.key.starts_with("hotkeys."))
+    {
         setup_global_shortcuts(app, true);
     }
 
@@ -552,7 +580,9 @@ fn start_config_file_watcher(
 
     let (tx, rx) = std::sync::mpsc::channel();
     let mut watcher = RecommendedWatcher::new(
-        move |event| { let _ = tx.send(event); },
+        move |event| {
+            let _ = tx.send(event);
+        },
         Config::default(),
     )
     .map_err(|e| e.to_string())?;
@@ -563,13 +593,21 @@ fn start_config_file_watcher(
     std::thread::spawn(move || {
         let mut last_reload = Instant::now() - Duration::from_secs(1);
         for event in rx {
-            let Ok(event) = event else { continue; };
-            if !is_config_file_event(&event, &config_path) { continue; }
+            let Ok(event) = event else {
+                continue;
+            };
+            if !is_config_file_event(&event, &config_path) {
+                continue;
+            }
             if !matches!(
                 event.kind,
                 EventKind::Create(_) | EventKind::Modify(_) | EventKind::Remove(_)
-            ) { continue; }
-            if last_reload.elapsed() < Duration::from_millis(250) { continue; }
+            ) {
+                continue;
+            }
+            if last_reload.elapsed() < Duration::from_millis(250) {
+                continue;
+            }
             last_reload = Instant::now();
             std::thread::sleep(Duration::from_millis(150));
             if let Err(e) = reload_config_from_disk(&app, "watcher", false) {
@@ -582,10 +620,13 @@ fn start_config_file_watcher(
 }
 
 fn is_config_file_event(event: &notify::Event, config_path: &std::path::Path) -> bool {
-    let Some(wanted_name) = config_path.file_name() else { return false; };
-    event.paths.iter().any(|path| {
-        path == config_path || path.file_name().is_some_and(|name| name == wanted_name)
-    })
+    let Some(wanted_name) = config_path.file_name() else {
+        return false;
+    };
+    event
+        .paths
+        .iter()
+        .any(|path| path == config_path || path.file_name().is_some_and(|name| name == wanted_name))
 }
 
 /// 背景執行緒監聽剪貼簿變化（Windows: 輪詢每 800ms）。
@@ -607,10 +648,9 @@ fn clipboard_poll_loop(app: &tauri::AppHandle) {
                 .map(|mut mgr| mgr.push_text(text))
                 .unwrap_or(false);
             if added {
-                let _ = state.event_bus.publish(AppEvent::new(
-                    "history.updated",
-                    json!({}),
-                ));
+                let _ = state
+                    .event_bus
+                    .publish(AppEvent::new("history.updated", json!({})));
             }
         }
     }
@@ -628,7 +668,11 @@ fn platform_read_clipboard() -> Option<String> {
         .output()
         .ok()?;
     let text = String::from_utf8_lossy(&output.stdout).trim().to_string();
-    if text.is_empty() { None } else { Some(text) }
+    if text.is_empty() {
+        None
+    } else {
+        Some(text)
+    }
 }
 
 #[cfg(not(target_os = "windows"))]
@@ -667,13 +711,19 @@ fn setup_global_shortcuts(app: &tauri::AppHandle, reset_existing: bool) {
         .state::<AppState>()
         ._config_manager
         .lock()
-        .map(|c| c.get("hotkeys.app_launcher").unwrap_or_else(|| "Ctrl+K".to_string()))
+        .map(|c| {
+            c.get("hotkeys.app_launcher")
+                .unwrap_or_else(|| "Ctrl+K".to_string())
+        })
         .unwrap_or_else(|_| "Ctrl+K".to_string());
     let mouse_key = app
         .state::<AppState>()
         ._config_manager
         .lock()
-        .map(|c| c.get("hotkeys.mouse_control").unwrap_or_else(|| "Ctrl+Alt+M".to_string()))
+        .map(|c| {
+            c.get("hotkeys.mouse_control")
+                .unwrap_or_else(|| "Ctrl+Alt+M".to_string())
+        })
         .unwrap_or_else(|_| "Ctrl+Alt+M".to_string());
 
     let candidates: &[&str] = if launcher_key == "Ctrl+K" {
@@ -774,7 +824,8 @@ fn setup_global_shortcuts(app: &tauri::AppHandle, reset_existing: bool) {
             if event.state() == ShortcutState::Pressed {
                 let payload = {
                     let state = app_h.state::<AppState>();
-                    state._workspace_manager
+                    state
+                        ._workspace_manager
                         .lock()
                         .ok()
                         .and_then(|mut mgr| mgr.switch_to(slot).ok().map(|ws| json!(ws)))
@@ -840,38 +891,41 @@ fn setup_main_window(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>>
     let window_focused = window.clone();
     let window_blur = window.clone();
     let blur_guard = app.state::<AppState>().launcher_focus_guard.clone();
-    window.on_window_event(move |event| {
-        match event {
-            tauri::WindowEvent::Focused(true) => {
-                let _ = window_focused.emit("window-focused", ());
-            }
-            tauri::WindowEvent::Focused(false) => {
-                let window_blur = window_blur.clone();
-                let blur_guard = Arc::clone(&blur_guard);
-                tauri::async_runtime::spawn(async move {
-                    tokio::time::sleep(Duration::from_millis(120)).await;
-                    let should_keep_open = blur_guard
-                        .lock()
-                        .map(|mut guard| {
-                            let now = Instant::now();
-                            match guard.as_ref() {
-                                Some(until) if now <= *until => true,
-                                Some(_) => { *guard = None; false }
-                                None => false,
-                            }
-                        })
-                        .unwrap_or(false);
-                    if should_keep_open {
-                        let _ = window_blur.show();
-                        let _ = window_blur.set_focus();
-                        return;
-                    }
-                    if window_blur.is_focused().unwrap_or(false) { return; }
-                    let _ = window_blur.hide();
-                });
-            }
-            _ => {}
+    window.on_window_event(move |event| match event {
+        tauri::WindowEvent::Focused(true) => {
+            let _ = window_focused.emit("window-focused", ());
         }
+        tauri::WindowEvent::Focused(false) => {
+            let window_blur = window_blur.clone();
+            let blur_guard = Arc::clone(&blur_guard);
+            tauri::async_runtime::spawn(async move {
+                tokio::time::sleep(Duration::from_millis(120)).await;
+                let should_keep_open = blur_guard
+                    .lock()
+                    .map(|mut guard| {
+                        let now = Instant::now();
+                        match guard.as_ref() {
+                            Some(until) if now <= *until => true,
+                            Some(_) => {
+                                *guard = None;
+                                false
+                            }
+                            None => false,
+                        }
+                    })
+                    .unwrap_or(false);
+                if should_keep_open {
+                    let _ = window_blur.show();
+                    let _ = window_blur.set_focus();
+                    return;
+                }
+                if window_blur.is_focused().unwrap_or(false) {
+                    return;
+                }
+                let _ = window_blur.hide();
+            });
+        }
+        _ => {}
     });
 
     Ok(())

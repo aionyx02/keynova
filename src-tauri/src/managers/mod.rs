@@ -3,6 +3,7 @@ pub mod app_manager;
 pub mod calculator_manager;
 pub mod history_manager;
 pub mod hotkey_manager;
+pub mod model_manager;
 pub mod mouse_manager;
 pub mod note_manager;
 pub mod search_manager;

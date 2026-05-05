@@ -7,6 +7,12 @@ export type { PanelProps };
 const AiPanel = React.lazy(() =>
   import("../AiPanel").then((m) => ({ default: m.AiPanel })),
 );
+const ModelDownloadPanel = React.lazy(() =>
+  import("../ModelDownloadPanel").then((m) => ({ default: m.ModelDownloadPanel })),
+);
+const ModelListPanel = React.lazy(() =>
+  import("../ModelListPanel").then((m) => ({ default: m.ModelListPanel })),
+);
 const TranslationPanel = React.lazy(() =>
   import("../TranslationPanel").then((m) => ({ default: m.TranslationPanel })),
 );
@@ -27,6 +33,8 @@ const SystemPanel = React.lazy(() =>
 export const PanelRegistry: Record<string, React.ComponentType<PanelProps>> = {
   setting: SettingPanel as React.ComponentType<PanelProps>,
   ai: AiPanel,
+  model_download: ModelDownloadPanel,
+  model_list: ModelListPanel,
   translation: TranslationPanel,
   note: NoteEditor,
   calculator: CalculatorPanel,

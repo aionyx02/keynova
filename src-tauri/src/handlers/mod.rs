@@ -4,6 +4,7 @@ pub mod calculator;
 pub mod history;
 pub mod hotkey;
 pub mod launcher;
+pub mod model;
 pub mod mouse;
 pub mod note;
 pub mod search;
