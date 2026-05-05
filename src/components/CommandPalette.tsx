@@ -501,7 +501,11 @@ export function CommandPalette() {
           {/* Panel command result */}
           {PanelComponent && (
             <Suspense fallback={<div className="h-16 bg-gray-900/95 rounded-b-xl" />}>
-              <PanelComponent onClose={handlePanelClose} />
+              <PanelComponent
+                key={`${cmdResult?.ui_type.value ?? ""}:${cmdResult?.text ?? ""}`}
+                onClose={handlePanelClose}
+                initialArgs={cmdResult?.text ?? ""}
+              />
             </Suspense>
           )}
         </div>

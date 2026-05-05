@@ -54,6 +54,7 @@
 | BUG-4 | DevTools Console 無 CSP violation；所有功能在 CSP 啟用後仍正常 |
 | BUG-11 | 進入 `>` 終端後執行 `ipconfig`，實體 ESC 應立即退回搜尋模式且視窗不隱藏 |
 | Phase 3.8 | `npm run tauri build` 包體積確認（目標 ~50MB）；Search / Terminal / Command / Setting / Hotkey / Mouse 全面手動回歸 |
+| FEAT-6 | `/model_download` 顯示 RAM/VRAM 與推薦模型；未下載模型可拉取並自動啟用；`/model_list` 可依工具（AI Chat / Translation）分別切換/刪除本地模型；Claude/OpenAI-compatible API key 可設定並切換 |
 
 ---
 
@@ -76,28 +77,29 @@
 ### ~~BUG-14~~ ✅ 搜尋模式，↓ 鍵選擇結果時搜尋框不跟隨滾動
 - [x] 還原內層捲動（`max-h` 放在 `<ul>`），搜尋框固定在上方，不使用 sticky
 - [x] selected `<li>` 加 `scrollIntoView({ block: "nearest" })`
-- [ ] 驗收：搜尋結果超出視窗高度時，↓ 鍵選到下方項目，輸入框仍可見
+- [x] 驗收：搜尋結果超出視窗高度時，↓ 鍵選到下方項目，輸入框仍可見
 
 ---
 
-### FEAT-6 `/model_download` + `/model_list` + /ai 多 Provider 支援
+### FEAT-6 ✅ `/model_download` + `/model_list` + /ai 多 Provider 支援
 
 **目標**：新增兩個獨立指令，讓使用者無需手動設定就能快速上手本地 AI 或 API。
 
-> **跨功能原則**：`/ai`、`/tr`（本地模型模式）等所有需要 AI 的功能，都統一讀取 `model_manager` 的 **active model**（由 `/model_download` 或 `/model_list` 設定），不各自硬寫 provider。
+> **跨功能原則**：`/ai`、`/tr`（本地模型模式）等所有需要 AI 的功能，都透過 `model_manager` 管理 provider/model，但每個工具保留自己的設定（例如 `ai.provider/model`、`translation.provider/model`），不使用單一全域 active model。
 
 ---
 
 #### 指令規格
 
 **`/model_download`**
-1. 開啟 `ModelDownloadPanel`，**偵測當前硬體**（RAM、GPU VRAM），顯示：
+1. 開啟 `ModelDownloadPanel`，**偵測當前硬體**（RAM、GPU VRAM；Windows 以 PowerShell CIM / `nvidia-smi` / wmic fallback），顯示：
    - 推薦模型清單（依硬體篩選，列出名稱、大小、供應商、適配評級）
+   - 背景更新 Ollama Library 模型清單與 tag 大小，更新完成後用事件刷新，不阻塞面板開啟速度
    - 分隔線：「或使用 API」→ 列出 Claude / OpenAI-compatible 選項（需填 key）
-2. ↑↓ 選擇項目，Enter 確認
+2. ↑↓ 選擇項目，Enter 確認；也可手動輸入模型名稱或 Ollama URL（例如 `qwen2.5:1.5b` / `https://ollama.com/library/gemma4:e2b`）
 3. 選到 **本地模型**：先呼叫 `model.check { name }` 確認 Ollama 是否已有此模型
-   - 已有 → 直接設為使用中（`ai.provider = ollama, ai.model = name`），顯示 "✓ 已就緒"
-   - 沒有 → 確認下載，顯示即時進度條（`model-pull-progress` 事件），完成後自動啟用
+   - 已有 → 直接設為目前工具使用中（例如 `ai.provider = ollama, ai.model = name` 或 `translation.provider = ollama, translation.model = name`），顯示 "✓ 已就緒"
+   - 沒有 → 確認下載，顯示即時進度條（`model-pull-progress` 事件），完成後自動啟用至目前工具
 4. 選到 **API provider** → 提示輸入 key，驗證後儲存至 config，切換 provider
 
 **`/model_list`**
@@ -111,7 +113,7 @@
 
 ```
 RAM < 8 GB   → 推薦：qwen2.5:1.5b（1.0 GB）, llama3.2:1b（1.3 GB）
-RAM 8–16 GB  → 推薦：llama3.2:3b（2.0 GB）, qwen2.5:3b（2.0 GB）, gemma3:4b（3.3 GB）
+RAM 8–16 GB  → 推薦：llama3.2:3b（2.0 GB）, qwen2.5:3b（2.0 GB）, gemma4:e2b（6.7 GB，首次載入較慢）
 RAM ≥ 16 GB 或 GPU VRAM ≥ 6 GB → 推薦：llama3.1:8b（4.7 GB）, qwen2.5:7b（4.7 GB）, mistral:7b（4.1 GB）
 ```
 
@@ -133,24 +135,34 @@ GPU VRAM 偵測（Windows）：`wmic path Win32_VideoController get AdapterRAM` 
 #### 子任務
 
 **後端**
-- [ ] `managers/model_manager.rs`：`HardwareInfo { ram_mb, vram_mb }`、`detect_hardware()`（Windows: wmic）、`ModelCandidate { name, size_gb, provider, rating }`、`recommend_models()`
-- [ ] `managers/model_manager.rs`：`list_local()` 呼叫 `GET /api/tags`、`check(name)` 確認模型存在、`pull(name, tx: EventSender)` 串流下載進度、`delete(name)`
-- [ ] `handlers/model.rs`：`detect_hardware`、`recommend`、`list_local`、`check { name }`、`pull { name }`（背景 thread + EventBus）、`delete { name }`、`set_active { provider, model }`
-- [ ] `managers/ai_manager.rs`：AiProvider enum 三種 variant，`build_provider()` 工廠函式從 config 讀取
-- [ ] `default_config.toml`：`[ai] provider = "claude"` / `ollama_url = "http://localhost:11434"`
+- [x] `managers/model_manager.rs`：`HardwareInfo { ram_mb, vram_mb }`、`detect_hardware()`（Windows: wmic）、`ModelCandidate { name, size_gb, provider, rating }`、`recommend_models()`
+- [x] `managers/model_manager.rs`：`list_local()` 呼叫 `GET /api/tags`、`check(name)` 確認模型存在、`pull(name, tx: EventSender)` 串流下載進度、`delete(name)`
+- [x] `managers/model_manager.rs`：PowerShell CIM + `nvidia-smi` + wmic fallback 修復 RAM/VRAM Unknown；背景抓取 Ollama Library tag catalog 並解析 GB/MB；解析模型名稱/URL
+- [x] `handlers/model.rs`：`detect_hardware`、`recommend`、`list_local`、`check { name }`、`pull { name }`（背景 thread + EventBus）、`delete { name }`、`set_active { provider, model }`
+- [x] `managers/ai_manager.rs`：AiProvider enum 三種 variant，`build_provider()` 工廠函式從 config 讀取
+- [x] `handlers/translation.rs` / `translation_manager.rs`：翻譯工具可讀取自己的 `translation.provider/model`，支援 Claude/Ollama/OpenAI-compatible
+- [x] `default_config.toml`：`[ai] provider = "claude"` / `ollama_url = "http://localhost:11434"` / `ollama_timeout_secs = 120` / `[translation] model = "claude-sonnet-4-6"`
 
 **前端**
-- [ ] `ModelDownloadPanel.tsx`：硬體資訊列（RAM/VRAM badge）、推薦模型列表（評級星號）、API 選項區、Enter 確認 → check → 下載進度條
-- [ ] `ModelListPanel.tsx`：模型表格（名稱/版本/供應商/大小/狀態）、Enter 切換使用中、Delete 刪除
-- [ ] `PanelRegistry.tsx`：加入 `model_download` → `ModelDownloadPanel`、`model_list` → `ModelListPanel`
-- [ ] `builtin_cmd.rs`：`ModelDownloadCommand`（name="model_download"）、`ModelListCommand`（name="model_list"）
+- [x] `ModelDownloadPanel.tsx`：硬體資訊列（RAM/VRAM badge）、工具切換（AI Chat / Translation）、推薦/背景更新模型列表、模型 URL/名稱輸入、API 選項區、Enter 確認 → check → 下載進度條
+- [x] `ModelListPanel.tsx`：工具切換（AI Chat / Translation）、模型表格（名稱/版本/供應商/大小/狀態）、Enter 切換使用中、Delete 刪除
+- [x] `PanelRegistry.tsx`：加入 `model_download` → `ModelDownloadPanel`、`model_list` → `ModelListPanel`
+- [x] `builtin_cmd.rs`：`ModelDownloadCommand`（name="model_download"）、`ModelListCommand`（name="model_list"）
+- [x] `TranslationPanel.tsx`：`/tr <src> <dst> <text>` 或 `/tr <text>` 可預填三欄；欄位變更即自動翻譯（零秒延遲）
 
 **驗收**
 - [ ] 輸入 `/model_download` → 面板顯示當前 RAM/VRAM，列出適配模型
-- [ ] 選擇未下載模型 Enter → 確認下載 → 進度條 → 完成後「✓ 已啟用 llama3.2:3b」
-- [ ] 選擇已下載模型 Enter → 直接切換，不重複下載
+- [x] 選擇未下載模型 Enter → 確認下載 → 進度條 → 完成後「✓ 已啟用 llama3.2:3b」
+- [x] 選擇已下載模型 Enter → 直接切換，不重複下載，且只影響目前選擇工具
 - [ ] 選擇 Claude API → 提示輸入 key → 儲存 → provider 切換
 - [ ] 輸入 `/model_list` → 顯示已下載模型 + 已設定 API，Enter 切換使用中
+- [ ] `/model_list` 分別切換 AI Chat 與 Translation 模型，確認兩者互不覆蓋
+- [x] `gemma4:e2b` 在首次載入較慢時不因 30 秒 timeout 失敗（使用 `ai.ollama_timeout_secs = 120`）
+- [x] `/model_download` 不再顯示 RAM/VRAM Unknown（若 wmic 不可用，PowerShell CIM / `nvidia-smi` fallback 應補上）
+- [x] `/model_download` 開啟時先快速顯示內建/快取清單，背景更新 Ollama Library 後更新模型排序與大小，不造成卡頓
+- [ ] 手動貼上模型 URL 或名稱可下載並套用到目前工具
+- [x] `/tr en zh-TW hello world` 開啟翻譯面板後三欄自動填入，且立即翻譯
+- [x] `/tr hello world` 開啟翻譯面板後 text 自動填入，且立即翻譯
 
 ---
 
