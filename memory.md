@@ -5,9 +5,9 @@
 
 ## 當前狀態
 
-- **進度**：Phase 3 程式碼完成（feature/phase3 已 commit f2f62ec），tasks.md 壓縮完成，BUG-12~14 / FEAT-6~7 任務已建立
-- **上次完成**：tasks.md 壓縮（所有已完成項目 → 壓縮摘要），建立 BUG-12（ESC 無反應）、BUG-13（↑鍵返回輸入框）、BUG-14（搜尋框 sticky）、FEAT-6（/ai Ollama + 多 provider）、FEAT-7（/tr Google Translate）
-- **下一步**：實作 BUG-12（ESC）→ BUG-13（↑鍵）→ BUG-14（sticky 搜尋框）→ FEAT-7（Google Translate）→ FEAT-6（/model_download + /model_list + Ollama），或由使用者指定優先順序
+- **進度**：BUG-12/13/14 實作完成（commit 9b4c168），tsc/lint 全綠，待手動驗收；FEAT-7 / FEAT-6 尚未實作
+- **上次完成**：BUG-12（ESC handler 以 useLayoutEffect 同步 refs，listener 只註冊一次解決 stale closure）、BUG-13（ArrowUp 改 `i<=0?-1:i-1` 消除振盪）、BUG-14（還原 `<ul>` 內層捲動 + scrollIntoView）
+- **下一步**：手動驗收 BUG-12~14，然後實作 FEAT-7（/tr Google 免費翻譯）→ FEAT-6（/model_download + /model_list）
 
 ## 已確認的技術選擇
 
@@ -37,17 +37,18 @@
 - Phase 2 規劃（2026-05-02）：tasks 設計完成；Phase 2.A 搜尋框三模式 + Phase 2.B /command Registry；feature/phase2 分支建立
 - Phase 2 全部完成 + BUG-1~5 修正 + Task 1（D槽/WSL 搜尋）+ Phase 3 tasks 拆解（2026-05-03）：merge 進 main
 - 私人文件還原與 BUG-6~9 工作分支建立（2026-05-03）：private docs 因 git merge 誤刪後從 git 歷史還原，BUG-6~9 加入 tasks.md，feature/bugfix-ux 建立
+- FEAT-2（keynova CLI / control plane）完成；FEAT-3（args_hint）、FEAT-4（terminal CSS display）、FEAT-5（setting keyboard nav）實作完成（2026-05-03~04）
 
 ## Session 交接紀錄（最近 5 筆）
 
 | 日期 | 完成事項 | 遺留問題 |
 |------|----------|----------|
+| 2026-05-05 | BUG-12/13/14 根因診斷後正確修復：useLayoutEffect 同步 refs（解 stale closure）、ArrowUp 振盪修正、還原內層捲動；tsc/lint 全綠，commit 9b4c168 | 三個 BUG 待手動驗收 |
+| 2026-05-05 | BUG-12（PanelProps.onClose + 各 panel ESC 攔截）、BUG-13（↑返回輸入框）、BUG-14（sticky bar + scrollIntoView）；tsc/lint 全綠，commit c00026f | 三個 BUG 待手動驗收（初版有 ESLint 錯誤，後繼 commit 修正） |
 | 2026-05-04 | tasks.md 壓縮（Phase 1~3 全部壓入摘要表）；建立 BUG-12（ESC）、BUG-13（↑鍵）、BUG-14（sticky 搜尋框）、FEAT-6（Ollama）、FEAT-7（Google Translate）任務 | 新任務尚未實作 |
 | 2026-05-04 | Phase 3.0~3.8 全功能實作完成：/tr /ai /note /cal /history /system + workspace 3槽位；16 Rust tests；lint/tsc/clippy/vite build 全綠 | `npm run tauri build` 包體積 + 手動 regression 待使用者執行；外部編輯器 file watch defer Phase 4 |
 | 2026-05-04 | feature/feat1-feat2-control-plane → dev（fast-forward）→ main（--no-ff, bae9995）合併完成；19 files, 1703 insertions | 需手動驗收 FEAT-3~5 / BUG-11 |
 | 2026-05-04 | BUG-11 終端執行 `ipconfig` 後 ESC 無反應根因確認：實體 ESC 先進 xterm custom key handler 的 `keyup`；`TerminalPanel` 改為 `keydown` / `keyup` 皆退出，保留 `\x1b` / `\x1b[O` 保底，吞掉 focus-in `\x1b[I` | — |
-| 2026-05-04 | FEAT-3（args_hint、cmd.suggest_args、hint bar + arg suggestions 下拉）、FEAT-4（terminalMounted + CSS display）、FEAT-5（inputRefs、auto-focus、↑↓←→ + Enter）；tsc/lint/clippy 全綠 | — |
-| 2026-05-03 | FEAT-2 完成：`keynova start/down/reload/status` CLI、loopback control plane、config reload snapshot/diff | — |
 
 ## 2026-05-03 架構邊界與修正定位索引
 
