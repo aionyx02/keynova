@@ -38,3 +38,18 @@ pub struct WorkflowExecutionLog {
     pub action_count: usize,
     pub error: Option<String>,
 }
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct WorkflowActionExecution {
+    pub index: usize,
+    pub route: String,
+    pub status: String,
+    pub output: Option<Value>,
+    pub error: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct WorkflowExecutionReport {
+    pub log: WorkflowExecutionLog,
+    pub actions: Vec<WorkflowActionExecution>,
+}
