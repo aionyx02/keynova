@@ -5,16 +5,26 @@ use serde_json::{json, Value};
 use crate::core::config_manager::ConfigManager;
 use crate::core::{CommandHandler, CommandResult};
 use crate::managers::ai_manager::{AiManager, AiProvider};
+use crate::managers::workspace_manager::WorkspaceManager;
 
 /// 處理 `ai.*` 指令：chat、clear_history、get_history。
 pub struct AiHandler {
     manager: Arc<AiManager>,
     config: Arc<Mutex<ConfigManager>>,
+    workspace_manager: Arc<Mutex<WorkspaceManager>>,
 }
 
 impl AiHandler {
-    pub fn new(manager: Arc<AiManager>, config: Arc<Mutex<ConfigManager>>) -> Self {
-        Self { manager, config }
+    pub fn new(
+        manager: Arc<AiManager>,
+        config: Arc<Mutex<ConfigManager>>,
+        workspace_manager: Arc<Mutex<WorkspaceManager>>,
+    ) -> Self {
+        Self {
+            manager,
+            config,
+            workspace_manager,
+        }
     }
 
     fn get_ai_config(&self) -> Result<(AiProvider, u32, u64), String> {
@@ -82,6 +92,9 @@ impl CommandHandler for AiHandler {
                 let (provider, max_tokens, timeout) = self.get_ai_config()?;
                 self.manager
                     .chat_async(request_id.clone(), prompt, provider, max_tokens, timeout);
+                if let Ok(mut workspace) = self.workspace_manager.lock() {
+                    workspace.record_ai_conversation(request_id.clone());
+                }
                 Ok(json!({ "status": "pending", "request_id": request_id }))
             }
             "clear_history" => {

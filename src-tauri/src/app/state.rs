@@ -149,9 +149,10 @@ impl AppState {
         ))));
         command_router.register(Arc::new(LauncherHandler::new(Arc::clone(&app_manager))));
         command_router.register(Arc::new(HotkeyHandler::new(Arc::clone(&hotkey_manager))));
-        command_router.register(Arc::new(TerminalHandler::new(Arc::clone(
-            &terminal_manager,
-        ))));
+        command_router.register(Arc::new(TerminalHandler::new(
+            Arc::clone(&terminal_manager),
+            Arc::clone(&workspace_manager),
+        )));
         command_router.register(Arc::new(MouseHandler::new(Arc::clone(&mouse_manager))));
         command_router.register(Arc::new(SearchHandler::new(
             Arc::clone(&search_manager),
@@ -160,6 +161,7 @@ impl AppState {
             Arc::clone(&note_manager),
             Arc::clone(&history_manager),
             Arc::clone(&model_manager),
+            event_bus.clone(),
         )));
         let eb_for_model = event_bus.clone();
         command_router.register(Arc::new(ModelHandler::new(
@@ -181,11 +183,15 @@ impl AppState {
         command_router.register(Arc::new(WorkspaceHandler::new(Arc::clone(
             &workspace_manager,
         ))));
-        command_router.register(Arc::new(NoteHandler::new(Arc::clone(&note_manager))));
+        command_router.register(Arc::new(NoteHandler::new(
+            Arc::clone(&note_manager),
+            Arc::clone(&workspace_manager),
+        )));
         command_router.register(Arc::new(HistoryHandler::new(Arc::clone(&history_manager))));
         command_router.register(Arc::new(AiHandler::new(
             Arc::clone(&ai_manager),
             Arc::clone(&config_manager),
+            Arc::clone(&workspace_manager),
         )));
         command_router.register(Arc::new(TranslationHandler::new(
             Arc::clone(&translation_manager),

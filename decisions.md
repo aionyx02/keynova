@@ -23,6 +23,19 @@
   - `AppState` 改為 `pub(crate)` app state，跨 app modules 共享。
   - `lib.rs` 只保留 module 宣告與 root `run()` delegate。
 
+## ADR-019 Progressive Search Runtime
+
+- 狀態：Accepted
+- 決策：`search.query` 保留同步相容路徑，新增 `stream=true` 模式；stream 模式先回傳 app/command/note/history/model 的 quick batch，再由背景 worker 透過 `search.results.chunk` EventBus topic 發送後續結果。
+- 理由：
+  - 第一批 UI 不應被 Everything/file backend 或未來 plugin provider 阻塞。
+  - EventBus 已橋接成 Tauri frontend events，可重用 `search-results-chunk` legacy topic。
+  - request id + backend generation 可以讓前端與後端同時丟棄 stale search。
+- 影響：
+  - file provider 透過 timeout boundary 包起來；timeout 時回報 `timed_out_providers` 而不是卡住 UI。
+  - `search.metadata` 成為 lazy metadata/preview 入口，避免搜尋結果 payload 變肥。
+  - `tantivy` backend preference 暫時走 rebuilt file cache 的 offline provider path；真 Tantivy persisted index 另列待辦。
+
 > 本檔用於記錄關鍵技術決策、原因與替代方案。
 > 2026-05-01：此檔於 Tauri 初始化過程中被覆蓋後重建，請在後續審查時確認內容是否與原版一致。
 

@@ -7,7 +7,7 @@
 
 - [x] Phase 0-3.8 foundation: Tauri/React/Rust scaffold, CommandRouter/EventBus, launcher UI, app/file search, terminal panel, settings, hotkeys, mouse/system controls, AI/translation/workspace/note/calculator/history/model features.
 - [x] BUG-1 to BUG-15 user-facing fixes, including first-open lazy panel sizing/scrollbar refresh.
-- [x] Phase 2 search backend debug/config/rebuild/test path, with Tantivy still pending as the offline file provider.
+- [x] Phase 2 search backend debug/config/rebuild/test path, with `tantivy` preference currently backed by the rebuilt offline file cache; persisted Tantivy index still pending.
 - [x] Phase 4 foundation: ActionRef/ActionArena, UiSearchItem, action.run, secondary actions, schema-driven settings, Workspace Context v2 base, Knowledge Store DB worker, Agent mode skeleton, Automation/Plugin security docs.
 - [x] Knowledge Store batch writes, bounded queue/drop policy, shutdown flush, DB observability.
 - [x] Plugin manifest loader and deny-by-default permission parser.
@@ -22,18 +22,20 @@ Last full verification baseline: `npm run build`, `npm run lint`, `cargo test`, 
 
 ## Batch 2 - Search Runtime
 
-- [ ] Phase 4.1 Search chunked/progressive streaming so first visible batch returns under 50ms.
-- [ ] Phase 4.1 First batch cap/paging: return first 10-20 items, then page/lazy fetch up to 50+.
-- [ ] Phase 4.1 Icons, preview, and metadata lazy load.
-- [ ] Phase 4.4 Progressive results over Tauri channel chunks.
-- [ ] Phase 4.4 Plugin/provider timeout boundary.
-- [ ] Phase 2/4.4 Tantivy offline file provider.
+- [x] Phase 4.1 Search chunked/progressive streaming so first visible batch returns under 50ms.
+- [x] Phase 4.1 First batch cap/paging: return first 10-20 items, then page/lazy fetch up to 50+.
+- [x] Phase 4.1 Preview and metadata lazy load through `search.metadata`.
+- [ ] Phase 4.1 Icon asset lazy load beyond lightweight `icon_key`.
+- [x] Phase 4.4 Progressive results over Tauri channel chunks.
+- [x] Phase 4.4 Provider timeout boundary for slow file/search providers.
+- [x] Phase 2/4.4 Offline file provider path for the `tantivy` backend preference using the existing rebuilt file cache.
+- [ ] Phase 2/4.4 Persisted Tantivy index with real Tantivy schema and on-disk index storage.
 
 ## Batch 3 - Workspace And Knowledge
 
-- [ ] Phase 4.3 Bind terminal sessions to current workspace.
-- [ ] Phase 4.3 Bind notes to current workspace.
-- [ ] Phase 4.3 Bind AI conversations to current workspace.
+- [x] Phase 4.3 Bind terminal sessions to current workspace.
+- [x] Phase 4.3 Bind notes to current workspace.
+- [x] Phase 4.3 Bind AI conversations to current workspace.
 - [ ] Phase 4.3 Workspace-weighted clipboard/history ranking.
 - [ ] Phase 4.5 Recent/frequent search ranking memory cache.
 - [ ] Phase 4.5 Migration and backup path for Knowledge Store.

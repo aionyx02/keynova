@@ -167,6 +167,41 @@ impl WorkspaceManager {
         self.persist();
     }
 
+    pub fn record_terminal_session(&mut self, session_id: String) {
+        push_recent(
+            &mut self.slots[self.current].terminal_sessions,
+            session_id,
+            10,
+        );
+        self.persist();
+    }
+
+    pub fn remove_terminal_session(&mut self, session_id: &str) {
+        self.slots[self.current]
+            .terminal_sessions
+            .retain(|id| id != session_id);
+        self.persist();
+    }
+
+    pub fn record_note(&mut self, note_id: String) {
+        push_recent(&mut self.slots[self.current].note_ids, note_id, 50);
+        self.persist();
+    }
+
+    pub fn remove_note(&mut self, note_id: &str) {
+        self.slots[self.current].note_ids.retain(|id| id != note_id);
+        self.persist();
+    }
+
+    pub fn record_ai_conversation(&mut self, conversation_id: String) {
+        push_recent(
+            &mut self.slots[self.current].ai_conversation_ids,
+            conversation_id,
+            50,
+        );
+        self.persist();
+    }
+
     pub fn current(&self) -> &WorkspaceState {
         &self.slots[self.current]
     }
@@ -232,5 +267,21 @@ mod tests {
         let mut mgr = make_mgr();
         mgr.save_current_restore_state("hello".into(), "search".into(), None, None);
         assert_eq!(mgr.current().query, "hello");
+    }
+
+    #[test]
+    fn records_workspace_bindings() {
+        let mut mgr = make_mgr();
+        mgr.record_terminal_session("pty-1".into());
+        mgr.record_note("daily".into());
+        mgr.record_ai_conversation("chat-1".into());
+        assert_eq!(mgr.current().terminal_sessions, vec!["pty-1"]);
+        assert_eq!(mgr.current().note_ids, vec!["daily"]);
+        assert_eq!(mgr.current().ai_conversation_ids, vec!["chat-1"]);
+
+        mgr.remove_terminal_session("pty-1");
+        mgr.remove_note("daily");
+        assert!(mgr.current().terminal_sessions.is_empty());
+        assert!(mgr.current().note_ids.is_empty());
     }
 }

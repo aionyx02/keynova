@@ -183,59 +183,94 @@ impl SearchManager {
         let mut results = Vec::new();
 
         let app_slots = limit / 2;
-        if let Ok(mgr) = self.app_manager.lock() {
-            let apps = mgr.search_apps(query);
-            for app in apps.into_iter().take(app_slots) {
-                results.push(SearchResult {
-                    kind: ResultKind::App,
-                    name: app.name,
-                    path: app.path,
-                    score: 100,
-                });
-            }
-        }
+        results.extend(self.app_results(query, app_slots));
 
-        #[cfg(target_os = "windows")]
-        if self.backend == SearchBackend::Everything {
-            let file_results =
-                crate::platform::windows::everything_search(query, (limit / 2) as u32);
-            for (name, path, is_folder) in file_results {
-                results.push(SearchResult {
-                    kind: if is_folder {
-                        ResultKind::Folder
-                    } else {
-                        ResultKind::File
-                    },
-                    name,
-                    path,
-                    score: 80,
-                });
-            }
-        }
-
-        #[cfg(target_os = "windows")]
-        if self.backend == SearchBackend::AppCache {
-            let file_slots = limit.saturating_sub(results.len());
-            if file_slots > 0 {
-                let file_results =
-                    crate::platform::windows::scan_files_from_cache(query, file_slots);
-                for (name, path, is_folder) in file_results {
-                    results.push(SearchResult {
-                        kind: if is_folder {
-                            ResultKind::Folder
-                        } else {
-                            ResultKind::File
-                        },
-                        name,
-                        path,
-                        score: 70,
-                    });
-                }
-            }
+        let file_slots = limit.saturating_sub(results.len());
+        if file_slots > 0 {
+            results.extend(Self::file_results_for_backend(
+                self.backend,
+                query,
+                file_slots,
+            ));
         }
 
         results.truncate(limit);
         results
+    }
+
+    pub fn app_results(&self, query: &str, limit: usize) -> Vec<SearchResult> {
+        if query.trim().is_empty() || limit == 0 {
+            return Vec::new();
+        }
+        let Ok(mgr) = self.app_manager.lock() else {
+            return Vec::new();
+        };
+        mgr.search_apps(query)
+            .into_iter()
+            .take(limit)
+            .map(|app| SearchResult {
+                kind: ResultKind::App,
+                name: app.name,
+                path: app.path,
+                score: 100,
+            })
+            .collect()
+    }
+
+    pub fn file_results_for_backend(
+        backend: SearchBackend,
+        query: &str,
+        limit: usize,
+    ) -> Vec<SearchResult> {
+        if query.trim().is_empty() || limit == 0 {
+            return Vec::new();
+        }
+
+        #[cfg(target_os = "windows")]
+        {
+            match backend {
+                SearchBackend::Everything => {
+                    crate::platform::windows::everything_search(query, limit as u32)
+                        .into_iter()
+                        .map(|(name, path, is_folder)| SearchResult {
+                            kind: if is_folder {
+                                ResultKind::Folder
+                            } else {
+                                ResultKind::File
+                            },
+                            name,
+                            path,
+                            score: 80,
+                        })
+                        .collect()
+                }
+                SearchBackend::AppCache | SearchBackend::Tantivy => {
+                    crate::platform::windows::scan_files_from_cache(query, limit)
+                        .into_iter()
+                        .map(|(name, path, is_folder)| SearchResult {
+                            kind: if is_folder {
+                                ResultKind::Folder
+                            } else {
+                                ResultKind::File
+                            },
+                            name,
+                            path,
+                            score: if backend == SearchBackend::Tantivy {
+                                75
+                            } else {
+                                70
+                            },
+                        })
+                        .collect()
+                }
+            }
+        }
+
+        #[cfg(not(target_os = "windows"))]
+        {
+            let _ = (backend, query, limit);
+            Vec::new()
+        }
     }
 
     pub fn active_backend_name(&self) -> &'static str {
@@ -256,7 +291,7 @@ fn everything_available() -> bool {
 }
 
 fn tantivy_available() -> bool {
-    false
+    file_cache_entries() > 0
 }
 
 fn file_cache_entries() -> usize {
