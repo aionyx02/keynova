@@ -81,6 +81,19 @@ function progressText(payload: ModelEventPayload | null) {
   return payload.status ?? "pulling";
 }
 
+function sourceLabel(source: string) {
+  switch (source) {
+    case "recommended":
+      return "推薦";
+    case "catalog":
+      return "目錄";
+    case "library":
+      return "Ollama";
+    default:
+      return source.toUpperCase();
+  }
+}
+
 function mergeCatalog(current: ModelCandidate[], incoming: ModelCandidate[]) {
   const currentByName = new Map(current.map((model) => [model.name, model]));
   const incomingNames = new Set(incoming.map((model) => model.name));
@@ -299,6 +312,7 @@ export function ModelDownloadPanel({ onClose }: PanelProps) {
           const selectedClass = index === selected ? "bg-blue-600/70 text-white" : "text-gray-300 hover:bg-white/8";
           const isPending = option.kind === "local" && pendingDownload === option.name;
           const isDownloading = option.kind === "local" && downloading === option.name;
+          const sourceText = option.kind === "local" ? sourceLabel(option.source) : "API";
           return (
             <button
               key={option.kind === "local" ? option.name : option.provider}
@@ -308,8 +322,11 @@ export function ModelDownloadPanel({ onClose }: PanelProps) {
               onMouseDown={() => { setSelected(index); void activateOption(option); }}
               className={`flex w-full items-center gap-3 px-4 py-2.5 text-left text-sm transition-colors ${selectedClass}`}
             >
-              <span className="w-16 shrink-0 rounded bg-gray-800/80 px-2 py-1 text-center text-[10px] font-semibold uppercase text-gray-400">
-                {option.kind === "local" ? option.source : "API"}
+              <span
+                title={option.kind === "local" ? option.source : "API"}
+                className="inline-flex min-w-[4.75rem] shrink-0 items-center justify-center rounded bg-gray-800/80 px-2.5 py-1 text-center text-[10px] font-semibold uppercase leading-none whitespace-nowrap text-gray-400"
+              >
+                {sourceText}
               </span>
               <span className="min-w-0 flex-1">
                 <span className="block truncate font-medium">

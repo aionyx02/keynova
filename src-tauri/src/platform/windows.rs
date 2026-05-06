@@ -299,14 +299,18 @@ fn file_cache() -> Arc<Mutex<Vec<FileEntry>>> {
 }
 
 /// 背景啟動後呼叫一次，將所有搜尋路徑的檔案條目寫入記憶體快取。
-pub fn build_file_index() {
+pub fn build_file_index() -> usize {
     let mut entries: Vec<FileEntry> = Vec::new();
     for (dir, depth) in user_search_dirs() {
         collect_all(&dir, &mut entries, depth);
     }
+    let len = entries.len();
     let cache = file_cache();
-    let Ok(mut guard) = cache.lock() else { return };
+    let Ok(mut guard) = cache.lock() else {
+        return 0;
+    };
     *guard = entries;
+    len
 }
 
 /// 從記憶體快取中搜尋符合 query 的條目，不觸發磁碟 I/O。
@@ -322,6 +326,11 @@ pub fn scan_files_from_cache(query: &str, max: usize) -> Vec<FileEntry> {
         .take(max)
         .cloned()
         .collect()
+}
+
+pub fn file_index_len() -> usize {
+    let cache = file_cache();
+    cache.lock().map(|guard| guard.len()).unwrap_or(0)
 }
 
 /// 掃描目錄樹，不做 query 過濾，只收集全部條目（供 build_file_index 使用）。

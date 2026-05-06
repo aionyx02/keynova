@@ -33,8 +33,14 @@ impl IpcError {
     }
 
     pub fn handler(route: &str, message: impl Into<String>) -> Self {
+        let message = message.into();
+        let code = if message.starts_with("NotImplemented") {
+            "not_implemented"
+        } else {
+            "handler_error"
+        };
         Self::with_details(
-            "handler_error",
+            code,
             message,
             json!({
                 "route": route,

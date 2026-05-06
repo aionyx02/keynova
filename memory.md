@@ -5,8 +5,8 @@
 
 ## 當前狀態
 
-- **進度**：Phase 4 第一輪核心 foundation 已完成：ActionRef/ActionArena、UiSearchItem、schema settings、Workspace Context v2、Knowledge Store DB worker、Agent mode 安全骨架、Automation/Plugin security foundation。
-- **上次完成**：接上 `action.run` / `action.list_secondary`、搜尋 ViewModel + ActionRef、`rusqlite` DB worker、低成本 Windows clipboard watcher、Agent Chat/Agent UI、Agent/Privacy/Plugin 文件，並通過 `npm run build`、`npm run lint`、`cargo test`、`cargo clippy -- -D warnings`。
+- **進度**：Phase 4 第一輪核心 foundation 已完成；lazy panel 首次開啟視窗高度同步已修正；Phase 2 搜尋 backend debug/config/rebuild/test 補齊；Knowledge Store batch writes + shutdown flush 已補上；Plugin loader 已可讀取/驗證本機 manifest。
+- **上次完成**：補齊 Phase 2 搜尋後端任務、Knowledge Store 小項與 Plugin loader：`search.backend` structured debug info、搜尋框 backend badge、`/rebuild_search_index` 背景重建 file cache、`[search]` config/schema、`test_backend_selection_*`，action/clipboard batch insert、shutdown 前 flush，以及 plugin.toml/json loader。
 - **下一步**：補 Phase 4 尚未完成的重型 runtime：`lib.rs` 拆成 `app/*`、search chunk streaming/cancellation token、Tantivy provider、Agent 真實 `web.search`/`keynova.search` tool、WASM loader/hot reload。
 
 ## 已確認的技術選擇
@@ -46,11 +46,11 @@
 
 | 日期 | 完成事項 | 遺留問題 |
 |------|----------|----------|
+| 2026-05-06 | Phase 2 搜尋、Knowledge Store、Plugin loader 補齊：backend preference/active 選擇可測試、`search.backend` structured debug info、搜尋框 backend badge、`/rebuild_search_index` 背景重建 file cache、`[search]` config/schema、CSP connect-src 放行、`hotkey.register` 轉 structured `not_implemented`；DB worker 補 action/clipboard batch insert 與 shutdown flush；plugin.toml/json loader 會驗證 permission deny-by-default | Tantivy provider、WASM runtime proof-of-concept 尚未接入；BUG-1/BUG-4 仍建議在真實 DevTools/視窗手動確認 |
+| 2026-05-06 | 修正 BUG-15：lazy panel 首次開啟後內容載入完成未觸發 Tauri window resize，導致 UI 裁切、背景殘影與外層 scrollbar；改用 ResizeObserver/MutationObserver 同步高度，並關閉 root/body overflow | 需在真實 Tauri 視窗手動確認 `/cal`、`/ai`、`/history`、`/model_list` 首次開啟皆正常 |
 | 2026-05-06 | Phase 4 foundation：ActionArena/ActionRef、UiSearchItem、action.run、secondary actions、schema-driven settings、Workspace v2、KnowledgeStore DB worker、Agent mode UI/runtime skeleton、Automation/Plugin security model；新增 ai/privacy/plugin/runtime docs；build/lint/test/clippy 全通過 | 尚未完成 `lib.rs` app 模組拆分、search chunk streaming/cancellation token、Tantivy provider、Agent 真實 web/keynova tool、WASM loader/hot reload |
 | 2026-05-06 | 補強 `/ai` Agent 搜尋與隱私規劃：加入 `web.search`、`keynova.search`、GroundingSource、context visibility、architecture denylist、prompt allowlist，確保專案架構可本地索引但不注入 LLM prompt | 尚未實作；需先做 context privacy 文件與 visibility filter，避免外部 LLM 看見 private architecture |
 | 2026-05-06 | 補入 `/ai` Agent Runtime 規劃：新增 Phase 4.5A，定義 Chat/Agent mode、受控 action/tool 邊界、approval gate、workspace/knowledge memory、streaming status event、audit log 與驗收情境 | 尚未實作；需先完成 Action System / Workspace Context / Knowledge Store 基礎，不能直接讓 LLM 呼叫 shell 或寫檔 |
-| 2026-05-06 | Phase 4.0 第一批穩定性與可觀測性：新增 regression/event 文件、EventBus canonical+legacy emit adapter、structured IPC errors、IPC/search/action-like debug observability；`npm run build`、`npm run lint`、`cargo check`、`cargo test`、`cargo clippy -- -D warnings` 全通過 | 尚未量測 idle memory / CPU / production build size baseline；`lib.rs` 尚未拆分；clipboard watcher 仍是 PowerShell polling |
-| 2026-05-06 | FEAT-7 收斂：移除 `/tr` 的 Ollama / Claude / OpenAI-compatible 模型 provider；模型下載/清單面板移除 Translation 分頁；`translation.model` / `translation.google_api_key` 從預設設定移除 | 待手動驗收 Google Translate 與模型面板 UI |
 
 ## 2026-05-03 架構邊界與修正定位索引
 
