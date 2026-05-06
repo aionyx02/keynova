@@ -21,7 +21,8 @@ impl CommandRouter {
     }
 
     pub fn register(&mut self, handler: Arc<dyn CommandHandler>) {
-        self.handlers.insert(handler.namespace().to_string(), handler);
+        self.handlers
+            .insert(handler.namespace().to_string(), handler);
     }
 
     pub fn handler_count(&self) -> usize {

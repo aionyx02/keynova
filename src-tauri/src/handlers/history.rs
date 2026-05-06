@@ -41,7 +41,10 @@ impl CommandHandler for HistoryHandler {
             }
             "pin" => {
                 let id = require_str(&payload, "id")?;
-                let pinned = payload.get("pinned").and_then(Value::as_bool).unwrap_or(true);
+                let pinned = payload
+                    .get("pinned")
+                    .and_then(Value::as_bool)
+                    .unwrap_or(true);
                 let mut mgr = self.manager.lock().map_err(|e| e.to_string())?;
                 let ok = mgr.pin(id, pinned);
                 Ok(json!({ "ok": ok }))

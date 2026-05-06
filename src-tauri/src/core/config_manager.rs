@@ -64,10 +64,7 @@ impl ConfigManager {
         self.data.clone()
     }
 
-    pub fn diff(
-        old: &HashMap<String, String>,
-        new: &HashMap<String, String>,
-    ) -> Vec<ConfigChange> {
+    pub fn diff(old: &HashMap<String, String>, new: &HashMap<String, String>) -> Vec<ConfigChange> {
         let keys: HashSet<String> = old.keys().chain(new.keys()).cloned().collect();
         let mut changes: Vec<_> = keys
             .into_iter()
@@ -104,7 +101,9 @@ impl ConfigManager {
     }
 
     pub fn list_all(&self) -> Vec<(String, String)> {
-        let mut pairs: Vec<_> = self.data.iter()
+        let mut pairs: Vec<_> = self
+            .data
+            .iter()
             .map(|(k, v)| (k.clone(), v.clone()))
             .collect();
         pairs.sort_by(|a, b| a.0.cmp(&b.0));
@@ -113,7 +112,9 @@ impl ConfigManager {
 
     /// 以 TOML section 格式寫回磁碟，保留數字/bool 的正確型別。
     fn persist(&self) -> Result<(), String> {
-        let dir = self.config_path.parent()
+        let dir = self
+            .config_path
+            .parent()
             .ok_or_else(|| "invalid config path".to_string())?;
         std::fs::create_dir_all(dir).map_err(|e| e.to_string())?;
 
@@ -126,7 +127,10 @@ impl ConfigManager {
             if let Some(dot) = k.find('.') {
                 let section = k[..dot].to_string();
                 let field = k[dot + 1..].to_string();
-                sections.entry(section).or_default().push((field, v.clone()));
+                sections
+                    .entry(section)
+                    .or_default()
+                    .push((field, v.clone()));
             } else {
                 root.push((k.clone(), v.clone()));
             }
@@ -141,7 +145,9 @@ impl ConfigManager {
             out.push_str(&format!("{} = {}\n", k, toml_value_str(v)));
         }
         for (section, vals) in &sections {
-            if !out.is_empty() { out.push('\n'); }
+            if !out.is_empty() {
+                out.push('\n');
+            }
             out.push_str(&format!("[{}]\n", section));
             for (field, v) in vals {
                 out.push_str(&format!("{} = {}\n", field, toml_value_str(v)));
@@ -182,10 +188,18 @@ fn flatten_table(table: &toml::Table, prefix: &str) -> HashMap<String, String> {
         };
         match value {
             toml::Value::Table(t) => map.extend(flatten_table(t, &full_key)),
-            toml::Value::String(s) => { map.insert(full_key, s.clone()); }
-            toml::Value::Integer(i) => { map.insert(full_key, i.to_string()); }
-            toml::Value::Float(f) => { map.insert(full_key, f.to_string()); }
-            toml::Value::Boolean(b) => { map.insert(full_key, b.to_string()); }
+            toml::Value::String(s) => {
+                map.insert(full_key, s.clone());
+            }
+            toml::Value::Integer(i) => {
+                map.insert(full_key, i.to_string());
+            }
+            toml::Value::Float(f) => {
+                map.insert(full_key, f.to_string());
+            }
+            toml::Value::Boolean(b) => {
+                map.insert(full_key, b.to_string());
+            }
             _ => {}
         }
     }
