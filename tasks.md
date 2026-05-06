@@ -230,6 +230,10 @@ GET https://translate.googleapis.com/translate_a/single
 - [ ] 公開 API
 - [ ] 筆記外部編輯器同步（notify crate 檔案監看）
 - [ ] 剪貼簿圖片 metadata 支援
+- [ ] FEAT-8：動態腳本 Runtime（`rquickjs`）+ 目錄監控 Hot Reload（`.js/.ts` 指令即時註冊）
+- [ ] FEAT-9：腳本安全模型（白名單 API、敏感操作授權提示、執行審計日誌）
+- [ ] FEAT-10：Terminal 協同 v2（內建 PTY Pipeline、Session Ring Buffer、可選 Shell Wrapper）
+- [ ] FEAT-11：AI Daemon 化（本地推理子進程 + IPC + 健康檢查 + 回退策略）
 
 ---
 
