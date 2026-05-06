@@ -1,5 +1,28 @@
 # decisions.md — 架構決策紀錄（ADR）
 
+## ADR-017 Automation Action Chain Executor
+
+- 狀態：Accepted
+- 決策：`automation.execute` 走既有 `cmd_dispatch` 邊界逐步執行 workflow actions，而不是讓 `AutomationHandler` 自己持有或繞過各 handler。
+- 理由：
+  - Automation 應重用 Action/Command/Setting/Search 等既有權限與錯誤邊界。
+  - 每一步需要可觀測的 output/error，失敗時停止，方便未來接 audit log 與 GUI workflow builder。
+  - 明確拒絕 recursive `automation.execute`，避免 workflow 自我呼叫造成無界遞迴。
+- 影響：
+  - `WorkflowExecutionReport` 回傳整體 log 與逐步 action execution。
+  - `AutomationEngine::execute` 是純 Rust executor，可用 closure 測試，也可由 Tauri dispatch 注入真實 action runner。
+
+## ADR-018 App Module Split
+
+- 狀態：Accepted
+- 決策：`src-tauri/src/lib.rs` 保持 thin entrypoint，將 app runtime 分成 `app/state.rs`、`app/bootstrap.rs`、`app/dispatch.rs`、`app/control_server.rs`、`app/watchers.rs`、`app/shortcuts.rs`、`app/tray.rs`、`app/window.rs`。
+- 理由：
+  - `lib.rs` 已同時承載 state、IPC dispatch、watchers、tray、shortcut、window、control plane，後續 Phase 4 搜尋/Agent/Plugin 會讓入口檔難以維護。
+  - Tauri command macro wrapper 保留在 `bootstrap.rs`，實際 command logic 委派到 `dispatch.rs`，避免 macro scope 問題，也讓 dispatch 可被 automation/action 重用。
+- 影響：
+  - `AppState` 改為 `pub(crate)` app state，跨 app modules 共享。
+  - `lib.rs` 只保留 module 宣告與 root `run()` delegate。
+
 > 本檔用於記錄關鍵技術決策、原因與替代方案。
 > 2026-05-01：此檔於 Tauri 初始化過程中被覆蓋後重建，請在後續審查時確認內容是否與原版一致。
 

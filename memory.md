@@ -1,5 +1,12 @@
 # memory.md — AI 工作記憶
 
+## 2026-05-06 Update - Tasks Compact + Automation Executor
+
+- `tasks.md` is now a compact batch board instead of a long historical checklist. Completed work is summarized; remaining Phase 4 work is grouped into batches.
+- Phase 4.6 action chain executor is implemented through `automation.execute`, which parses TOML workflow source, runs each action through the existing dispatch boundary, records per-action output/error, stops on the first failure, and rejects recursive `automation.execute`.
+- Phase 4.0 app split is complete: `lib.rs` now only declares modules and delegates `run()` to `app::bootstrap`; state, dispatch, control server, watchers, shortcuts, tray, and window setup live in `src-tauri/src/app/*`.
+- Next high-value batch choices: search chunk streaming/Tantivy provider, then workspace binding.
+
 > 每次開新 session，AI 必須先讀此檔案，確認現在進度，再繼續工作。
 > 完成任何重要步驟後，請更新此檔案。
 
