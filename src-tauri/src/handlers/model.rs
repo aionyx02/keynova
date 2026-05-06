@@ -24,10 +24,8 @@ struct LocalModelEntry {
     active: bool,
 }
 
-fn tool_label(tool: &str) -> &'static str {
-    match tool {
-        _ => "AI Chat",
-    }
+fn tool_label(_tool: &str) -> &'static str {
+    "AI Chat"
 }
 
 fn tool_keys(tool: &str) -> Result<(&'static str, &'static str), String> {
