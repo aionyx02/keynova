@@ -150,8 +150,24 @@
   - Tauri 沙盒（capabilities）不需特別開放，因為音量/亮度均由 Rust backend 處理，非 WebView API
 - 影響：
   - `managers/system_manager.rs`：Windows 實作 + stub
-  - `handlers/system_control.rs`：namespace "system"，含 volume.get/set/mute、brightness.get/set、wifi.info
-  - lib.rs 中原有的 inline `SystemHandler`（只有 ping）已由 `SystemControlHandler` 完全取代
+- `handlers/system_control.rs`：namespace "system"，含 volume.get/set/mute、brightness.get/set、wifi.info
+- lib.rs 中原有的 inline `SystemHandler`（只有 ping）已由 `SystemControlHandler` 完全取代
+
+## ADR-014 Phase 4 Action / Knowledge / Plugin 邊界
+
+- 狀態：Accepted
+- 決策：Phase 4 採漸進式收斂：前端只接收 `UiSearchItem` + `ActionRef`，完整 action payload 留在 Rust `ActionArena`；SQLite 透過 `KnowledgeStoreHandle` dedicated worker thread 存取；Agent 與 Plugin Runtime 預設 deny 高風險能力，所有本機動作必須走 Action System 或 Host Functions。
+- 原因：
+  - 搜尋熱路徑不應跨 IPC 傳送肥大的 JSON action payload
+  - SQLite 不可進入 Tauri command/search hot path，避免 UI 卡頓
+  - `/ai` Agent 與 Plugin 若直接取得 shell/filesystem/network/AI key 會形成高風險能力擴散
+  - ActionRef + audit log 能讓 Automation、Agent、Plugin 共用同一套執行與審計模型
+- 影響：
+  - 新增 `models/action.rs`、`core/action_registry.rs`、`action.run` / `action.list_secondary`
+  - 新增 `core/knowledge_store.rs`，使用 `rusqlite` + bounded channel + WAL
+  - 新增 Agent 資料模型、Agent mode UI、`docs/ai_agent.md`、`docs/ai_context_privacy.md`
+  - 新增 Plugin manifest / permission / audit model 與 `docs/plugin_security.md`
+  - `SettingPanel` 改由 schema 驅動，敏感設定遮蔽顯示
 
 ## 待補強事項
 

@@ -5,6 +5,16 @@ import { listen } from "@tauri-apps/api/event";
 interface SettingEntry {
   key: string;
   value: string;
+  sensitive?: boolean;
+}
+
+interface SettingSchema {
+  key: string;
+  section: string;
+  label: string;
+  value_type: "string" | "integer" | "boolean" | "hotkey" | "secret";
+  sensitive: boolean;
+  options: string[];
 }
 
 interface ConfigReloadedPayload {
@@ -21,26 +31,39 @@ async function ipcDispatch<T>(route: string, payload?: Record<string, unknown>):
   return invoke<T>("cmd_dispatch", { route, payload: payload ?? null });
 }
 
-const SECTIONS = ["hotkeys", "terminal", "launcher", "mouse_control"] as const;
-type Section = (typeof SECTIONS)[number];
+const DEFAULT_SECTIONS = ["hotkeys", "terminal", "launcher", "mouse_control"];
+type Section = string;
 
-const SECTION_LABELS: Record<Section, string> = {
+const SECTION_LABELS: Record<string, string> = {
   hotkeys: "快捷鍵",
   terminal: "終端機",
   launcher: "啟動器",
   mouse_control: "滑鼠控制",
+  features: "功能",
+  ai: "AI",
+  translation: "翻譯",
+  notes: "筆記",
+  history: "歷史",
+  system: "系統",
 };
 
-const SECTION_EFFECT_HINT: Record<Section, string> = {
+const SECTION_EFFECT_HINT: Record<string, string> = {
   hotkeys: "重啟後生效",
   terminal: "重新進入 > 生效",
   launcher: "即時生效",
   mouse_control: "即時生效",
+  features: "重啟後生效",
+  ai: "下一次請求生效",
+  translation: "下一次翻譯生效",
+  notes: "重新開啟 panel 生效",
+  history: "即時生效",
+  system: "即時生效",
 };
 
 export function SettingPanel() {
   const [entries, setEntries] = useState<SettingEntry[]>([]);
   const [activeSection, setActiveSection] = useState<Section>("hotkeys");
+  const [schema, setSchema] = useState<SettingSchema[]>([]);
   const [edits, setEdits] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState<string | null>(null);
   const [savedKey, setSavedKey] = useState<string | null>(null);
@@ -52,7 +75,11 @@ export function SettingPanel() {
 
   const loadSettings = useCallback(async () => {
     if (!window.__TAURI_INTERNALS__) return;
-    const data = await ipcDispatch<SettingEntry[]>("setting.list_all");
+    const [data, schemaData] = await Promise.all([
+      ipcDispatch<SettingEntry[]>("setting.list_all"),
+      ipcDispatch<SettingSchema[]>("setting.schema"),
+    ]);
+    setSchema(schemaData);
     setEntries(data);
     const orig: Record<string, string> = {};
     data.forEach(({ key, value }) => {
@@ -91,6 +118,9 @@ export function SettingPanel() {
     };
   }, [loadSettings]);
 
+  const sections = schema.length > 0
+    ? Array.from(new Set(schema.map((entry) => entry.section)))
+    : DEFAULT_SECTIONS;
   const visible = entries.filter((e) => e.key.startsWith(`${activeSection}.`));
 
   // Auto-focus first input when entries load or section switches
@@ -103,8 +133,8 @@ export function SettingPanel() {
   }, [entries.length, activeSection]);
 
   function switchSection(dir: 1 | -1) {
-    const idx = SECTIONS.indexOf(activeSection);
-    const next = SECTIONS[Math.max(0, Math.min(SECTIONS.length - 1, idx + dir))];
+    const idx = sections.indexOf(activeSection);
+    const next = sections[Math.max(0, Math.min(sections.length - 1, idx + dir))];
     if (next && next !== activeSection) setActiveSection(next);
   }
 
@@ -161,6 +191,8 @@ export function SettingPanel() {
   }
 
   async function saveValue(key: string, newValue: string) {
+    const entry = entries.find((item) => item.key === key);
+    if (entry?.sensitive && !newValue.trim()) return;
     if (newValue === originalRef.current[key]) return;
     setSaving(key);
     setSaveError(null);
@@ -204,7 +236,7 @@ export function SettingPanel() {
     <div className="bg-gray-900/95 backdrop-blur-md rounded-b-xl shadow-2xl overflow-hidden">
       {/* Section tabs */}
       <div className="flex border-b border-gray-700/50">
-        {SECTIONS.map((sec) => (
+        {sections.map((sec) => (
           <button
             key={sec}
             onClick={() => setActiveSection(sec)}
@@ -214,7 +246,7 @@ export function SettingPanel() {
                 : "text-gray-500 hover:text-gray-300"
             }`}
           >
-            {SECTION_LABELS[sec]}
+            {SECTION_LABELS[sec] ?? sec}
           </button>
         ))}
       </div>
@@ -222,7 +254,7 @@ export function SettingPanel() {
       {/* Effect hint for current section */}
       <div className="px-4 pt-2 pb-0 flex items-center justify-between">
         <span className="text-[10px] text-gray-600">
-          生效時機：<span className="text-gray-500">{SECTION_EFFECT_HINT[activeSection]}</span>
+          生效時機：<span className="text-gray-500">{SECTION_EFFECT_HINT[activeSection] ?? "即時生效"}</span>
         </span>
       </div>
 
@@ -231,10 +263,12 @@ export function SettingPanel() {
         {visible.length === 0 && (
           <p className="text-xs text-gray-600 text-center py-4">無設定項目</p>
         )}
-        {visible.map(({ key, value }, rowIdx) => {
-          const label = key.split(".").slice(1).join(".");
+        {visible.map(({ key, value, sensitive }, rowIdx) => {
+          const fieldSchema = schema.find((item) => item.key === key);
+          const label = fieldSchema?.label ?? key.split(".").slice(1).join(".");
           const displayValue = edits[key] ?? value;
-          const isHotkey = key.startsWith("hotkeys.");
+          const isHotkey = fieldSchema?.value_type === "hotkey" || key.startsWith("hotkeys.");
+          const isSecret = Boolean(sensitive || fieldSchema?.sensitive);
           return (
             <div key={key} className="flex items-center gap-3">
               <label className="w-40 shrink-0 text-xs text-gray-400 truncate">{label}</label>
@@ -242,10 +276,17 @@ export function SettingPanel() {
                 ref={(el) => { inputRefs.current[rowIdx] = el; }}
                 value={displayValue}
                 readOnly={isHotkey}
+                type={isSecret ? "password" : "text"}
                 onChange={isHotkey ? () => {} : (e) => handleChange(key, e.target.value)}
                 onKeyDown={(e) => handleInputKeyDown(e, key, rowIdx, displayValue, isHotkey)}
                 onBlur={isHotkey ? undefined : () => void handleBlur(key)}
-                placeholder={isHotkey ? "點選後按組合鍵…" : undefined}
+                placeholder={
+                  isHotkey
+                    ? "點選後按組合鍵…"
+                    : isSecret
+                      ? "已遮蔽，輸入新值覆蓋"
+                      : undefined
+                }
                 className={`flex-1 rounded bg-gray-800 px-2 py-1 text-sm text-gray-100 outline-none focus:ring-1 ${
                   isHotkey ? "focus:ring-violet-500 cursor-pointer" : "focus:ring-blue-500"
                 } ${saving === key ? "opacity-60" : ""}`}

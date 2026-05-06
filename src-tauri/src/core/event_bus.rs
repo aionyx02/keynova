@@ -15,6 +15,10 @@ impl AppEvent {
             payload,
         }
     }
+
+    pub fn legacy_tauri_topic(&self) -> String {
+        self.topic.replace('.', "-")
+    }
 }
 
 #[derive(Clone)]

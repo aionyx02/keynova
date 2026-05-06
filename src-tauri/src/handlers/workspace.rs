@@ -48,8 +48,28 @@ impl CommandHandler for WorkspaceHandler {
                     .and_then(Value::as_str)
                     .unwrap_or("search")
                     .to_string();
+                let panel = payload
+                    .get("panel")
+                    .and_then(Value::as_str)
+                    .filter(|value| !value.is_empty())
+                    .map(ToOwned::to_owned);
+                let project_root = payload
+                    .get("project_root")
+                    .and_then(Value::as_str)
+                    .filter(|value| !value.is_empty())
+                    .map(ToOwned::to_owned);
                 let mut mgr = self.manager.lock().map_err(|e| e.to_string())?;
-                mgr.save_current(query, mode);
+                mgr.save_current_restore_state(query, mode, panel, project_root);
+                Ok(json!({ "ok": true }))
+            }
+            "record_action" => {
+                let action_id = payload
+                    .get("action_id")
+                    .and_then(Value::as_str)
+                    .ok_or_else(|| "missing 'action_id'".to_string())?
+                    .to_string();
+                let mut mgr = self.manager.lock().map_err(|e| e.to_string())?;
+                mgr.record_action(action_id);
                 Ok(json!({ "ok": true }))
             }
             "get_all" => {
