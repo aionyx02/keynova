@@ -29,12 +29,7 @@ interface ModelListResponse {
 type ModelRow =
   | (LocalModel & { kind: "local"; label: string })
   | (ApiModel & { kind: "api"; label: string });
-type AiTool = "ai" | "translation";
-
-const TOOL_OPTIONS: Array<{ id: AiTool; label: string }> = [
-  { id: "ai", label: "AI Chat" },
-  { id: "translation", label: "Translation" },
-];
+const AI_TOOL_LABEL = "AI Chat";
 
 async function ipcDispatch<T>(route: string, payload?: Record<string, unknown>): Promise<T> {
   return invoke<T>("cmd_dispatch", { route, payload: payload ?? null });
@@ -46,7 +41,6 @@ function modelSize(model: ModelRow) {
 }
 
 export function ModelListPanel({ onClose }: PanelProps) {
-  const [selectedTool, setSelectedTool] = useState<AiTool>("ai");
   const [data, setData] = useState<ModelListResponse | null>(null);
   const [selected, setSelected] = useState(0);
   const [notice, setNotice] = useState("");
@@ -75,7 +69,7 @@ export function ModelListPanel({ onClose }: PanelProps) {
     setError("");
     try {
       const next = await ipcDispatch<ModelListResponse>("model.list_available", {
-        tool: selectedTool,
+        tool: "ai",
       });
       setData(next);
       setSelected((i) => Math.min(i, Math.max(next.local_models.length + next.api_models.length - 1, 0)));
@@ -84,7 +78,7 @@ export function ModelListPanel({ onClose }: PanelProps) {
     } finally {
       setLoading(false);
     }
-  }, [selectedTool]);
+  }, []);
 
   useEffect(() => {
     rootRef.current?.focus();
@@ -101,10 +95,10 @@ export function ModelListPanel({ onClose }: PanelProps) {
       return;
     }
     const payload = row.kind === "local"
-      ? { provider: "ollama", model: row.name, tool: selectedTool }
-      : { provider: row.provider, model: row.model, tool: selectedTool };
+      ? { provider: "ollama", model: row.name, tool: "ai" }
+      : { provider: row.provider, model: row.model, tool: "ai" };
     await ipcDispatch("model.set_active", payload);
-    setNotice(`✓ 已為 ${TOOL_OPTIONS.find((tool) => tool.id === selectedTool)?.label} 啟用 ${row.kind === "local" ? row.name : row.label}`);
+    setNotice(`✓ 已為 ${AI_TOOL_LABEL} 啟用 ${row.kind === "local" ? row.name : row.label}`);
     await load();
   }
 
@@ -147,24 +141,6 @@ export function ModelListPanel({ onClose }: PanelProps) {
       <div className="flex items-center justify-between border-b border-gray-700/50 px-4 py-2">
         <span className="text-xs font-semibold uppercase tracking-wide text-blue-400">Model List</span>
         <div className="flex items-center gap-2">
-          <div className="flex rounded bg-gray-800/70 p-0.5">
-            {TOOL_OPTIONS.map((tool) => (
-              <button
-                key={tool.id}
-                type="button"
-                onClick={() => {
-                  setSelectedTool(tool.id);
-                  setNotice("");
-                  setError("");
-                }}
-                className={`rounded px-2 py-0.5 text-[11px] transition-colors ${
-                  selectedTool === tool.id ? "bg-blue-600/70 text-white" : "text-gray-500 hover:text-gray-300"
-                }`}
-              >
-                {tool.label}
-              </button>
-            ))}
-          </div>
           <span className="max-w-[210px] truncate text-[11px] text-gray-500">
             {data ? `${data.tool_label}: ${data.active_provider}:${data.active_model}` : loading ? "Loading" : ""}
           </span>

@@ -242,7 +242,7 @@ export function CommandPalette() {
     if (!el) return;
     const h = Math.ceil(el.getBoundingClientRect().height) || 56;
     getCurrentWindow().setSize(new LogicalSize(640, h)).catch(() => {});
-  }, [mode, results, cmdSuggestions, cmdResult, argSuggestions]);
+  }, [mode, query, results, cmdSuggestions, cmdResult, argSuggestions]);
 
   function handleQueryChange(value: string) {
     setQuery(value);
@@ -344,10 +344,24 @@ export function CommandPalette() {
   const hasCmdSuggestions = cmdSuggestions.length > 0 && mode === "command" && !cmdResult && !isArgsPhase;
   const hasArgSuggestions = isArgsPhase && argSuggestions.length > 0 && !cmdResult;
 
-  // Resolve panel component if cmd result is a Panel type
-  const PanelComponent = cmdResult?.ui_type.type === "Panel"
-    ? (PanelRegistry[cmdResult.ui_type.value ?? ""] ?? null)
-    : null;
+  const liveTranslationPanel =
+    mode === "command" && cmdName === "tr" && spaceIdx !== -1 && !cmdResult;
+
+  // Resolve panel component if cmd result is a Panel type, or stream /tr args live.
+  const activePanelName =
+    cmdResult?.ui_type.type === "Panel"
+      ? (cmdResult.ui_type.value ?? "")
+      : liveTranslationPanel
+        ? "translation"
+        : "";
+  const PanelComponent = activePanelName ? (PanelRegistry[activePanelName] ?? null) : null;
+  const panelInitialArgs =
+    cmdResult?.ui_type.type === "Panel"
+      ? cmdResult.text
+      : liveTranslationPanel
+        ? cmdArgs
+        : "";
+  const panelKey = `${cmdResult ? "command" : "live"}:${activePanelName}`;
 
   const terminalOnExit = () => {
     // Move focus to container first so terminal becoming display:none
@@ -384,6 +398,7 @@ export function CommandPalette() {
           <div
             className={`flex items-center bg-gray-900/95 backdrop-blur-md shadow-2xl ${
               hasResults || hasCmdSuggestions || cmdResult || isArgsPhase
+              || liveTranslationPanel
                 ? "rounded-t-xl border-b border-gray-700/50"
                 : "rounded-xl"
             }`}
@@ -502,9 +517,9 @@ export function CommandPalette() {
           {PanelComponent && (
             <Suspense fallback={<div className="h-16 bg-gray-900/95 rounded-b-xl" />}>
               <PanelComponent
-                key={`${cmdResult?.ui_type.value ?? ""}:${cmdResult?.text ?? ""}`}
+                key={panelKey}
                 onClose={handlePanelClose}
-                initialArgs={cmdResult?.text ?? ""}
+                initialArgs={panelInitialArgs}
               />
             </Suspense>
           )}

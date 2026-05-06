@@ -35,10 +35,7 @@ impl CommandHandler for NoteHandler {
             }
             "save" => {
                 let name = require_str(&payload, "name")?;
-                let content = payload
-                    .get("content")
-                    .and_then(Value::as_str)
-                    .unwrap_or("");
+                let content = payload.get("content").and_then(Value::as_str).unwrap_or("");
                 let mgr = self.manager.lock().map_err(|e| e.to_string())?;
                 mgr.save(name, content)?;
                 Ok(json!({ "ok": true }))

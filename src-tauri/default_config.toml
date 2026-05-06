@@ -43,8 +43,8 @@ timeout_secs = 30
 [translation]
 default_src = "auto"
 default_dst = "zh-TW"
-provider = "claude"
-model = "claude-sonnet-4-6"
+provider = "google_free"
+timeout_secs = 30
 
 [notes]
 storage_dir = ""         # 空字串代表 AppData/Keynova/notes/

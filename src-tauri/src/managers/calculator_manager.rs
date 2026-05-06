@@ -1,4 +1,4 @@
- use std::collections::HashMap;
+use std::collections::HashMap;
 
 /// 計算機管理器：提供數學運算、單位換算、進位轉換。
 pub struct CalculatorManager {
@@ -13,7 +13,9 @@ pub struct CalculationEntry {
 
 impl CalculatorManager {
     pub fn new() -> Self {
-        Self { history: Vec::new() }
+        Self {
+            history: Vec::new(),
+        }
     }
 
     /// 計算數學運算式，回傳結果字串。
@@ -126,22 +128,49 @@ fn convert_unit(value: f64, from: &str, to: &str) -> Option<f64> {
     // Convert both to SI base, then to target
     let to_si: HashMap<&str, f64> = [
         // Length (meter)
-        ("m", 1.0), ("km", 1000.0), ("cm", 0.01), ("mm", 0.001),
-        ("mi", 1609.344), ("ft", 0.3048), ("in", 0.0254), ("yd", 0.9144),
+        ("m", 1.0),
+        ("km", 1000.0),
+        ("cm", 0.01),
+        ("mm", 0.001),
+        ("mi", 1609.344),
+        ("ft", 0.3048),
+        ("in", 0.0254),
+        ("yd", 0.9144),
         // Weight (kg)
-        ("kg", 1.0), ("g", 0.001), ("mg", 0.000001), ("lb", 0.453592), ("oz", 0.0283495),
+        ("kg", 1.0),
+        ("g", 0.001),
+        ("mg", 0.000001),
+        ("lb", 0.453592),
+        ("oz", 0.0283495),
         // Temperature — handled separately
         // Time (seconds)
-        ("s", 1.0), ("ms", 0.001), ("min", 60.0), ("h", 3600.0), ("hr", 3600.0),
-        ("day", 86400.0), ("week", 604800.0),
+        ("s", 1.0),
+        ("ms", 0.001),
+        ("min", 60.0),
+        ("h", 3600.0),
+        ("hr", 3600.0),
+        ("day", 86400.0),
+        ("week", 604800.0),
         // Area (m²)
-        ("m2", 1.0), ("km2", 1e6), ("cm2", 0.0001), ("ha", 10000.0), ("acre", 4046.86),
+        ("m2", 1.0),
+        ("km2", 1e6),
+        ("cm2", 0.0001),
+        ("ha", 10000.0),
+        ("acre", 4046.86),
         // Speed (m/s)
-        ("m/s", 1.0), ("km/h", 1.0 / 3.6), ("mph", 0.44704),
+        ("m/s", 1.0),
+        ("km/h", 1.0 / 3.6),
+        ("mph", 0.44704),
         // Data (bytes)
-        ("b", 1.0), ("kb", 1024.0), ("mb", 1048576.0), ("gb", 1073741824.0),
+        ("b", 1.0),
+        ("kb", 1024.0),
+        ("mb", 1048576.0),
+        ("gb", 1073741824.0),
         ("tb", 1099511627776.0),
-    ].iter().cloned().collect();
+    ]
+    .iter()
+    .cloned()
+    .collect();
 
     // Temperature conversion
     let temp_result = convert_temperature(value, from, to);
@@ -213,8 +242,14 @@ impl<'a> Parser<'a> {
         loop {
             self.skip_ws();
             match self.peek() {
-                Some('+') => { self.consume(); left += self.parse_term()?; }
-                Some('-') => { self.consume(); left -= self.parse_term()?; }
+                Some('+') => {
+                    self.consume();
+                    left += self.parse_term()?;
+                }
+                Some('-') => {
+                    self.consume();
+                    left -= self.parse_term()?;
+                }
                 _ => break,
             }
         }
@@ -227,17 +262,25 @@ impl<'a> Parser<'a> {
         loop {
             self.skip_ws();
             match self.peek() {
-                Some('*') => { self.consume(); let r = self.parse_power()?; left *= r; }
+                Some('*') => {
+                    self.consume();
+                    let r = self.parse_power()?;
+                    left *= r;
+                }
                 Some('/') => {
                     self.consume();
                     let r = self.parse_power()?;
-                    if r == 0.0 { return Err("division by zero".into()); }
+                    if r == 0.0 {
+                        return Err("division by zero".into());
+                    }
                     left /= r;
                 }
                 Some('%') => {
                     self.consume();
                     let r = self.parse_power()?;
-                    if r == 0.0 { return Err("modulo by zero".into()); }
+                    if r == 0.0 {
+                        return Err("modulo by zero".into());
+                    }
                     left %= r;
                 }
                 _ => break,
@@ -281,7 +324,11 @@ impl<'a> Parser<'a> {
                 self.consume();
                 let v = self.parse_expr()?;
                 self.skip_ws();
-                if self.peek() == Some(')') { self.consume(); } else { return Err("expected ')'".into()); }
+                if self.peek() == Some(')') {
+                    self.consume();
+                } else {
+                    return Err("expected ')'".into());
+                }
                 Ok(v)
             }
             Some(c) if c.is_ascii_digit() || c == '.' => self.parse_number(),
@@ -292,7 +339,10 @@ impl<'a> Parser<'a> {
 
     fn parse_number(&mut self) -> Result<f64, String> {
         let start = self.pos;
-        while self.peek().is_some_and(|c| c.is_ascii_digit() || c == '.' || c == 'e' || c == 'E') {
+        while self
+            .peek()
+            .is_some_and(|c| c.is_ascii_digit() || c == '.' || c == 'e' || c == 'E')
+        {
             self.consume();
         }
         let s: String = self.src[start..self.pos].iter().collect();
@@ -301,7 +351,10 @@ impl<'a> Parser<'a> {
 
     fn parse_name(&mut self) -> Result<f64, String> {
         let start = self.pos;
-        while self.peek().is_some_and(|c| c.is_ascii_alphanumeric() || c == '_') {
+        while self
+            .peek()
+            .is_some_and(|c| c.is_ascii_alphanumeric() || c == '_')
+        {
             self.consume();
         }
         let name: String = self.src[start..self.pos].iter().collect();
@@ -320,7 +373,11 @@ impl<'a> Parser<'a> {
             self.consume();
             let arg = self.parse_expr()?;
             self.skip_ws();
-            if self.peek() == Some(')') { self.consume(); } else { return Err("expected ')'".into()); }
+            if self.peek() == Some(')') {
+                self.consume();
+            } else {
+                return Err("expected ')'".into());
+            }
             return match name.as_str() {
                 "sqrt" => Ok(arg.sqrt()),
                 "abs" => Ok(arg.abs()),
