@@ -16,6 +16,10 @@ export function CommandSuggestions({ commands, selectedIndex, onSelect, onHover 
         {commands.map((cmd, i) => (
           <li
             key={cmd.name}
+            ref={(el) => {
+              if (i === selectedIndex && el) {
+                el.scrollIntoView({ block: "nearest" });
+              }}}
             onMouseDown={() => onSelect(cmd.name)}
             onMouseEnter={() => onHover(i)}
             className={`flex items-center gap-3 px-4 py-2.5 cursor-pointer text-sm transition-colors ${

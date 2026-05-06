@@ -1,5 +1,13 @@
+pub mod ai_manager;
 pub mod app_manager;
+pub mod calculator_manager;
+pub mod history_manager;
 pub mod hotkey_manager;
+pub mod model_manager;
 pub mod mouse_manager;
+pub mod note_manager;
 pub mod search_manager;
+pub mod system_manager;
 pub mod terminal_manager;
+pub mod translation_manager;
+pub mod workspace_manager;
