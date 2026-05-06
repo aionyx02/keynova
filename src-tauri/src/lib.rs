@@ -15,63 +15,57 @@ use tauri::{Emitter, Manager};
 
 use crate::core::config_manager::{ConfigChange, ConfigManager};
 use crate::core::control_plane::{self, ControlCommand, ControlRequest, ControlResponse};
-use crate::core::{AppEvent, BuiltinCommandRegistry, CommandHandler, CommandResult, CommandRouter, EventBus};
+use crate::core::{AppEvent, BuiltinCommandRegistry, CommandRouter, EventBus};
 use crate::handlers::{
-    builtin_cmd::{BuiltinCmdHandler, DownCommand, HelpCommand, ReloadCommand, SettingCommand},
+    ai::AiHandler,
+    builtin_cmd::{
+        AiCommand, BuiltinCmdHandler, CalCommand, DownCommand, HelpCommand, HistoryCommand,
+        ModelDownloadCommand, ModelListCommand, NoteCommand, ReloadCommand, SettingCommand,
+        SysCtlCommand, TrCommand,
+    },
+    calculator::CalculatorHandler,
+    history::HistoryHandler,
     hotkey::HotkeyHandler,
     launcher::LauncherHandler,
+    model::ModelHandler,
     mouse::MouseHandler,
+    note::NoteHandler,
     search::SearchHandler,
     setting::SettingHandler,
+    system_control::SystemControlHandler,
     terminal::TerminalHandler,
+    translation::TranslationHandler,
+    workspace::WorkspaceHandler,
 };
 use crate::managers::{
+    ai_manager::AiManager,
     app_manager::AppManager,
+    calculator_manager::CalculatorManager,
+    history_manager::HistoryManager,
     hotkey_manager::HotkeyManager,
+    model_manager::ModelManager,
     mouse_manager::MouseManager,
+    note_manager::NoteManager,
     search_manager::SearchManager,
+    system_manager::SystemManager,
     terminal_manager::{start_prewarm, TerminalManager},
+    translation_manager::TranslationManager,
+    workspace_manager::WorkspaceManager,
 };
 use crate::models::builtin_command::{BuiltinCommandResult, CommandUiType};
-
-// ─── System handler ──────────────────────────────────────────────────────────
-
-struct SystemHandler;
-
-impl CommandHandler for SystemHandler {
-    fn namespace(&self) -> &'static str {
-        "system"
-    }
-
-    fn execute(&self, command: &str, payload: Value) -> CommandResult {
-        match command {
-            "ping" => {
-                let name = payload
-                    .get("name")
-                    .and_then(Value::as_str)
-                    .filter(|v| !v.trim().is_empty())
-                    .unwrap_or("Developer");
-                Ok(json!({ "message": format!("Pong from Rust CommandRouter, {}!", name) }))
-            }
-            _ => Err(format!("unknown system command '{command}'")),
-        }
-    }
-}
 
 // ─── App state ───────────────────────────────────────────────────────────────
 
 struct AppState {
     command_router: CommandRouter,
     event_bus: EventBus,
-    /// 全域滑鼠控制模式是否啟用（Alt+M 切換）
     mouse_active: Arc<AtomicBool>,
-    /// Shared reference for triggering terminal pre-warm from setup
     terminal_manager: Arc<Mutex<TerminalManager>>,
-    /// Suppresses blur-to-hide while the launcher switches internal UI modes.
     launcher_focus_guard: Arc<Mutex<Option<Instant>>>,
-    /// 使用者設定（TOML I/O）
     _config_manager: Arc<Mutex<ConfigManager>>,
     _config_watcher: Arc<Mutex<Option<notify::RecommendedWatcher>>>,
+    _history_manager: Arc<Mutex<HistoryManager>>,
+    _workspace_manager: Arc<Mutex<WorkspaceManager>>,
 }
 
 impl AppState {
@@ -81,6 +75,29 @@ impl AppState {
         let app_manager = Arc::new(Mutex::new(AppManager::new()));
         let hotkey_manager = Arc::new(Mutex::new(HotkeyManager::new()));
         let mouse_manager = Arc::new(Mutex::new(MouseManager::new()));
+        let system_manager = Arc::new(Mutex::new(SystemManager::new()));
+        let calculator_manager = Arc::new(Mutex::new(CalculatorManager::new()));
+        let workspace_manager = Arc::new(Mutex::new(WorkspaceManager::new()));
+        let model_manager = Arc::new(ModelManager::new());
+
+        // Config manager (shared)
+        let config_manager = Arc::new(Mutex::new(ConfigManager::new()));
+
+        // NoteManager reads storage_dir from config
+        let note_storage_dir = config_manager
+            .lock()
+            .ok()
+            .and_then(|c| c.get("notes.storage_dir"));
+        let note_manager = Arc::new(Mutex::new(NoteManager::new(note_storage_dir)));
+
+        // HistoryManager reads max_items from config
+        let max_items = config_manager
+            .lock()
+            .ok()
+            .and_then(|c| c.get("history.max_items"))
+            .and_then(|v| v.parse::<usize>().ok())
+            .unwrap_or(200);
+        let history_manager = Arc::new(Mutex::new(HistoryManager::new(max_items)));
 
         let eb_for_terminal = event_bus.clone();
         let terminal_manager = Arc::new(Mutex::new(TerminalManager::new(Arc::new(
@@ -93,9 +110,20 @@ impl AppState {
         ))));
 
         let search_manager = Arc::new(Mutex::new(SearchManager::new(Arc::clone(&app_manager))));
-        let config_manager = Arc::new(Mutex::new(ConfigManager::new()));
 
-        // BuiltinCommandRegistry：先建立 Arc，再注冊指令，最後傳給 handler
+        // AI manager (with EventBus callback)
+        let eb_for_ai = event_bus.clone();
+        let ai_manager = Arc::new(AiManager::new(Arc::new(move |event| {
+            let _ = eb_for_ai.publish(event);
+        })));
+
+        // Translation manager (with EventBus callback)
+        let eb_for_tr = event_bus.clone();
+        let translation_manager = Arc::new(TranslationManager::new(Arc::new(move |event| {
+            let _ = eb_for_tr.publish(event);
+        })));
+
+        // BuiltinCommandRegistry
         let builtin_registry = Arc::new(Mutex::new(BuiltinCommandRegistry::new()));
         {
             let mut reg = builtin_registry.lock().expect("registry init");
@@ -103,17 +131,57 @@ impl AppState {
             reg.register(Box::new(SettingCommand));
             reg.register(Box::new(ReloadCommand));
             reg.register(Box::new(DownCommand));
+            // Phase 3 commands
+            reg.register(Box::new(TrCommand));
+            reg.register(Box::new(AiCommand));
+            reg.register(Box::new(ModelDownloadCommand));
+            reg.register(Box::new(ModelListCommand));
+            reg.register(Box::new(NoteCommand));
+            reg.register(Box::new(CalCommand));
+            reg.register(Box::new(HistoryCommand));
+            reg.register(Box::new(SysCtlCommand));
         }
 
         let mut command_router = CommandRouter::new();
-        command_router.register(Arc::new(SystemHandler));
+        command_router.register(Arc::new(SystemControlHandler::new(Arc::clone(
+            &system_manager,
+        ))));
         command_router.register(Arc::new(LauncherHandler::new(Arc::clone(&app_manager))));
         command_router.register(Arc::new(HotkeyHandler::new(Arc::clone(&hotkey_manager))));
-        command_router.register(Arc::new(TerminalHandler::new(Arc::clone(&terminal_manager))));
+        command_router.register(Arc::new(TerminalHandler::new(Arc::clone(
+            &terminal_manager,
+        ))));
         command_router.register(Arc::new(MouseHandler::new(Arc::clone(&mouse_manager))));
         command_router.register(Arc::new(SearchHandler::new(Arc::clone(&search_manager))));
-        command_router.register(Arc::new(BuiltinCmdHandler::new(Arc::clone(&builtin_registry), Arc::clone(&config_manager))));
+        let eb_for_model = event_bus.clone();
+        command_router.register(Arc::new(ModelHandler::new(
+            Arc::clone(&model_manager),
+            Arc::clone(&config_manager),
+            Arc::new(move |event| {
+                let _ = eb_for_model.publish(event);
+            }),
+        )));
+        command_router.register(Arc::new(BuiltinCmdHandler::new(
+            Arc::clone(&builtin_registry),
+            Arc::clone(&config_manager),
+        )));
         command_router.register(Arc::new(SettingHandler::new(Arc::clone(&config_manager))));
+        command_router.register(Arc::new(CalculatorHandler::new(Arc::clone(
+            &calculator_manager,
+        ))));
+        command_router.register(Arc::new(WorkspaceHandler::new(Arc::clone(
+            &workspace_manager,
+        ))));
+        command_router.register(Arc::new(NoteHandler::new(Arc::clone(&note_manager))));
+        command_router.register(Arc::new(HistoryHandler::new(Arc::clone(&history_manager))));
+        command_router.register(Arc::new(AiHandler::new(
+            Arc::clone(&ai_manager),
+            Arc::clone(&config_manager),
+        )));
+        command_router.register(Arc::new(TranslationHandler::new(
+            Arc::clone(&translation_manager),
+            Arc::clone(&config_manager),
+        )));
 
         Self {
             command_router,
@@ -123,6 +191,8 @@ impl AppState {
             launcher_focus_guard: Arc::new(Mutex::new(None)),
             _config_manager: config_manager,
             _config_watcher: Arc::new(Mutex::new(None)),
+            _history_manager: history_manager,
+            _workspace_manager: workspace_manager,
         }
     }
 }
@@ -229,7 +299,10 @@ fn should_apply_config_after_dispatch(route: &str, payload: &Value) -> bool {
     payload
         .get("args")
         .and_then(Value::as_str)
-        .map(|args| args.split_once(' ').is_some_and(|(_, v)| !v.trim().is_empty()))
+        .map(|args| {
+            args.split_once(' ')
+                .is_some_and(|(_, v)| !v.trim().is_empty())
+        })
         .unwrap_or(false)
 }
 
@@ -282,7 +355,10 @@ fn apply_config_changes(
     source: &str,
     emit_on_empty: bool,
 ) -> Result<(), String> {
-    if changes.iter().any(|change| change.key.starts_with("hotkeys.")) {
+    if changes
+        .iter()
+        .any(|change| change.key.starts_with("hotkeys."))
+    {
         setup_global_shortcuts(app, true);
     }
 
@@ -355,8 +431,7 @@ pub fn run() {
                 return Ok(());
             }
 
-            // Bridge: EventBus (Rust broadcast) → Tauri frontend events.
-            // Tauri event names cannot contain '.', so expose dotted internal topics as kebab names.
+            // Bridge EventBus (Rust broadcast) → Tauri frontend events
             let mut rx = app.state::<AppState>().event_bus.subscribe();
             let handle = app.handle().clone();
             tauri::async_runtime::spawn(async move {
@@ -375,9 +450,8 @@ pub fn run() {
 
             prescan_apps(app);
             start_file_index();
-            // Pre-warm one terminal session so the first open is nearly instant
             start_prewarm(Arc::clone(&app.state::<AppState>().terminal_manager));
-            // Shortcut registration is best-effort; conflicts are logged, not fatal
+            start_clipboard_watcher(app);
             setup_global_shortcuts(app.handle(), false);
             setup_config_watcher(app);
             setup_tray(app)?;
@@ -403,8 +477,6 @@ pub fn run() {
 
 // ─── Setup helpers ───────────────────────────────────────────────────────────
 
-/// Starts the localhost control plane used by the `keynova` CLI.
-/// Returns false when this process handed off to an already running instance.
 fn start_control_server(app: &tauri::App) -> bool {
     let listener = match control_plane::bind_listener() {
         Ok(listener) => listener,
@@ -484,7 +556,7 @@ fn setup_config_watcher(app: &tauri::App) {
         }
     };
 
-    match start_config_watcher(handle, config_path) {
+    match start_config_file_watcher(handle, config_path) {
         Ok(watcher) => {
             if let Ok(mut slot) = state._config_watcher.lock() {
                 *slot = Some(watcher);
@@ -494,7 +566,7 @@ fn setup_config_watcher(app: &tauri::App) {
     }
 }
 
-fn start_config_watcher(
+fn start_config_file_watcher(
     app: tauri::AppHandle,
     config_path: std::path::PathBuf,
 ) -> Result<notify::RecommendedWatcher, String> {
@@ -551,12 +623,63 @@ fn is_config_file_event(event: &notify::Event, config_path: &std::path::Path) ->
     let Some(wanted_name) = config_path.file_name() else {
         return false;
     };
-    event.paths.iter().any(|path| {
-        path == config_path || path.file_name().is_some_and(|name| name == wanted_name)
-    })
+    event
+        .paths
+        .iter()
+        .any(|path| path == config_path || path.file_name().is_some_and(|name| name == wanted_name))
 }
 
-/// 在背景執行緒預先掃描應用程式清單，確保首次搜尋無冷啟動延遲。
+/// 背景執行緒監聽剪貼簿變化（Windows: 輪詢每 800ms）。
+fn start_clipboard_watcher(app: &tauri::App) {
+    let handle = app.handle().clone();
+    std::thread::spawn(move || {
+        clipboard_poll_loop(&handle);
+    });
+}
+
+fn clipboard_poll_loop(app: &tauri::AppHandle) {
+    loop {
+        std::thread::sleep(Duration::from_secs(2));
+        if let Some(text) = read_clipboard_text() {
+            let state = app.state::<AppState>();
+            let added = state
+                ._history_manager
+                .lock()
+                .map(|mut mgr| mgr.push_text(text))
+                .unwrap_or(false);
+            if added {
+                let _ = state
+                    .event_bus
+                    .publish(AppEvent::new("history.updated", json!({})));
+            }
+        }
+    }
+}
+
+fn read_clipboard_text() -> Option<String> {
+    platform_read_clipboard()
+}
+
+#[cfg(target_os = "windows")]
+fn platform_read_clipboard() -> Option<String> {
+    // Use PowerShell Get-Clipboard for simplicity; runs in a background thread (2s interval)
+    let output = std::process::Command::new("powershell")
+        .args(["-NoProfile", "-NonInteractive", "-Command", "Get-Clipboard"])
+        .output()
+        .ok()?;
+    let text = String::from_utf8_lossy(&output.stdout).trim().to_string();
+    if text.is_empty() {
+        None
+    } else {
+        Some(text)
+    }
+}
+
+#[cfg(not(target_os = "windows"))]
+fn platform_read_clipboard() -> Option<String> {
+    None
+}
+
 fn prescan_apps(app: &tauri::App) {
     let app_handle = app.handle().clone();
     std::thread::spawn(move || {
@@ -567,7 +690,6 @@ fn prescan_apps(app: &tauri::App) {
     });
 }
 
-/// 在背景執行緒建立檔案索引快取（Windows only），之後查詢只讀記憶體，不掃碟。
 fn start_file_index() {
     #[cfg(target_os = "windows")]
     std::thread::spawn(|| {
@@ -575,7 +697,6 @@ fn start_file_index() {
     });
 }
 
-/// 快捷鍵註冊為 best-effort：衝突時僅 eprintln，不中斷 setup。
 fn setup_global_shortcuts(app: &tauri::AppHandle, reset_existing: bool) {
     use tauri_plugin_global_shortcut::{GlobalShortcutExt, ShortcutState};
 
@@ -586,21 +707,25 @@ fn setup_global_shortcuts(app: &tauri::AppHandle, reset_existing: bool) {
         }
     }
 
-    // ── 讀取設定中的快捷鍵（修改 config.toml 並重啟後生效）──
     let launcher_key = app
         .state::<AppState>()
         ._config_manager
         .lock()
-        .map(|c| c.get("hotkeys.app_launcher").unwrap_or_else(|| "Ctrl+K".to_string()))
+        .map(|c| {
+            c.get("hotkeys.app_launcher")
+                .unwrap_or_else(|| "Ctrl+K".to_string())
+        })
         .unwrap_or_else(|_| "Ctrl+K".to_string());
     let mouse_key = app
         .state::<AppState>()
         ._config_manager
         .lock()
-        .map(|c| c.get("hotkeys.mouse_control").unwrap_or_else(|| "Ctrl+Alt+M".to_string()))
+        .map(|c| {
+            c.get("hotkeys.mouse_control")
+                .unwrap_or_else(|| "Ctrl+Alt+M".to_string())
+        })
         .unwrap_or_else(|_| "Ctrl+Alt+M".to_string());
 
-    // ── 開啟 / 關閉啟動器視窗（設定鍵失敗時自動回退 Ctrl+K）──
     let candidates: &[&str] = if launcher_key == "Ctrl+K" {
         &["Ctrl+K"]
     } else {
@@ -626,8 +751,6 @@ fn setup_global_shortcuts(app: &tauri::AppHandle, reset_existing: bool) {
         }
     }
 
-    // ── 切換全域滑鼠控制模式（設定鍵失敗時自動回退 Ctrl+Alt+M）──
-    // 使用 Ctrl+Alt 而非單獨 Alt，避免 Alt 觸發 Windows 選單列造成修飾鍵殘留（卡鍵）
     let mouse_candidates: &[&str] = if mouse_key == "Ctrl+Alt+M" {
         &["Ctrl+Alt+M"]
     } else {
@@ -651,7 +774,7 @@ fn setup_global_shortcuts(app: &tauri::AppHandle, reset_existing: bool) {
         }
     }
 
-    // ── Ctrl+Alt+W/A/S/D: cursor movement (step_size read from config each press) ──
+    // ── Ctrl+Alt+W/A/S/D: cursor movement ──
     for (shortcut, dx_dir, dy_dir) in [
         ("Ctrl+Alt+W", 0i32, -1i32),
         ("Ctrl+Alt+A", -1i32, 0i32),
@@ -693,6 +816,30 @@ fn setup_global_shortcuts(app: &tauri::AppHandle, reset_existing: bool) {
     }) {
         eprintln!("[keynova] Ctrl+Alt+Enter registration failed: {e}");
     }
+
+    // ── Ctrl+Alt+1/2/3: workspace switch ──
+    for (shortcut, slot) in [("Ctrl+Alt+1", 0usize), ("Ctrl+Alt+2", 1), ("Ctrl+Alt+3", 2)] {
+        let handle_ws = app.clone();
+        if let Err(e) = gs.on_shortcut(shortcut, move |app_h, _, event| {
+            if event.state() == ShortcutState::Pressed {
+                let payload = {
+                    let state = app_h.state::<AppState>();
+                    state
+                        ._workspace_manager
+                        .lock()
+                        .ok()
+                        .and_then(|mut mgr| mgr.switch_to(slot).ok().map(|ws| json!(ws)))
+                };
+                if let Some(payload) = payload {
+                    if let Some(win) = handle_ws.get_webview_window("main") {
+                        let _ = win.emit("workspace-switched", &payload);
+                    }
+                }
+            }
+        }) {
+            eprintln!("[keynova] {shortcut} (workspace) registration failed: {e}");
+        }
+    }
 }
 
 fn setup_tray(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>> {
@@ -705,8 +852,6 @@ fn setup_tray(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>> {
 
     let handle = app.handle().clone();
 
-    // `default_window_icon()` 在開發環境可能回傳 None（icon 檔不存在時）
-    // 使用 if let 避免 unwrap panic；沒有 icon 仍可建立 tray
     let mut builder = TrayIconBuilder::new()
         .menu(&menu)
         .tooltip("Keynova")
@@ -734,7 +879,6 @@ fn setup_main_window(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>>
         .get_webview_window("main")
         .ok_or("main window not found")?;
 
-    // 視窗定位：水平置中，垂直約 25% 處（Flow Launcher 風格）
     if let Ok(Some(monitor)) = window.current_monitor() {
         let screen = monitor.size();
         let scale = monitor.scale_factor();
@@ -747,44 +891,41 @@ fn setup_main_window(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>>
     let window_focused = window.clone();
     let window_blur = window.clone();
     let blur_guard = app.state::<AppState>().launcher_focus_guard.clone();
-    window.on_window_event(move |event| {
-        match event {
-            tauri::WindowEvent::Focused(true) => {
-                let _ = window_focused.emit("window-focused", ());
-            }
-            // 失焦時自動隱藏（點擊視窗外部即關閉，不需要透明覆蓋層）
-            tauri::WindowEvent::Focused(false) => {
-                let window_blur = window_blur.clone();
-                let blur_guard = Arc::clone(&blur_guard);
-                tauri::async_runtime::spawn(async move {
-                    tokio::time::sleep(Duration::from_millis(120)).await;
-                    let should_keep_open = blur_guard
-                        .lock()
-                        .map(|mut guard| {
-                            let now = Instant::now();
-                            match guard.as_ref() {
-                                Some(until) if now <= *until => true,
-                                Some(_) => {
-                                    *guard = None;
-                                    false
-                                }
-                                None => false,
-                            }
-                        })
-                        .unwrap_or(false);
-                    if should_keep_open {
-                        let _ = window_blur.show();
-                        let _ = window_blur.set_focus();
-                        return;
-                    }
-                    if window_blur.is_focused().unwrap_or(false) {
-                        return;
-                    }
-                    let _ = window_blur.hide();
-                });
-            }
-            _ => {}
+    window.on_window_event(move |event| match event {
+        tauri::WindowEvent::Focused(true) => {
+            let _ = window_focused.emit("window-focused", ());
         }
+        tauri::WindowEvent::Focused(false) => {
+            let window_blur = window_blur.clone();
+            let blur_guard = Arc::clone(&blur_guard);
+            tauri::async_runtime::spawn(async move {
+                tokio::time::sleep(Duration::from_millis(120)).await;
+                let should_keep_open = blur_guard
+                    .lock()
+                    .map(|mut guard| {
+                        let now = Instant::now();
+                        match guard.as_ref() {
+                            Some(until) if now <= *until => true,
+                            Some(_) => {
+                                *guard = None;
+                                false
+                            }
+                            None => false,
+                        }
+                    })
+                    .unwrap_or(false);
+                if should_keep_open {
+                    let _ = window_blur.show();
+                    let _ = window_blur.set_focus();
+                    return;
+                }
+                if window_blur.is_focused().unwrap_or(false) {
+                    return;
+                }
+                let _ = window_blur.hide();
+            });
+        }
+        _ => {}
     });
 
     Ok(())

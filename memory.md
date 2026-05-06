@@ -5,9 +5,9 @@
 
 ## 當前狀態
 
-- **進度**：Phase 2 全部完成 + BUG-1~11 + FEAT-1~5（feature/feat1-feat2-control-plane 分支）
-- **上次完成**：BUG-11 根因確認：`ipconfig` 後實體 ESC 先以 xterm `keyup` 進入，而非 DOM/window `keydown`；修正為 xterm custom key handler 同時處理 Escape `keydown` / `keyup`，並保留 `\x1b` / `\x1b[O` 保底；`npm run build` / `npm run lint` / `cargo check --manifest-path src-tauri/Cargo.toml` 全綠
-- **下一步**：手動驗收 BUG-11（`> ipconfig` 後實體 ESC）與 FEAT-3~5；驗收通過後合併 feature/feat1-feat2-control-plane → dev → main
+- **進度**：FEAT-6 `/model_download` + `/model_list` 多 Provider 完成；`/tr` 現在可由命令參數預填三欄並零秒延遲自動翻譯；tsc/lint/clippy/test/vite build 全綠
+- **上次完成**：`/tr <src> <dst> <text>` 與 `/tr <text>` 會把參數帶入 TranslationPanel；欄位變更立即送翻譯；舊請求回應會自動忽略，避免覆寫新結果
+- **下一步**：手動驗收 `/tr` 兩種輸入格式與即時翻譯行為，確認在 Claude/Ollama/OpenAI-compatible 三種翻譯 provider 下都正常
 
 ## 已確認的技術選擇
 
@@ -37,16 +37,19 @@
 - Phase 2 規劃（2026-05-02）：tasks 設計完成；Phase 2.A 搜尋框三模式 + Phase 2.B /command Registry；feature/phase2 分支建立
 - Phase 2 全部完成 + BUG-1~5 修正 + Task 1（D槽/WSL 搜尋）+ Phase 3 tasks 拆解（2026-05-03）：merge 進 main
 - 私人文件還原與 BUG-6~9 工作分支建立（2026-05-03）：private docs 因 git merge 誤刪後從 git 歷史還原，BUG-6~9 加入 tasks.md，feature/bugfix-ux 建立
+- FEAT-2（keynova CLI / control plane）完成；FEAT-3（args_hint）、FEAT-4（terminal CSS display）、FEAT-5（setting keyboard nav）實作完成（2026-05-03~04）
+- feature/feat1-feat2-control-plane → dev/main 合併完成；BUG-11 終端 ESC keydown/keyup 修復完成（2026-05-04）
 
 ## Session 交接紀錄（最近 5 筆）
 
 | 日期 | 完成事項 | 遺留問題 |
 |------|----------|----------|
-| 2026-05-04 | BUG-11 終端執行 `ipconfig` 後 ESC 無反應根因確認：renderer 與輸出 flush 正常，實體 ESC 先進 xterm custom key handler 的 `keyup` 而非 DOM/window `keydown`；`TerminalPanel` 改為 Escape `keydown` / `keyup` 皆退出，保留 `\x1b` / `\x1b[O` 保底，並吞掉 focus-in `\x1b[I`；`npm run build` / `npm run lint` / `cargo check --manifest-path src-tauri/Cargo.toml` 全綠 | 需手動驗收 `> ipconfig` 後按實體 ESC 是否立即退回搜尋模式 |
-| 2026-05-04 | FEAT-3（指令參數提示：CommandMeta args_hint、cmd.suggest_args、hint bar + arg suggestions 下拉）、FEAT-4（終端內容保留：terminalMounted + CSS display、TerminalPanel isActive prop）、FEAT-5（設定鍵盤導航：inputRefs、auto-focus、↑↓←→ + Enter）；tsc/lint/clippy 全綠 | 需手動驗收三個功能 |
-| 2026-05-03 | FEAT-2 完成：`keynova start/down/reload/status` CLI、loopback control plane、config reload snapshot/diff、hotkey re-register、notify watcher、`/reload` `/down`；外部存檔 watcher 自動套用 | 未 push 遠端 |
-| 2026-05-03 | BUG-10 儲存 flash + 生效時機 hint；FEAT-1 /setting key value Minecraft 格式；BuiltinCmdHandler 注入 ConfigManager；tsc/lint/clippy 全綠 | 需手動驗收 BUG-10、FEAT-1 |
-| 2026-05-03 | BUG-6~9 全部實作完成（漸進式 ESC、Tab 補全、config 生效、熱鍵捕捉）；tsc/lint/clippy 全綠 | — |
+| 2026-05-05 | `/tr` UX 強化：`builtin_cmd` 把 args 傳入翻譯面板；TranslationPanel 支援 `src/dst/text` 參數預填、欄位即改即翻、面板重開時可重新套用參數；lint/tsc/cargo check 全綠 | 待手動驗收高頻輸入時的實際流量與 provider 速率限制 |
+| 2026-05-05 | FEAT-6 完成並調整為每工具模型設定：`/model_download` / `/model_list` 支援 AI Chat 與 Translation 分別切換模型；`/ai`、`/tr` 各讀自己的 provider/model；Ollama timeout 加長；RAM/VRAM 改為 PowerShell CIM / `nvidia-smi` / wmic fallback；模型 catalog 背景更新並解析 tag GB/MB；推薦模型依 RAM/VRAM 重排；支援模型 URL/name 輸入；確認 qwen2.5:1.5b、gemma4:e2b `/api/chat` 可回應；lint/tsc/clippy/test/vite build 全綠 | 需手動驗收 UI 內 qwen/gemma/API 在不同工具間互不覆蓋；gemma4:26b 可能仍需更長 timeout 或更多記憶體 |
+| 2026-05-05 | BUG-12/13/14 根因診斷後正確修復：useLayoutEffect 同步 refs（解 stale closure）、ArrowUp 振盪修正、還原內層捲動；tsc/lint 全綠，commit 9b4c168 | 三個 BUG 待手動驗收 |
+| 2026-05-05 | BUG-12（PanelProps.onClose + 各 panel ESC 攔截）、BUG-13（↑返回輸入框）、BUG-14（sticky bar + scrollIntoView）；tsc/lint 全綠，commit c00026f | 三個 BUG 待手動驗收（初版有 ESLint 錯誤，後繼 commit 修正） |
+| 2026-05-04 | tasks.md 壓縮（Phase 1~3 全部壓入摘要表）；建立 BUG-12（ESC）、BUG-13（↑鍵）、BUG-14（sticky 搜尋框）、FEAT-6（Ollama）、FEAT-7（Google Translate）任務 | 新任務尚未實作 |
+| 2026-05-04 | Phase 3.0~3.8 全功能實作完成：/tr /ai /note /cal /history /system + workspace 3槽位；16 Rust tests；lint/tsc/clippy/vite build 全綠 | `npm run tauri build` 包體積 + 手動 regression 待使用者執行；外部編輯器 file watch defer Phase 4 |
 
 ## 2026-05-03 架構邊界與修正定位索引
 
