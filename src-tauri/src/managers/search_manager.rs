@@ -1,4 +1,7 @@
-use std::sync::{Arc, Mutex};
+use std::sync::{
+    atomic::{AtomicU64, Ordering},
+    Arc, Mutex,
+};
 
 use serde::Serialize;
 
@@ -71,6 +74,7 @@ pub struct SearchIndexRebuildStatus {
 pub struct SearchManager {
     app_manager: Arc<Mutex<AppManager>>,
     preference: SearchBackendPreference,
+    active_generation: AtomicU64,
     pub backend: SearchBackend,
 }
 
@@ -84,6 +88,7 @@ impl SearchManager {
         Self {
             app_manager,
             preference,
+            active_generation: AtomicU64::new(0),
             backend,
         }
     }
@@ -156,6 +161,18 @@ impl SearchManager {
                 message: "Search index rebuild is only available on Windows right now".into(),
             }
         }
+    }
+
+    pub fn begin_generation(&self) -> u64 {
+        self.active_generation.fetch_add(1, Ordering::SeqCst) + 1
+    }
+
+    pub fn cancel_generation(&self) -> u64 {
+        self.active_generation.fetch_add(1, Ordering::SeqCst) + 1
+    }
+
+    pub fn is_current_generation(&self, generation: u64) -> bool {
+        self.active_generation.load(Ordering::SeqCst) == generation
     }
 
     pub fn search(&self, query: &str, limit: usize) -> Vec<SearchResult> {
@@ -291,5 +308,16 @@ mod tests {
             SearchBackendPreference::from_config(Some("unknown")),
             SearchBackendPreference::Auto
         );
+    }
+
+    #[test]
+    fn generation_cancels_stale_searches() {
+        let app_manager = Arc::new(Mutex::new(AppManager::new()));
+        let manager = SearchManager::new_with_config(app_manager, Some("app_cache"));
+        let first = manager.begin_generation();
+        assert!(manager.is_current_generation(first));
+        let second = manager.cancel_generation();
+        assert!(!manager.is_current_generation(first));
+        assert!(manager.is_current_generation(second));
     }
 }

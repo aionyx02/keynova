@@ -60,15 +60,33 @@ impl CommandHandler for SearchHandler {
                 let limit = payload["limit"].as_u64().unwrap_or(10) as usize;
                 let started = Instant::now();
                 let session = self.action_arena.start_session();
-                let mgr = self.manager.lock().map_err(|e| e.to_string())?;
-                let backend = mgr.active_backend_name();
-                let base_results = mgr.search(&query, limit);
-                drop(mgr);
+                let (generation, backend, base_results) = {
+                    let mgr = self.manager.lock().map_err(|e| e.to_string())?;
+                    let generation = mgr.begin_generation();
+                    let backend = mgr.active_backend_name();
+                    let base_results = mgr.search(&query, limit);
+                    (generation, backend, base_results)
+                };
                 let mut results = self.base_results_to_ui_items(base_results, &session)?;
+                if !self.is_generation_current(generation)? {
+                    return Ok(json!(Vec::<UiSearchItem>::new()));
+                }
                 self.append_command_results(&query, limit, &session, &mut results)?;
+                if !self.is_generation_current(generation)? {
+                    return Ok(json!(Vec::<UiSearchItem>::new()));
+                }
                 self.append_note_results(&query, limit, &session, &mut results)?;
+                if !self.is_generation_current(generation)? {
+                    return Ok(json!(Vec::<UiSearchItem>::new()));
+                }
                 self.append_history_results(&query, limit, &session, &mut results)?;
+                if !self.is_generation_current(generation)? {
+                    return Ok(json!(Vec::<UiSearchItem>::new()));
+                }
                 self.append_model_results(&query, limit, &session, &mut results)?;
+                if !self.is_generation_current(generation)? {
+                    return Ok(json!(Vec::<UiSearchItem>::new()));
+                }
                 results.sort_by(|left, right| {
                     right
                         .score
@@ -86,6 +104,14 @@ impl CommandHandler for SearchHandler {
                 );
                 Ok(serde_json::to_value(results).map_err(|e| e.to_string())?)
             }
+            "cancel" => {
+                let generation = self
+                    .manager
+                    .lock()
+                    .map_err(|e| e.to_string())?
+                    .cancel_generation();
+                Ok(json!({ "ok": true, "generation": generation }))
+            }
             "backend" => {
                 let mgr = self.manager.lock().map_err(|e| e.to_string())?;
                 Ok(serde_json::to_value(mgr.backend_info()).map_err(|e| e.to_string())?)
@@ -100,6 +126,14 @@ impl CommandHandler for SearchHandler {
 }
 
 impl SearchHandler {
+    fn is_generation_current(&self, generation: u64) -> Result<bool, String> {
+        Ok(self
+            .manager
+            .lock()
+            .map_err(|e| e.to_string())?
+            .is_current_generation(generation))
+    }
+
     fn base_results_to_ui_items(
         &self,
         results: Vec<SearchResult>,
