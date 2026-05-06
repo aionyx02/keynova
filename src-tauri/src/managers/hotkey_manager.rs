@@ -15,19 +15,22 @@ impl HotkeyManager {
 
     /// 檢查快捷鍵是否與現有設定衝突。
     pub fn check_conflict(&self, config: &HotkeyConfig) -> Option<ConflictInfo> {
-        self.registered.values().find(|existing| {
-            existing.id != config.id
-                && existing.key == config.key
-                && existing.modifiers == config.modifiers
-        }).map(|existing| ConflictInfo {
-            conflicting_id: existing.id.clone(),
-            description: format!(
-                "'{}+{}' is already bound to '{}'",
-                existing.modifiers.join("+"),
-                existing.key,
-                existing.action
-            ),
-        })
+        self.registered
+            .values()
+            .find(|existing| {
+                existing.id != config.id
+                    && existing.key == config.key
+                    && existing.modifiers == config.modifiers
+            })
+            .map(|existing| ConflictInfo {
+                conflicting_id: existing.id.clone(),
+                description: format!(
+                    "'{}+{}' is already bound to '{}'",
+                    existing.modifiers.join("+"),
+                    existing.key,
+                    existing.action
+                ),
+            })
     }
 
     pub fn list_hotkeys(&self) -> Vec<HotkeyConfig> {

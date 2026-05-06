@@ -40,13 +40,17 @@ impl CommandHandler for SystemControlHandler {
                 let level = payload
                     .get("level")
                     .and_then(Value::as_f64)
-                    .ok_or_else(|| "missing 'level' (0.0–1.0)".to_string())? as f32;
+                    .ok_or_else(|| "missing 'level' (0.0–1.0)".to_string())?
+                    as f32;
                 let mgr = self.manager.lock().map_err(|e| e.to_string())?;
                 mgr.set_volume(level)?;
                 Ok(json!({ "ok": true, "level": level }))
             }
             "volume.mute" => {
-                let muted = payload.get("muted").and_then(Value::as_bool).unwrap_or(true);
+                let muted = payload
+                    .get("muted")
+                    .and_then(Value::as_bool)
+                    .unwrap_or(true);
                 let mgr = self.manager.lock().map_err(|e| e.to_string())?;
                 mgr.set_mute(muted)?;
                 Ok(json!({ "ok": true, "muted": muted }))
@@ -60,7 +64,8 @@ impl CommandHandler for SystemControlHandler {
                 let level = payload
                     .get("level")
                     .and_then(Value::as_u64)
-                    .ok_or_else(|| "missing 'level' (0–100)".to_string())? as u32;
+                    .ok_or_else(|| "missing 'level' (0–100)".to_string())?
+                    as u32;
                 let mgr = self.manager.lock().map_err(|e| e.to_string())?;
                 mgr.set_brightness(level)?;
                 Ok(json!({ "ok": true, "level": level }))

@@ -1,55 +1,17 @@
 use std::sync::Arc;
 
-use serde::Deserialize;
+use serde_json::Value;
 
 use crate::core::AppEvent;
-use crate::managers::ai_manager::AiProvider;
-
-#[derive(Deserialize)]
-struct ClaudeResponse {
-    content: Vec<ClaudeContent>,
-}
-
-#[derive(Deserialize)]
-struct ClaudeContent {
-    text: String,
-}
-
-#[derive(Deserialize)]
-struct OllamaChatResponse {
-    message: OllamaMessage,
-}
-
-#[derive(Deserialize)]
-struct OllamaMessage {
-    content: String,
-}
-
-#[derive(Deserialize)]
-struct OpenAiResponse {
-    choices: Vec<OpenAiChoice>,
-}
-
-#[derive(Deserialize)]
-struct OpenAiChoice {
-    message: OpenAiMessage,
-}
-
-#[derive(Deserialize)]
-struct OpenAiMessage {
-    content: Option<String>,
-}
 
 pub struct TranslateRequest {
     pub request_id: String,
     pub src_lang: String,
     pub dst_lang: String,
     pub text: String,
-    pub provider: AiProvider,
     pub timeout_secs: u64,
 }
 
-/// 翻譯管理器：依 translation.* 設定選擇 Claude/Ollama/OpenAI provider。
 pub struct TranslationManager {
     publish_event: Arc<dyn Fn(AppEvent) + Send + Sync>,
 }
@@ -59,17 +21,11 @@ impl TranslationManager {
         Self { publish_event }
     }
 
-    /// 非同步翻譯：立即回傳，結果透過 translation.result 事件推送。
     pub fn translate_async(&self, req: TranslateRequest) {
         let publish = Arc::clone(&self.publish_event);
         std::thread::spawn(move || {
-            let result = do_translate(
-                &req.provider,
-                &req.src_lang,
-                &req.dst_lang,
-                &req.text,
-                req.timeout_secs,
-            );
+            let result =
+                translate_google_free(&req.src_lang, &req.dst_lang, &req.text, req.timeout_secs);
             let payload = match result {
                 Ok(translated) => serde_json::json!({
                     "request_id": req.request_id,
@@ -89,172 +45,48 @@ impl TranslationManager {
     }
 }
 
-fn do_translate(
-    provider: &AiProvider,
-    src: &str,
-    dst: &str,
-    text: &str,
-    timeout_secs: u64,
-) -> Result<String, String> {
-    match provider {
-        AiProvider::Claude { api_key, model } => {
-            translate_claude(api_key, model, src, dst, text, timeout_secs)
-        }
-        AiProvider::Ollama { base_url, model } => {
-            translate_ollama(base_url, model, src, dst, text, timeout_secs)
-        }
-        AiProvider::OpenAI {
-            api_key,
-            base_url,
-            model,
-        } => translate_openai(api_key, base_url, model, src, dst, text, timeout_secs),
-    }
-}
-
-fn translate_claude(
-    api_key: &str,
-    model: &str,
-    src: &str,
-    dst: &str,
-    text: &str,
-    timeout_secs: u64,
-) -> Result<String, String> {
-    if api_key.trim().is_empty() {
-        return Err("AI API key not configured. Set ai.api_key in /setting.".into());
-    }
-
-    let client = build_client(timeout_secs)?;
-    let body = serde_json::json!({
-        "model": model,
-        "max_tokens": 2048,
-        "messages": [{ "role": "user", "content": translation_prompt(src, dst, text) }]
-    });
-
-    let response = client
-        .post("https://api.anthropic.com/v1/messages")
-        .header("x-api-key", api_key)
-        .header("anthropic-version", "2023-06-01")
-        .header("content-type", "application/json")
-        .json(&body)
-        .send()
-        .map_err(|e| format!("request failed: {e}"))?;
-
-    if !response.status().is_success() {
-        let status = response.status();
-        let body_text = response.text().unwrap_or_default();
-        return Err(format!("API error {status}: {body_text}"));
-    }
-
-    let resp: ClaudeResponse = response.json().map_err(|e| e.to_string())?;
-    resp.content
-        .into_iter()
-        .next()
-        .map(|c| c.text.trim().to_string())
-        .ok_or_else(|| "empty response from API".into())
-}
-
-fn translate_ollama(
-    base_url: &str,
-    model: &str,
+fn translate_google_free(
     src: &str,
     dst: &str,
     text: &str,
     timeout_secs: u64,
 ) -> Result<String, String> {
     let client = build_client(timeout_secs)?;
-    let body = serde_json::json!({
-        "model": model,
-        "stream": false,
-        "messages": [
-            {
-                "role": "system",
-                "content": "You are a translator. Output only the translation, no explanations or notes."
-            },
-            { "role": "user", "content": translation_prompt(src, dst, text) }
-        ]
-    });
-
     let response = client
-        .post(format!("{}/api/chat", normalize_base_url(base_url)))
-        .header("content-type", "application/json")
-        .json(&body)
+        .get("https://translate.googleapis.com/translate_a/single")
+        .query(&[
+            ("client", "gtx"),
+            ("sl", if src.trim().is_empty() { "auto" } else { src }),
+            ("tl", dst),
+            ("dt", "t"),
+            ("ie", "UTF-8"),
+            ("oe", "UTF-8"),
+            ("q", text),
+        ])
+        .header("accept", "application/json")
+        .header("user-agent", "Mozilla/5.0 (Keynova)")
         .send()
-        .map_err(|e| format!("Ollama request failed: {e}. For large local models, increase ai.ollama_timeout_secs."))?;
+        .map_err(|e| format!("GoogleFree request failed: {e}"))?;
 
-    if !response.status().is_success() {
-        let status = response.status();
-        let body_text = response.text().unwrap_or_default();
-        return Err(format!("Ollama error {status}: {body_text}"));
+    let status = response.status();
+    let body_text = response
+        .text()
+        .map_err(|e| format!("GoogleFree response read failed: {e}"))?;
+
+    if is_google_rate_limited(status, &body_text) {
+        return Err("GoogleFree rate limit reached. Please retry later.".into());
     }
 
-    let resp: OllamaChatResponse = response.json().map_err(|e| e.to_string())?;
-    let text = resp.message.content.trim().to_string();
-    if text.is_empty() {
-        Err("empty response from Ollama".into())
-    } else {
-        Ok(text)
-    }
-}
-
-fn translate_openai(
-    api_key: &str,
-    base_url: &str,
-    model: &str,
-    src: &str,
-    dst: &str,
-    text: &str,
-    timeout_secs: u64,
-) -> Result<String, String> {
-    if api_key.trim().is_empty() {
-        return Err("OpenAI-compatible API key not configured.".into());
+    if !status.is_success() {
+        return Err(format!(
+            "GoogleFree API error {status}: {}",
+            compact_error_body(&body_text)
+        ));
     }
 
-    let client = build_client(timeout_secs)?;
-    let body = serde_json::json!({
-        "model": model,
-        "max_tokens": 2048,
-        "messages": [
-            {
-                "role": "system",
-                "content": "You are a translator. Output only the translation, no explanations or notes."
-            },
-            { "role": "user", "content": translation_prompt(src, dst, text) }
-        ]
-    });
-
-    let response = client
-        .post(format!("{}/chat/completions", normalize_base_url(base_url)))
-        .bearer_auth(api_key)
-        .header("content-type", "application/json")
-        .json(&body)
-        .send()
-        .map_err(|e| format!("request failed: {e}"))?;
-
-    if !response.status().is_success() {
-        let status = response.status();
-        let body_text = response.text().unwrap_or_default();
-        return Err(format!("OpenAI-compatible API error {status}: {body_text}"));
-    }
-
-    let resp: OpenAiResponse = response.json().map_err(|e| e.to_string())?;
-    resp.choices
-        .into_iter()
-        .find_map(|choice| choice.message.content)
-        .map(|text| text.trim().to_string())
-        .filter(|text| !text.is_empty())
-        .ok_or_else(|| "empty response from OpenAI-compatible API".into())
-}
-
-fn translation_prompt(src: &str, dst: &str, text: &str) -> String {
-    let src_desc = if src == "auto" {
-        "the source language (auto-detect)".to_string()
-    } else {
-        src.to_string()
-    };
-    format!(
-        "Translate the following text from {src_desc} to {dst}. \
-         Output ONLY the translated text, no explanations or notes.\n\n{text}"
-    )
+    let value: Value = serde_json::from_str(&body_text)
+        .map_err(|e| format!("GoogleFree response parsing failed: {e}"))?;
+    extract_google_free_translation(&value)
 }
 
 fn build_client(timeout_secs: u64) -> Result<reqwest::blocking::Client, String> {
@@ -264,11 +96,98 @@ fn build_client(timeout_secs: u64) -> Result<reqwest::blocking::Client, String> 
         .map_err(|e| e.to_string())
 }
 
-fn normalize_base_url(base_url: &str) -> String {
-    let trimmed = base_url.trim();
-    if trimmed.is_empty() {
-        "http://localhost:11434".to_string()
+fn extract_google_free_translation(value: &Value) -> Result<String, String> {
+    let Some(segments) = value
+        .as_array()
+        .and_then(|items| items.first())
+        .and_then(Value::as_array)
+    else {
+        return Err("GoogleFree returned an unexpected response format.".into());
+    };
+
+    let mut translated = String::new();
+    for segment in segments {
+        let Some(piece) = segment
+            .as_array()
+            .and_then(|items| items.first())
+            .and_then(Value::as_str)
+        else {
+            continue;
+        };
+        translated.push_str(piece);
+    }
+
+    let translated = translated.trim().to_string();
+    if translated.is_empty() {
+        Err("GoogleFree returned an empty translation.".into())
     } else {
-        trimmed.trim_end_matches('/').to_string()
+        Ok(translated)
+    }
+}
+
+fn is_google_rate_limited(status: reqwest::StatusCode, body: &str) -> bool {
+    let body = body.to_ascii_lowercase();
+    status == reqwest::StatusCode::TOO_MANY_REQUESTS
+        || body.contains("rate limit")
+        || body.contains("too many requests")
+        || body.contains("quota exceeded")
+        || body.contains("daily limit exceeded")
+        || body.contains("user rate limit exceeded")
+}
+
+fn compact_error_body(body: &str) -> String {
+    let compact = body
+        .split_whitespace()
+        .take(24)
+        .collect::<Vec<_>>()
+        .join(" ");
+    if compact.is_empty() {
+        "empty response body".into()
+    } else {
+        compact
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn extracts_google_free_translation_from_nested_response() {
+        let value = serde_json::json!([
+            [[
+                "hola",
+                "hello",
+                null,
+                null,
+                11,
+                null,
+                null,
+                [[]],
+                [[["84b1db8c3c94d5ff25f228b8bdffe536", "zh_zh-hant_2023q3.md"]]]
+            ]],
+            null,
+            "en",
+            null,
+            null,
+            null,
+            1,
+            [],
+            [["en"], null, [1], ["en"]]
+        ]);
+
+        assert_eq!(extract_google_free_translation(&value).unwrap(), "hola");
+    }
+
+    #[test]
+    fn detects_google_free_rate_limit_messages() {
+        assert!(is_google_rate_limited(
+            reqwest::StatusCode::TOO_MANY_REQUESTS,
+            ""
+        ));
+        assert!(is_google_rate_limited(
+            reqwest::StatusCode::FORBIDDEN,
+            "Rate Limit Exceeded"
+        ));
     }
 }

@@ -18,7 +18,10 @@ pub struct SearchManager {
 impl SearchManager {
     pub fn new(app_manager: Arc<Mutex<AppManager>>) -> Self {
         let backend = Self::detect_backend();
-        Self { app_manager, backend }
+        Self {
+            app_manager,
+            backend,
+        }
     }
 
     fn detect_backend() -> SearchBackend {
@@ -55,13 +58,15 @@ impl SearchManager {
         // File/folder search via Everything IPC (Windows, if available)
         #[cfg(target_os = "windows")]
         if self.backend == SearchBackend::Everything {
-            let file_results = crate::platform::windows::everything_search(
-                query,
-                (limit / 2) as u32,
-            );
+            let file_results =
+                crate::platform::windows::everything_search(query, (limit / 2) as u32);
             for (name, path, is_folder) in file_results {
                 results.push(SearchResult {
-                    kind: if is_folder { ResultKind::Folder } else { ResultKind::File },
+                    kind: if is_folder {
+                        ResultKind::Folder
+                    } else {
+                        ResultKind::File
+                    },
                     name,
                     path,
                     score: 80,
@@ -74,10 +79,15 @@ impl SearchManager {
         if self.backend == SearchBackend::AppCache {
             let file_slots = limit.saturating_sub(results.len());
             if file_slots > 0 {
-                let file_results = crate::platform::windows::scan_files_from_cache(query, file_slots);
+                let file_results =
+                    crate::platform::windows::scan_files_from_cache(query, file_slots);
                 for (name, path, is_folder) in file_results {
                     results.push(SearchResult {
-                        kind: if is_folder { ResultKind::Folder } else { ResultKind::File },
+                        kind: if is_folder {
+                            ResultKind::Folder
+                        } else {
+                            ResultKind::File
+                        },
                         name,
                         path,
                         score: 70,
