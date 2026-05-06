@@ -26,7 +26,10 @@ impl NoteManager {
             }
         };
         let _ = std::fs::create_dir_all(&dir);
-        Self { storage_dir: dir, extension: "md".into() }
+        Self {
+            storage_dir: dir,
+            extension: "md".into(),
+        }
     }
 
     fn note_path(&self, name: &str) -> PathBuf {
@@ -36,15 +39,13 @@ impl NoteManager {
 
     /// 列出所有筆記的元資料，依修改時間降序。
     pub fn list(&self) -> Vec<NoteMeta> {
-        let Ok(entries) = std::fs::read_dir(&self.storage_dir) else { return vec![]; };
+        let Ok(entries) = std::fs::read_dir(&self.storage_dir) else {
+            return vec![];
+        };
         let ext = format!(".{}", self.extension);
         let mut metas: Vec<NoteMeta> = entries
             .flatten()
-            .filter(|e| {
-                e.file_name()
-                    .to_str()
-                    .is_some_and(|n| n.ends_with(&ext))
-            })
+            .filter(|e| e.file_name().to_str().is_some_and(|n| n.ends_with(&ext)))
             .filter_map(|e| {
                 let meta = e.metadata().ok()?;
                 let filename = e.file_name().to_str()?.to_string();
@@ -53,16 +54,19 @@ impl NoteManager {
                 let modified = meta
                     .modified()
                     .ok()
-                    .and_then(|t| {
-                        t.duration_since(std::time::UNIX_EPOCH).ok()
-                    })
+                    .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
                     .map(|d| {
                         let secs = d.as_secs();
                         // ISO 8601 approximation (seconds since epoch as string)
                         format!("{secs}")
                     })
                     .unwrap_or_default();
-                Some(NoteMeta { name, filename, size_bytes, modified })
+                Some(NoteMeta {
+                    name,
+                    filename,
+                    size_bytes,
+                    modified,
+                })
             })
             .collect();
         metas.sort_by(|a, b| b.modified.cmp(&a.modified));
@@ -118,7 +122,13 @@ impl NoteManager {
 
 fn sanitize_name(name: &str) -> String {
     name.chars()
-        .map(|c| if c.is_alphanumeric() || c == '-' || c == '_' || c == ' ' { c } else { '_' })
+        .map(|c| {
+            if c.is_alphanumeric() || c == '-' || c == '_' || c == ' ' {
+                c
+            } else {
+                '_'
+            }
+        })
         .collect::<String>()
         .trim()
         .replace(' ', "_")

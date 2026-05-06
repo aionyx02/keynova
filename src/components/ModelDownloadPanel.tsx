@@ -47,12 +47,7 @@ interface LocalOption extends ModelCandidate {
 }
 
 type DownloadOption = LocalOption | ApiOption;
-type AiTool = "ai" | "translation";
-
-const TOOL_OPTIONS: Array<{ id: AiTool; label: string }> = [
-  { id: "ai", label: "AI Chat" },
-  { id: "translation", label: "Translation" },
-];
+const AI_TOOL_LABEL = "AI Chat";
 
 async function ipcDispatch<T>(route: string, payload?: Record<string, unknown>): Promise<T> {
   return invoke<T>("cmd_dispatch", { route, payload: payload ?? null });
@@ -104,7 +99,6 @@ function mergeCatalog(current: ModelCandidate[], incoming: ModelCandidate[]) {
 }
 
 export function ModelDownloadPanel({ onClose }: PanelProps) {
-  const [selectedTool, setSelectedTool] = useState<AiTool>("ai");
   const [hardware, setHardware] = useState<HardwareInfo | null>(null);
   const [candidates, setCandidates] = useState<ModelCandidate[]>([]);
   const [selected, setSelected] = useState(0);
@@ -153,20 +147,20 @@ export function ModelDownloadPanel({ onClose }: PanelProps) {
       setCandidates((current) => mergeCatalog(current, event.payload.models));
     });
     const unlistenProgress = listen<ModelEventPayload>("model-pull-progress", (event) => {
-      if (event.payload.tool && event.payload.tool !== selectedTool) return;
+      if (event.payload.tool && event.payload.tool !== "ai") return;
       setProgress(event.payload);
       setNotice(`${event.payload.name} ${progressText(event.payload)}`);
     });
     const unlistenDone = listen<ModelEventPayload>("model-pull-done", (event) => {
-      if (event.payload.tool && event.payload.tool !== selectedTool) return;
+      if (event.payload.tool && event.payload.tool !== "ai") return;
       setDownloading(null);
       setPendingDownload(null);
       setProgress(null);
       setError("");
-      setNotice(`✓ 已為 ${TOOL_OPTIONS.find((tool) => tool.id === selectedTool)?.label} 啟用 ${event.payload.name}`);
+      setNotice(`✓ 已為 ${AI_TOOL_LABEL} 啟用 ${event.payload.name}`);
     });
     const unlistenError = listen<ModelEventPayload>("model-pull-error", (event) => {
-      if (event.payload.tool && event.payload.tool !== selectedTool) return;
+      if (event.payload.tool && event.payload.tool !== "ai") return;
       setDownloading(null);
       setProgress(null);
       setError(event.payload.error ?? "模型下載失敗");
@@ -177,7 +171,7 @@ export function ModelDownloadPanel({ onClose }: PanelProps) {
       unlistenDone.then((fn) => fn());
       unlistenError.then((fn) => fn());
     };
-  }, [selectedTool]);
+  }, []);
 
   useEffect(() => {
     apiInputRef.current?.focus();
@@ -188,20 +182,20 @@ export function ModelDownloadPanel({ onClose }: PanelProps) {
     if (pendingDownload === name) {
       setDownloading(name);
       setNotice(`開始下載 ${name}`);
-      await ipcDispatch("model.pull", { name, tool: selectedTool });
+      await ipcDispatch("model.pull", { name, tool: "ai" });
       return;
     }
 
     const check = await ipcDispatch<CheckResponse>("model.check", { name });
     if (check.exists) {
-      await ipcDispatch("model.set_active", { provider: "ollama", model: name, tool: selectedTool });
-      setNotice(`✓ 已為 ${TOOL_OPTIONS.find((tool) => tool.id === selectedTool)?.label} 啟用 ${name}`);
+      await ipcDispatch("model.set_active", { provider: "ollama", model: name, tool: "ai" });
+      setNotice(`✓ 已為 ${AI_TOOL_LABEL} 啟用 ${name}`);
       return;
     }
 
     setPendingDownload(name);
     setNotice(`${name} 尚未下載，再按 Enter 開始下載`);
-  }, [pendingDownload, selectedTool]);
+  }, [pendingDownload]);
 
   const activateApi = useCallback(async () => {
     if (!apiPrompt || !apiKey.trim()) return;
@@ -210,12 +204,12 @@ export function ModelDownloadPanel({ onClose }: PanelProps) {
       provider: apiPrompt.provider,
       model: apiPrompt.model,
       api_key: apiKey.trim(),
-      tool: selectedTool,
+      tool: "ai",
     });
     setApiPrompt(null);
     setApiKey("");
-    setNotice(`✓ 已為 ${TOOL_OPTIONS.find((tool) => tool.id === selectedTool)?.label} 啟用 ${apiPrompt.label}`);
-  }, [apiKey, apiPrompt, selectedTool]);
+    setNotice(`✓ 已為 ${AI_TOOL_LABEL} 啟用 ${apiPrompt.label}`);
+  }, [apiKey, apiPrompt]);
 
   async function activateOption(option: DownloadOption | undefined) {
     if (!option || downloading) return;
@@ -265,27 +259,6 @@ export function ModelDownloadPanel({ onClose }: PanelProps) {
       <div className="flex items-center justify-between border-b border-gray-700/50 px-4 py-2">
         <span className="text-xs font-semibold uppercase tracking-wide text-blue-400">Model Download</span>
         <div className="flex items-center gap-2">
-          <div className="flex rounded bg-gray-800/70 p-0.5">
-            {TOOL_OPTIONS.map((tool) => (
-              <button
-                key={tool.id}
-                type="button"
-                onClick={() => {
-                  setSelectedTool(tool.id);
-                  setPendingDownload(null);
-                  setDownloading(null);
-                  setProgress(null);
-                  setNotice("");
-                  setError("");
-                }}
-                className={`rounded px-2 py-0.5 text-[11px] transition-colors ${
-                  selectedTool === tool.id ? "bg-blue-600/70 text-white" : "text-gray-500 hover:text-gray-300"
-                }`}
-              >
-                {tool.label}
-              </button>
-            ))}
-          </div>
           <div className="flex gap-2 text-[11px] text-gray-500">
           <span>RAM {formatMb(hardware?.ram_mb ?? 0)}</span>
           <span>VRAM {formatMb(hardware?.vram_mb ?? 0)}</span>

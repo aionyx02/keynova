@@ -27,7 +27,8 @@ impl CommandHandler for WorkspaceHandler {
                 let slot = payload
                     .get("slot")
                     .and_then(Value::as_u64)
-                    .ok_or_else(|| "missing 'slot'".to_string())? as usize;
+                    .ok_or_else(|| "missing 'slot'".to_string())?
+                    as usize;
                 let mut mgr = self.manager.lock().map_err(|e| e.to_string())?;
                 let state = mgr.switch_to(slot)?;
                 Ok(json!(state))

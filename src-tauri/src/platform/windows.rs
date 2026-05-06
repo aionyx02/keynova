@@ -4,10 +4,10 @@ use crate::models::app::AppInfo;
 use std::path::Path;
 use std::sync::{Arc, Mutex, OnceLock};
 use windows::Win32::UI::Input::KeyboardAndMouse::{
-    SendInput, INPUT, INPUT_0, INPUT_MOUSE, INPUT_KEYBOARD,
-    MOUSEEVENTF_MOVE, MOUSEEVENTF_ABSOLUTE, MOUSEEVENTF_LEFTDOWN, MOUSEEVENTF_LEFTUP,
-    MOUSEEVENTF_RIGHTDOWN, MOUSEEVENTF_RIGHTUP, MOUSEEVENTF_MIDDLEDOWN, MOUSEEVENTF_MIDDLEUP,
-    MOUSEINPUT, KEYBDINPUT, KEYEVENTF_KEYUP, VK_RETURN, VK_SPACE,
+    SendInput, INPUT, INPUT_0, INPUT_KEYBOARD, INPUT_MOUSE, KEYBDINPUT, KEYEVENTF_KEYUP,
+    MOUSEEVENTF_ABSOLUTE, MOUSEEVENTF_LEFTDOWN, MOUSEEVENTF_LEFTUP, MOUSEEVENTF_MIDDLEDOWN,
+    MOUSEEVENTF_MIDDLEUP, MOUSEEVENTF_MOVE, MOUSEEVENTF_RIGHTDOWN, MOUSEEVENTF_RIGHTUP, MOUSEINPUT,
+    VK_RETURN, VK_SPACE,
 };
 
 // ─── App Scanner ────────────────────────────────────────────────────────────
@@ -221,11 +221,25 @@ fn screen_height() -> i32 {
 
 /// 已知噪音目錄：掃描時略過，避免 AppData / node_modules / build 產物拖慢速度。
 const SKIP_DIRS: &[&str] = &[
-    "AppData", "node_modules", ".git", ".cargo", ".rustup", ".npm",
-    "target", "dist", ".idea", ".vscode",
-    "System Volume Information", "$Recycle.Bin", "$WinREAgent",
-    "Windows", "Program Files", "Program Files (x86)",
-    "ProgramData", "Recovery", "boot",
+    "AppData",
+    "node_modules",
+    ".git",
+    ".cargo",
+    ".rustup",
+    ".npm",
+    "target",
+    "dist",
+    ".idea",
+    ".vscode",
+    "System Volume Information",
+    "$Recycle.Bin",
+    "$WinREAgent",
+    "Windows",
+    "Program Files",
+    "Program Files (x86)",
+    "ProgramData",
+    "Recovery",
+    "boot",
 ];
 
 // ─── In-memory file index cache ─────────────────────────────────────────────
@@ -284,20 +298,30 @@ fn collect_all(dir: &Path, out: &mut Vec<FileEntry>, depth: usize) {
         if is_dir && SKIP_DIRS.iter().any(|s| name.eq_ignore_ascii_case(s)) {
             continue;
         }
-        out.push((name.to_string(), path.to_string_lossy().into_owned(), is_dir));
+        out.push((
+            name.to_string(),
+            path.to_string_lossy().into_owned(),
+            is_dir,
+        ));
         if is_dir {
             collect_all(&path, out, depth - 1);
         }
     }
 }
 
-
 /// 回傳 (目錄路徑, 最大掃描深度) 清單。
 fn user_search_dirs() -> Vec<(std::path::PathBuf, usize)> {
     let mut dirs = Vec::new();
     if let Ok(home) = std::env::var("USERPROFILE") {
         let home = std::path::PathBuf::from(home);
-        for sub in &["Desktop", "Downloads", "Documents", "Pictures", "Music", "Videos"] {
+        for sub in &[
+            "Desktop",
+            "Downloads",
+            "Documents",
+            "Pictures",
+            "Music",
+            "Videos",
+        ] {
             let p = home.join(sub);
             if p.exists() {
                 dirs.push((p, 3));
@@ -352,7 +376,8 @@ fn wsl_distro_names() -> Vec<String> {
     {
         if out.status.success() && !out.stdout.is_empty() {
             // wsl.exe 輸出 UTF-16 LE，含 BOM
-            let words: Vec<u16> = out.stdout
+            let words: Vec<u16> = out
+                .stdout
                 .chunks_exact(2)
                 .map(|c| u16::from_le_bytes([c[0], c[1]]))
                 .collect();
@@ -369,8 +394,12 @@ fn wsl_distro_names() -> Vec<String> {
     }
     // 無 WSL 或解析失敗時的備用清單
     vec![
-        "Ubuntu".into(), "Ubuntu-22.04".into(), "Ubuntu-24.04".into(),
-        "Ubuntu-20.04".into(), "Debian".into(), "kali-linux".into(),
+        "Ubuntu".into(),
+        "Ubuntu-22.04".into(),
+        "Ubuntu-24.04".into(),
+        "Ubuntu-20.04".into(),
+        "Debian".into(),
+        "kali-linux".into(),
     ]
 }
 
@@ -402,8 +431,8 @@ static EV_FNS: std::sync::OnceLock<Option<EvFns>> = std::sync::OnceLock::new();
 static EV_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
 
 fn init_everything() -> Option<EvFns> {
-    use windows::Win32::System::LibraryLoader::LoadLibraryW;
     use windows::core::PCWSTR;
+    use windows::Win32::System::LibraryLoader::LoadLibraryW;
 
     let dll_paths: &[&str] = &[
         "Everything64.dll",
@@ -424,8 +453,8 @@ fn init_everything() -> Option<EvFns> {
 }
 
 fn load_ev_fns(hlib: windows::Win32::Foundation::HMODULE) -> Option<EvFns> {
-    use windows::Win32::System::LibraryLoader::GetProcAddress;
     use windows::core::PCSTR;
+    use windows::Win32::System::LibraryLoader::GetProcAddress;
 
     unsafe fn gp<F: Copy>(hlib: windows::Win32::Foundation::HMODULE, name: &[u8]) -> Option<F> {
         let raw = GetProcAddress(hlib, PCSTR(name.as_ptr()))?;
