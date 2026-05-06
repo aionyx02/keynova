@@ -1,7 +1,15 @@
+pub mod ai;
 pub mod builtin_cmd;
+pub mod calculator;
+pub mod history;
 pub mod hotkey;
 pub mod launcher;
+pub mod model;
 pub mod mouse;
+pub mod note;
 pub mod search;
 pub mod setting;
+pub mod system_control;
 pub mod terminal;
+pub mod translation;
+pub mod workspace;
