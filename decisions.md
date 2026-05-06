@@ -184,6 +184,20 @@
   - `default_config.toml` 與 settings schema 新增 `[search]` keys
   - `CommandPalette` 顯示 search backend debug badge
 
+## ADR-016 Agent Read-only Tool Runtime
+
+- 狀態：Accepted
+- 決策：`/ai` Agent 第一階段只執行 read-only tools。`agent.tool` 支援 `keynova.search` 與 `web.search`；`agent.start` 只在提示詞需要本機搜尋時帶入 `keynova.search` grounding sources，不執行本機寫入或 shell。`web.search` 第一版只支援 SearXNG JSON provider，預設 disabled。
+- 原因：
+  - 先把 tool boundary、visibility filter、redaction 與 source ViewModel 做實，再做 approval/action phases
+  - `keynova.search` 可安全讀取 workspace summary、command metadata、非敏感 settings schema、model catalog、notes/history 摘要
+  - `web.search` 不抓完整頁面，只回 title/url/snippet，並在送出前拒絕 `private_architecture` / `secret` query term
+- 影響：
+  - `handlers/agent.rs` 注入 config/note/history/workspace/command/model context，新增 `agent.tool`
+  - `default_config.toml` 與 schema 新增 `agent.web_search_provider`、`agent.searxng_url`、`agent.web_search_api_key`、`agent.web_search_timeout_secs`
+  - `AgentRuntime` 新增 `start_with_context`，讓 run output 帶 grounding source 摘要
+  - 搜尋 backend 新增 generation/cancel，前端離開搜尋時呼叫 `search.cancel`，降低 stale provider result 覆蓋新查詢的機率
+
 ## 待補強事項
 
 - Everything IPC 實作目前仍屬規劃，需補官方 SDK 細節與錯誤處理策略

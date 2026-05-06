@@ -216,7 +216,15 @@ impl AppState {
             Arc::clone(&translation_manager),
             Arc::clone(&config_manager),
         )));
-        command_router.register(Arc::new(AgentHandler::new(Arc::clone(&agent_runtime))));
+        command_router.register(Arc::new(AgentHandler::new(
+            Arc::clone(&agent_runtime),
+            Arc::clone(&config_manager),
+            Arc::clone(&note_manager),
+            Arc::clone(&history_manager),
+            Arc::clone(&workspace_manager),
+            Arc::clone(&builtin_registry),
+            Arc::clone(&model_manager),
+        )));
         command_router.register(Arc::new(AutomationHandler));
         command_router.register(Arc::new(PluginHandler));
 

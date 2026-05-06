@@ -78,19 +78,41 @@ impl AgentRuntime {
     }
 
     pub fn start(&self, prompt: String) -> Result<AgentRun, String> {
+        self.start_with_context(prompt, Vec::new(), Vec::new())
+    }
+
+    pub fn start_with_context(
+        &self,
+        prompt: String,
+        mut sources: Vec<GroundingSource>,
+        tool_calls: Vec<AgentToolCall>,
+    ) -> Result<AgentRun, String> {
         let run_id = Uuid::new_v4().to_string();
         let plan = plan_for_prompt(&prompt);
-        let sources = vec![GroundingSource {
-            source_id: "workspace:current".into(),
-            source_type: "workspace".into(),
-            title: "Current workspace".into(),
-            snippet: "Workspace summary only; private architecture and secrets are withheld."
-                .into(),
-            uri: None,
-            score: 1.0,
-            visibility: ContextVisibility::PublicContext,
-            redacted_reason: None,
-        }];
+        if sources.is_empty() {
+            sources.push(GroundingSource {
+                source_id: "workspace:current".into(),
+                source_type: "workspace".into(),
+                title: "Current workspace".into(),
+                snippet: "Workspace summary only; private architecture and secrets are withheld."
+                    .into(),
+                uri: None,
+                score: 1.0,
+                visibility: ContextVisibility::PublicContext,
+                redacted_reason: None,
+            });
+        }
+        let source_summary = sources
+            .iter()
+            .take(5)
+            .map(|source| {
+                format!(
+                    "- [{}] {}: {}",
+                    source.source_type, source.title, source.snippet
+                )
+            })
+            .collect::<Vec<_>>()
+            .join("\n");
         let run = AgentRun {
             id: run_id.clone(),
             prompt,
@@ -100,17 +122,18 @@ impl AgentRuntime {
                 id: format!("{run_id}:plan"),
                 title: "Prepare safe plan".into(),
                 status: "completed".into(),
-                tool_calls: Vec::<AgentToolCall>::new(),
+                tool_calls,
             }],
             approvals: Vec::new(),
             memory_refs: Vec::new(),
             sources,
             output: Some(format!(
-                "Plan prepared. No local actions were executed.\n{}",
+                "Plan prepared. No local actions were executed.\n{}\n\nSources considered:\n{}",
                 plan.iter()
                     .map(|step| format!("- {step}"))
                     .collect::<Vec<_>>()
-                    .join("\n")
+                    .join("\n"),
+                source_summary
             )),
             error: None,
         };

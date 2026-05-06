@@ -357,6 +357,7 @@ export function CommandPalette() {
       setResults([]);
       setSelected(0);
       if (debounceRef.current) clearTimeout(debounceRef.current);
+      void dispatch("search.cancel").catch(() => {});
       return;
     }
     if (debounceRef.current) clearTimeout(debounceRef.current);

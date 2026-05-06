@@ -5,9 +5,9 @@
 
 ## 當前狀態
 
-- **進度**：Phase 4 第一輪核心 foundation 已完成；lazy panel 首次開啟視窗高度同步已修正；Phase 2 搜尋 backend debug/config/rebuild/test 補齊；Knowledge Store batch writes + shutdown flush 已補上；Plugin loader 已可讀取/驗證本機 manifest。
-- **上次完成**：補齊 Phase 2 搜尋後端任務、Knowledge Store 小項與 Plugin loader：`search.backend` structured debug info、搜尋框 backend badge、`/rebuild_search_index` 背景重建 file cache、`[search]` config/schema、`test_backend_selection_*`，action/clipboard batch insert、shutdown 前 flush，以及 plugin.toml/json loader。
-- **下一步**：補 Phase 4 尚未完成的重型 runtime：`lib.rs` 拆成 `app/*`、search chunk streaming/cancellation token、Tantivy provider、Agent 真實 `web.search`/`keynova.search` tool、WASM loader/hot reload。
+- **進度**：Phase 4 第一輪核心 foundation 已完成；lazy panel 首次開啟視窗高度同步已修正；Phase 2 搜尋 backend debug/config/rebuild/test 補齊；Knowledge Store batch writes + shutdown flush 已補上；Plugin loader 已可讀取/驗證本機 manifest；Agent read-only tools 已可執行 `keynova.search` / SearXNG `web.search`。
+- **上次完成**：補齊 Agent read-only tool runtime 與搜尋 cancellation：`agent.tool` 可呼叫 `keynova.search` / `web.search`，`agent.start` 會在需要時帶入本機 grounding sources；`keynova.search` 搜尋 workspace、command、settings schema、model、notes、history 並套用 visibility filter；`web.search` 支援 SearXNG 且拒絕 private architecture / secret query；`search.cancel` 與 backend generation check 可丟棄 stale provider results。
+- **下一步**：補 Phase 4 尚未完成的重型 runtime：`lib.rs` 拆成 `app/*`、search chunk streaming、Tantivy provider、Agent approval/audit/memory、WASM runtime/hot reload。
 
 ## 已確認的技術選擇
 
@@ -47,12 +47,12 @@
 | 日期 | 完成事項 | 遺留問題 |
 |------|----------|----------|
 | 2026-05-06 | Phase 2 搜尋、Knowledge Store、Plugin loader 補齊：backend preference/active 選擇可測試、`search.backend` structured debug info、搜尋框 backend badge、`/rebuild_search_index` 背景重建 file cache、`[search]` config/schema、CSP connect-src 放行、`hotkey.register` 轉 structured `not_implemented`；DB worker 補 action/clipboard batch insert 與 shutdown flush；plugin.toml/json loader 會驗證 permission deny-by-default | Tantivy provider、WASM runtime proof-of-concept 尚未接入；BUG-1/BUG-4 仍建議在真實 DevTools/視窗手動確認 |
+| 2026-05-06 | Phase 4.4/4.5A：搜尋 backend generation/cancel 可丟棄 stale provider results；AgentHandler 注入 config/note/history/workspace/command/model context；新增 `agent.tool`，實作 `keynova.search` 與 SearXNG `web.search`；新增 private architecture/secret web-query redaction tests | `web.search` 預設 disabled，需設定 `agent.web_search_provider=searxng` 與 `agent.searxng_url`；尚未做 Agent approval/action phases 與 audit 寫入 Knowledge Store |
 | 2026-05-06 | 修正 BUG-15：lazy panel 首次開啟後內容載入完成未觸發 Tauri window resize，導致 UI 裁切、背景殘影與外層 scrollbar；改用 ResizeObserver/MutationObserver 同步高度，並關閉 root/body overflow | 需在真實 Tauri 視窗手動確認 `/cal`、`/ai`、`/history`、`/model_list` 首次開啟皆正常 |
 | 2026-05-06 | Phase 4 foundation：ActionArena/ActionRef、UiSearchItem、action.run、secondary actions、schema-driven settings、Workspace v2、KnowledgeStore DB worker、Agent mode UI/runtime skeleton、Automation/Plugin security model；新增 ai/privacy/plugin/runtime docs；build/lint/test/clippy 全通過 | 尚未完成 `lib.rs` app 模組拆分、search chunk streaming/cancellation token、Tantivy provider、Agent 真實 web/keynova tool、WASM loader/hot reload |
 | 2026-05-06 | 補強 `/ai` Agent 搜尋與隱私規劃：加入 `web.search`、`keynova.search`、GroundingSource、context visibility、architecture denylist、prompt allowlist，確保專案架構可本地索引但不注入 LLM prompt | 尚未實作；需先做 context privacy 文件與 visibility filter，避免外部 LLM 看見 private architecture |
-| 2026-05-06 | 補入 `/ai` Agent Runtime 規劃：新增 Phase 4.5A，定義 Chat/Agent mode、受控 action/tool 邊界、approval gate、workspace/knowledge memory、streaming status event、audit log 與驗收情境 | 尚未實作；需先完成 Action System / Workspace Context / Knowledge Store 基礎，不能直接讓 LLM 呼叫 shell 或寫檔 |
 
-## 2026-05-03 架構邊界與修正定位索引
+## 2026-05-06 架構邊界與修正定位索引
 
 目的：未來修正時，直接定位「單一模組/檔案」即可，不需掃描全域程式碼。
 
@@ -62,43 +62,43 @@
    - `/src/main.tsx`：前端入口，掛載 `<App />`
    - `/src/App.tsx`：根組件，目前以 `CommandPalette` 為主畫面
    - `/src/components/CommandPalette.tsx`：主互動面板（搜尋/命令/終端切換、結果選取、視窗焦點行為）
-   - `/src/components/TerminalPanel.tsx`：xterm UI 與 terminal IPC（open/send/resize/close）
+   - `/src/components/panel/PanelRegistry.tsx`：Panel 路由註冊中心，負責 `/ai`, `/tr`, `/cal`, `/setting` 等面板切換
+   - `/src/components/AiPanel.tsx`：AI Chat 與 Agent 互動介面
    - `/src/hooks/useIPC.ts`：統一 IPC 入口，所有前端命令透過 `cmd_dispatch`
-   - `/src/stores/appStore.ts`：全域狀態（query/searchResults/loading）
+   - `/src/stores/appStore.ts`：全域狀態（query/searchResults/loading/activePanel）
 
-2. 後端命令分派層（Tauri + Rust）
-   - `/src-tauri/src/lib.rs`：AppState 建立、handler 註冊、事件橋接、快捷鍵與視窗生命週期
+2. 後端 Core 層（核心基礎設施）
    - `/src-tauri/src/core/command_router.rs`：`namespace.command` 路由分派核心
+   - `/src-tauri/src/core/action_registry.rs`：ActionArena / ActionRef 系統，定義行為與其風險
+   - `/src-tauri/src/core/agent_runtime.rs`：AI Agent 執行環境、Tool 呼叫、Approval Gate
+   - `/src-tauri/src/core/knowledge_store.rs`：本機 SQLite 資料庫，儲存 History/Notes/Clipboard 索引
+   - `/src-tauri/src/core/config_manager.rs`：Schema-driven 配置管理，支援型別安全與 UI 連動
+   - `/src-tauri/src/core/plugin_runtime.rs`：WASM / Local Plugin 載入與權限檢查
    - `/src-tauri/src/core/event_bus.rs`：後端事件匯流排（broadcast）
 
 3. 後端功能 Handler 層（命令入口）
    - `/src-tauri/src/handlers/launcher.rs`：`launcher.*` 命令入口
-   - `/src-tauri/src/handlers/hotkey.rs`：`hotkey.*` 命令入口
-   - `/src-tauri/src/handlers/terminal.rs`：`terminal.*` 命令入口
-   - `/src-tauri/src/handlers/mouse.rs`：`mouse.*` 命令入口
-   - `/src-tauri/src/handlers/search.rs`：`search.*` 命令入口
+   - `/src-tauri/src/handlers/builtin_cmd.rs`：`/ai`, `/tr`, `/cal`, `/setting` 等內建指令註冊
+   - `/src-tauri/src/handlers/ai.rs` / `agent.rs`：AI 對話與 Agent 控制命令
+   - `/src-tauri/src/handlers/model.rs`：模型切換、下載管理
+   - `/src-tauri/src/handlers/search.rs`：`search.*` 搜尋引擎入口
+   - `/src-tauri/src/handlers/note.rs` / `workspace.rs`：筆記與工作空間管理
 
 4. 後端 Manager 層（業務邏輯）
    - `/src-tauri/src/managers/app_manager.rs`：App 掃描、快取、模糊搜尋、啟動
-   - `/src-tauri/src/managers/hotkey_manager.rs`：熱鍵註冊資料與衝突檢查
+   - `/src-tauri/src/managers/model_manager.rs`：Ollama 模型生命週期與硬體推薦
    - `/src-tauri/src/managers/terminal_manager.rs`：PTY session 管理與 pre-warm
-   - `/src-tauri/src/managers/mouse_manager.rs`：滑鼠/鍵盤模擬行為封裝
-   - `/src-tauri/src/managers/search_manager.rs`：App + File/Folder 搜尋聚合（Everything / fallback）
+   - `/src-tauri/src/managers/workspace_manager.rs`：Workspace 槽位切換與 context 管理
+   - `/src-tauri/src/managers/search_manager.rs`：App + File/Folder 搜尋聚合（Everything / Tantivy）
 
 5. 平台實作層（Platform）
-   - `/src-tauri/src/platform/windows.rs`：Windows 實作（App 掃描、輸入模擬、Everything IPC、檔案 cache 索引）
-   - `/src-tauri/src/platform/linux.rs`：Linux 預留（尚未完整實作）
-   - `/src-tauri/src/platform/macos.rs`：macOS 預留（尚未完整實作）
-
-6. 設定與權限邊界
-   - `/src-tauri/tauri.conf.json`：視窗行為、dev/build 路徑、bundle、CSP
-   - `/src-tauri/capabilities/default.json`：Tauri API 權限白名單
+   - `/src-tauri/src/platform/windows.rs`：Windows 實作（Everything IPC、輸入模擬、檔案索引）
 
 ### B. 快速搜尋關鍵字
 
-- `terminal-output`：終端事件回推
+- `ActionRef` / `UiSearchItem`：搜尋結果與行為的橋接
+- `knowledge_store` / `DB worker`：資料庫非同步讀寫
+- `agent.start` / `approval`：Agent 生命週期與安全閘口
+- `CommandUiType::Panel`：觸發前端特定面板顯示
 - `cmd_dispatch`：前後端命令橋接入口
-- `namespace.command`：路由規範
-- `prewarm`：終端預熱流程
-- `Everything`：Windows 檔案搜尋來源
-- `FILE_CACHE`：Windows 背景檔案索引
+- `FILE_CACHE`：本機檔案搜尋索引檔案

@@ -31,7 +31,10 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - 若本次工作中確認了新的技術選擇或架構決策，補充對應 ADR
 - 若既有 ADR 內容有變動（superseded / rejected），更新其狀態
 
-> 三個文件更新完畢後，才向使用者報告結果。
+### 'skill.md'（有新技能或限制時才更新）
+- 若本次工作中確認了新的技能或限制，補充對應說明
+
+> 四個文件更新完畢後，才向使用者報告結果。
 
 ## Project Overview
 

@@ -46,6 +46,12 @@ openai_model = "gpt-4o-mini"
 max_tokens = 4096
 timeout_secs = 30
 
+[agent]
+web_search_provider = "disabled"
+searxng_url = ""
+web_search_api_key = ""
+web_search_timeout_secs = 8
+
 [translation]
 default_src = "auto"
 default_dst = "zh-TW"
