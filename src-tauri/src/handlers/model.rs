@@ -24,17 +24,16 @@ struct LocalModelEntry {
     active: bool,
 }
 
-fn tool_label(tool: &str) -> &'static str {
-    match tool {
-        "translation" => "Translation",
-        _ => "AI Chat",
-    }
+fn tool_label(_tool: &str) -> &'static str {
+    "AI Chat"
 }
 
 fn tool_keys(tool: &str) -> Result<(&'static str, &'static str), String> {
     match tool {
         "ai" | "chat" => Ok(("ai.provider", "ai.model")),
-        "translation" | "tr" => Ok(("translation.provider", "translation.model")),
+        "translation" | "tr" => {
+            Err("Translation no longer has configurable models; /tr uses Google Translate.".into())
+        }
         other => Err(format!("unsupported ai tool '{other}'")),
     }
 }
@@ -42,7 +41,9 @@ fn tool_keys(tool: &str) -> Result<(&'static str, &'static str), String> {
 fn normalized_tool(tool: Option<&str>) -> Result<&'static str, String> {
     match tool.unwrap_or("ai") {
         "ai" | "chat" => Ok("ai"),
-        "translation" | "tr" => Ok("translation"),
+        "translation" | "tr" => {
+            Err("Translation no longer has configurable models; /tr uses Google Translate.".into())
+        }
         other => Err(format!("unsupported ai tool '{other}'")),
     }
 }

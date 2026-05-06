@@ -104,14 +104,18 @@ mod win_impl {
     pub fn set_mute(muted: bool) -> Result<(), String> {
         let ep = get_endpoint()?;
         unsafe {
-            ep.SetMute(muted, std::ptr::null()).map_err(|e| e.to_string())
+            ep.SetMute(muted, std::ptr::null())
+                .map_err(|e| e.to_string())
         }
     }
 
     pub fn get_brightness() -> Result<u32, String> {
         let output = std::process::Command::new("powershell")
-            .args(["-NoProfile", "-Command",
-                "(Get-WmiObject -Namespace root/WMI -Class WmiMonitorBrightness).CurrentBrightness"])
+            .args([
+                "-NoProfile",
+                "-Command",
+                "(Get-WmiObject -Namespace root/WMI -Class WmiMonitorBrightness).CurrentBrightness",
+            ])
             .output()
             .map_err(|e| e.to_string())?;
         let s = String::from_utf8_lossy(&output.stdout).trim().to_string();
@@ -126,7 +130,11 @@ mod win_impl {
             .args(["-NoProfile", "-Command", &script])
             .status()
             .map_err(|e| e.to_string())?;
-        if status.success() { Ok(()) } else { Err("brightness command failed".into()) }
+        if status.success() {
+            Ok(())
+        } else {
+            Err("brightness command failed".into())
+        }
     }
 
     pub fn wifi_info() -> Result<Vec<super::WifiInfo>, String> {
@@ -137,14 +145,16 @@ mod win_impl {
             .map_err(|e| e.to_string())?;
         let current_text = String::from_utf8_lossy(&current_output.stdout);
 
-        let current_ssid = current_text.lines()
+        let current_ssid = current_text
+            .lines()
             .find(|l| l.contains("SSID") && !l.contains("BSSID"))
             .and_then(|l| l.split(':').nth(1))
             .map(str::trim)
             .unwrap_or("")
             .to_string();
 
-        let signal_str = current_text.lines()
+        let signal_str = current_text
+            .lines()
             .find(|l| l.contains("Signal"))
             .and_then(|l| l.split(':').nth(1))
             .map(|s| s.trim().trim_end_matches('%'))
@@ -187,31 +197,55 @@ mod stub_impl {
 }
 
 #[cfg(target_os = "windows")]
-fn platform_get_volume() -> Result<VolumeInfo, String> { win_impl::get_volume() }
+fn platform_get_volume() -> Result<VolumeInfo, String> {
+    win_impl::get_volume()
+}
 #[cfg(not(target_os = "windows"))]
-fn platform_get_volume() -> Result<VolumeInfo, String> { stub_impl::get_volume() }
+fn platform_get_volume() -> Result<VolumeInfo, String> {
+    stub_impl::get_volume()
+}
 
 #[cfg(target_os = "windows")]
-fn platform_set_volume(v: f32) -> Result<(), String> { win_impl::set_volume(v) }
+fn platform_set_volume(v: f32) -> Result<(), String> {
+    win_impl::set_volume(v)
+}
 #[cfg(not(target_os = "windows"))]
-fn platform_set_volume(v: f32) -> Result<(), String> { stub_impl::set_volume(v) }
+fn platform_set_volume(v: f32) -> Result<(), String> {
+    stub_impl::set_volume(v)
+}
 
 #[cfg(target_os = "windows")]
-fn platform_set_mute(m: bool) -> Result<(), String> { win_impl::set_mute(m) }
+fn platform_set_mute(m: bool) -> Result<(), String> {
+    win_impl::set_mute(m)
+}
 #[cfg(not(target_os = "windows"))]
-fn platform_set_mute(m: bool) -> Result<(), String> { stub_impl::set_mute(m) }
+fn platform_set_mute(m: bool) -> Result<(), String> {
+    stub_impl::set_mute(m)
+}
 
 #[cfg(target_os = "windows")]
-fn platform_get_brightness() -> Result<u32, String> { win_impl::get_brightness() }
+fn platform_get_brightness() -> Result<u32, String> {
+    win_impl::get_brightness()
+}
 #[cfg(not(target_os = "windows"))]
-fn platform_get_brightness() -> Result<u32, String> { stub_impl::get_brightness() }
+fn platform_get_brightness() -> Result<u32, String> {
+    stub_impl::get_brightness()
+}
 
 #[cfg(target_os = "windows")]
-fn platform_set_brightness(l: u32) -> Result<(), String> { win_impl::set_brightness(l) }
+fn platform_set_brightness(l: u32) -> Result<(), String> {
+    win_impl::set_brightness(l)
+}
 #[cfg(not(target_os = "windows"))]
-fn platform_set_brightness(l: u32) -> Result<(), String> { stub_impl::set_brightness(l) }
+fn platform_set_brightness(l: u32) -> Result<(), String> {
+    stub_impl::set_brightness(l)
+}
 
 #[cfg(target_os = "windows")]
-fn platform_wifi_info() -> Result<Vec<WifiInfo>, String> { win_impl::wifi_info() }
+fn platform_wifi_info() -> Result<Vec<WifiInfo>, String> {
+    win_impl::wifi_info()
+}
 #[cfg(not(target_os = "windows"))]
-fn platform_wifi_info() -> Result<Vec<WifiInfo>, String> { stub_impl::wifi_info() }
+fn platform_wifi_info() -> Result<Vec<WifiInfo>, String> {
+    stub_impl::wifi_info()
+}

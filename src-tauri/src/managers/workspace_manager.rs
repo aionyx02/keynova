@@ -14,7 +14,11 @@ pub struct WorkspaceState {
 
 impl WorkspaceState {
     fn empty(id: usize) -> Self {
-        Self { id, query: String::new(), mode: "search".into() }
+        Self {
+            id,
+            query: String::new(),
+            mode: "search".into(),
+        }
     }
 }
 
@@ -35,7 +39,11 @@ impl WorkspaceManager {
     pub fn new() -> Self {
         let persist_path = Self::default_path();
         let (current, slots) = Self::load(&persist_path);
-        Self { slots, current, persist_path }
+        Self {
+            slots,
+            current,
+            persist_path,
+        }
     }
 
     fn default_path() -> PathBuf {
@@ -44,15 +52,26 @@ impl WorkspaceManager {
     }
 
     fn load(path: &PathBuf) -> (usize, [WorkspaceState; SLOT_COUNT]) {
-        let default = (0usize, [
+        let default = (
+            0usize,
+            [
+                WorkspaceState::empty(0),
+                WorkspaceState::empty(1),
+                WorkspaceState::empty(2),
+            ],
+        );
+        let Ok(content) = std::fs::read_to_string(path) else {
+            return default;
+        };
+        let Ok(data) = serde_json::from_str::<PersistData>(&content) else {
+            return default;
+        };
+        let current = data.current.min(SLOT_COUNT - 1);
+        let mut slots = [
             WorkspaceState::empty(0),
             WorkspaceState::empty(1),
             WorkspaceState::empty(2),
-        ]);
-        let Ok(content) = std::fs::read_to_string(path) else { return default; };
-        let Ok(data) = serde_json::from_str::<PersistData>(&content) else { return default; };
-        let current = data.current.min(SLOT_COUNT - 1);
-        let mut slots = [WorkspaceState::empty(0), WorkspaceState::empty(1), WorkspaceState::empty(2)];
+        ];
         for s in data.slots {
             if s.id < SLOT_COUNT {
                 let id = s.id;
@@ -78,7 +97,10 @@ impl WorkspaceManager {
     /// 切換到指定槽位（0-based），回傳新的工作區狀態。
     pub fn switch_to(&mut self, slot: usize) -> Result<&WorkspaceState, String> {
         if slot >= SLOT_COUNT {
-            return Err(format!("invalid workspace slot {slot} (max {})", SLOT_COUNT - 1));
+            return Err(format!(
+                "invalid workspace slot {slot} (max {})",
+                SLOT_COUNT - 1
+            ));
         }
         self.current = slot;
         self.persist();
@@ -107,7 +129,11 @@ mod tests {
 
     fn make_mgr() -> WorkspaceManager {
         WorkspaceManager {
-            slots: [WorkspaceState::empty(0), WorkspaceState::empty(1), WorkspaceState::empty(2)],
+            slots: [
+                WorkspaceState::empty(0),
+                WorkspaceState::empty(1),
+                WorkspaceState::empty(2),
+            ],
             current: 0,
             persist_path: PathBuf::from("/dev/null"),
         }
