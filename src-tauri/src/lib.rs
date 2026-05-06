@@ -15,9 +15,15 @@ use tauri::{Emitter, Manager};
 
 use crate::core::config_manager::{ConfigChange, ConfigManager};
 use crate::core::control_plane::{self, ControlCommand, ControlRequest, ControlResponse};
-use crate::core::{AppEvent, BuiltinCommandRegistry, CommandRouter, EventBus};
+use crate::core::observability;
+use crate::core::{
+    ActionArena, ActionLogEntry, AgentRuntime, AppEvent, BuiltinCommandRegistry, CommandRouter,
+    EventBus, IpcError, KnowledgeStoreHandle,
+};
 use crate::handlers::{
+    agent::AgentHandler,
     ai::AiHandler,
+    automation::AutomationHandler,
     builtin_cmd::{
         AiCommand, BuiltinCmdHandler, CalCommand, DownCommand, HelpCommand, HistoryCommand,
         ModelDownloadCommand, ModelListCommand, NoteCommand, ReloadCommand, SettingCommand,
@@ -30,6 +36,7 @@ use crate::handlers::{
     model::ModelHandler,
     mouse::MouseHandler,
     note::NoteHandler,
+    plugin::PluginHandler,
     search::SearchHandler,
     setting::SettingHandler,
     system_control::SystemControlHandler,
@@ -52,13 +59,16 @@ use crate::managers::{
     translation_manager::TranslationManager,
     workspace_manager::WorkspaceManager,
 };
+use crate::models::action::{ActionKind, ActionRef, ActionResult};
 use crate::models::builtin_command::{BuiltinCommandResult, CommandUiType};
 
 // ─── App state ───────────────────────────────────────────────────────────────
 
 struct AppState {
     command_router: CommandRouter,
+    action_arena: Arc<ActionArena>,
     event_bus: EventBus,
+    knowledge_store: KnowledgeStoreHandle,
     mouse_active: Arc<AtomicBool>,
     terminal_manager: Arc<Mutex<TerminalManager>>,
     launcher_focus_guard: Arc<Mutex<Option<Instant>>>,
@@ -71,6 +81,8 @@ struct AppState {
 impl AppState {
     fn new() -> Self {
         let event_bus = EventBus::default();
+        let action_arena = Arc::new(ActionArena::default());
+        let knowledge_store = KnowledgeStoreHandle::new_default();
 
         let app_manager = Arc::new(Mutex::new(AppManager::new()));
         let hotkey_manager = Arc::new(Mutex::new(HotkeyManager::new()));
@@ -117,6 +129,11 @@ impl AppState {
             let _ = eb_for_ai.publish(event);
         })));
 
+        let eb_for_agent = event_bus.clone();
+        let agent_runtime = Arc::new(AgentRuntime::new(Arc::new(move |event| {
+            let _ = eb_for_agent.publish(event);
+        })));
+
         // Translation manager (with EventBus callback)
         let eb_for_tr = event_bus.clone();
         let translation_manager = Arc::new(TranslationManager::new(Arc::new(move |event| {
@@ -152,7 +169,14 @@ impl AppState {
             &terminal_manager,
         ))));
         command_router.register(Arc::new(MouseHandler::new(Arc::clone(&mouse_manager))));
-        command_router.register(Arc::new(SearchHandler::new(Arc::clone(&search_manager))));
+        command_router.register(Arc::new(SearchHandler::new(
+            Arc::clone(&search_manager),
+            Arc::clone(&action_arena),
+            Arc::clone(&builtin_registry),
+            Arc::clone(&note_manager),
+            Arc::clone(&history_manager),
+            Arc::clone(&model_manager),
+        )));
         let eb_for_model = event_bus.clone();
         command_router.register(Arc::new(ModelHandler::new(
             Arc::clone(&model_manager),
@@ -182,10 +206,15 @@ impl AppState {
             Arc::clone(&translation_manager),
             Arc::clone(&config_manager),
         )));
+        command_router.register(Arc::new(AgentHandler::new(Arc::clone(&agent_runtime))));
+        command_router.register(Arc::new(AutomationHandler));
+        command_router.register(Arc::new(PluginHandler));
 
         Self {
             command_router,
+            action_arena,
             event_bus,
+            knowledge_store,
             mouse_active: Arc::new(AtomicBool::new(false)),
             terminal_manager: Arc::clone(&terminal_manager),
             launcher_focus_guard: Arc::new(Mutex::new(None)),
@@ -205,48 +234,207 @@ fn cmd_dispatch(
     payload: Option<Value>,
     app: tauri::AppHandle,
     state: tauri::State<'_, AppState>,
-) -> Result<Value, String> {
+) -> Result<Value, IpcError> {
     let payload = payload.unwrap_or(Value::Null);
+    let request_metric = observability::measure_json(&payload);
+    let action_name = action_name_for_observability(&route, &payload);
+    let started = Instant::now();
 
-    if let Some(name) = builtin_control_command(&route, &payload) {
-        return run_builtin_control_command(&app, name);
+    let result = dispatch_command(&route, payload, &app, &state);
+    let elapsed = started.elapsed();
+
+    match &result {
+        Ok(value) => {
+            let response_metric = observability::measure_json(value);
+            observability::log_ipc_command(
+                &route,
+                true,
+                elapsed,
+                request_metric,
+                Some(response_metric),
+                None,
+            );
+            if let Some(name) = action_name.as_deref() {
+                observability::log_action_execution(name, true, elapsed);
+            }
+        }
+        Err(error) => {
+            observability::log_ipc_command(
+                &route,
+                false,
+                elapsed,
+                request_metric,
+                None,
+                Some(&error.code),
+            );
+            if let Some(name) = action_name.as_deref() {
+                observability::log_action_execution(name, false, elapsed);
+            }
+        }
     }
 
-    let before = should_apply_config_after_dispatch(&route, &payload)
+    result
+}
+
+fn dispatch_command(
+    route: &str,
+    payload: Value,
+    app: &tauri::AppHandle,
+    state: &tauri::State<'_, AppState>,
+) -> Result<Value, IpcError> {
+    if let Some(command) = route.strip_prefix("action.") {
+        return run_action_command(command, payload, app, state);
+    }
+
+    if let Some(name) = builtin_control_command(route, &payload) {
+        return run_builtin_control_command(app, name);
+    }
+
+    let before = should_apply_config_after_dispatch(route, &payload)
         .then(|| {
             state
                 ._config_manager
                 .lock()
                 .map(|cfg| cfg.snapshot())
-                .map_err(|e| e.to_string())
+                .map_err(|e| IpcError::state_lock("config_manager", e.to_string()))
         })
         .transpose()?;
 
-    let result = state.command_router.dispatch(&route, payload)?;
+    let result = state
+        .command_router
+        .dispatch(route, payload)
+        .map_err(|e| IpcError::handler(route, e))?;
 
     if let Some(before) = before {
         let after = state
             ._config_manager
             .lock()
             .map(|cfg| cfg.snapshot())
-            .map_err(|e| e.to_string())?;
+            .map_err(|e| IpcError::state_lock("config_manager", e.to_string()))?;
         let changes = ConfigManager::diff(&before, &after);
-        apply_config_changes(&app, changes, "setting.set", false)?;
+        apply_config_changes(app, changes, "setting.set", false)?;
     }
 
     Ok(result)
 }
 
+fn run_action_command(
+    command: &str,
+    payload: Value,
+    app: &tauri::AppHandle,
+    state: &tauri::State<'_, AppState>,
+) -> Result<Value, IpcError> {
+    match command {
+        "run" => {
+            let action_ref = read_action_ref(&payload)?;
+            let action = state
+                .action_arena
+                .resolve(&action_ref)
+                .map_err(|e| IpcError::with_details("stale_action_ref", e, json!(action_ref)))?;
+            let started = Instant::now();
+            let result: Result<ActionResult, IpcError> = match action.kind.clone() {
+                ActionKind::LaunchPath { path } => {
+                    state
+                        .command_router
+                        .dispatch("launcher.launch", json!({ "path": path.clone() }))
+                        .map_err(|e| IpcError::handler("launcher.launch", e))?;
+                    if let Ok(mut workspace) = state._workspace_manager.lock() {
+                        workspace.record_file(path.clone());
+                    }
+                    Ok(ActionResult::Launched { path })
+                }
+                ActionKind::CommandRoute { route, payload } => {
+                    let value = dispatch_command(&route, payload, app, state)?;
+                    Ok(ActionResult::Inline {
+                        text: value.to_string(),
+                    })
+                }
+                ActionKind::OpenPanel {
+                    panel,
+                    initial_args,
+                } => Ok(ActionResult::Panel {
+                    name: panel,
+                    initial_args,
+                }),
+                ActionKind::Inline { text } => Ok(ActionResult::Inline { text }),
+                ActionKind::Noop { reason } => Ok(ActionResult::Noop { reason }),
+            };
+            let elapsed = started.elapsed();
+            let status = if result.is_ok() { "ok" } else { "error" }.to_string();
+            state.knowledge_store.try_log_action(ActionLogEntry {
+                action_id: action.id.clone(),
+                action_label: action.label.clone(),
+                status,
+                duration_ms: elapsed.as_millis(),
+                error: result.as_ref().err().map(ToString::to_string),
+            });
+            if let Ok(mut workspace) = state._workspace_manager.lock() {
+                workspace.record_action(action.id);
+            }
+            Ok(json!(result?))
+        }
+        "list_secondary" => {
+            let action_ref = read_action_ref(&payload)?;
+            let actions = state
+                .action_arena
+                .list_secondary(&action_ref)
+                .map_err(|e| IpcError::with_details("stale_action_ref", e, json!(action_ref)))?;
+            let refs = actions
+                .into_iter()
+                .map(|action| {
+                    let action_ref = match action_ref.session_id.clone() {
+                        Some(session_id) => state.action_arena.insert(
+                            &crate::core::action_registry::ActionSession {
+                                session_id,
+                                generation: action_ref.generation,
+                            },
+                            action.clone(),
+                        ),
+                        None => state.action_arena.insert_stable(action.clone()),
+                    }?;
+                    Ok(json!({
+                        "action_ref": action_ref,
+                        "label": action.label,
+                        "risk": action.risk,
+                    }))
+                })
+                .collect::<Result<Vec<_>, String>>()
+                .map_err(|e| IpcError::handler("action.list_secondary", e))?;
+            Ok(json!(refs))
+        }
+        _ => Err(IpcError::with_details(
+            "unknown_action_command",
+            format!("unknown action command '{command}'"),
+            json!({ "command": command }),
+        )),
+    }
+}
+
+fn read_action_ref(payload: &Value) -> Result<ActionRef, IpcError> {
+    let value = payload
+        .get("action_ref")
+        .cloned()
+        .ok_or_else(|| IpcError::new("invalid_action_request", "missing action_ref"))?;
+    serde_json::from_value(value).map_err(|e| {
+        IpcError::with_details(
+            "invalid_action_ref",
+            e.to_string(),
+            json!({ "expected": "ActionRef" }),
+        )
+    })
+}
+
 #[tauri::command]
-fn cmd_ping(name: Option<String>, state: tauri::State<'_, AppState>) -> Result<String, String> {
+fn cmd_ping(name: Option<String>, state: tauri::State<'_, AppState>) -> Result<String, IpcError> {
     let name = name.unwrap_or_else(|| "Developer".to_string());
     let response = state
         .command_router
-        .dispatch("system.ping", json!({ "name": name }))?;
+        .dispatch("system.ping", json!({ "name": name }))
+        .map_err(|e| IpcError::handler("system.ping", e))?;
     let message = response
         .get("message")
         .and_then(Value::as_str)
-        .ok_or("missing message")?
+        .ok_or_else(|| IpcError::new("invalid_response", "system.ping missing message"))?
         .to_string();
     let _ = state.event_bus.publish(AppEvent::new(
         "system.ping.completed",
@@ -256,26 +444,36 @@ fn cmd_ping(name: Option<String>, state: tauri::State<'_, AppState>) -> Result<S
 }
 
 #[tauri::command]
-fn cmd_hide_launcher(window: tauri::WebviewWindow) -> Result<(), String> {
-    window.hide().map_err(|e| e.to_string())
+fn cmd_hide_launcher(window: tauri::WebviewWindow) -> Result<(), IpcError> {
+    window
+        .hide()
+        .map_err(|e| IpcError::tauri_api("window.hide", e.to_string()))
 }
 
 #[tauri::command]
-fn cmd_show_launcher(window: tauri::WebviewWindow) -> Result<(), String> {
-    window.show().map_err(|e| e.to_string())?;
-    window.set_focus().map_err(|e| e.to_string())
+fn cmd_show_launcher(window: tauri::WebviewWindow) -> Result<(), IpcError> {
+    window
+        .show()
+        .map_err(|e| IpcError::tauri_api("window.show", e.to_string()))?;
+    window
+        .set_focus()
+        .map_err(|e| IpcError::tauri_api("window.set_focus", e.to_string()))
 }
 
 #[tauri::command]
 fn cmd_keep_launcher_open(
     window: tauri::WebviewWindow,
     state: tauri::State<'_, AppState>,
-) -> Result<(), String> {
+) -> Result<(), IpcError> {
     if let Ok(mut guard) = state.launcher_focus_guard.lock() {
         *guard = Some(Instant::now() + Duration::from_millis(600));
     }
-    window.show().map_err(|e| e.to_string())?;
-    window.set_focus().map_err(|e| e.to_string())
+    window
+        .show()
+        .map_err(|e| IpcError::tauri_api("window.show", e.to_string()))?;
+    window
+        .set_focus()
+        .map_err(|e| IpcError::tauri_api("window.set_focus", e.to_string()))
 }
 
 fn builtin_control_command<'a>(route: &str, payload: &'a Value) -> Option<&'a str> {
@@ -306,7 +504,17 @@ fn should_apply_config_after_dispatch(route: &str, payload: &Value) -> bool {
         .unwrap_or(false)
 }
 
-fn run_builtin_control_command(app: &tauri::AppHandle, name: &str) -> Result<Value, String> {
+fn action_name_for_observability(route: &str, payload: &Value) -> Option<String> {
+    if route != "cmd.run" {
+        return None;
+    }
+    payload
+        .get("name")
+        .and_then(Value::as_str)
+        .map(ToOwned::to_owned)
+}
+
+fn run_builtin_control_command(app: &tauri::AppHandle, name: &str) -> Result<Value, IpcError> {
     match name {
         "reload" => {
             let changes = reload_config_from_disk(app, "command", true)?;
@@ -322,7 +530,11 @@ fn run_builtin_control_command(app: &tauri::AppHandle, name: &str) -> Result<Val
                 ui_type: CommandUiType::Inline,
             }))
         }
-        _ => Err(format!("unknown control command '/{name}'")),
+        _ => Err(IpcError::with_details(
+            "unknown_command",
+            format!("unknown control command '/{name}'"),
+            json!({ "name": name }),
+        )),
     }
 }
 
@@ -330,11 +542,19 @@ fn reload_config_from_disk(
     app: &tauri::AppHandle,
     source: &str,
     emit_on_empty: bool,
-) -> Result<Vec<ConfigChange>, String> {
+) -> Result<Vec<ConfigChange>, IpcError> {
     let state = app.state::<AppState>();
     let changes = match state._config_manager.lock() {
-        Ok(mut cfg) => cfg.reload_from_disk(),
-        Err(e) => Err(e.to_string()),
+        Ok(mut cfg) => cfg.reload_from_disk().map_err(|e| {
+            IpcError::with_details(
+                "config_reload_failed",
+                e,
+                json!({
+                    "source": source,
+                }),
+            )
+        }),
+        Err(e) => Err(IpcError::state_lock("config_manager", e.to_string())),
     };
 
     match changes {
@@ -354,7 +574,7 @@ fn apply_config_changes(
     changes: Vec<ConfigChange>,
     source: &str,
     emit_on_empty: bool,
-) -> Result<(), String> {
+) -> Result<(), IpcError> {
     if changes
         .iter()
         .any(|change| change.key.starts_with("hotkeys."))
@@ -382,13 +602,15 @@ fn publish_config_reloaded(app: &tauri::AppHandle, source: &str, changes: &[Conf
     ));
 }
 
-fn publish_config_reload_failed(app: &tauri::AppHandle, source: &str, error: &str) {
+fn publish_config_reload_failed(app: &tauri::AppHandle, source: &str, error: &IpcError) {
     let state = app.state::<AppState>();
     let _ = state.event_bus.publish(AppEvent::new(
         "config.reload_failed",
         json!({
             "source": source,
-            "error": error,
+            "code": error.code.clone(),
+            "error": error.message.clone(),
+            "details": error.details.clone(),
         }),
     ));
 }
@@ -401,13 +623,17 @@ fn schedule_shutdown(app: &tauri::AppHandle) {
     });
 }
 
-fn show_launcher(app: &tauri::AppHandle) -> Result<(), String> {
+fn show_launcher(app: &tauri::AppHandle) -> Result<(), IpcError> {
     let window = app
         .get_webview_window("main")
-        .ok_or_else(|| "main window not found".to_string())?;
+        .ok_or_else(|| IpcError::new("window_not_found", "main window not found"))?;
     let _ = window.unminimize();
-    window.show().map_err(|e| e.to_string())?;
-    window.set_focus().map_err(|e| e.to_string())
+    window
+        .show()
+        .map_err(|e| IpcError::tauri_api("window.show", e.to_string()))?;
+    window
+        .set_focus()
+        .map_err(|e| IpcError::tauri_api("window.set_focus", e.to_string()))
 }
 
 // ─── Entry point ─────────────────────────────────────────────────────────────
@@ -439,8 +665,7 @@ pub fn run() {
                 loop {
                     match rx.recv().await {
                         Ok(event) => {
-                            let topic = event.topic.replace('.', "-");
-                            let _ = handle.emit(&topic, &event.payload);
+                            emit_app_event_with_legacy_alias(&handle, &event);
                         }
                         Err(RecvError::Lagged(_)) => continue,
                         Err(RecvError::Closed) => break,
@@ -450,6 +675,7 @@ pub fn run() {
 
             prescan_apps(app);
             start_file_index();
+            observability::spawn_idle_baseline_probe();
             start_prewarm(Arc::clone(&app.state::<AppState>().terminal_manager));
             start_clipboard_watcher(app);
             setup_global_shortcuts(app.handle(), false);
@@ -476,6 +702,14 @@ pub fn run() {
 }
 
 // ─── Setup helpers ───────────────────────────────────────────────────────────
+
+fn emit_app_event_with_legacy_alias(handle: &tauri::AppHandle, event: &AppEvent) {
+    let _ = handle.emit(&event.topic, &event.payload);
+    let legacy_topic = event.legacy_tauri_topic();
+    if legacy_topic != event.topic {
+        let _ = handle.emit(&legacy_topic, &event.payload);
+    }
+}
 
 fn start_control_server(app: &tauri::App) -> bool {
     let listener = match control_plane::bind_listener() {
@@ -514,7 +748,7 @@ fn handle_control_request(app: &tauri::AppHandle, request: ControlRequest) -> Co
     match request.command {
         ControlCommand::Start => match show_launcher(app) {
             Ok(()) => ControlResponse::ok("Keynova is focused", json!({ "visible": true })),
-            Err(e) => ControlResponse::error(e),
+            Err(e) => ControlResponse::error(e.message),
         },
         ControlCommand::Down => {
             schedule_shutdown(app);
@@ -525,7 +759,7 @@ fn handle_control_request(app: &tauri::AppHandle, request: ControlRequest) -> Co
                 format!("Reloaded config ({} change(s))", changes.len()),
                 json!({ "changed_keys": changes.iter().map(|c| c.key.clone()).collect::<Vec<_>>() }),
             ),
-            Err(e) => ControlResponse::error(e),
+            Err(e) => ControlResponse::error(e.message),
         },
         ControlCommand::Status => {
             let state = app.state::<AppState>();
@@ -638,8 +872,14 @@ fn start_clipboard_watcher(app: &tauri::App) {
 }
 
 fn clipboard_poll_loop(app: &tauri::AppHandle) {
+    let mut last_sequence = platform_clipboard_sequence_number();
     loop {
-        std::thread::sleep(Duration::from_secs(2));
+        std::thread::sleep(Duration::from_millis(800));
+        let sequence = platform_clipboard_sequence_number();
+        if sequence == last_sequence {
+            continue;
+        }
+        last_sequence = sequence;
         if let Some(text) = read_clipboard_text() {
             let state = app.state::<AppState>();
             let added = state
@@ -661,18 +901,18 @@ fn read_clipboard_text() -> Option<String> {
 }
 
 #[cfg(target_os = "windows")]
+fn platform_clipboard_sequence_number() -> u32 {
+    crate::platform::windows::clipboard_sequence_number()
+}
+
+#[cfg(not(target_os = "windows"))]
+fn platform_clipboard_sequence_number() -> u32 {
+    0
+}
+
+#[cfg(target_os = "windows")]
 fn platform_read_clipboard() -> Option<String> {
-    // Use PowerShell Get-Clipboard for simplicity; runs in a background thread (2s interval)
-    let output = std::process::Command::new("powershell")
-        .args(["-NoProfile", "-NonInteractive", "-Command", "Get-Clipboard"])
-        .output()
-        .ok()?;
-    let text = String::from_utf8_lossy(&output.stdout).trim().to_string();
-    if text.is_empty() {
-        None
-    } else {
-        Some(text)
-    }
+    crate::platform::windows::read_clipboard_text()
 }
 
 #[cfg(not(target_os = "windows"))]

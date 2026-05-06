@@ -339,12 +339,20 @@ impl CommandHandler for BuiltinCmdHandler {
                     .to_lowercase();
                 if name == "setting" {
                     let cfg = self.config.lock().map_err(|e| e.to_string())?;
-                    let keys: Vec<String> = cfg
-                        .list_all()
+                    let mut keys: Vec<String> = cfg
+                        .schema()
                         .into_iter()
-                        .filter(|(k, _)| partial.is_empty() || k.starts_with(&partial))
-                        .map(|(k, _)| k)
+                        .map(|schema| schema.key.to_string())
+                        .filter(|key| partial.is_empty() || key.starts_with(&partial))
                         .collect();
+                    if keys.is_empty() {
+                        keys = cfg
+                            .list_all()
+                            .into_iter()
+                            .filter(|(k, _)| partial.is_empty() || k.starts_with(&partial))
+                            .map(|(k, _)| k)
+                            .collect();
+                    }
                     return Ok(json!(keys));
                 }
                 Ok(json!(Vec::<String>::new()))

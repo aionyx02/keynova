@@ -11,6 +11,7 @@ import { CommandSuggestions } from "./CommandSuggestions";
 import { PanelRegistry } from "./panel/PanelRegistry";
 import { WorkspaceIndicator } from "./WorkspaceIndicator";
 import type { SearchResult } from "../types/search";
+import type { ActionRef } from "../types/search";
 import type { BuiltinCommandResult } from "../hooks/useCommands";
 import type { WorkspaceState } from "../hooks/useWorkspace";
 
@@ -27,6 +28,12 @@ interface SettingEntry {
 
 interface ConfigReloadedPayload {
   changed_keys: string[];
+}
+
+interface SecondaryAction {
+  action_ref: ActionRef;
+  label: string;
+  risk: "low" | "medium" | "high";
 }
 
 async function hideWindow() {
@@ -53,6 +60,10 @@ const KIND_BADGE: Record<string, { label: string; cls: string }> = {
   app: { label: "App", cls: "bg-violet-500/30 text-violet-300" },
   file: { label: "File", cls: "bg-sky-500/30 text-sky-300" },
   folder: { label: "Dir", cls: "bg-amber-500/30 text-amber-300" },
+  command: { label: "Cmd", cls: "bg-emerald-500/30 text-emerald-300" },
+  note: { label: "Note", cls: "bg-teal-500/30 text-teal-300" },
+  history: { label: "Hist", cls: "bg-zinc-500/30 text-zinc-300" },
+  model: { label: "AI", cls: "bg-fuchsia-500/30 text-fuchsia-300" },
 };
 
 export function CommandPalette() {
@@ -281,11 +292,38 @@ export function CommandPalette() {
 
   async function launchResult(result: SearchResult) {
     try {
-      await dispatch("launcher.launch", { path: result.path });
+      if (result.primary_action) {
+        const actionResult = await dispatch<{ type: string; name?: string; initial_args?: string }>(
+          "action.run",
+          { action_ref: result.primary_action },
+        );
+        if (actionResult.type === "panel" && actionResult.name) {
+          setCmdResult({
+            text: actionResult.initial_args ?? "",
+            ui_type: { type: "Panel", value: actionResult.name },
+          });
+          return;
+        }
+      } else {
+        await dispatch("launcher.launch", { path: result.path });
+      }
     } finally {
-      setQuery("");
-      setResults([]);
-      void hideWindow();
+      if (result.kind === "app" || result.kind === "file" || result.kind === "folder") {
+        setQuery("");
+        setResults([]);
+        void hideWindow();
+      }
+    }
+  }
+
+  async function runFirstSecondary(result: SearchResult) {
+    if (!result.primary_action || !result.secondary_action_count) return;
+    const actions = await dispatch<SecondaryAction[]>("action.list_secondary", {
+      action_ref: result.primary_action,
+    });
+    const first = actions[0];
+    if (first) {
+      await dispatch("action.run", { action_ref: first.action_ref });
     }
   }
 
@@ -302,7 +340,14 @@ export function CommandPalette() {
     if (mode === "search") {
       if (e.key === "ArrowDown") { e.preventDefault(); setSelected((i) => Math.min(i + 1, results.length - 1)); }
       else if (e.key === "ArrowUp") { e.preventDefault(); setSelected((i) => Math.max(i - 1, 0)); }
-      else if (e.key === "Enter") { e.preventDefault(); const r = results[selected]; if (r) void launchResult(r); }
+      else if (e.key === "Enter") {
+        e.preventDefault();
+        const r = results[selected];
+        if (r) {
+          if (e.shiftKey) void runFirstSecondary(r);
+          else void launchResult(r);
+        }
+      }
     } else if (mode === "command") {
       if (e.key === "ArrowDown") {
         e.preventDefault();
@@ -448,16 +493,21 @@ export function CommandPalette() {
                       <span className={`shrink-0 rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${badge.cls}`}>
                         {badge.label}
                       </span>
-                      <span className="truncate font-medium">{r.name}</span>
+                      <span className="truncate font-medium">{r.title ?? r.name}</span>
+                      {Boolean(r.secondary_action_count) && (
+                        <span className="shrink-0 text-[10px] text-gray-500">+{r.secondary_action_count}</span>
+                      )}
                       {r.kind !== "app" && (
-                        <span className="ml-auto shrink-0 max-w-[220px] truncate text-xs text-gray-500">{r.path}</span>
+                        <span className="ml-auto shrink-0 max-w-[220px] truncate text-xs text-gray-500">
+                          {r.subtitle ?? r.path}
+                        </span>
                       )}
                     </li>
                   );
                 })}
               </ul>
               <div className="border-t border-gray-700/50 px-4 py-1.5 text-[11px] text-gray-600 flex justify-between">
-                <span>↑↓ 選擇</span><span>Enter 開啟</span><span>Esc 關閉</span>
+                <span>↑↓ 選擇</span><span>Enter 開啟</span><span>Shift+Enter 次要動作</span>
               </div>
             </div>
           )}

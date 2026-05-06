@@ -5,9 +5,9 @@
 
 ## 當前狀態
 
-- **進度**：FEAT-6 `/model_download` + `/model_list` 多 Provider 完成；FEAT-7 已收斂為 Google Translate only；`/tr` 不再使用 Ollama / Claude / OpenAI-compatible 模型。
-- **上次完成**：`translation_manager.rs` 已拔除翻譯模型 provider，只保留 GoogleFree `translate.googleapis.com/translate_a/single?client=gtx`；`/model_download`、`/model_list` 移除 Translation 工具切換。
-- **下一步**：手動驗收 `/tr en zh-TW hello`、確認模型下載/清單面板只管理 AI Chat 模型。
+- **進度**：Phase 4 第一輪核心 foundation 已完成：ActionRef/ActionArena、UiSearchItem、schema settings、Workspace Context v2、Knowledge Store DB worker、Agent mode 安全骨架、Automation/Plugin security foundation。
+- **上次完成**：接上 `action.run` / `action.list_secondary`、搜尋 ViewModel + ActionRef、`rusqlite` DB worker、低成本 Windows clipboard watcher、Agent Chat/Agent UI、Agent/Privacy/Plugin 文件，並通過 `npm run build`、`npm run lint`、`cargo test`、`cargo clippy -- -D warnings`。
+- **下一步**：補 Phase 4 尚未完成的重型 runtime：`lib.rs` 拆成 `app/*`、search chunk streaming/cancellation token、Tantivy provider、Agent 真實 `web.search`/`keynova.search` tool、WASM loader/hot reload。
 
 ## 已確認的技術選擇
 
@@ -39,19 +39,18 @@
 - 私人文件還原與 BUG-6~9 工作分支建立（2026-05-03）：private docs 因 git merge 誤刪後從 git 歷史還原，BUG-6~9 加入 tasks.md，feature/bugfix-ux 建立
 - FEAT-2（keynova CLI / control plane）完成；FEAT-3（args_hint）、FEAT-4（terminal CSS display）、FEAT-5（setting keyboard nav）實作完成（2026-05-03~04）
 - feature/feat1-feat2-control-plane → dev/main 合併完成；BUG-11 終端 ESC keydown/keyup 修復完成（2026-05-04）
+- Phase 3.0–3.8 完成與後續任務整理（2026-05-04 ~ 05-05）：/tr /ai /note /cal /history /system + workspace 3 槽位完成；BUG-12/13/14 經 stale closure/捲動根因修復；tasks.md 壓縮並建立 FEAT-6/7
+- FEAT-6 完成（2026-05-05）：`/model_download` / `/model_list` 支援 AI Chat 與 Translation 分別切換模型、硬體推薦、Ollama catalog/progress、API provider 切換；後續 FEAT-7 已將 Translation 收斂為 Google only
 
 ## Session 交接紀錄（最近 5 筆）
 
 | 日期 | 完成事項 | 遺留問題 |
 |------|----------|----------|
+| 2026-05-06 | Phase 4 foundation：ActionArena/ActionRef、UiSearchItem、action.run、secondary actions、schema-driven settings、Workspace v2、KnowledgeStore DB worker、Agent mode UI/runtime skeleton、Automation/Plugin security model；新增 ai/privacy/plugin/runtime docs；build/lint/test/clippy 全通過 | 尚未完成 `lib.rs` app 模組拆分、search chunk streaming/cancellation token、Tantivy provider、Agent 真實 web/keynova tool、WASM loader/hot reload |
+| 2026-05-06 | 補強 `/ai` Agent 搜尋與隱私規劃：加入 `web.search`、`keynova.search`、GroundingSource、context visibility、architecture denylist、prompt allowlist，確保專案架構可本地索引但不注入 LLM prompt | 尚未實作；需先做 context privacy 文件與 visibility filter，避免外部 LLM 看見 private architecture |
+| 2026-05-06 | 補入 `/ai` Agent Runtime 規劃：新增 Phase 4.5A，定義 Chat/Agent mode、受控 action/tool 邊界、approval gate、workspace/knowledge memory、streaming status event、audit log 與驗收情境 | 尚未實作；需先完成 Action System / Workspace Context / Knowledge Store 基礎，不能直接讓 LLM 呼叫 shell 或寫檔 |
+| 2026-05-06 | Phase 4.0 第一批穩定性與可觀測性：新增 regression/event 文件、EventBus canonical+legacy emit adapter、structured IPC errors、IPC/search/action-like debug observability；`npm run build`、`npm run lint`、`cargo check`、`cargo test`、`cargo clippy -- -D warnings` 全通過 | 尚未量測 idle memory / CPU / production build size baseline；`lib.rs` 尚未拆分；clipboard watcher 仍是 PowerShell polling |
 | 2026-05-06 | FEAT-7 收斂：移除 `/tr` 的 Ollama / Claude / OpenAI-compatible 模型 provider；模型下載/清單面板移除 Translation 分頁；`translation.model` / `translation.google_api_key` 從預設設定移除 | 待手動驗收 Google Translate 與模型面板 UI |
-| 2026-05-06 | FEAT-7 第一階段：GoogleFree 免費端點 reqwest 呼叫、巢狀 JSON 解析、rate limit / 網路錯誤明確回傳；`translation.provider` 預設改為 `google_free`；cargo test/check 全綠 | 尚待 `auto_select_provider()`、TranslationPanel provider badge 與 FEAT-7 手動驗收 |
-| 2026-05-05 | `/tr` UX 強化：`builtin_cmd` 把 args 傳入翻譯面板；TranslationPanel 支援 `src/dst/text` 參數預填、欄位即改即翻、面板重開時可重新套用參數；lint/tsc/cargo check 全綠 | 待手動驗收高頻輸入時的實際流量與 provider 速率限制 |
-| 2026-05-05 | FEAT-6 完成並調整為每工具模型設定：`/model_download` / `/model_list` 支援 AI Chat 與 Translation 分別切換模型；`/ai`、`/tr` 各讀自己的 provider/model；Ollama timeout 加長；RAM/VRAM 改為 PowerShell CIM / `nvidia-smi` / wmic fallback；模型 catalog 背景更新並解析 tag GB/MB；推薦模型依 RAM/VRAM 重排；支援模型 URL/name 輸入；確認 qwen2.5:1.5b、gemma4:e2b `/api/chat` 可回應；lint/tsc/clippy/test/vite build 全綠 | 需手動驗收 UI 內 qwen/gemma/API 在不同工具間互不覆蓋；gemma4:26b 可能仍需更長 timeout 或更多記憶體 |
-| 2026-05-05 | BUG-12/13/14 根因診斷後正確修復：useLayoutEffect 同步 refs（解 stale closure）、ArrowUp 振盪修正、還原內層捲動；tsc/lint 全綠，commit 9b4c168 | 三個 BUG 待手動驗收 |
-| 2026-05-05 | BUG-12（PanelProps.onClose + 各 panel ESC 攔截）、BUG-13（↑返回輸入框）、BUG-14（sticky bar + scrollIntoView）；tsc/lint 全綠，commit c00026f | 三個 BUG 待手動驗收（初版有 ESLint 錯誤，後繼 commit 修正） |
-| 2026-05-04 | tasks.md 壓縮（Phase 1~3 全部壓入摘要表）；建立 BUG-12（ESC）、BUG-13（↑鍵）、BUG-14（sticky 搜尋框）、FEAT-6（Ollama）、FEAT-7（Google Translate）任務 | 新任務尚未實作 |
-| 2026-05-04 | Phase 3.0~3.8 全功能實作完成：/tr /ai /note /cal /history /system + workspace 3槽位；16 Rust tests；lint/tsc/clippy/vite build 全綠 | `npm run tauri build` 包體積 + 手動 regression 待使用者執行；外部編輯器 file watch defer Phase 4 |
 
 ## 2026-05-03 架構邊界與修正定位索引
 
