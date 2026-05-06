@@ -165,9 +165,24 @@
 - 影響：
   - 新增 `models/action.rs`、`core/action_registry.rs`、`action.run` / `action.list_secondary`
   - 新增 `core/knowledge_store.rs`，使用 `rusqlite` + bounded channel + WAL
+  - Knowledge Store write path 支援 action/clipboard batch insert；shutdown 前先 flush DB worker，避免 pending writes 遺失
   - 新增 Agent 資料模型、Agent mode UI、`docs/ai_agent.md`、`docs/ai_context_privacy.md`
-  - 新增 Plugin manifest / permission / audit model 與 `docs/plugin_security.md`
+  - 新增 Plugin manifest / permission / audit model、plugin.toml/json loader 與 `docs/plugin_security.md`
   - `SettingPanel` 改由 schema 驅動，敏感設定遮蔽顯示
+
+## ADR-015 Search Backend Preference 與重建入口
+
+- 狀態：Accepted
+- 決策：搜尋後端以 `[search].backend` 設定表達偏好（`auto` / `everything` / `app_cache` / `tantivy`），由 `SearchManager::select_backend` 依可用性決定 active backend；`search.backend` 回傳 structured debug info，`/rebuild_search_index` 先重建目前 Windows file cache，未來 Tantivy provider 接入後沿用同一入口。
+- 原因：
+  - `auto` 讓 Windows 使用者可優先走 Everything，缺少 DLL/服務時仍有 app/file cache fallback
+  - backend selection 純函式化後可用 `test_backend_selection_*` 鎖住回退規則
+  - 重建入口先穩定 UI/IPC/command contract，避免之後接 Tantivy 時再改前端命令名稱
+- 影響：
+  - `managers/search_manager.rs` 新增 `SearchBackendPreference`、`SearchBackendInfo`、rebuild status 與 selection tests
+  - `handlers/search.rs` 新增 `search.rebuild_index`，`handlers/builtin_cmd.rs` 新增 `/rebuild_search_index`
+  - `default_config.toml` 與 settings schema 新增 `[search]` keys
+  - `CommandPalette` 顯示 search backend debug badge
 
 ## 待補強事項
 

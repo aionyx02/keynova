@@ -5,6 +5,7 @@ use serde_json::{json, Value};
 use crate::core::builtin_command_registry::BuiltinCommand;
 use crate::core::config_manager::ConfigManager;
 use crate::core::{BuiltinCommandRegistry, CommandHandler, CommandResult};
+use crate::managers::search_manager::SearchManager;
 use crate::models::builtin_command::{BuiltinCommandResult, CommandUiType};
 
 pub struct HelpCommand;
@@ -243,17 +244,42 @@ impl BuiltinCommand for DownCommand {
     }
 }
 
+pub struct RebuildSearchIndexCommand;
+
+impl BuiltinCommand for RebuildSearchIndexCommand {
+    fn name(&self) -> &'static str {
+        "rebuild_search_index"
+    }
+
+    fn description(&self) -> &'static str {
+        "Rebuild the local search index"
+    }
+
+    fn execute(&self, _args: &str) -> BuiltinCommandResult {
+        BuiltinCommandResult {
+            text: "Search index rebuild requested".into(),
+            ui_type: CommandUiType::Inline,
+        }
+    }
+}
+
 pub struct BuiltinCmdHandler {
     registry: Arc<Mutex<BuiltinCommandRegistry>>,
     config: Arc<Mutex<ConfigManager>>,
+    search_manager: Arc<Mutex<SearchManager>>,
 }
 
 impl BuiltinCmdHandler {
     pub fn new(
         registry: Arc<Mutex<BuiltinCommandRegistry>>,
         config: Arc<Mutex<ConfigManager>>,
+        search_manager: Arc<Mutex<SearchManager>>,
     ) -> Self {
-        Self { registry, config }
+        Self {
+            registry,
+            config,
+            search_manager,
+        }
     }
 }
 
@@ -315,6 +341,18 @@ impl CommandHandler for BuiltinCmdHandler {
                         .join("\n");
                     return Ok(json!(BuiltinCommandResult {
                         text,
+                        ui_type: CommandUiType::Inline,
+                    }));
+                }
+
+                if name == "rebuild_search_index" {
+                    let status = self
+                        .search_manager
+                        .lock()
+                        .map_err(|e| e.to_string())?
+                        .rebuild_index();
+                    return Ok(json!(BuiltinCommandResult {
+                        text: status.message,
                         ui_type: CommandUiType::Inline,
                     }));
                 }

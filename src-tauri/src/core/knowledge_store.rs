@@ -38,7 +38,9 @@ pub struct DbRuntimeMetrics {
 
 pub enum DbRequest {
     WriteActionLog(ActionLogEntry),
+    WriteActionLogBatch(Vec<ActionLogEntry>),
     WriteClipboardMetadata(ClipboardMetadataEntry),
+    WriteClipboardMetadataBatch(Vec<ClipboardMetadataEntry>),
     ReadActionStats {
         action_id: String,
         reply: oneshot::Sender<Result<ActionStats, String>>,
@@ -77,8 +79,22 @@ impl KnowledgeStoreHandle {
         self.try_send_fire_and_forget(DbRequest::WriteActionLog(entry));
     }
 
+    pub fn try_log_actions(&self, entries: Vec<ActionLogEntry>) {
+        if entries.is_empty() {
+            return;
+        }
+        self.try_send_fire_and_forget(DbRequest::WriteActionLogBatch(entries));
+    }
+
     pub fn try_log_clipboard_metadata(&self, entry: ClipboardMetadataEntry) {
         self.try_send_fire_and_forget(DbRequest::WriteClipboardMetadata(entry));
+    }
+
+    pub fn try_log_clipboard_metadata_batch(&self, entries: Vec<ClipboardMetadataEntry>) {
+        if entries.is_empty() {
+            return;
+        }
+        self.try_send_fire_and_forget(DbRequest::WriteClipboardMetadataBatch(entries));
     }
 
     pub async fn action_stats(&self, action_id: String) -> Result<ActionStats, String> {
@@ -139,7 +155,7 @@ impl KnowledgeStoreHandle {
 
 fn spawn_worker(path: PathBuf, receiver: Receiver<DbRequest>, queue_len: Arc<AtomicUsize>) {
     std::thread::spawn(move || {
-        let conn = match open_connection(&path) {
+        let mut conn = match open_connection(&path) {
             Ok(conn) => conn,
             Err(error) => {
                 eprintln!("[keynova][db] worker disabled: {error}");
@@ -151,7 +167,7 @@ fn spawn_worker(path: PathBuf, receiver: Receiver<DbRequest>, queue_len: Arc<Ato
         while let Ok(request) = receiver.recv() {
             queue_len.fetch_sub(1, Ordering::Relaxed);
             let started = Instant::now();
-            let result = handle_request(&conn, request);
+            let result = handle_request(&mut conn, request);
             crate::core::observability::log_db_request(
                 "knowledge_store",
                 result.is_ok(),
@@ -176,14 +192,22 @@ enum WorkerSignal {
     Shutdown,
 }
 
-fn handle_request(conn: &Connection, request: DbRequest) -> Result<WorkerSignal, String> {
+fn handle_request(conn: &mut Connection, request: DbRequest) -> Result<WorkerSignal, String> {
     match request {
         DbRequest::WriteActionLog(entry) => {
             insert_action_log(conn, &entry)?;
             Ok(WorkerSignal::Continue)
         }
+        DbRequest::WriteActionLogBatch(entries) => {
+            insert_action_logs(conn, &entries)?;
+            Ok(WorkerSignal::Continue)
+        }
         DbRequest::WriteClipboardMetadata(entry) => {
             insert_clipboard_metadata(conn, &entry)?;
+            Ok(WorkerSignal::Continue)
+        }
+        DbRequest::WriteClipboardMetadataBatch(entries) => {
+            insert_clipboard_metadata_batch(conn, &entries)?;
             Ok(WorkerSignal::Continue)
         }
         DbRequest::ReadActionStats { action_id, reply } => {
@@ -211,7 +235,9 @@ fn respond_error(request: DbRequest, error: String) {
             let _ = reply.send(Err(error));
         }
         DbRequest::WriteActionLog(_)
+        | DbRequest::WriteActionLogBatch(_)
         | DbRequest::WriteClipboardMetadata(_)
+        | DbRequest::WriteClipboardMetadataBatch(_)
         | DbRequest::Shutdown => {}
     }
 }
@@ -307,6 +333,14 @@ fn insert_action_log(conn: &Connection, entry: &ActionLogEntry) -> Result<(), St
     Ok(())
 }
 
+fn insert_action_logs(conn: &mut Connection, entries: &[ActionLogEntry]) -> Result<(), String> {
+    let tx = conn.transaction().map_err(|e| e.to_string())?;
+    for entry in entries {
+        insert_action_log(&tx, entry)?;
+    }
+    tx.commit().map_err(|e| e.to_string())
+}
+
 fn insert_clipboard_metadata(
     conn: &Connection,
     entry: &ClipboardMetadataEntry,
@@ -318,6 +352,17 @@ fn insert_clipboard_metadata(
     )
     .map_err(|e| e.to_string())?;
     Ok(())
+}
+
+fn insert_clipboard_metadata_batch(
+    conn: &mut Connection,
+    entries: &[ClipboardMetadataEntry],
+) -> Result<(), String> {
+    let tx = conn.transaction().map_err(|e| e.to_string())?;
+    for entry in entries {
+        insert_clipboard_metadata(&tx, entry)?;
+    }
+    tx.commit().map_err(|e| e.to_string())
 }
 
 fn read_action_stats(conn: &Connection, action_id: &str) -> Result<ActionStats, String> {
@@ -361,6 +406,32 @@ mod tests {
         store.flush().await.unwrap();
         let stats = store.action_stats("cmd:help".into()).await.unwrap();
         assert_eq!(stats.run_count, 1);
+        let _ = std::fs::remove_file(path);
+    }
+
+    #[tokio::test]
+    async fn batch_writes_action_logs_on_worker_thread() {
+        let path = test_db_path("action-log-batch");
+        let store = KnowledgeStoreHandle::new(path.clone(), 8);
+        store.try_log_actions(vec![
+            ActionLogEntry {
+                action_id: "cmd:help".into(),
+                action_label: "Help".into(),
+                status: "ok".into(),
+                duration_ms: 3,
+                error: None,
+            },
+            ActionLogEntry {
+                action_id: "cmd:help".into(),
+                action_label: "Help".into(),
+                status: "ok".into(),
+                duration_ms: 5,
+                error: None,
+            },
+        ]);
+        store.flush().await.unwrap();
+        let stats = store.action_stats("cmd:help".into()).await.unwrap();
+        assert_eq!(stats.run_count, 2);
         let _ = std::fs::remove_file(path);
     }
 }

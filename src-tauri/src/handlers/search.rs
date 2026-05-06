@@ -88,7 +88,11 @@ impl CommandHandler for SearchHandler {
             }
             "backend" => {
                 let mgr = self.manager.lock().map_err(|e| e.to_string())?;
-                Ok(Value::String(mgr.active_backend_name().to_string()))
+                Ok(serde_json::to_value(mgr.backend_info()).map_err(|e| e.to_string())?)
+            }
+            "rebuild_index" => {
+                let mgr = self.manager.lock().map_err(|e| e.to_string())?;
+                Ok(serde_json::to_value(mgr.rebuild_index()).map_err(|e| e.to_string())?)
             }
             _ => Err(format!("search: unknown command '{command}'")),
         }

@@ -26,8 +26,8 @@ use crate::handlers::{
     automation::AutomationHandler,
     builtin_cmd::{
         AiCommand, BuiltinCmdHandler, CalCommand, DownCommand, HelpCommand, HistoryCommand,
-        ModelDownloadCommand, ModelListCommand, NoteCommand, ReloadCommand, SettingCommand,
-        SysCtlCommand, TrCommand,
+        ModelDownloadCommand, ModelListCommand, NoteCommand, RebuildSearchIndexCommand,
+        ReloadCommand, SettingCommand, SysCtlCommand, TrCommand,
     },
     calculator::CalculatorHandler,
     history::HistoryHandler,
@@ -75,6 +75,7 @@ struct AppState {
     _config_manager: Arc<Mutex<ConfigManager>>,
     _config_watcher: Arc<Mutex<Option<notify::RecommendedWatcher>>>,
     _history_manager: Arc<Mutex<HistoryManager>>,
+    _search_manager: Arc<Mutex<SearchManager>>,
     _workspace_manager: Arc<Mutex<WorkspaceManager>>,
 }
 
@@ -121,7 +122,14 @@ impl AppState {
             },
         ))));
 
-        let search_manager = Arc::new(Mutex::new(SearchManager::new(Arc::clone(&app_manager))));
+        let configured_search_backend = config_manager
+            .lock()
+            .ok()
+            .and_then(|c| c.get("search.backend"));
+        let search_manager = Arc::new(Mutex::new(SearchManager::new_with_config(
+            Arc::clone(&app_manager),
+            configured_search_backend.as_deref(),
+        )));
 
         // AI manager (with EventBus callback)
         let eb_for_ai = event_bus.clone();
@@ -157,6 +165,7 @@ impl AppState {
             reg.register(Box::new(CalCommand));
             reg.register(Box::new(HistoryCommand));
             reg.register(Box::new(SysCtlCommand));
+            reg.register(Box::new(RebuildSearchIndexCommand));
         }
 
         let mut command_router = CommandRouter::new();
@@ -188,6 +197,7 @@ impl AppState {
         command_router.register(Arc::new(BuiltinCmdHandler::new(
             Arc::clone(&builtin_registry),
             Arc::clone(&config_manager),
+            Arc::clone(&search_manager),
         )));
         command_router.register(Arc::new(SettingHandler::new(Arc::clone(&config_manager))));
         command_router.register(Arc::new(CalculatorHandler::new(Arc::clone(
@@ -221,6 +231,7 @@ impl AppState {
             _config_manager: config_manager,
             _config_watcher: Arc::new(Mutex::new(None)),
             _history_manager: history_manager,
+            _search_manager: search_manager,
             _workspace_manager: workspace_manager,
         }
     }
@@ -582,6 +593,19 @@ fn apply_config_changes(
         setup_global_shortcuts(app, true);
     }
 
+    if changes.iter().any(|change| change.key == "search.backend") {
+        let state = app.state::<AppState>();
+        let search_manager = Arc::clone(&state._search_manager);
+        let configured_backend = state
+            ._config_manager
+            .lock()
+            .ok()
+            .and_then(|cfg| cfg.get("search.backend"));
+        if let Ok(mut manager) = search_manager.lock() {
+            manager.set_configured_backend(configured_backend.as_deref());
+        };
+    }
+
     if emit_on_empty || !changes.is_empty() {
         publish_config_reloaded(app, source, &changes);
     }
@@ -617,7 +641,9 @@ fn publish_config_reload_failed(app: &tauri::AppHandle, source: &str, error: &Ip
 
 fn schedule_shutdown(app: &tauri::AppHandle) {
     let handle = app.clone();
+    let knowledge_store = app.state::<AppState>().knowledge_store.clone();
     tauri::async_runtime::spawn(async move {
+        let _ = knowledge_store.flush().await;
         tokio::time::sleep(Duration::from_millis(75)).await;
         handle.exit(0);
     });

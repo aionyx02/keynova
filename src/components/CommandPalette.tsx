@@ -30,6 +30,15 @@ interface ConfigReloadedPayload {
   changed_keys: string[];
 }
 
+interface SearchBackendInfo {
+  configured: string;
+  active: string;
+  everything_available: boolean;
+  tantivy_available: boolean;
+  file_cache_entries: number;
+  rebuild_supported: boolean;
+}
+
 interface SecondaryAction {
   action_ref: ActionRef;
   label: string;
@@ -84,11 +93,13 @@ export function CommandPalette() {
   // Arg suggestions state (shown when user types space after an exact command match)
   const [argSuggestions, setArgSuggestions] = useState<string[]>([]);
   const [selectedArg, setSelectedArg] = useState(0);
+  const [searchBackend, setSearchBackend] = useState<SearchBackendInfo | null>(null);
 
   const inputRef = useRef<HTMLInputElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const argDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const resizeRafRef = useRef<number | null>(null);
   const searchIdRef = useRef(0);
   const searchLimitRef = useRef(10);
 
@@ -142,6 +153,26 @@ export function CommandPalette() {
     inputRef.current?.focus();
   }, []);
 
+  const scheduleWindowResize = useCallback(() => {
+    if (!window.__TAURI_INTERNALS__) return;
+    if (resizeRafRef.current !== null) {
+      cancelAnimationFrame(resizeRafRef.current);
+    }
+    resizeRafRef.current = requestAnimationFrame(() => {
+      resizeRafRef.current = null;
+      if (modeRef.current === "terminal") {
+        getCurrentWindow().setSize(new LogicalSize(640, TERMINAL_HEIGHT)).catch(() => {});
+        return;
+      }
+      const el = containerRef.current;
+      if (!el) return;
+      const rectHeight = Math.ceil(el.getBoundingClientRect().height);
+      const scrollHeight = Math.ceil(el.scrollHeight);
+      const height = Math.max(rectHeight, scrollHeight, 56);
+      getCurrentWindow().setSize(new LogicalSize(640, height)).catch(() => {});
+    });
+  }, []);
+
   useEffect(() => {
     if (!window.__TAURI_INTERNALS__) return;
 
@@ -168,6 +199,36 @@ export function CommandPalette() {
         event.payload.changed_keys.includes("launcher.max_results")
       ) {
         void refreshLauncherSettings();
+      }
+    });
+
+    return () => {
+      unlisten.then((fn) => fn());
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!window.__TAURI_INTERNALS__) return;
+
+    async function refreshSearchBackend() {
+      try {
+        const info = await invoke<SearchBackendInfo>("cmd_dispatch", {
+          route: "search.backend",
+          payload: null,
+        });
+        setSearchBackend(info);
+      } catch {
+        setSearchBackend(null);
+      }
+    }
+
+    void refreshSearchBackend();
+    const unlisten = listen<ConfigReloadedPayload>("config-reloaded", (event) => {
+      if (
+        event.payload.changed_keys.length === 0 ||
+        event.payload.changed_keys.includes("search.backend")
+      ) {
+        void refreshSearchBackend();
       }
     });
 
@@ -245,15 +306,43 @@ export function CommandPalette() {
 
   // Window sizing
   useEffect(() => {
-    if (mode === "terminal") {
-      getCurrentWindow().setSize(new LogicalSize(640, TERMINAL_HEIGHT)).catch(() => {});
-      return;
-    }
+    scheduleWindowResize();
+  }, [
+    scheduleWindowResize,
+    mode,
+    query,
+    results.length,
+    cmdSuggestions.length,
+    cmdResult,
+    argSuggestions.length,
+  ]);
+
+  useEffect(() => {
+    if (!window.__TAURI_INTERNALS__) return;
     const el = containerRef.current;
     if (!el) return;
-    const h = Math.ceil(el.getBoundingClientRect().height) || 56;
-    getCurrentWindow().setSize(new LogicalSize(640, h)).catch(() => {});
-  }, [mode, query, results, cmdSuggestions, cmdResult, argSuggestions]);
+
+    const observer = new ResizeObserver(() => scheduleWindowResize());
+    observer.observe(el);
+
+    const mutationObserver = new MutationObserver(() => scheduleWindowResize());
+    mutationObserver.observe(el, {
+      attributes: true,
+      childList: true,
+      subtree: true,
+    });
+
+    scheduleWindowResize();
+
+    return () => {
+      observer.disconnect();
+      mutationObserver.disconnect();
+      if (resizeRafRef.current !== null) {
+        cancelAnimationFrame(resizeRafRef.current);
+        resizeRafRef.current = null;
+      }
+    };
+  }, [scheduleWindowResize]);
 
   function handleQueryChange(value: string) {
     setQuery(value);
@@ -469,6 +558,14 @@ export function CommandPalette() {
               spellCheck={false}
               autoComplete="off"
             />
+            {searchBackend && mode === "search" && (
+              <span
+                title={`configured=${searchBackend.configured}, everything=${searchBackend.everything_available}, tantivy=${searchBackend.tantivy_available}, cache=${searchBackend.file_cache_entries}`}
+                className="mr-2 hidden shrink-0 rounded border border-gray-700/70 bg-gray-950/70 px-2 py-1 text-[10px] font-semibold uppercase text-gray-400 sm:inline-flex"
+              >
+                {searchBackend.active}
+              </span>
+            )}
             <div className="pr-3">
               <WorkspaceIndicator />
             </div>
