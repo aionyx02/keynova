@@ -1,245 +1,291 @@
-# tasks.md — 任務追蹤
+# tasks.md — Keynova 任務追蹤
 
-> 完成任務請打 `[x]`，並在 memory.md 更新「上次完成」與「下一步」。
+> 完成任務請打 `[x]`，並在 `memory.md` 更新「上次完成」與「下一步」。
 > 阻塞中的任務請移至「阻塞中」區塊並說明原因。
 
 ---
 
-## ✅ 已完成（壓縮摘要）
+## 目前狀態
 
-| Phase / Bug | 完成內容 |
-|-------------|---------|
-| Phase 0 | 專案初始化：Tauri scaffold、ESLint/Prettier/Tailwind、CommandRouter/EventBus、IPC 基本通訊、所有規格文件 |
-| Phase 1.0 | 前置依賴（zustand、xterm、portable-pty、windows crate）、目錄結構、default_config.toml |
-| Phase 1.1 | App Launcher：AppManager、LauncherHandler、CommandPalette 搜尋 + 鍵盤導航，Ctrl+K 全域熱鍵 |
-| Phase 1.2 | 全域熱鍵系統：HotkeyManager、HotkeyHandler、tauri-plugin-global-shortcut 整合 |
-| Phase 1.3 | PTY 終端：TerminalManager、TerminalHandler、TerminalView（xterm.js）、EventBus terminal.output 橋接 |
-| Phase 1.4 | 鍵盤滑鼠控制：MouseManager、MouseHandler、SendInput WinAPI、Ctrl+Alt+M/W/A/S/D/Enter 全域熱鍵 |
-| Phase 1.5 | Flow Launcher 風格 UI：無邊框透明視窗、系統托盤、Ctrl+K 常駐、CommandPalette 重設計 |
-| Phase 1.6 | 搜尋系統：SearchManager（Everything IPC + AppCache fallback）、SearchHandler、SearchResult 模型 |
-| Phase 2.A | 三模式輸入（Search / `>` Terminal / `/` Command）、xterm.js PTY pre-warm、TerminalPanel、useInputMode |
-| Phase 2.B | BuiltinCommandRegistry、HelpCommand、SettingCommand、BuiltinCmdHandler、SettingHandler、ConfigManager TOML I/O、CommandSuggestions、SettingPanel（4 tab）、PanelRegistry |
-| Task 1 | 全域檔案搜尋擴展：D–Z 槽 + WSL home（wsl.exe --list + UNC）、SKIP_DIRS 補充 |
-| BUG-3 | 設定儲存過頻 + 型別字串化：onBlur 儲存、toml_value_str() 偵測型別，數字欄位正確寫出 |
-| BUG-5 | 未使用模組清理 + 包體積：TerminalView/useTerminal/App.css 刪除，xterm.js 改 React.lazy |
-| BUG-6 | 漸進式 ESC：有 panel → 清除面板；query 非空 → 清空；query 空 → 隱藏視窗 |
-| BUG-7 | `/command` Tab 補全：選中指令 → Tab → 填入 query，不觸發 focus 跳出 |
-| BUG-8 | 設定實際生效：terminal init 讀 font_size/scrollback；W/A/S/D 每次按鍵讀 step_size |
-| BUG-9 | 快捷鍵欄位捕捉：readOnly + onKeyDown 格式化組合鍵（Ctrl+K 等），立即儲存 |
-| BUG-10 | /setting 儲存可靠性：onBlur 儲存 + "✓ 已儲存" 提示、生效時機標籤、persist() 失敗詳細 stderr |
-| BUG-11 | 終端 ESC 修復：keydown/keyup 皆退出，保留 `\x1b`/`\x1b[O` 保底，吞掉 focus-in `\x1b[I` |
-| FEAT-1 | `/setting [key] [value]` Minecraft 風格命令：rawInput 拆分、BuiltinCmdHandler 注入 ConfigManager |
-| FEAT-2 | `keynova start/down/reload` CLI + control plane loopback socket + config 熱重載 + notify 檔案監看 |
-| FEAT-3 | 指令參數提示：args_hint trait、hint bar + arg suggestions 下拉、↑↓ Tab Enter |
-| FEAT-4 | 終端機退出後內容保留：CSS display 控制可見性（不 unmount），isActive re-fit/focus |
-| FEAT-5 | 設定表格鍵盤導航：inputRefs、auto-focus、↑↓ 移行、←→ 切 tab、Enter 立即儲存 |
-| Phase 3.0 | ai/translation/workspace/note/calculator/history/system namespace + config 區塊 + ADR-011~013 |
-| Phase 3.1 | TranslationManager + TranslationHandler（reqwest+EventBus）+ TranslationPanel + i18n zh-TW/en-US |
-| Phase 3.2 | AiManager + AiHandler（Claude Sonnet 4.6）+ AiPanel 多輪對話 |
-| Phase 3.3 | WorkspaceManager 3槽位 + Ctrl+Alt+1/2/3 + WorkspaceIndicator |
-| Phase 3.4 | NoteManager + NoteHandler + NoteEditor（debounce auto-save）；外部 file watch defer Phase 4 |
-| Phase 3.5 | 純 Rust recursive-descent 計算機：+-*/%^、unit/base 換算 + CalculatorPanel |
-| Phase 3.6 | HistoryManager（FNV-1a dedup）+ PowerShell clipboard watcher + HistoryPanel |
-| Phase 3.7 | SystemManager（COM volume + PS WMI brightness + netsh wifi）+ SystemPanel |
-| Phase 3.8 | lint/tsc/clippy/test/vite build 全綠；npm run tauri build + regression 待手動執行 |
+Keynova 已完成 Phase 0–3.8 的主要能力：Tauri/React/Rust 基礎架構、CommandRouter/EventBus、設定系統、App/File 搜尋、全域熱鍵、PTY 終端、滑鼠鍵盤控制、Flow Launcher 風格 UI、CLI control plane、AI、翻譯、工作區、筆記、計算機、剪貼簿歷史、系統控制，以及 `/model_download`、`/model_list` 的本地模型管理基礎。
+
+目前下一步不應再單純新增 panel，而是把既有功能收斂成同一套操作模型：Action System → Workspace Context → Federated Search → Knowledge Store → Automation → Plugin Runtime。
+
+---
+
+## 已完成摘要
+
+- [x] Phase 0–1：專案 scaffold、核心路由、EventBus、設定檔、App Launcher、全域熱鍵、PTY 終端、滑鼠鍵盤控制、透明啟動器 UI。
+- [x] Phase 2.A/B：三模式輸入（Search / `>` Terminal / `/` Command）、TerminalPanel、BuiltinCommandRegistry、SettingPanel、PanelRegistry、設定熱重載。
+- [x] Search 基礎：Everything IPC、AppCache fallback、D–Z 槽與 WSL home 掃描、搜尋結果模型。
+- [x] BUG-3/5/6/7/8/9/10/11：設定儲存、包體積、ESC 行為、Tab 補全、runtime 設定生效、快捷鍵捕捉、終端 ESC 修復。
+- [x] FEAT-1–5：`/setting key value`、`keynova start/down/reload/status`、指令參數提示、終端內容保留、設定表格鍵盤導航。
+- [x] Phase 3.0–3.8：AI/translation/workspace/note/calculator/history/system namespace，Claude/Ollama/OpenAI-compatible provider 基礎，Workspace 3 槽，Note/History/System/Calculator panel。
+- [x] BUG-12/13/14：panel ESC、`/command` 最頂項 ↑ 回輸入框、搜尋結果捲動時輸入框固定。
+- [x] FEAT-6 主體：`/model_download`、`/model_list`、硬體偵測、Ollama 模型檢查/下載/刪除/啟用、模型下載進度事件、AI/Translation 分工具 provider/model 設定。
 
 ---
 
 ## 待手動驗收
 
-| Bug | 待驗收項目 |
-|-----|-----------|
-| BUG-1 | DevTools → Performance，確認搜尋無多餘 IPC round-trip |
-| BUG-2 | 呼叫 `hotkey.register` IPC 收到明確的 `NotImplemented` 錯誤 |
-| BUG-4 | DevTools Console 無 CSP violation；所有功能在 CSP 啟用後仍正常 |
-| BUG-11 | 進入 `>` 終端後執行 `ipconfig`，實體 ESC 應立即退回搜尋模式且視窗不隱藏 |
-| Phase 3.8 | `npm run tauri build` 包體積確認（目標 ~50MB）；Search / Terminal / Command / Setting / Hotkey / Mouse 全面手動回歸 |
-| FEAT-6 | `/model_download` 顯示 RAM/VRAM 與推薦模型；未下載模型可拉取並自動啟用；`/model_list` 可依工具（AI Chat / Translation）分別切換/刪除本地模型；Claude/OpenAI-compatible API key 可設定並切換 |
+- [ ] BUG-1：DevTools Performance 確認搜尋無多餘 IPC round-trip。
+- [ ] BUG-2：呼叫 `hotkey.register` IPC 收到明確 `NotImplemented` 錯誤。
+- [ ] BUG-4：DevTools Console 無 CSP violation；CSP 啟用後功能正常。
+- [x] BUG-11：進入 `>` 終端後執行 `ipconfig`，實體 ESC 應立即退回搜尋模式且視窗不隱藏。
+- [x] BUG-13：`/command` 最頂項按 ↑，焦點回到搜尋框。
+- [x] BUG-14：搜尋結果超出視窗高度時，↓ 選到下方項目，輸入框仍可見。
+- [x] Phase 3.8：`npm run tauri build` 包體積確認（目標約 50MB）；Search / Terminal / Command / Setting / Hotkey / Mouse 全面手動回歸。
+- [x] FEAT-6：`/model_download` 顯示 RAM/VRAM 與推薦模型。
+- [x] FEAT-6：選擇 Claude API → 輸入 key → 儲存 → provider 切換。
+- [x] FEAT-6：`/model_list` 顯示已下載模型 + 已設定 API，Enter 可切換使用中。
+- [x] FEAT-6：`/model_list` 分別切換 AI Chat 與 Translation 模型，兩者互不覆蓋。
+- [x] FEAT-6：手動貼上模型 URL 或名稱可下載並套用到目前工具。
 
 ---
 
 ## 進行中
 
-### ~~BUG-12~~ ✅ ESC 在 panel 模式（/ai、/command 等）無反應
-- [x] `PanelProps.onClose` 加入所有 panel；各 panel textarea/input 攔截 Escape 呼叫 `onClose()`
-- [x] CommandPalette 傳 `handlePanelClose` 並加 Suspense 包裝
-- [x] ESC handler 改為 `deps=[setQuery]` 只註冊一次；refs 透過 `useLayoutEffect`（無 deps）同步，解決 stale closure
-- [x] 驗收：/ai、/tr、/note、/cal、/history、/system 面板按 ESC 均可退出，回到搜尋模式
+### FEAT-7 — `/tr` Google Translate only
+
+目標：零設定即可使用翻譯；`/tr` 固定使用 Google Translate 免費端點，不再提供模型 provider。
+
+保留 provider：
+
+| 順序 | Provider | 條件 | 備註 |
+| --- | --- | --- | --- |
+| 1 | Google Translate 免費端點 | 無需 key | 唯一翻譯 provider；需處理 rate limit |
+
+任務：
+
+- [x] 拔除翻譯模型 provider：`/tr` 不再使用 Ollama / Claude / OpenAI-compatible。
+- [x] `/model_download`、`/model_list` 移除 Translation 工具切換，只保留 AI Chat 模型管理。
+- [x] 實作 Google 免費端點：`translate.googleapis.com/translate_a/single?client=gtx`，解析巢狀陣列回應。
+- [x] 實作 rate limit / 網路錯誤的明確錯誤訊息，讓前端可直接顯示。
+- [x] `default_config.toml`：移除 `translation.model` / `translation.google_api_key`，保留 `provider = "google_free"`。
+- [ ] 驗收：零設定 `/tr en zh-TW hello` → `你好`；模型清單與下載面板不再顯示 Translation。
 
 ---
 
-### ~~BUG-13~~ ✅ /command 模式，↑ 鍵應返回頂部輸入框
-- [x] ArrowUp 邏輯改為 `(i <= 0 ? -1 : i - 1)`，消除 0↔-1 振盪
-- [ ] 驗收：/command 最頂項按 ↑，焦點回到搜尋框
+## Phase 2 補齊
+
+- [ ] Tantivy 離線索引（Everything 不可用時的完整檔案搜尋後端）。
+- [ ] `search.backend` 前端顯示（搜尋框角落顯示目前使用後端）。
+- [ ] `cmd_rebuild_search_index`：手動重建 Tantivy 索引。
+- [ ] `default_config.toml` 加入 `[search]` 區塊（索引路徑、排除目錄、backend 偏好）。
+- [ ] 單元測試：`test_backend_selection_*`。
 
 ---
 
-### ~~BUG-14~~ ✅ 搜尋模式，↓ 鍵選擇結果時搜尋框不跟隨滾動
-- [x] 還原內層捲動（`max-h` 放在 `<ul>`），搜尋框固定在上方，不使用 sticky
-- [x] selected `<li>` 加 `scrollIntoView({ block: "nearest" })`
-- [x] 驗收：搜尋結果超出視窗高度時，↓ 鍵選到下方項目，輸入框仍可見
+## 架構可行性確認
+
+架構書方向可行，原因是目前 repo 已經具備必要骨架：
+
+- `CommandRouter` 已用 `namespace.command` 路由，適合被 Action System 包裝。
+- `BuiltinCommandRegistry` 已集中 `/command` metadata，可直接轉成第一批 built-in actions。
+- `EventBus` 已能廣播後端事件，可演進成 Automation trigger 來源。
+- `PanelRegistry` 已集中 panel 對應，適合由 `ActionResult::Panel` 統一驅動。
+- `WorkspaceManager` 已有 3 槽位與 JSON persist，可漸進升級成 Workspace Context v2。
+- `SearchRegistry` 目前幾乎是空殼，正好可承接 Federated Search provider 化。
+- `HistoryManager`、`NoteManager`、`WorkspaceManager` 目前偏 JSON 分散持久化，後續導入 Knowledge Store 有明確收益。
+- `lib.rs` 已承載 state 初始化、handler 註冊、watcher、tray、shortcut、control plane，拆分成 `app/*` 模組是必要且低風險的維護性重構。
+
+主要風險：
+
+- Action System 若一次替換所有 handler，風險過大；應先包裝現有 command/panel/result，而不是重寫路由。
+- Automation Engine 依賴穩定的 ActionResult、EventBus 命名與 action history，不能早於 Action System。
+- Plugin Runtime 需要 permission model、settings schema、action/search provider 邊界，應最後做。
+- Knowledge Store 若太早大搬遷會影響 notes/history/workspace；應先新增資料層與 migration，再逐步切換。
 
 ---
 
-### FEAT-6 ✅ `/model_download` + `/model_list` + /ai 多 Provider 支援
+## Phase 4 核心效能與安全約束
 
-**目標**：新增兩個獨立指令，讓使用者無需手動設定就能快速上手本地 AI 或 API。
+### IPC Boundary
 
-> **跨功能原則**：`/ai`、`/tr`（本地模型模式）等所有需要 AI 的功能，都透過 `model_manager` 管理 provider/model，但每個工具保留自己的設定（例如 `ai.provider/model`、`translation.provider/model`），不使用單一全域 active model。
+- 前端不得接收完整 Action payload。
+- 搜尋結果只傳 ViewModel + `ActionRef`。
+- Action payload 保存在 Rust `ActionArena`。
+- secondary actions lazy resolve。
+- search results chunked streaming。
+- IPC payload size / serialization latency 納入 observability。
 
----
+### Database Runtime
 
-#### 指令規格
+- `rusqlite` 不得直接在 Tauri command hot path 執行。
+- Knowledge Store 使用 dedicated DB worker thread。
+- 所有 writes 透過 bounded channel。
+- high-frequency logs 支援 batch / drop policy。
+- search ranking 使用 memory cache，不在每次 keystroke 查 DB。
+- DB latency / queue length / dropped logs 納入 observability。
 
-**`/model_download`**
-1. 開啟 `ModelDownloadPanel`，**偵測當前硬體**（RAM、GPU VRAM；Windows 以 PowerShell CIM / `nvidia-smi` / wmic fallback），顯示：
-   - 推薦模型清單（依硬體篩選，列出名稱、大小、供應商、適配評級）
-   - 背景更新 Ollama Library 模型清單與 tag 大小，更新完成後用事件刷新，不阻塞面板開啟速度
-   - 分隔線：「或使用 API」→ 列出 Claude / OpenAI-compatible 選項（需填 key）
-2. ↑↓ 選擇項目，Enter 確認；也可手動輸入模型名稱或 Ollama URL（例如 `qwen2.5:1.5b` / `https://ollama.com/library/gemma4:e2b`）
-3. 選到 **本地模型**：先呼叫 `model.check { name }` 確認 Ollama 是否已有此模型
-   - 已有 → 直接設為目前工具使用中（例如 `ai.provider = ollama, ai.model = name` 或 `translation.provider = ollama, translation.model = name`），顯示 "✓ 已就緒"
-   - 沒有 → 確認下載，顯示即時進度條（`model-pull-progress` 事件），完成後自動啟用至目前工具
-4. 選到 **API provider** → 提示輸入 key，驗證後儲存至 config，切換 provider
+### Plugin Isolation
 
-**`/model_list`**
-- 開啟 `ModelListPanel`，顯示所有可用模型（已下載 + 已設定 API）
-- 欄位：名稱、版本、供應商、大小/類型、狀態（使用中 / 已下載 / API）
-- ↑↓ 導航，Enter 切換為使用中，Delete 刪除本地模型
-
----
-
-#### 硬體偵測與推薦邏輯
-
-```
-RAM < 8 GB   → 推薦：qwen2.5:1.5b（1.0 GB）, llama3.2:1b（1.3 GB）
-RAM 8–16 GB  → 推薦：llama3.2:3b（2.0 GB）, qwen2.5:3b（2.0 GB）, gemma4:e2b（6.7 GB，首次載入較慢）
-RAM ≥ 16 GB 或 GPU VRAM ≥ 6 GB → 推薦：llama3.1:8b（4.7 GB）, qwen2.5:7b（4.7 GB）, mistral:7b（4.1 GB）
-```
-
-GPU VRAM 偵測（Windows）：`wmic path Win32_VideoController get AdapterRAM` 或 DXGI
+- 禁止 WebView eval 作為 plugin runtime。
+- Plugin Runtime 採 WASM-first。
+- 所有能力透過 Host Functions。
+- 預設 deny filesystem / network / shell / clipboard / AI key / system control。
+- 每次 plugin execution 有 memory / time / host-call / output limits。
+- Plugin audit log 為必備功能，不是後續優化。
 
 ---
 
-#### 架構設計
+## 優化後 Phase 4 路線
 
-- `AiProvider` enum：`Claude { api_key, model }` / `Ollama { base_url, model }` / `OpenAI { api_key, base_url, model }`
-- `managers/model_manager.rs`（新）：`detect_hardware() -> HardwareInfo`、`recommend_models(hw) -> Vec<ModelCandidate>`、`list_local()` / `pull(name)` / `delete(name)` / `check(name)`
-- `handlers/model.rs`（新）：namespace `model`，commands: `detect_hardware`、`recommend`、`list_local`、`pull { name }`、`delete { name }`、`check { name }`、`set_active { provider, model }`
-- EventBus：`model-pull-progress { name, completed_bytes, total_bytes, percent }`、`model-pull-done { name }`、`model-pull-error { name, error }`
-- `ModelCommand`（`model_download`）、`ModelListCommand`（`model_list`）加入 `BuiltinCommandRegistry`
-- `ModelDownloadPanel.tsx`、`ModelListPanel.tsx` 加入 `PanelRegistry`
+### Phase 4.0 — Stability & Observability
 
-**受影響檔案**：`managers/model_manager.rs`（新）、`handlers/model.rs`（新）、`handlers/mod.rs`、`managers/mod.rs`、`handlers/builtin_cmd.rs`、`lib.rs`、`handlers/ai.rs`、`managers/ai_manager.rs`、`default_config.toml`、`src/components/ModelDownloadPanel.tsx`（新）、`src/components/ModelListPanel.tsx`（新）、`src/components/panel/PanelRegistry.tsx`
+目標：讓 Keynova 能長時間穩定常駐，並讓後續重構有回歸基準。
 
-#### 子任務
+- [ ] 新增 `docs/regression.md`：Search / Terminal / Command / Setting / Hotkey / Mouse / AI / Translation / Model / Workspace 手動驗收。
+- [ ] 統一 handler 錯誤格式：`{ code, message, details? }`，前端保留向後相容。
+- [ ] EventBus 命名整理成 `domain.entity.action`，先建立文件與 adapter，不一次改完所有事件。
+- [ ] 記錄 IPC command latency、search latency、action execution latency。
+- [ ] 記錄 idle memory / CPU baseline、production build size baseline。
+- [ ] 將 Windows PowerShell clipboard polling 改為原生 listener 或低成本 watcher。
+- [ ] 拆分 `lib.rs` 到 `src-tauri/src/app/*`：`state.rs`、`bootstrap.rs`、`shortcuts.rs`、`tray.rs`、`window.rs`、`watchers.rs`、`control_server.rs`。
 
-**後端**
-- [x] `managers/model_manager.rs`：`HardwareInfo { ram_mb, vram_mb }`、`detect_hardware()`（Windows: wmic）、`ModelCandidate { name, size_gb, provider, rating }`、`recommend_models()`
-- [x] `managers/model_manager.rs`：`list_local()` 呼叫 `GET /api/tags`、`check(name)` 確認模型存在、`pull(name, tx: EventSender)` 串流下載進度、`delete(name)`
-- [x] `managers/model_manager.rs`：PowerShell CIM + `nvidia-smi` + wmic fallback 修復 RAM/VRAM Unknown；背景抓取 Ollama Library tag catalog 並解析 GB/MB；解析模型名稱/URL
-- [x] `handlers/model.rs`：`detect_hardware`、`recommend`、`list_local`、`check { name }`、`pull { name }`（背景 thread + EventBus）、`delete { name }`、`set_active { provider, model }`
-- [x] `managers/ai_manager.rs`：AiProvider enum 三種 variant，`build_provider()` 工廠函式從 config 讀取
-- [x] `handlers/translation.rs` / `translation_manager.rs`：翻譯工具可讀取自己的 `translation.provider/model`，支援 Claude/Ollama/OpenAI-compatible
-- [x] `default_config.toml`：`[ai] provider = "claude"` / `ollama_url = "http://localhost:11434"` / `ollama_timeout_secs = 120` / `[translation] model = "claude-sonnet-4-6"`
+### Phase 4.1 — Action IPC Boundary
 
-**前端**
-- [x] `ModelDownloadPanel.tsx`：硬體資訊列（RAM/VRAM badge）、工具切換（AI Chat / Translation）、推薦/背景更新模型列表、模型 URL/名稱輸入、API 選項區、Enter 確認 → check → 下載進度條
-- [x] `ModelListPanel.tsx`：工具切換（AI Chat / Translation）、模型表格（名稱/版本/供應商/大小/狀態）、Enter 切換使用中、Delete 刪除
-- [x] `PanelRegistry.tsx`：加入 `model_download` → `ModelDownloadPanel`、`model_list` → `ModelListPanel`
-- [x] `builtin_cmd.rs`：`ModelDownloadCommand`（name="model_download"）、`ModelListCommand`（name="model_list"）
-- [x] `TranslationPanel.tsx`：`/tr <src> <dst> <text>` 或 `/tr <text>` 可預填三欄；欄位變更即自動翻譯（零秒延遲）
+目標：把執行權與 action lifecycle 留在 Rust，前端只接收顯示用 ViewModel 與引用，避免搜尋熱路徑傳送肥大的 JSON。
 
-**驗收**
-- [ ] 輸入 `/model_download` → 面板顯示當前 RAM/VRAM，列出適配模型
-- [x] 選擇未下載模型 Enter → 確認下載 → 進度條 → 完成後「✓ 已啟用 llama3.2:3b」
-- [x] 選擇已下載模型 Enter → 直接切換，不重複下載，且只影響目前選擇工具
-- [ ] 選擇 Claude API → 提示輸入 key → 儲存 → provider 切換
-- [ ] 輸入 `/model_list` → 顯示已下載模型 + 已設定 API，Enter 切換使用中
-- [ ] `/model_list` 分別切換 AI Chat 與 Translation 模型，確認兩者互不覆蓋
-- [x] `gemma4:e2b` 在首次載入較慢時不因 30 秒 timeout 失敗（使用 `ai.ollama_timeout_secs = 120`）
-- [x] `/model_download` 不再顯示 RAM/VRAM Unknown（若 wmic 不可用，PowerShell CIM / `nvidia-smi` fallback 應補上）
-- [x] `/model_download` 開啟時先快速顯示內建/快取清單，背景更新 Ollama Library 後更新模型排序與大小，不造成卡頓
-- [ ] 手動貼上模型 URL 或名稱可下載並套用到目前工具
-- [x] `/tr en zh-TW hello world` 開啟翻譯面板後三欄自動填入，且立即翻譯
-- [x] `/tr hello world` 開啟翻譯面板後 text 自動填入，且立即翻譯
+- [ ] Action payload 不直接跨 IPC 傳輸。
+- [ ] 新增 `ActionRef`，支援 stable id 與 ephemeral session ref。
+- [ ] 新增 `ActionArena`：Rust 端保存 search/session-scoped actions。
+- [ ] `SearchResult` 改為只回傳 `UiSearchItem`：`item_ref`、`title`、`subtitle`、`source`、`score`、`icon_key`、`primary_action`、`primary_action_label`、`secondary_action_count`。
+- [ ] secondary actions lazy resolve：展開時才呼叫 `action.list_secondary`。
+- [ ] `action.run` 只接收 `ActionRef` + input。
+- [ ] `ActionRef` 驗證 `session_id` / `generation` / TTL，避免 stale action 執行。
+- [ ] 搜尋結果支援 chunked streaming；首批結果目標 < 50ms。
+- [ ] 搜尋首批回傳 10–20 筆，即時顯示上限 50 筆；更多結果分頁或串流。
+- [ ] icons / preview / metadata lazy load。
+- [ ] 每次 IPC payload size 與 serialization latency 加入 debug log。
+
+### Phase 4.2 — Unified Action System（漸進包裝）
+
+目標：先讓既有 command/panel/search result 產生 action，再逐步替換內部模型。
+
+- [ ] 新增 `models/action.rs`：`Action`、`ActionRef`、`ActionResult`。
+- [ ] 新增 `core/action_registry.rs`。
+- [ ] `BuiltinCommandRegistry` metadata 可轉成 built-in actions。
+- [ ] `CommandUiType` 漸進映射到 `ActionResult::Inline` / `ActionResult::Panel`。
+- [ ] 新增 `action.run` handler，先委派到既有 `CommandRouter`。
+- [ ] SearchResult 不保存完整 `Action`；僅保存 `ActionRef` 與顯示必要欄位。
+- [ ] CommandPalette 支援 secondary actions。
+- [ ] 新增 action history 與 recent/frequent ranking。
+
+### Phase 4.3 — Workspace Context v2 + Schema-driven Settings
+
+目標：讓工作區從 UI 狀態槽位升級成完整上下文容器，同時用 schema 降低設定 UI 與 `/setting` 維護成本。
+
+- [ ] `WorkspaceState` 加入 `name`、`project_root`、`recent_actions`。
+- [ ] workspace persist 加入 version，提供舊 JSON migration。
+- [ ] terminal session 綁定 workspace。
+- [ ] note 綁定 workspace。
+- [ ] AI conversation 綁定 workspace。
+- [ ] clipboard/history 搜尋可依 current workspace 加權。
+- [ ] 支援 workspace restore：query、mode、panel、recent files、terminal sessions。
+- [ ] 新增 `SettingSchema` / `SettingValueType`。
+- [ ] `ConfigManager` 保留 flat key API，但 schema 負責型別、預設值、選項、敏感欄位。
+- [ ] SettingPanel 由 schema 生成欄位。
+- [ ] `/setting` arg suggestions 由 schema 生成。
+- [ ] 敏感欄位（API key）遮蔽顯示並避免寫入 log。
+
+### Phase 4.4 — Federated Search with Cancellation/Chunks
+
+目標：搜尋所有可操作的東西，而不只 app/file；搜尋熱路徑必須可取消、可分批、可控制 payload。
+
+- [ ] 將 `core/search_registry.rs` 實作成 provider registry。
+- [ ] 新增 `SearchProvider` trait：`id()`、`search(query, context)`。
+- [ ] 擴充 `UiSearchItem/SearchResult`：`source`、`subtitle`、`score`、`primary_action`、`primary_action_label`、`secondary_action_count`。
+- [ ] Provider：App、File、Command、Note、History、Model。
+- [ ] Ranking merge：來源權重、workspace boost、recent/frequent action boost。
+- [ ] 前端顯示 provider badge 與 secondary actions。
+- [ ] 每次 query 產生新 generation；舊 provider result 必須可丟棄。
+- [ ] Provider 支援 cancellation token / generation check。
+- [ ] Progressive results 透過 Tauri channel chunk 傳送。
+- [ ] Plugin/provider timeout 後直接跳過，不阻塞主搜尋。
+- [ ] Tantivy 離線索引整合到 File provider。
+- [ ] `cmd_rebuild_search_index` 走 Action System。
+
+### Phase 4.5 — Knowledge Store with DB Worker
+
+目標：集中 notes、history、workspace、action logs、search metadata，但 SQLite 不進入 Tauri command / search hot path。
+
+- [ ] 評估並優先採用 `rusqlite`。
+- [ ] 新增 `KnowledgeStoreHandle`，對外只暴露 async message API。
+- [ ] 新增 dedicated DB worker thread，rusqlite connection 只存在於該 thread。
+- [ ] 新增 `DbRequest` enum，支援 fire-and-forget write 與 oneshot response。
+- [ ] 所有 writes 透過 bounded mpsc channel。
+- [ ] 需要回傳值的 reads/writes 使用 oneshot response + timeout。
+- [ ] 資料表：`actions`、`action_logs`、`clipboard_items`、`notes_index`、`ai_conversations`、`workspace_contexts`、`search_index_metadata`、`workflow_definitions`。
+- [ ] 先雙寫 action logs / clipboard metadata，再逐步切換讀取來源。
+- [ ] action_logs / clipboard metadata 支援 batch insert。
+- [ ] high-frequency logs 定義 drop policy，channel 滿時不阻塞 UI。
+- [ ] search ranking 所需 recent/frequent stats 啟動時預載入 memory cache。
+- [ ] 搜尋 hot path 不直接查 SQLite。
+- [ ] SQLite 啟用 WAL / `busy_timeout` / `foreign_keys`。
+- [ ] app shutdown 時 flush pending writes。
+- [ ] DB latency / queue length / dropped logs 加入 observability。
+- [ ] 補 migration 與備份策略。
+
+### Phase 4.6 — Automation Engine
+
+目標：讓重複工作流程可被自動化，先從 TOML/YAML workflow 做起。
+
+- [ ] Workflow definition 格式。
+- [ ] Workflow parser。
+- [ ] Trigger registry：command、hotkey、clipboard_changed、file_changed、schedule、terminal_output_match。
+- [ ] Action chain executor。
+- [ ] workflow execution log。
+- [ ] workflow error display。
+- [ ] 暫不做 GUI workflow builder，等核心穩定後再評估。
+
+### Phase 4.7 — Plugin Security Model
+
+目標：先定義 plugin threat model、能力邊界與資源限制，再開始 runtime 實作。
+
+- [ ] 新增 `docs/plugin_security.md`：threat model、trust boundary、permission model。
+- [ ] 禁止 WebView eval / unrestricted JS plugin。
+- [ ] Plugin Runtime 採 WASM-first，JS runtime 延後。
+- [ ] 評估 wasmtime Component Model 作為 plugin ABI。
+- [ ] 所有 plugin 能力必須透過 Host Functions。
+- [ ] 預設不提供 shell / filesystem / network / clipboard / AI key / system control。
+- [ ] 新增 resource limits：memory、execution time、host call count、output size、search result count。
+- [ ] Plugin Search Provider 必須有 timeout / cancellation / result limit。
+- [ ] Plugin audit log 記錄 host calls、permission denied、network target、file scope。
+- [ ] Plugin crash 不得影響主程序。
+
+### Phase 4.8 — WASM Plugin Runtime
+
+目標：讓外部腳本安全擴充 Keynova；此階段必須晚於 Action/Search/Settings/Automation。
+
+- [ ] Plugin manifest。
+- [ ] Plugin loader。
+- [ ] WASM runtime proof-of-concept。
+- [ ] Host Functions API：log、get_setting、search_workspace、read_clipboard、http_fetch、run_action。
+- [ ] Manifest permission parser 與 permission check。
+- [ ] Plugin action registration。
+- [ ] Plugin search provider registration。
+- [ ] Plugin settings schema。
+- [ ] Plugin audit log 寫入 Knowledge Store。
+- [ ] Hot reload。
+- [ ] JS plugin 僅作為後續便利層評估，若使用 `deno_core`，必須維持 capability-based ops 與相同 resource/audit 約束。
 
 ---
 
-### FEAT-7 /tr 免費優先翻譯（Google 免費端點 + 本地模型 + 付費可選）
+## 高價值後續功能
 
-**設計原則**：零設定即可使用，任何 provider 都不強制花錢。
-
-#### Provider 優先級（由上到下自動回退）
-
-| 層級 | Provider | 費用 | 條件 |
-|------|----------|------|------|
-| 1（預設） | Google Translate 免費端點 | 免費，無需 key | 無條件可用（rate limit 約 500 req/hr） |
-| 2（自動升級） | 本地 Ollama 模型 | 免費 | `/model_list` 中有 active 本地模型時可選 |
-| 3（可選付費） | Google Cloud Translation API v2 | 付費，需 key | 設定 `translation.google_api_key` 後啟用 |
-| 4（可選付費） | Claude（現有） | 付費，需 key | 設定 `translation.provider = "claude"` |
-
-> 預設啟動不需要任何設定，使用者可依需求自行升級，**不強迫任何付費**。
-
-#### 免費端點規格
-
-```
-GET https://translate.googleapis.com/translate_a/single
-  ?client=gtx&sl={src}&tl={dst}&dt=t&q={encoded_text}
-```
-回應格式：`[[["譯文","原文",...],...], null, "偵測到的語言"]`
-
-#### Ollama 翻譯方案
-
-- 使用 active model（來自 `/model_list`）
-- System prompt：`"You are a translator. Translate the following {src} text to {dst}. Output only the translation, no explanation."`
-- 適合長文、隱私要求高的場景（完全離線）
-
-#### 受影響檔案
-
-`managers/translation_manager.rs`、`handlers/translation.rs`、`default_config.toml`、`TranslationPanel.tsx`
-
-#### 子任務
-
-- [ ] `TranslationProvider` enum：`GoogleFree`、`OllamaLocal { model }`、`GoogleCloud { api_key }`、`Claude { api_key, model }`
-- [ ] `GoogleFreeProvider`：reqwest GET 免費端點，解析巢狀陣列回應；rate limit 錯誤時回傳明確訊息
-- [ ] `OllamaLocalProvider`：透過 `/api/chat` 傳送翻譯 prompt，使用 active model
-- [ ] `translation_manager.rs`：`auto_select_provider()` — 無 key 時優先 GoogleFree，有 active local model 時提供 Ollama 選項
-- [ ] `default_config.toml`：`[translation] provider = "google_free"`（預設），`google_api_key = ""`
-- [ ] `TranslationPanel.tsx`：右上角 provider badge（「Google 免費」/ 模型名稱 / 「Google Cloud」/ 「Claude」）；rate limit 時顯示 inline 警告 + 一鍵切換 Ollama
-- [ ] 驗收：零設定 `/tr en zh-TW hello` → 「你好」；有 Ollama active 時可切換本地翻譯；設 `google_api_key` 自動升級到官方 API
-
----
-
-## Phase 2 — 待補齊
-
-- [ ] Tantivy 離線索引（Everything 不可用時的完整檔案搜尋後端）
-- [ ] `search.backend` 前端顯示（搜尋框角落顯示目前使用的後端）
-- [ ] `cmd_rebuild_search_index`：手動重建 Tantivy 索引
-- [ ] `default_config.toml` 加入 `[search]` 區塊（可設定索引路徑、排除目錄）
-- [ ] 單元測試：`test_backend_selection_*`
-
----
-
-## Phase 4 — v3.0+
-- [ ] 個人化（主題、字體、配色方案）
-- [ ] 工作區同步（OneDrive/Google Drive）
-- [ ] Plugin System（JS/Python 擴展）
-- [ ] 流程自動化（類似 AutoHotkey 的腳本功能）
-- [ ] 跨平台優化（Linux/macOS 支援、WSL 深度整合）
-- [ ] 公開 API
-- [ ] 筆記外部編輯器同步（notify crate 檔案監看）
-- [ ] 剪貼簿圖片 metadata 支援
-- [ ] FEAT-8：動態腳本 Runtime（`rquickjs`）+ 目錄監控 Hot Reload（`.js/.ts` 指令即時註冊）
-- [ ] FEAT-9：腳本安全模型（白名單 API、敏感操作授權提示、執行審計日誌）
-- [ ] FEAT-10：Terminal 協同 v2（內建 PTY Pipeline、Session Ring Buffer、可選 Shell Wrapper）
-- [ ] FEAT-11：AI Daemon 化（本地推理子進程 + IPC + 健康檢查 + 回退策略）
+- [ ] Smart Clipboard：辨識 `code/url/path/email/json/error log/command/markdown/image`，並提供對應 actions。
+- [ ] Dev Workflow Pack：`git status`、`git branch`、`cargo test`、`npm run build`、`open project`、`search symbol`、`explain compiler error`、`create commit message`。
+- [ ] Command Chaining：`/search error | ai explain | note append`。
+- [ ] Universal Command Bar：明確前綴優先，無前綴時搜尋 app/file/note/history/command/action，再由 AI 作為 fallback。
 
 ---
 
 ## 持續維護規則
 
-- [ ] **快捷鍵文件同步**：每次新增、修改或移除任何快捷鍵後，同步更新 `README.md` 的「⌨️ 快捷鍵速查」區塊
+- [ ] 快捷鍵文件同步：每次新增、修改或移除快捷鍵後，同步更新 `README.md` 的「快捷鍵速查」區塊。
+- [ ] 新增 panel 時必須同步檢查 ESC 行為、鍵盤導航、PanelRegistry、手動驗收清單。
+- [ ] 新增 provider/action/search source 時必須補 metadata、錯誤訊息、手動驗收步驟。
 
 ---
 

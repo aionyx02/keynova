@@ -34,7 +34,9 @@ impl CommandHandler for CalculatorHandler {
             }
             "history" => {
                 let mgr = self.manager.lock().map_err(|e| e.to_string())?;
-                let history: Vec<_> = mgr.history().iter()
+                let history: Vec<_> = mgr
+                    .history()
+                    .iter()
                     .map(|e| json!({ "expr": e.expr, "result": e.result }))
                     .collect();
                 Ok(json!(history))

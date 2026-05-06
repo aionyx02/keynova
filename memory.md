@@ -5,9 +5,9 @@
 
 ## 當前狀態
 
-- **進度**：FEAT-6 `/model_download` + `/model_list` 多 Provider 完成；`/tr` 現在可由命令參數預填三欄並零秒延遲自動翻譯；tsc/lint/clippy/test/vite build 全綠
-- **上次完成**：`/tr <src> <dst> <text>` 與 `/tr <text>` 會把參數帶入 TranslationPanel；欄位變更立即送翻譯；舊請求回應會自動忽略，避免覆寫新結果
-- **下一步**：手動驗收 `/tr` 兩種輸入格式與即時翻譯行為，確認在 Claude/Ollama/OpenAI-compatible 三種翻譯 provider 下都正常
+- **進度**：FEAT-6 `/model_download` + `/model_list` 多 Provider 完成；FEAT-7 已收斂為 Google Translate only；`/tr` 不再使用 Ollama / Claude / OpenAI-compatible 模型。
+- **上次完成**：`translation_manager.rs` 已拔除翻譯模型 provider，只保留 GoogleFree `translate.googleapis.com/translate_a/single?client=gtx`；`/model_download`、`/model_list` 移除 Translation 工具切換。
+- **下一步**：手動驗收 `/tr en zh-TW hello`、確認模型下載/清單面板只管理 AI Chat 模型。
 
 ## 已確認的技術選擇
 
@@ -44,6 +44,8 @@
 
 | 日期 | 完成事項 | 遺留問題 |
 |------|----------|----------|
+| 2026-05-06 | FEAT-7 收斂：移除 `/tr` 的 Ollama / Claude / OpenAI-compatible 模型 provider；模型下載/清單面板移除 Translation 分頁；`translation.model` / `translation.google_api_key` 從預設設定移除 | 待手動驗收 Google Translate 與模型面板 UI |
+| 2026-05-06 | FEAT-7 第一階段：GoogleFree 免費端點 reqwest 呼叫、巢狀 JSON 解析、rate limit / 網路錯誤明確回傳；`translation.provider` 預設改為 `google_free`；cargo test/check 全綠 | 尚待 `auto_select_provider()`、TranslationPanel provider badge 與 FEAT-7 手動驗收 |
 | 2026-05-05 | `/tr` UX 強化：`builtin_cmd` 把 args 傳入翻譯面板；TranslationPanel 支援 `src/dst/text` 參數預填、欄位即改即翻、面板重開時可重新套用參數；lint/tsc/cargo check 全綠 | 待手動驗收高頻輸入時的實際流量與 provider 速率限制 |
 | 2026-05-05 | FEAT-6 完成並調整為每工具模型設定：`/model_download` / `/model_list` 支援 AI Chat 與 Translation 分別切換模型；`/ai`、`/tr` 各讀自己的 provider/model；Ollama timeout 加長；RAM/VRAM 改為 PowerShell CIM / `nvidia-smi` / wmic fallback；模型 catalog 背景更新並解析 tag GB/MB；推薦模型依 RAM/VRAM 重排；支援模型 URL/name 輸入；確認 qwen2.5:1.5b、gemma4:e2b `/api/chat` 可回應；lint/tsc/clippy/test/vite build 全綠 | 需手動驗收 UI 內 qwen/gemma/API 在不同工具間互不覆蓋；gemma4:26b 可能仍需更長 timeout 或更多記憶體 |
 | 2026-05-05 | BUG-12/13/14 根因診斷後正確修復：useLayoutEffect 同步 refs（解 stale closure）、ArrowUp 振盪修正、還原內層捲動；tsc/lint 全綠，commit 9b4c168 | 三個 BUG 待手動驗收 |

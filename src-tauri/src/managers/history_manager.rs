@@ -34,11 +34,15 @@ impl HistoryManager {
 
     fn default_path() -> PathBuf {
         let base = std::env::var("APPDATA").unwrap_or_else(|_| ".".into());
-        PathBuf::from(base).join("Keynova").join("clipboard_history.json")
+        PathBuf::from(base)
+            .join("Keynova")
+            .join("clipboard_history.json")
     }
 
     fn load(path: &PathBuf) -> Vec<ClipboardEntry> {
-        let Ok(content) = std::fs::read_to_string(path) else { return vec![]; };
+        let Ok(content) = std::fs::read_to_string(path) else {
+            return vec![];
+        };
         serde_json::from_str(&content).unwrap_or_default()
     }
 
@@ -81,13 +85,16 @@ impl HistoryManager {
             .map(|d| d.as_secs())
             .unwrap_or(0);
 
-        self.entries.insert(0, ClipboardEntry {
-            id,
-            content,
-            content_type: "text".into(),
-            timestamp,
-            pinned: false,
-        });
+        self.entries.insert(
+            0,
+            ClipboardEntry {
+                id,
+                content,
+                content_type: "text".into(),
+                timestamp,
+                pinned: false,
+            },
+        );
 
         // 保持容量：釘選的在末尾保留，非釘選的刪除
         while self.entries.iter().filter(|e| !e.pinned).count() > self.max_items {
@@ -119,7 +126,9 @@ impl HistoryManager {
         let before = self.entries.len();
         self.entries.retain(|e| e.id != id);
         let changed = self.entries.len() != before;
-        if changed { self.persist(); }
+        if changed {
+            self.persist();
+        }
         changed
     }
 
