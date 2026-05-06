@@ -10,7 +10,7 @@ import { useCommands } from "../hooks/useCommands";
 import { CommandSuggestions } from "./CommandSuggestions";
 import { PanelRegistry } from "./panel/PanelRegistry";
 import { WorkspaceIndicator } from "./WorkspaceIndicator";
-import type { SearchResult } from "../types/search";
+import type { SearchChunkPayload, SearchErrorPayload, SearchMetadata, SearchResult } from "../types/search";
 import type { ActionRef } from "../types/search";
 import type { BuiltinCommandResult } from "../hooks/useCommands";
 import type { WorkspaceState } from "../hooks/useWorkspace";
@@ -75,6 +75,22 @@ const KIND_BADGE: Record<string, { label: string; cls: string }> = {
   model: { label: "AI", cls: "bg-fuchsia-500/30 text-fuchsia-300" },
 };
 
+function searchResultKey(result: SearchResult) {
+  return `${result.source ?? result.kind}:${result.path}`;
+}
+
+function mergeSearchResults(existing: SearchResult[], incoming: SearchResult[]) {
+  const seen = new Set(existing.map(searchResultKey));
+  const merged = [...existing];
+  for (const item of incoming) {
+    const key = searchResultKey(item);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    merged.push(item);
+  }
+  return merged;
+}
+
 export function CommandPalette() {
   const { dispatch } = useIPC();
   const { query, setQuery, setLoading } = useAppStore();
@@ -94,6 +110,8 @@ export function CommandPalette() {
   const [argSuggestions, setArgSuggestions] = useState<string[]>([]);
   const [selectedArg, setSelectedArg] = useState(0);
   const [searchBackend, setSearchBackend] = useState<SearchBackendInfo | null>(null);
+  const [metadataByPath, setMetadataByPath] = useState<Record<string, SearchMetadata>>({});
+  const [timedOutProviders, setTimedOutProviders] = useState<string[]>([]);
 
   const inputRef = useRef<HTMLInputElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -101,6 +119,7 @@ export function CommandPalette() {
   const argDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const resizeRafRef = useRef<number | null>(null);
   const searchIdRef = useRef(0);
+  const activeSearchRequestRef = useRef("");
   const searchLimitRef = useRef(10);
 
   const { mode, rawInput } = parseInputMode(query);
@@ -210,6 +229,36 @@ export function CommandPalette() {
   useEffect(() => {
     if (!window.__TAURI_INTERNALS__) return;
 
+    const chunkListener = listen<SearchChunkPayload>("search-results-chunk", (event) => {
+      const payload = event.payload;
+      if (payload.request_id !== activeSearchRequestRef.current) return;
+      if (payload.timed_out_providers?.length) {
+        setTimedOutProviders(payload.timed_out_providers);
+      }
+      if (payload.items.length > 0) {
+        setResults((current) =>
+          mergeSearchResults(current, payload.items).slice(0, searchLimitRef.current),
+        );
+      }
+      if (payload.done) {
+        setLoading(false);
+      }
+    });
+    const errorListener = listen<SearchErrorPayload>("search-results-error", (event) => {
+      if (event.payload.request_id !== activeSearchRequestRef.current) return;
+      setTimedOutProviders([]);
+      setLoading(false);
+    });
+
+    return () => {
+      chunkListener.then((fn) => fn());
+      errorListener.then((fn) => fn());
+    };
+  }, [setLoading]);
+
+  useEffect(() => {
+    if (!window.__TAURI_INTERNALS__) return;
+
     async function refreshSearchBackend() {
       try {
         const info = await invoke<SearchBackendInfo>("cmd_dispatch", {
@@ -245,16 +294,42 @@ export function CommandPalette() {
   }, [mode]);
 
   useEffect(() => {
+    if (!window.__TAURI_INTERNALS__) return;
+    const result = results[selected];
+    if (!result || metadataByPath[result.path]) return;
+    if (result.kind !== "file" && result.kind !== "folder" && result.kind !== "app") return;
+
+    let cancelled = false;
+    dispatch<SearchMetadata>("search.metadata", {
+      path: result.path,
+      kind: result.kind,
+    })
+      .then((metadata) => {
+        if (cancelled) return;
+        setMetadataByPath((current) => ({ ...current, [metadata.path]: metadata }));
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+    // dispatch is intentionally omitted because useIPC returns a fresh wrapper each render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selected, results, metadataByPath]);
+
+  useEffect(() => {
     const unlisten = listen<void>("window-focused", () => {
       if (modeRef.current === "terminal") return;
+      activeSearchRequestRef.current = "";
       setQuery("");
       setResults([]);
       setSelected(0);
       setCmdResult(null);
+      setTimedOutProviders([]);
+      void dispatch("search.cancel").catch(() => {});
       inputRef.current?.focus();
     });
     return () => { unlisten.then((fn) => fn()); };
-  }, [setQuery]);
+  }, [dispatch, setQuery]);
 
   // 工作區切換：載入切換後的 query 並重置 UI 狀態
   useEffect(() => {
@@ -265,10 +340,13 @@ export function CommandPalette() {
       setResults([]);
       setSelected(0);
       setCmdResult(null);
+      setTimedOutProviders([]);
+      activeSearchRequestRef.current = "";
+      void dispatch("search.cancel").catch(() => {});
       requestAnimationFrame(() => inputRef.current?.focus());
     });
     return () => { unlisten.then((fn) => fn()); };
-  }, [setQuery]);
+  }, [dispatch, setQuery]);
 
   // ESC handler — registered once; reads always-current values via refs
   // so there is no stale-closure race between setCmdResult and effect re-run.
@@ -288,13 +366,19 @@ export function CommandPalette() {
       }
 
       if (cmdResultRef.current !== null) {
+        activeSearchRequestRef.current = "";
         setCmdResult(null);
         setQuery("");
         setResults([]);
+        setTimedOutProviders([]);
+        void dispatch("search.cancel").catch(() => {});
         requestAnimationFrame(() => inputRef.current?.focus());
       } else if (queryRef.current !== "") {
+        activeSearchRequestRef.current = "";
         setQuery("");
         setResults([]);
+        setTimedOutProviders([]);
+        void dispatch("search.cancel").catch(() => {});
         inputRef.current?.focus();
       } else {
         void hideWindow();
@@ -302,6 +386,7 @@ export function CommandPalette() {
     }
     window.addEventListener("keydown", onKeyDown, true);
     return () => window.removeEventListener("keydown", onKeyDown, true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [setQuery]); // stable Zustand setter — listener registered exactly once
 
   // Window sizing
@@ -356,6 +441,8 @@ export function CommandPalette() {
     if (newMode !== "search" || ri.trim() === "") {
       setResults([]);
       setSelected(0);
+      setTimedOutProviders([]);
+      activeSearchRequestRef.current = "";
       if (debounceRef.current) clearTimeout(debounceRef.current);
       void dispatch("search.cancel").catch(() => {});
       return;
@@ -363,19 +450,29 @@ export function CommandPalette() {
     if (debounceRef.current) clearTimeout(debounceRef.current);
     debounceRef.current = setTimeout(async () => {
       const reqId = ++searchIdRef.current;
+      const requestId = `search-${reqId}`;
+      activeSearchRequestRef.current = requestId;
       setLoading(true);
+      setTimedOutProviders([]);
       try {
         const data = await dispatch<SearchResult[]>("search.query", {
           query: ri,
           limit: searchLimitRef.current,
+          stream: true,
+          request_id: requestId,
+          first_batch_limit: Math.min(20, searchLimitRef.current),
         });
         if (reqId !== searchIdRef.current) return;
         setResults(data);
         setSelected(0);
+        if (data.length >= searchLimitRef.current) {
+          setLoading(false);
+        }
       } catch {
-        if (reqId === searchIdRef.current) setResults([]);
-      } finally {
-        if (reqId === searchIdRef.current) setLoading(false);
+        if (reqId === searchIdRef.current) {
+          setResults([]);
+          setLoading(false);
+        }
       }
     }, 200);
   }
@@ -497,6 +594,16 @@ export function CommandPalette() {
         ? cmdArgs
         : "";
   const panelKey = `${cmdResult ? "command" : "live"}:${activePanelName}`;
+  const selectedResult = results[selected] ?? null;
+  const selectedMetadata = selectedResult ? metadataByPath[selectedResult.path] : null;
+  const searchFooterHint =
+    timedOutProviders.length > 0
+      ? `Timed out: ${timedOutProviders.join(", ")}`
+      : selectedMetadata?.preview
+        ? selectedMetadata.preview
+        : selectedMetadata?.size_bytes !== undefined
+          ? `${selectedMetadata.size_bytes.toLocaleString()} bytes`
+          : "↑↓ 選擇";
 
   const terminalOnExit = () => {
     // Move focus to container first so terminal becoming display:none
@@ -605,7 +712,7 @@ export function CommandPalette() {
                 })}
               </ul>
               <div className="border-t border-gray-700/50 px-4 py-1.5 text-[11px] text-gray-600 flex justify-between">
-                <span>↑↓ 選擇</span><span>Enter 開啟</span><span>Shift+Enter 次要動作</span>
+                <span className="min-w-0 max-w-[320px] truncate">{searchFooterHint}</span><span>Enter 開啟</span><span>Shift+Enter 次要動作</span>
               </div>
             </div>
           )}

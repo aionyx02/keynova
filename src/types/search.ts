@@ -27,3 +27,27 @@ export interface SearchResult {
   path: string;
   score: number;
 }
+
+export interface SearchChunkPayload {
+  request_id: string;
+  generation: number;
+  chunk_index: number;
+  items: SearchResult[];
+  done: boolean;
+  timed_out_providers?: string[];
+}
+
+export interface SearchErrorPayload {
+  request_id: string;
+  generation: number;
+  error: string;
+}
+
+export interface SearchMetadata {
+  path: string;
+  exists: boolean;
+  is_dir: boolean;
+  size_bytes?: number;
+  modified_ms?: number;
+  preview?: string;
+}
