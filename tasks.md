@@ -51,6 +51,22 @@ Last full verification baseline: `npm run build`, `npm run lint`, `cargo test`, 
 - [ ] Phase 4.5A Regression tests for cancellation, approval, tool error, stale ActionRef, provider timeout, secret redaction, architecture context denied, web-query redaction.
 - [ ] Phase 4.5A Manual validations for project search, web search, Keynova feature search, private architecture denial, note draft, and terminal/process denial.
 
+## Batch 4.5 - Agent Quality Recovery
+
+- [x] Direction decision: do not wire an external/third-party agent yet. First harden Keynova's local agent boundary, transparency, approval UX, and regression coverage; add an external-agent provider seam only after this contract feels dependable.
+- [x] Agent transparency UI: show planned action kind/risk/payload preview, prompt audit counts, included/filtered grounding sources, tool-call status, memory refs, run error, and delivered UI action.
+- [x] Agent convenience first pass: answer capability/time questions directly and label no-action completed runs as answered instead of making them look like silent execution.
+- [x] Agent explicit read-only answers: directory-listing prompts now resolve the requested folder, list child folders, or report the checked paths when missing.
+- [x] Agent read-only filesystem tools: bounded whole-computer file/folder search plus text preview reads; no write/delete/move capability is exposed.
+- [x] Agent web query first pass: `web.search` supports SearXNG or no-key DuckDuckGo fallback, with default provider set to DuckDuckGo.
+- [x] Agent workflow planning first pass: task/workflow prompts return a custom execution plan that separates read-only steps from approval-gated side effects.
+- [ ] Agent planning quality: make no-action runs explain what Keynova can do next, reduce accidental panel/action matches, and keep high-risk actions scaffolded behind explicit approval.
+- [x] Agent planning quality first pass: avoid treating plain "start ..." wording as a terminal command unless the following text looks command-like.
+- [ ] Regression tests for cancellation/reject lifecycle, one-shot approval, tool error surfacing, prompt budget truncation, private architecture denial, secret redaction, and web-query redaction.
+- [x] Regression test first pass: runtime cancellation/tool registry, terminal command parsing, prompt budget truncation, safe built-in allowlist, private architecture denial, secret redaction, and web-query redaction.
+- [ ] External agent integration contract: define the minimum provider interface that can return a plan, tool requests, and Keynova-safe action proposals without bypassing approval/audit.
+- [ ] Manual validation script for agent mode: local search, feature search, private architecture denial, note draft approval, terminal approval, rejected approval, disabled web search, and action payload handoff.
+
 ## Batch 5 - Plugin And WASM Runtime
 
 - [ ] Phase 4.8 WASM runtime proof-of-concept.

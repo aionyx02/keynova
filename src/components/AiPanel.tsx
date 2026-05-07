@@ -1,8 +1,84 @@
 import React, { useEffect, useRef, useState } from "react";
 import { useAgent } from "../hooks/useAgent";
+import type {
+  AgentApproval,
+  AgentFilteredSource,
+  AgentRun,
+  GroundingSource,
+} from "../hooks/useAgent";
 import { useAi } from "../hooks/useAi";
 import { useI18n } from "../i18n/useI18n";
 import type { PanelProps } from "../types/panel";
+
+function riskTone(risk: AgentApproval["risk"]) {
+  if (risk === "high") return "border-red-500/30 bg-red-500/10 text-red-200";
+  if (risk === "medium") return "border-amber-500/30 bg-amber-500/10 text-amber-200";
+  return "border-emerald-500/30 bg-emerald-500/10 text-emerald-200";
+}
+
+function payloadPreview(value: unknown) {
+  try {
+    return JSON.stringify(value, null, 2);
+  } catch {
+    return String(value);
+  }
+}
+
+function commandResultLabel(result: AgentRun["command_result"]) {
+  if (!result) return null;
+  if (result.ui_type.type === "Inline") return "Inline response";
+  if (result.ui_type.type === "Panel") return `Open panel: ${result.ui_type.value}`;
+  return `Terminal launch: ${result.ui_type.value.program}`;
+}
+
+function runStatusLabel(run: AgentRun) {
+  if (run.status === "completed" && run.approvals.length === 0 && !run.command_result) {
+    return "answered";
+  }
+  return run.status;
+}
+
+function SourceList({ sources }: { sources: GroundingSource[] }) {
+  if (sources.length === 0) {
+    return <p className="text-[11px] text-gray-500">No included grounding sources.</p>;
+  }
+  return (
+    <div className="space-y-1">
+      {sources.slice(0, 4).map((source) => (
+        <div key={source.source_id} className="rounded bg-gray-950/30 px-2 py-1">
+          <div className="flex items-center justify-between gap-2">
+            <span className="truncate text-[11px] font-medium text-gray-200">{source.title}</span>
+            <span className="shrink-0 text-[10px] uppercase text-gray-500">
+              {source.source_type}
+            </span>
+          </div>
+          <p className="mt-0.5 line-clamp-2 text-[11px] text-gray-500">{source.snippet}</p>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function FilteredSourceList({ sources }: { sources: AgentFilteredSource[] }) {
+  if (sources.length === 0) {
+    return <p className="text-[11px] text-gray-500">No filtered private or secret sources.</p>;
+  }
+  return (
+    <div className="space-y-1">
+      {sources.slice(0, 4).map((source) => (
+        <div key={source.source_id} className="rounded bg-gray-950/30 px-2 py-1">
+          <div className="flex items-center justify-between gap-2">
+            <span className="truncate text-[11px] font-medium text-gray-200">{source.title}</span>
+            <span className="shrink-0 text-[10px] uppercase text-rose-300/80">{source.reason}</span>
+          </div>
+          <p className="mt-0.5 text-[11px] text-gray-500">
+            {source.source_type} · {source.visibility}
+          </p>
+        </div>
+      ))}
+    </div>
+  );
+}
 
 export function AiPanel({ onClose, onRunCommandResult }: PanelProps) {
   const t = useI18n();
@@ -71,9 +147,7 @@ export function AiPanel({ onClose, onRunCommandResult }: PanelProps) {
                 key={item}
                 onClick={() => setMode(item)}
                 className={`px-2 py-0.5 text-[10px] uppercase ${
-                  mode === item
-                    ? "bg-blue-600/60 text-white"
-                    : "text-gray-500 hover:text-gray-300"
+                  mode === item ? "bg-blue-600/60 text-white" : "text-gray-500 hover:text-gray-300"
                 }`}
               >
                 {item}
@@ -126,7 +200,8 @@ export function AiPanel({ onClose, onRunCommandResult }: PanelProps) {
 
         {mode === "agent" && agent.runs.length === 0 && (
           <p className="text-xs text-gray-600 text-center mt-4">
-            Agent mode waits for approval before local actions.
+            Agent mode is a guarded planner: it searches local context, redacts private sources, and
+            asks before touching panels, files, terminal, system, or models.
           </p>
         )}
 
@@ -135,11 +210,19 @@ export function AiPanel({ onClose, onRunCommandResult }: PanelProps) {
             const pendingApprovals = run.approvals.filter(
               (approval) => approval.status === "pending",
             );
+            const audit = run.prompt_audit;
+            const toolCalls = run.steps.flatMap((step) =>
+              step.tool_calls.map((tool) => ({ ...tool, stepTitle: step.title })),
+            );
+            const deliveredAction = commandResultLabel(run.command_result);
             return (
-              <div key={run.id} className="rounded bg-gray-800/60 px-3 py-2 text-sm text-gray-200">
+              <div
+                key={run.id}
+                className="rounded border border-gray-700/60 bg-gray-800/60 px-3 py-2 text-sm text-gray-200"
+              >
                 <div className="mb-2 flex items-center justify-between">
-                  <span className="text-xs font-semibold uppercase text-blue-300">
-                    {run.status}
+                  <span className="text-xs font-semibold uppercase tracking-wide text-blue-300">
+                    {runStatusLabel(run)}
                   </span>
                   {run.status === "waiting_approval" && (
                     <button
@@ -151,6 +234,30 @@ export function AiPanel({ onClose, onRunCommandResult }: PanelProps) {
                   )}
                 </div>
                 <p className="mb-2 text-xs text-gray-400">{run.prompt}</p>
+
+                {audit && (
+                  <div className="mb-2 grid grid-cols-4 gap-1 text-center text-[10px] uppercase text-gray-500">
+                    <div className="rounded bg-gray-950/30 px-1 py-1">
+                      <div className="text-gray-300">{audit.included_sources.length}</div>
+                      Included
+                    </div>
+                    <div className="rounded bg-gray-950/30 px-1 py-1">
+                      <div className="text-gray-300">{audit.filtered_sources.length}</div>
+                      Filtered
+                    </div>
+                    <div className="rounded bg-gray-950/30 px-1 py-1">
+                      <div className="text-gray-300">{audit.redacted_secret_count}</div>
+                      Secrets
+                    </div>
+                    <div className="rounded bg-gray-950/30 px-1 py-1">
+                      <div className="text-gray-300">
+                        {audit.prompt_chars}/{audit.budget_chars}
+                      </div>
+                      Budget
+                    </div>
+                  </div>
+                )}
+
                 <ul className="list-disc space-y-1 pl-4 text-xs text-gray-300">
                   {run.plan.map((step) => (
                     <li key={step}>{step}</li>
@@ -162,15 +269,13 @@ export function AiPanel({ onClose, onRunCommandResult }: PanelProps) {
                     {pendingApprovals.map((approval) => (
                       <div
                         key={approval.id}
-                        className="rounded border border-amber-500/30 bg-amber-500/10 px-3 py-2"
+                        className={`rounded border px-3 py-2 ${riskTone(approval.risk)}`}
                       >
                         <div className="flex items-center justify-between gap-3">
                           <div>
-                            <p className="text-xs font-medium text-amber-200">
-                              {approval.summary}
-                            </p>
-                            <p className="text-[10px] uppercase text-amber-300/80">
-                              {approval.risk}
+                            <p className="text-xs font-medium text-current">{approval.summary}</p>
+                            <p className="text-[10px] uppercase text-current opacity-80">
+                              {approval.planned_action?.kind ?? "planned_action"} · {approval.risk}
                             </p>
                           </div>
                           <div className="flex gap-2">
@@ -188,14 +293,99 @@ export function AiPanel({ onClose, onRunCommandResult }: PanelProps) {
                             </button>
                           </div>
                         </div>
+                        {approval.planned_action && (
+                          <details className="mt-2">
+                            <summary className="cursor-pointer text-[10px] uppercase text-gray-400 hover:text-gray-200">
+                              Payload preview
+                            </summary>
+                            <pre className="mt-1 max-h-32 overflow-auto rounded bg-gray-950/40 p-2 text-[10px] text-gray-400">
+                              {payloadPreview(approval.planned_action.payload)}
+                            </pre>
+                          </details>
+                        )}
                       </div>
                     ))}
                   </div>
                 )}
 
+                {deliveredAction && (
+                  <div className="mt-3 rounded border border-emerald-500/20 bg-emerald-500/10 px-2 py-1 text-xs text-emerald-200">
+                    Delivered action: {deliveredAction}
+                  </div>
+                )}
+
+                {toolCalls.length > 0 && (
+                  <details className="mt-3 rounded bg-gray-900/40 px-2 py-1">
+                    <summary className="cursor-pointer text-[10px] uppercase text-gray-400 hover:text-gray-200">
+                      Tool calls ({toolCalls.length})
+                    </summary>
+                    <div className="mt-2 space-y-1">
+                      {toolCalls.map((tool) => (
+                        <div
+                          key={tool.id}
+                          className="flex items-center justify-between gap-2 text-[11px] text-gray-400"
+                        >
+                          <span className="truncate">
+                            {tool.tool_name} · {tool.stepTitle}
+                          </span>
+                          <span className="shrink-0">
+                            {tool.status}
+                            {tool.duration_ms != null ? ` · ${tool.duration_ms}ms` : ""}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </details>
+                )}
+
+                {(run.sources.length > 0 || audit) && (
+                  <details className="mt-3 rounded bg-gray-900/40 px-2 py-1">
+                    <summary className="cursor-pointer text-[10px] uppercase text-gray-400 hover:text-gray-200">
+                      Context audit
+                    </summary>
+                    <div className="mt-2 grid gap-2 md:grid-cols-2">
+                      <div>
+                        <p className="mb-1 text-[10px] uppercase text-gray-500">Included sources</p>
+                        <SourceList sources={audit?.included_sources ?? run.sources} />
+                      </div>
+                      <div>
+                        <p className="mb-1 text-[10px] uppercase text-gray-500">Filtered sources</p>
+                        <FilteredSourceList sources={audit?.filtered_sources ?? []} />
+                      </div>
+                    </div>
+                    {audit?.truncated && (
+                      <p className="mt-2 text-[11px] text-amber-300/80">
+                        Context was truncated to stay inside the prompt budget.
+                      </p>
+                    )}
+                  </details>
+                )}
+
+                {run.memory_refs.length > 0 && (
+                  <details className="mt-3 rounded bg-gray-900/40 px-2 py-1">
+                    <summary className="cursor-pointer text-[10px] uppercase text-gray-400 hover:text-gray-200">
+                      Memory refs ({run.memory_refs.length})
+                    </summary>
+                    <div className="mt-2 space-y-1">
+                      {run.memory_refs.slice(0, 4).map((memory) => (
+                        <div key={memory.id} className="rounded bg-gray-950/30 px-2 py-1">
+                          <div className="text-[10px] uppercase text-gray-500">
+                            {memory.scope} · {memory.visibility}
+                          </div>
+                          <p className="text-[11px] text-gray-400">{memory.summary}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </details>
+                )}
+
                 {run.output && (
-                  <pre className="mt-2 whitespace-pre-wrap text-xs text-gray-400">
-                    {run.output}
+                  <pre className="mt-2 whitespace-pre-wrap text-xs text-gray-400">{run.output}</pre>
+                )}
+
+                {run.error && (
+                  <pre className="mt-2 whitespace-pre-wrap rounded bg-red-950/30 p-2 text-xs text-red-300">
+                    {run.error}
                   </pre>
                 )}
               </div>
