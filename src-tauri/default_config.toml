@@ -48,6 +48,7 @@ timeout_secs = 30
 
 [agent]
 web_search_provider = "disabled"
+long_term_memory_opt_in = false
 searxng_url = ""
 web_search_api_key = ""
 web_search_timeout_secs = 8

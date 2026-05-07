@@ -9,7 +9,7 @@ use crate::core::{
     KnowledgeStoreHandle,
 };
 use crate::handlers::{
-    agent::AgentHandler,
+    agent::{AgentHandler, AgentHandlerDeps},
     ai::AiHandler,
     automation::AutomationHandler,
     builtin_cmd::{
@@ -206,15 +206,16 @@ impl AppState {
             Arc::clone(&translation_manager),
             Arc::clone(&config_manager),
         )));
-        command_router.register(Arc::new(AgentHandler::new(
-            Arc::clone(&agent_runtime),
-            Arc::clone(&config_manager),
-            Arc::clone(&note_manager),
-            Arc::clone(&history_manager),
-            Arc::clone(&workspace_manager),
-            Arc::clone(&builtin_registry),
-            Arc::clone(&model_manager),
-        )));
+        command_router.register(Arc::new(AgentHandler::new(AgentHandlerDeps {
+            runtime: Arc::clone(&agent_runtime),
+            config: Arc::clone(&config_manager),
+            note_manager: Arc::clone(&note_manager),
+            history_manager: Arc::clone(&history_manager),
+            workspace_manager: Arc::clone(&workspace_manager),
+            builtin_registry: Arc::clone(&builtin_registry),
+            model_manager: Arc::clone(&model_manager),
+            knowledge_store: knowledge_store.clone(),
+        })));
         command_router.register(Arc::new(AutomationHandler));
         command_router.register(Arc::new(PluginHandler));
 

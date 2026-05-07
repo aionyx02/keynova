@@ -42,11 +42,12 @@ Last full verification baseline: `npm run build`, `npm run lint`, `cargo test`, 
 
 ## Batch 4 - Agent Runtime
 
-- [ ] Phase 4.5A Medium-risk approved actions: open panel, create note draft, update setting draft, run safe built-in command.
-- [ ] Phase 4.5A High-risk action scaffolding with explicit approval: terminal command, file write, system control, model download/delete.
-- [ ] Phase 4.5A Agent memory layers: session, workspace, long-term with opt-in.
-- [ ] Phase 4.5A Prompt builder with context budget, visibility filtering, secret redaction, and filtered-source audit.
-- [ ] Phase 4.5A Agent audit log into Knowledge Store.
+- [x] Phase 4.5A Approval state machine and explicit agent action boundary: pending approvals, action allowlists, per-risk execution policy.
+- [x] Phase 4.5A Prompt builder with context budget, visibility filtering, secret redaction, and filtered-source audit.
+- [x] Phase 4.5A Medium-risk approved actions: open panel, create note draft, update setting draft, run allowlisted safe built-in command.
+- [x] Phase 4.5A High-risk action scaffolding with explicit approval: terminal command, file write, system control, model download/delete.
+- [x] Phase 4.5A Agent audit log into Knowledge Store.
+- [x] Phase 4.5A Agent memory layers: session, workspace, long-term with opt-in.
 - [ ] Phase 4.5A Regression tests for cancellation, approval, tool error, stale ActionRef, provider timeout, secret redaction, architecture context denied, web-query redaction.
 - [ ] Phase 4.5A Manual validations for project search, web search, Keynova feature search, private architecture denial, note draft, and terminal/process denial.
 

@@ -8,7 +8,7 @@ use rusqlite::{params, Connection};
 use serde::{Deserialize, Serialize};
 use tokio::sync::oneshot;
 
-const CURRENT_SCHEMA_VERSION: u32 = 2;
+const CURRENT_SCHEMA_VERSION: u32 = 3;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ActionLogEntry {
@@ -33,6 +33,25 @@ pub struct ActionStats {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AgentAuditEntry {
+    pub run_id: String,
+    pub event_type: String,
+    pub status: String,
+    pub summary: String,
+    pub payload_json: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AgentMemoryEntry {
+    pub id: String,
+    pub scope: String,
+    pub workspace_id: Option<usize>,
+    pub title: String,
+    pub content: String,
+    pub visibility: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DbRuntimeMetrics {
     pub queue_len: usize,
     pub dropped_logs: u64,
@@ -43,9 +62,17 @@ pub enum DbRequest {
     WriteActionLogBatch(Vec<ActionLogEntry>),
     WriteClipboardMetadata(ClipboardMetadataEntry),
     WriteClipboardMetadataBatch(Vec<ClipboardMetadataEntry>),
+    WriteAgentAudit(AgentAuditEntry),
+    WriteAgentMemory(AgentMemoryEntry),
     ReadActionStats {
         action_id: String,
         reply: oneshot::Sender<Result<ActionStats, String>>,
+    },
+    ReadAgentMemories {
+        scope: Option<String>,
+        workspace_id: Option<usize>,
+        limit: usize,
+        reply: oneshot::Sender<Result<Vec<AgentMemoryEntry>, String>>,
     },
     Flush {
         reply: oneshot::Sender<Result<(), String>>,
@@ -99,12 +126,56 @@ impl KnowledgeStoreHandle {
         self.try_send_fire_and_forget(DbRequest::WriteClipboardMetadataBatch(entries));
     }
 
+    pub fn try_log_agent_audit(&self, entry: AgentAuditEntry) {
+        self.try_send_fire_and_forget(DbRequest::WriteAgentAudit(entry));
+    }
+
+    pub fn try_store_agent_memory(&self, entry: AgentMemoryEntry) {
+        self.try_send_fire_and_forget(DbRequest::WriteAgentMemory(entry));
+    }
+
     pub async fn action_stats(&self, action_id: String) -> Result<ActionStats, String> {
         let (reply, rx) = oneshot::channel();
         self.send_request(DbRequest::ReadActionStats { action_id, reply })?;
         tokio::time::timeout(Duration::from_secs(2), rx)
             .await
             .map_err(|_| "knowledge store read timed out".to_string())?
+            .map_err(|_| "knowledge store worker dropped response".to_string())?
+    }
+
+    pub async fn agent_memories(
+        &self,
+        scope: Option<String>,
+        workspace_id: Option<usize>,
+        limit: usize,
+    ) -> Result<Vec<AgentMemoryEntry>, String> {
+        let (reply, rx) = oneshot::channel();
+        self.send_request(DbRequest::ReadAgentMemories {
+            scope,
+            workspace_id,
+            limit,
+            reply,
+        })?;
+        tokio::time::timeout(Duration::from_secs(2), rx)
+            .await
+            .map_err(|_| "knowledge store read timed out".to_string())?
+            .map_err(|_| "knowledge store worker dropped response".to_string())?
+    }
+
+    pub fn agent_memories_blocking(
+        &self,
+        scope: Option<String>,
+        workspace_id: Option<usize>,
+        limit: usize,
+    ) -> Result<Vec<AgentMemoryEntry>, String> {
+        let (reply, rx) = oneshot::channel();
+        self.send_request(DbRequest::ReadAgentMemories {
+            scope,
+            workspace_id,
+            limit,
+            reply,
+        })?;
+        rx.blocking_recv()
             .map_err(|_| "knowledge store worker dropped response".to_string())?
     }
 
@@ -212,8 +283,26 @@ fn handle_request(conn: &mut Connection, request: DbRequest) -> Result<WorkerSig
             insert_clipboard_metadata_batch(conn, &entries)?;
             Ok(WorkerSignal::Continue)
         }
+        DbRequest::WriteAgentAudit(entry) => {
+            insert_agent_audit(conn, &entry)?;
+            Ok(WorkerSignal::Continue)
+        }
+        DbRequest::WriteAgentMemory(entry) => {
+            insert_agent_memory(conn, &entry)?;
+            Ok(WorkerSignal::Continue)
+        }
         DbRequest::ReadActionStats { action_id, reply } => {
             let result = read_action_stats(conn, &action_id);
+            let _ = reply.send(result);
+            Ok(WorkerSignal::Continue)
+        }
+        DbRequest::ReadAgentMemories {
+            scope,
+            workspace_id,
+            limit,
+            reply,
+        } => {
+            let result = read_agent_memories(conn, scope.as_deref(), workspace_id, limit);
             let _ = reply.send(result);
             Ok(WorkerSignal::Continue)
         }
@@ -233,6 +322,9 @@ fn respond_error(request: DbRequest, error: String) {
         DbRequest::ReadActionStats { reply, .. } => {
             let _ = reply.send(Err(error));
         }
+        DbRequest::ReadAgentMemories { reply, .. } => {
+            let _ = reply.send(Err(error));
+        }
         DbRequest::Flush { reply } => {
             let _ = reply.send(Err(error));
         }
@@ -240,6 +332,8 @@ fn respond_error(request: DbRequest, error: String) {
         | DbRequest::WriteActionLogBatch(_)
         | DbRequest::WriteClipboardMetadata(_)
         | DbRequest::WriteClipboardMetadataBatch(_)
+        | DbRequest::WriteAgentAudit(_)
+        | DbRequest::WriteAgentMemory(_)
         | DbRequest::Shutdown => {}
     }
 }
@@ -326,6 +420,24 @@ fn init_schema(conn: &Connection) -> Result<(), String> {
         CREATE TABLE IF NOT EXISTS workflow_definitions (
             name TEXT PRIMARY KEY,
             definition TEXT NOT NULL,
+            updated_at INTEGER NOT NULL DEFAULT (strftime('%s','now'))
+        );
+        CREATE TABLE IF NOT EXISTS agent_audit_logs (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            run_id TEXT NOT NULL,
+            event_type TEXT NOT NULL,
+            status TEXT NOT NULL,
+            summary TEXT NOT NULL,
+            payload_json TEXT,
+            created_at INTEGER NOT NULL DEFAULT (strftime('%s','now'))
+        );
+        CREATE TABLE IF NOT EXISTS agent_memories (
+            id TEXT PRIMARY KEY,
+            scope TEXT NOT NULL,
+            workspace_id INTEGER,
+            title TEXT NOT NULL,
+            content TEXT NOT NULL,
+            visibility TEXT NOT NULL,
             updated_at INTEGER NOT NULL DEFAULT (strftime('%s','now'))
         );
         CREATE TABLE IF NOT EXISTS schema_migrations (
@@ -468,6 +580,38 @@ fn insert_clipboard_metadata_batch(
     tx.commit().map_err(|e| e.to_string())
 }
 
+fn insert_agent_audit(conn: &Connection, entry: &AgentAuditEntry) -> Result<(), String> {
+    conn.execute(
+        "INSERT INTO agent_audit_logs (run_id, event_type, status, summary, payload_json) VALUES (?1, ?2, ?3, ?4, ?5)",
+        params![
+            entry.run_id,
+            entry.event_type,
+            entry.status,
+            entry.summary,
+            entry.payload_json
+        ],
+    )
+    .map_err(|e| e.to_string())?;
+    Ok(())
+}
+
+fn insert_agent_memory(conn: &Connection, entry: &AgentMemoryEntry) -> Result<(), String> {
+    conn.execute(
+        "INSERT INTO agent_memories (id, scope, workspace_id, title, content, visibility) VALUES (?1, ?2, ?3, ?4, ?5, ?6)
+         ON CONFLICT(id) DO UPDATE SET scope=excluded.scope, workspace_id=excluded.workspace_id, title=excluded.title, content=excluded.content, visibility=excluded.visibility, updated_at=strftime('%s','now')",
+        params![
+            entry.id,
+            entry.scope,
+            entry.workspace_id,
+            entry.title,
+            entry.content,
+            entry.visibility
+        ],
+    )
+    .map_err(|e| e.to_string())?;
+    Ok(())
+}
+
 fn read_action_stats(conn: &Connection, action_id: &str) -> Result<ActionStats, String> {
     let run_count = conn
         .query_row(
@@ -480,6 +624,44 @@ fn read_action_stats(conn: &Connection, action_id: &str) -> Result<ActionStats, 
         action_id: action_id.to_string(),
         run_count,
     })
+}
+
+fn read_agent_memories(
+    conn: &Connection,
+    scope: Option<&str>,
+    workspace_id: Option<usize>,
+    limit: usize,
+) -> Result<Vec<AgentMemoryEntry>, String> {
+    let mut stmt = conn
+        .prepare(
+            "SELECT id, scope, workspace_id, title, content, visibility
+             FROM agent_memories
+             WHERE (?1 IS NULL OR scope = ?1)
+               AND (?2 IS NULL OR workspace_id = ?2)
+             ORDER BY updated_at DESC
+             LIMIT ?3",
+        )
+        .map_err(|e| e.to_string())?;
+    let rows = stmt
+        .query_map(
+            params![
+                scope,
+                workspace_id,
+                limit.max(1) as i64,
+            ],
+            |row| {
+                Ok(AgentMemoryEntry {
+                    id: row.get(0)?,
+                    scope: row.get(1)?,
+                    workspace_id: row.get(2)?,
+                    title: row.get(3)?,
+                    content: row.get(4)?,
+                    visibility: row.get(5)?,
+                })
+            },
+        )
+        .map_err(|e| e.to_string())?;
+    rows.collect::<Result<Vec<_>, _>>().map_err(|e| e.to_string())
 }
 
 fn default_db_path() -> PathBuf {
@@ -546,6 +728,32 @@ mod tests {
             store.flush().await.unwrap();
             let stats = store.action_stats("cmd:help".into()).await.unwrap();
             assert_eq!(stats.run_count, 2);
+        }
+        cleanup_db_path(&path);
+    }
+
+    #[test]
+    fn stores_and_reads_agent_memories() {
+        let path = test_db_path("agent-memory");
+        {
+            let store = KnowledgeStoreHandle::new(path.clone(), 8);
+            store.try_store_agent_memory(AgentMemoryEntry {
+                id: "run:1".into(),
+                scope: "long_term".into(),
+                workspace_id: Some(1),
+                title: "Recent plan".into(),
+                content: "Approved note draft".into(),
+                visibility: "user_private".into(),
+            });
+            let _ = tokio::runtime::Runtime::new()
+                .unwrap()
+                .block_on(store.flush())
+                .unwrap();
+            let memories = store
+                .agent_memories_blocking(Some("long_term".into()), Some(1), 5)
+                .unwrap();
+            assert_eq!(memories.len(), 1);
+            assert_eq!(memories[0].title, "Recent plan");
         }
         cleanup_db_path(&path);
     }

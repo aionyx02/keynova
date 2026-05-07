@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { listen } from "@tauri-apps/api/event";
 import { invoke } from "@tauri-apps/api/core";
+import type { BuiltinCommandResult } from "./useCommands";
 
 export interface AgentRun {
   id: string;
@@ -9,6 +10,15 @@ export interface AgentRun {
   plan: string[];
   output?: string;
   error?: string;
+  approvals: AgentApproval[];
+  command_result?: BuiltinCommandResult | null;
+}
+
+export interface AgentApproval {
+  id: string;
+  summary: string;
+  risk: "low" | "medium" | "high";
+  status: string;
 }
 
 interface AgentEventPayload {
@@ -27,12 +37,18 @@ export function useAgent() {
 
   useEffect(() => {
     if (!window.__TAURI_INTERNALS__) return;
-    const unlisten = listen<AgentEventPayload>("agent-run-completed", (event) => {
+    const updateFromEvent = (event: { payload: AgentEventPayload }) => {
       setRuns((prev) => [event.payload.run, ...prev.filter((run) => run.id !== event.payload.run_id)]);
       setLoading(false);
-    });
+    };
+    const listeners = Promise.all([
+      listen<AgentEventPayload>("agent-run-started", updateFromEvent),
+      listen<AgentEventPayload>("agent-approval-required", updateFromEvent),
+      listen<AgentEventPayload>("agent-run-completed", updateFromEvent),
+      listen<AgentEventPayload>("agent-run-failed", updateFromEvent),
+    ]);
     return () => {
-      unlisten.then((fn) => fn());
+      listeners.then((fns) => fns.forEach((fn) => fn()));
     };
   }, []);
 
@@ -52,6 +68,21 @@ export function useAgent() {
     setRuns((prev) => [run, ...prev.filter((item) => item.id !== run.id)]);
   }, []);
 
-  return { runs, loading, start, cancel };
-}
+  const approve = useCallback(async (runId: string, approvalId: string) => {
+    const run = await ipcDispatch<AgentRun>("agent.approve", {
+      run_id: runId,
+      approval_id: approvalId,
+    });
+    setRuns((prev) => [run, ...prev.filter((item) => item.id !== run.id)]);
+  }, []);
 
+  const reject = useCallback(async (runId: string, approvalId: string) => {
+    const run = await ipcDispatch<AgentRun>("agent.reject", {
+      run_id: runId,
+      approval_id: approvalId,
+    });
+    setRuns((prev) => [run, ...prev.filter((item) => item.id !== run.id)]);
+  }, []);
+
+  return { runs, loading, start, cancel, approve, reject };
+}

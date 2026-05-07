@@ -40,5 +40,12 @@ Legacy Tauri aliases are emitted during migration by replacing dots with hyphens
 
 ## Current Implementation
 
-The first Phase 4 implementation adds the data model, tool registry, status events, `/ai` Chat/Agent UI toggle, and `agent.start` / `agent.cancel` / `agent.resume` / `agent.approve` / `agent.reject` handlers. Agent mode currently prepares a safe plan and does not execute local side effects.
+Batch 4 now adds:
 
+- prompt audit with bounded included sources plus filtered private/secret source metadata
+- pending approval state for medium/high-risk actions
+- approved panel/draft execution for notes, settings, safe built-in commands, and panel opens
+- approved terminal launch for explicit high-risk command requests
+- Knowledge Store audit logging and opt-in long-term memory references
+
+Generic file writes remain scaffolded rather than directly executed.

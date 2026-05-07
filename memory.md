@@ -1,5 +1,15 @@
 # memory.md — AI 工作記憶
 
+## 2026-05-07 Update - Agent Runtime Batch 4
+
+- Batch 4 agent runtime now uses an explicit approval state machine with typed planned actions instead of reusing generic launcher actions for risk handling.
+- `agent.start` builds a prompt audit with context budget, visibility filtering, filtered-source metadata, and secret/private-architecture redaction before any agent action is proposed.
+- Medium-risk approvals can now open panels, create note drafts, update setting drafts, and run allowlisted safe built-in commands. High-risk approvals can launch terminal commands and scaffold file/system/model actions behind explicit confirmation.
+- Agent runs can return a `BuiltinCommandResult` payload so the AI panel can hand approved note/setting/system/model/terminal intents back to the launcher UI.
+- Knowledge Store schema version is now 3, adding `agent_audit_logs` and `agent_memories`. Long-term memory is opt-in through `agent.long_term_memory_opt_in`.
+- `NoteEditor` now respects `initialArgs` for both plain note selection and agent draft payloads. `SettingPanel` now respects draft key/value payloads from the agent.
+- Verification passed: `cargo test`, `cargo clippy -- -D warnings`, `npm run lint`, `npm run build`.
+
 ## 2026-05-07 Update - Search Runtime Batch 2/3
 
 - Search now stores a real on-disk Tantivy index with `name`, `path`, `kind`, and folder metadata. Windows rebuild refreshes the existing file cache, snapshots it, and writes the persisted index under `[search].index_dir` or `%APPDATA%\Keynova\search\tantivy`.

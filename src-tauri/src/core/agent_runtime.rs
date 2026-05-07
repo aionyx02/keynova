@@ -7,9 +7,7 @@ use uuid::Uuid;
 
 use crate::core::AppEvent;
 use crate::models::action::ActionRisk;
-use crate::models::agent::{
-    AgentRun, AgentRunStatus, AgentStep, AgentToolCall, ContextVisibility, GroundingSource,
-};
+use crate::models::agent::{AgentRun, AgentRunStatus, ContextVisibility};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AgentToolSpec {
@@ -77,71 +75,30 @@ impl AgentRuntime {
         }
     }
 
-    pub fn start(&self, prompt: String) -> Result<AgentRun, String> {
-        self.start_with_context(prompt, Vec::new(), Vec::new())
+    pub fn next_run_id(&self) -> String {
+        Uuid::new_v4().to_string()
     }
 
-    pub fn start_with_context(
-        &self,
-        prompt: String,
-        mut sources: Vec<GroundingSource>,
-        tool_calls: Vec<AgentToolCall>,
-    ) -> Result<AgentRun, String> {
-        let run_id = Uuid::new_v4().to_string();
-        let plan = plan_for_prompt(&prompt);
-        if sources.is_empty() {
-            sources.push(GroundingSource {
-                source_id: "workspace:current".into(),
-                source_type: "workspace".into(),
-                title: "Current workspace".into(),
-                snippet: "Workspace summary only; private architecture and secrets are withheld."
-                    .into(),
-                uri: None,
-                score: 1.0,
-                visibility: ContextVisibility::PublicContext,
-                redacted_reason: None,
-            });
-        }
-        let source_summary = sources
-            .iter()
-            .take(5)
-            .map(|source| {
-                format!(
-                    "- [{}] {}: {}",
-                    source.source_type, source.title, source.snippet
-                )
-            })
-            .collect::<Vec<_>>()
-            .join("\n");
-        let run = AgentRun {
-            id: run_id.clone(),
-            prompt,
-            status: AgentRunStatus::Completed,
-            plan: plan.clone(),
-            steps: vec![AgentStep {
-                id: format!("{run_id}:plan"),
-                title: "Prepare safe plan".into(),
-                status: "completed".into(),
-                tool_calls,
-            }],
-            approvals: Vec::new(),
-            memory_refs: Vec::new(),
-            sources,
-            output: Some(format!(
-                "Plan prepared. No local actions were executed.\n{}\n\nSources considered:\n{}",
-                plan.iter()
-                    .map(|step| format!("- {step}"))
-                    .collect::<Vec<_>>()
-                    .join("\n"),
-                source_summary
-            )),
-            error: None,
-        };
-        self.publish("agent.run.started", &run);
-        self.publish("agent.step.started", &run);
-        self.publish("agent.run.completed", &run);
+    pub fn insert_run(&self, run: AgentRun) -> Result<AgentRun, String> {
+        let run_id = run.id.clone();
         let mut guard = self.runs.lock().map_err(|e| e.to_string())?;
         guard.insert(run_id, run.clone());
+        drop(guard);
+        self.publish("agent.run.started", &run);
+        if run.status == AgentRunStatus::WaitingApproval {
+            self.publish("agent.approval.required", &run);
+        } else if matches!(run.status, AgentRunStatus::Completed | AgentRunStatus::Failed) {
+            self.publish("agent.run.completed", &run);
+        }
+        Ok(run)
+    }
+
+    pub fn update_run(&self, run: AgentRun, topic: &str) -> Result<AgentRun, String> {
+        let run_id = run.id.clone();
+        let mut guard = self.runs.lock().map_err(|e| e.to_string())?;
+        guard.insert(run_id, run.clone());
+        drop(guard);
+        self.publish(topic, &run);
         Ok(run)
     }
 
@@ -151,13 +108,24 @@ impl AgentRuntime {
             .get_mut(run_id)
             .ok_or_else(|| format!("agent run '{run_id}' not found"))?;
         run.status = AgentRunStatus::Cancelled;
-        self.publish("agent.run.failed", run);
-        Ok(run.clone())
+        run.output = Some("Run cancelled before execution completed.".into());
+        let updated = run.clone();
+        drop(guard);
+        self.publish("agent.run.failed", &updated);
+        Ok(updated)
     }
 
     pub fn get(&self, run_id: &str) -> Result<Option<AgentRun>, String> {
         let guard = self.runs.lock().map_err(|e| e.to_string())?;
         Ok(guard.get(run_id).cloned())
+    }
+
+    pub fn recent_runs(&self, limit: usize) -> Result<Vec<AgentRun>, String> {
+        let guard = self.runs.lock().map_err(|e| e.to_string())?;
+        let mut runs: Vec<_> = guard.values().cloned().collect();
+        runs.sort_by(|left, right| right.id.cmp(&left.id));
+        runs.truncate(limit);
+        Ok(runs)
     }
 
     pub fn list_tools(&self) -> Vec<AgentToolSpec> {
@@ -174,21 +142,4 @@ impl AgentRuntime {
             }),
         ));
     }
-}
-
-fn plan_for_prompt(prompt: &str) -> Vec<String> {
-    let trimmed = prompt.trim();
-    let mut plan = vec![
-        "Classify requested context by visibility before building any prompt".into(),
-        "Use read-only tools first and avoid shell, filesystem, clipboard, or system control"
-            .into(),
-    ];
-    if trimmed.contains("note") || trimmed.contains("筆記") {
-        plan.push("Prepare a note draft and request approval before writing".into());
-    } else if trimmed.contains("test") || trimmed.contains("測試") {
-        plan.push("Show the test command and wait for approval before starting a process".into());
-    } else {
-        plan.push("Return a suggested next-step plan without executing local actions".into());
-    }
-    plan
 }
