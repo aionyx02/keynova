@@ -1,5 +1,15 @@
 # decisions.md — 架構決策紀錄（ADR）
 
+## ADR-023 ReAct Tool Schema And Observation Safety Foundation
+
+- Status: Accepted
+- Decision: Batch 4.6 starts by making Agent tools typed, schema-generated, and observation-bounded before wiring a provider-driven ReAct loop. Tool parameter schemas are generated from Rust structs with `schemars`; `AgentToolSpec` carries an LLM-safe tool name, description, generated parameter/result schemas, approval policy, visibility policy, timeout, result limit, and observation redaction policy.
+- Consequences:
+  - Generic shell execution is not part of the first ReAct tool set. The registry may expose narrow typed tools such as `git.status`, but those must remain approval-gated and must not be callable through the legacy direct `agent.tool` path.
+  - Agent execution must use the user's selected AI provider/model rather than forcing an API-only path. OpenAI-compatible and local Ollama providers are declared tool-call-capable targets for the first ReAct adapters; Claude remains a regular chat provider until its provider-specific tool adapter is added.
+  - Tool observations must pass through a redaction/truncation pipeline before entering an LLM context. The pipeline redacts likely secret lines, enforces hard line/character caps, and preserves both head and tail content with an explicit middle redaction marker.
+  - Follow-up work can wire the ReAct loop against these contracts without relying on regex-only command denial or unbounded stdout/search/file observations.
+
 ## ADR-022 Agent Approval Boundary And Prompt Audit
 
 - Status: Accepted

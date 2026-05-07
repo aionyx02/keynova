@@ -1,5 +1,14 @@
 # memory.md — AI 工作記憶
 
+## 2026-05-07 Update - ReAct Tool Safety Foundation
+
+- Batch 4.6 started with the safety/type foundation before provider-loop wiring.
+- Added `schemars` and generated Agent tool parameter/result schemas from Rust structs. `AgentToolSpec` now carries LLM-safe names, descriptions, generated schemas, approval policy, visibility policy, timeouts, result limits, and observation redaction policy.
+- Added `core::agent_observation` with hard character/line limits, likely-secret line redaction, and head+tail preservation so large stdout/file/search observations do not enter LLM context unbounded.
+- Added provider-neutral tool-call contract types in `AiManager`; Agent execution must use the same selected AI provider/model as AI Chat, with OpenAI-compatible and local Ollama declared as first ReAct tool-call targets.
+- Generic `execute_shell_command` / `execute_bash_command` is intentionally absent from the default tool registry. A typed `git.status` spec is present but approval-gated and blocked from the legacy direct `agent.tool` path.
+- ADR-023 records this foundation. Verification passed: `cargo test`, `cargo clippy -- -D warnings`, `git diff --check`.
+
 ## 2026-05-07 Update - Agent Runtime Batch 4
 
 - Batch 4 agent runtime now uses an explicit approval state machine with typed planned actions instead of reusing generic launcher actions for risk handling.

@@ -8,8 +8,8 @@ use uuid::Uuid;
 
 use crate::core::config_manager::ConfigManager;
 use crate::core::{
-    AgentAuditEntry, AgentMemoryEntry, AgentRuntime, BuiltinCommandRegistry, CommandHandler,
-    CommandResult, KnowledgeStoreHandle,
+    prepare_observation, AgentAuditEntry, AgentMemoryEntry, AgentObservationPolicy, AgentRuntime,
+    BuiltinCommandRegistry, CommandHandler, CommandResult, KnowledgeStoreHandle,
 };
 use crate::managers::{
     history_manager::HistoryManager, model_manager::ModelManager, note_manager::NoteManager,
@@ -722,6 +722,10 @@ impl AgentHandler {
             "web.search" => self.web_search(query, limit)?,
             "filesystem.search" => self.filesystem_search_sources(query, limit),
             "filesystem.read" => self.filesystem_read_source(query)?,
+            "git.status" => return Err(
+                "git.status is a typed approval-gated tool and cannot be run through agent.tool"
+                    .into(),
+            ),
             other => return Err(format!("unknown agent tool '{other}'")),
         };
         Ok(AgentToolRunResult {
@@ -838,7 +842,17 @@ impl AgentHandler {
         let roots = self.filesystem_search_roots_for_prompt(query);
         let (path, _) = resolve_file_target(&target, &roots);
         let path = path.ok_or_else(|| format!("file '{target}' not found"))?;
-        let preview = read_text_preview(&path, 4096)?;
+        let preview = read_text_preview(&path, 12_000)?;
+        let observation = prepare_observation(
+            &preview,
+            &AgentObservationPolicy {
+                max_chars: 4096,
+                max_lines: 120,
+                preserve_head_lines: 48,
+                preserve_tail_lines: 48,
+                redact_secrets: true,
+            },
+        );
         Ok(vec![source(
             format!("filesystem-read:{}", path.display()),
             "file_read",
@@ -846,7 +860,7 @@ impl AgentHandler {
                 .and_then(|name| name.to_str())
                 .unwrap_or("file")
                 .to_string(),
-            preview,
+            observation.content,
             0.95,
             ContextVisibility::UserPrivate,
         )])

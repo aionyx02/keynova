@@ -4560,6 +4560,7 @@ dependencies = [
  "portable-pty",
  "reqwest 0.12.28",
  "rusqlite",
+ "schemars 0.8.22",
  "serde",
  "serde_json",
  "tantivy",
