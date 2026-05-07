@@ -46,6 +46,20 @@ impl AgentToolRegistry {
             timeout_ms: 1000,
             result_limit: 10,
         });
+        registry.register(AgentToolSpec {
+            name: "filesystem.search".into(),
+            risk: ActionRisk::Low,
+            allowed_visibility: vec![ContextVisibility::UserPrivate],
+            timeout_ms: 3500,
+            result_limit: 20,
+        });
+        registry.register(AgentToolSpec {
+            name: "filesystem.read".into(),
+            risk: ActionRisk::Low,
+            allowed_visibility: vec![ContextVisibility::UserPrivate],
+            timeout_ms: 1000,
+            result_limit: 1,
+        });
         registry
     }
 
@@ -87,7 +101,10 @@ impl AgentRuntime {
         self.publish("agent.run.started", &run);
         if run.status == AgentRunStatus::WaitingApproval {
             self.publish("agent.approval.required", &run);
-        } else if matches!(run.status, AgentRunStatus::Completed | AgentRunStatus::Failed) {
+        } else if matches!(
+            run.status,
+            AgentRunStatus::Completed | AgentRunStatus::Failed
+        ) {
             self.publish("agent.run.completed", &run);
         }
         Ok(run)
@@ -141,5 +158,74 @@ impl AgentRuntime {
                 "run": run,
             }),
         ));
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn test_run(id: &str, status: AgentRunStatus) -> AgentRun {
+        AgentRun {
+            id: id.into(),
+            prompt: "test prompt".into(),
+            status,
+            plan: Vec::new(),
+            steps: Vec::new(),
+            approvals: Vec::new(),
+            memory_refs: Vec::new(),
+            sources: Vec::new(),
+            prompt_audit: None,
+            command_result: None,
+            output: None,
+            error: None,
+        }
+    }
+
+    #[test]
+    fn cancel_updates_run_and_publishes_failed_topic() {
+        let events = Arc::new(Mutex::new(Vec::<String>::new()));
+        let sink = events.clone();
+        let runtime = AgentRuntime::new(Arc::new(move |event| {
+            sink.lock()
+                .expect("events mutex poisoned")
+                .push(event.topic);
+        }));
+
+        runtime
+            .insert_run(test_run("run-1", AgentRunStatus::WaitingApproval))
+            .expect("insert run");
+        let cancelled = runtime.cancel("run-1").expect("cancel run");
+
+        assert_eq!(cancelled.status, AgentRunStatus::Cancelled);
+        assert_eq!(
+            runtime
+                .get("run-1")
+                .expect("get run")
+                .expect("run exists")
+                .status,
+            AgentRunStatus::Cancelled
+        );
+        assert_eq!(
+            events.lock().expect("events mutex poisoned").as_slice(),
+            &[
+                "agent.run.started".to_string(),
+                "agent.approval.required".to_string(),
+                "agent.run.failed".to_string(),
+            ]
+        );
+    }
+
+    #[test]
+    fn default_tool_registry_is_sorted_and_read_only() {
+        let runtime = AgentRuntime::new(Arc::new(|_| {}));
+        let tools = runtime.list_tools();
+
+        assert_eq!(tools.len(), 4);
+        assert_eq!(tools[0].name, "filesystem.read");
+        assert_eq!(tools[1].name, "filesystem.search");
+        assert_eq!(tools[2].name, "keynova.search");
+        assert_eq!(tools[3].name, "web.search");
+        assert!(tools.iter().all(|tool| tool.risk == ActionRisk::Low));
     }
 }
