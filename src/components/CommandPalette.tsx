@@ -10,7 +10,7 @@ import { useCommands } from "../hooks/useCommands";
 import { CommandSuggestions } from "./CommandSuggestions";
 import { PanelRegistry } from "./panel/PanelRegistry";
 import { WorkspaceIndicator } from "./WorkspaceIndicator";
-import type { SearchChunkPayload, SearchErrorPayload, SearchMetadata, SearchResult } from "../types/search";
+import type { SearchChunkPayload, SearchErrorPayload, SearchIconAsset, SearchMetadata, SearchResult } from "../types/search";
 import type { ActionRef } from "../types/search";
 import type { BuiltinCommandResult } from "../hooks/useCommands";
 import type { WorkspaceState } from "../hooks/useWorkspace";
@@ -36,6 +36,8 @@ interface SearchBackendInfo {
   everything_available: boolean;
   tantivy_available: boolean;
   file_cache_entries: number;
+  tantivy_index_entries: number;
+  tantivy_index_dir: string;
   rebuild_supported: boolean;
 }
 
@@ -119,6 +121,7 @@ export function CommandPalette() {
   const [selectedArg, setSelectedArg] = useState(0);
   const [searchBackend, setSearchBackend] = useState<SearchBackendInfo | null>(null);
   const [metadataByPath, setMetadataByPath] = useState<Record<string, SearchMetadata>>({});
+  const [iconsByKey, setIconsByKey] = useState<Record<string, SearchIconAsset>>({});
   const [timedOutProviders, setTimedOutProviders] = useState<string[]>([]);
 
   const inputRef = useRef<HTMLInputElement>(null);
@@ -287,7 +290,8 @@ export function CommandPalette() {
     const unlisten = listen<ConfigReloadedPayload>("config-reloaded", (event) => {
       if (
         event.payload.changed_keys.length === 0 ||
-        event.payload.changed_keys.includes("search.backend")
+        event.payload.changed_keys.includes("search.backend") ||
+        event.payload.changed_keys.includes("search.index_dir")
       ) {
         void refreshSearchBackend();
       }
@@ -327,6 +331,30 @@ export function CommandPalette() {
     // dispatch is intentionally omitted because useIPC returns a fresh wrapper each render.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selected, results, metadataByPath]);
+
+  useEffect(() => {
+    if (!window.__TAURI_INTERNALS__) return;
+    const result = results[selected];
+    const iconKey = result?.icon_key;
+    if (!result || !iconKey || iconsByKey[iconKey]) return;
+
+    let cancelled = false;
+    dispatch<SearchIconAsset>("search.icon", {
+      icon_key: iconKey,
+      kind: result.kind,
+      path: result.path,
+    })
+      .then((asset) => {
+        if (cancelled) return;
+        setIconsByKey((current) => ({ ...current, [asset.icon_key]: asset }));
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+    // dispatch is intentionally omitted because useIPC returns a fresh wrapper each render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selected, results, iconsByKey]);
 
   useEffect(() => {
     const unlisten = listen<void>("window-focused", () => {
@@ -492,6 +520,10 @@ export function CommandPalette() {
 
   async function launchResult(result: SearchResult) {
     try {
+      await dispatch("search.record_selection", {
+        source: result.source ?? result.kind,
+        path: result.path,
+      }).catch(() => {});
       if (result.primary_action) {
         const actionResult = await dispatch<{ type: string; name?: string; initial_args?: string }>(
           "action.run",
@@ -692,7 +724,7 @@ export function CommandPalette() {
             />
             {searchBackend && mode === "search" && (
               <span
-                title={`configured=${searchBackend.configured}, everything=${searchBackend.everything_available}, tantivy=${searchBackend.tantivy_available}, cache=${searchBackend.file_cache_entries}`}
+                title={`configured=${searchBackend.configured}, everything=${searchBackend.everything_available}, tantivy=${searchBackend.tantivy_available}, cache=${searchBackend.file_cache_entries}, tantivy_docs=${searchBackend.tantivy_index_entries}, index=${searchBackend.tantivy_index_dir}`}
                 className="mr-2 hidden shrink-0 rounded border border-gray-700/70 bg-gray-950/70 px-2 py-1 text-[10px] font-semibold uppercase text-gray-400 sm:inline-flex"
               >
                 {searchBackend.active}
@@ -709,6 +741,7 @@ export function CommandPalette() {
               <ul className="max-h-[352px] overflow-y-auto py-1">
                 {results.map((r, i) => {
                   const badge = KIND_BADGE[r.kind] ?? KIND_BADGE.file;
+                  const icon = r.icon_key ? iconsByKey[r.icon_key] : null;
                   return (
                     <li
                       key={r.path}
@@ -719,9 +752,18 @@ export function CommandPalette() {
                         i === selected ? "bg-blue-600/70 text-white" : "text-gray-300 hover:bg-white/8"
                       }`}
                     >
-                      <span className={`shrink-0 rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${badge.cls}`}>
-                        {badge.label}
-                      </span>
+                      {icon ? (
+                        <img
+                          src={icon.data_url}
+                          alt=""
+                          className="h-6 w-6 shrink-0 rounded"
+                          draggable={false}
+                        />
+                      ) : (
+                        <span className={`shrink-0 rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${badge.cls}`}>
+                          {badge.label}
+                        </span>
+                      )}
                       <span className="truncate font-medium">{r.title ?? r.name}</span>
                       {Boolean(r.secondary_action_count) && (
                         <span className="shrink-0 text-[10px] text-gray-500">+{r.secondary_action_count}</span>

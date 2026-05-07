@@ -9,7 +9,7 @@ use crate::core::config_manager::ConfigManager;
 use crate::core::{BuiltinCommandRegistry, CommandHandler, CommandResult};
 use crate::managers::{note_manager::NoteManager, search_manager::SearchManager};
 use crate::models::builtin_command::{BuiltinCommandResult, CommandUiType};
-use crate::models::terminal::TerminalLaunchSpec;
+use crate::models::terminal::{TerminalEnvVar, TerminalLaunchSpec};
 
 pub struct HelpCommand;
 
@@ -170,16 +170,23 @@ impl BuiltinCommand for NoteCommand {
         Some("[lazyvim [note-name] | lazyvim --path <path>]")
     }
     fn execute(&self, args: &str) -> BuiltinCommandResult {
-        let configured_command = self
+        let (configured_command, configured_config_dir) = self
             .config
             .lock()
             .ok()
-            .and_then(|config| config.get("notes.lazyvim_command"));
+            .map(|config| {
+                (
+                    config.get("notes.lazyvim_command"),
+                    config.get("notes.lazyvim_config_dir"),
+                )
+            })
+            .unwrap_or((None, None));
         match self.manager.lock() {
             Ok(manager) => run_note_command(
                 args,
                 &manager,
                 configured_command.as_deref(),
+                configured_config_dir.as_deref(),
                 &find_command_in_path,
             ),
             Err(error) => inline_result(format!("Note manager unavailable: {error}")),
@@ -204,6 +211,7 @@ fn run_note_command(
     args: &str,
     manager: &NoteManager,
     configured_command: Option<&str>,
+    configured_config_dir: Option<&str>,
     command_finder: &dyn Fn(&str) -> Option<PathBuf>,
 ) -> BuiltinCommandResult {
     let mode = match parse_note_args(args) {
@@ -225,6 +233,11 @@ fn run_note_command(
         );
     };
 
+    let lazyvim_config = match resolve_lazyvim_config(configured_config_dir) {
+        Ok(config) => config,
+        Err(error) => return inline_result(error),
+    };
+
     let (target_path, title, cwd) = match resolve_lazyvim_target(&target, manager) {
         Ok(target) => target,
         Err(error) => return inline_result(error),
@@ -238,9 +251,22 @@ fn run_note_command(
             args: vec![target_path.display().to_string()],
             cwd: Some(cwd.display().to_string()),
             title: Some(title),
+            env: lazyvim_config.env,
             editor: true,
         }),
     }
+}
+
+struct LazyVimConfig {
+    env: Vec<TerminalEnvVar>,
+}
+
+struct LazyVimLayout {
+    config_parent: PathBuf,
+    config_dir: PathBuf,
+    data_home: PathBuf,
+    state_home: PathBuf,
+    cache_home: PathBuf,
 }
 
 fn inline_result(text: String) -> BuiltinCommandResult {
@@ -308,6 +334,216 @@ fn resolve_lazyvim_target(
     }
 }
 
+fn resolve_lazyvim_config(configured_config_dir: Option<&str>) -> Result<LazyVimConfig, String> {
+    let config_dir = configured_config_dir
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(expand_user_path)
+        .unwrap_or_else(default_nvim_config_dir);
+    let project_managed = is_project_managed_lazyvim_dir(&config_dir);
+
+    ensure_lazyvim_config(&config_dir, project_managed)?;
+
+    if !looks_like_lazyvim_config(&config_dir) {
+        return Err(format!(
+            "LazyVim config was not found at {} and Keynova did not overwrite the existing directory.\nUse an empty project-managed directory, set notes.lazyvim_config_dir, or install the official starter with:\n  git clone https://github.com/LazyVim/starter {}\nThe LazyVim distro repo is https://github.com/LazyVim/LazyVim.",
+            config_dir.display(),
+            config_dir.display()
+        ));
+    }
+
+    Ok(LazyVimConfig {
+        env: lazyvim_env_for_config_dir(&config_dir),
+    })
+}
+
+fn ensure_lazyvim_config(config_dir: &Path, project_managed: bool) -> Result<(), String> {
+    if looks_like_lazyvim_config(config_dir) {
+        write_missing_lazyvim_template_files(config_dir, false)?;
+        return Ok(());
+    }
+
+    let dir_exists = config_dir.exists();
+    let dir_empty = !dir_exists
+        || std::fs::read_dir(config_dir)
+            .map(|mut entries| entries.next().is_none())
+            .unwrap_or(true);
+    if !project_managed && !dir_empty {
+        return Ok(());
+    }
+
+    write_missing_lazyvim_template_files(config_dir, project_managed || dir_empty)
+}
+
+fn write_missing_lazyvim_template_files(
+    config_dir: &Path,
+    overwrite_existing: bool,
+) -> Result<(), String> {
+    for (relative, content) in lazyvim_template_files() {
+        let path = config_dir.join(relative);
+        if path.exists() && !overwrite_existing {
+            continue;
+        }
+        if let Some(parent) = path.parent() {
+            std::fs::create_dir_all(parent).map_err(|e| e.to_string())?;
+        }
+        std::fs::write(&path, content).map_err(|e| format!("{}: {e}", path.display()))?;
+    }
+    Ok(())
+}
+
+fn looks_like_lazyvim_config(config_dir: &Path) -> bool {
+    if !config_dir.is_dir() {
+        return false;
+    }
+    [
+        config_dir.join("lua").join("config").join("lazy.lua"),
+        config_dir.join("init.lua"),
+        config_dir.join("lazy-lock.json"),
+    ]
+    .iter()
+    .filter_map(|path| std::fs::read_to_string(path).ok())
+    .any(|content| {
+        content.contains("LazyVim/LazyVim")
+            || content.contains("lazyvim.plugins")
+            || content.contains("lazyvim.config")
+    })
+}
+
+fn lazyvim_template_files() -> Vec<(&'static str, &'static str)> {
+    vec![
+        (
+            ".keynova-managed",
+            "This LazyVim runtime config is generated by Keynova.\nDelete the project or this .keynova directory to remove it.\n",
+        ),
+        ("init.lua", "require(\"config.lazy\")\n"),
+        (
+            "lua/config/lazy.lua",
+            r#"local lazypath = vim.fn.stdpath("data") .. "/lazy/lazy.nvim"
+if not vim.uv.fs_stat(lazypath) then
+  local lazyrepo = "https://github.com/folke/lazy.nvim.git"
+  local result = vim.fn.system({ "git", "clone", "--filter=blob:none", "--branch=stable", lazyrepo, lazypath })
+  if vim.v.shell_error ~= 0 then
+    vim.api.nvim_echo({
+      { "Failed to clone lazy.nvim:\n", "ErrorMsg" },
+      { result, "WarningMsg" },
+      { "\nPress any key to exit..." },
+    }, true, {})
+    vim.fn.getchar()
+    os.exit(1)
+  end
+end
+vim.opt.rtp:prepend(lazypath)
+
+require("lazy").setup({
+  spec = {
+    { "LazyVim/LazyVim", import = "lazyvim.plugins" },
+    { import = "plugins" },
+  },
+  install = { colorscheme = { "tokyonight", "habamax" } },
+  checker = { enabled = true, notify = false },
+})
+"#,
+        ),
+        (
+            "lua/config/options.lua",
+            "vim.g.mapleader = \" \"\nvim.g.maplocalleader = \"\\\\\"\nvim.opt.wrap = true\nvim.opt.spell = false\n",
+        ),
+        (
+            "lua/config/keymaps.lua",
+            "-- Add project-local LazyVim keymaps here.\n",
+        ),
+        (
+            "lua/config/autocmds.lua",
+            "-- Add project-local LazyVim autocommands here.\n",
+        ),
+        (
+            "lua/plugins/keynova.lua",
+            "return {\n  -- Project-local LazyVim plugin specs can be added here.\n}\n",
+        ),
+    ]
+}
+
+fn lazyvim_env_for_config_dir(config_dir: &Path) -> Vec<TerminalEnvVar> {
+    let layout = project_lazyvim_layout();
+    let Some(appname) = config_dir
+        .file_name()
+        .and_then(|value| value.to_str())
+        .filter(|value| !value.is_empty())
+    else {
+        return Vec::new();
+    };
+
+    let mut env = vec![TerminalEnvVar {
+        key: "NVIM_APPNAME".into(),
+        value: appname.to_string(),
+    }];
+    let config_parent = config_dir
+        .parent()
+        .map(Path::to_path_buf)
+        .unwrap_or(layout.config_parent);
+    env.push(TerminalEnvVar {
+        key: "XDG_CONFIG_HOME".into(),
+        value: config_parent.display().to_string(),
+    });
+    env.push(TerminalEnvVar {
+        key: "XDG_DATA_HOME".into(),
+        value: layout.data_home.display().to_string(),
+    });
+    env.push(TerminalEnvVar {
+        key: "XDG_STATE_HOME".into(),
+        value: layout.state_home.display().to_string(),
+    });
+    env.push(TerminalEnvVar {
+        key: "XDG_CACHE_HOME".into(),
+        value: layout.cache_home.display().to_string(),
+    });
+    env
+}
+
+fn default_nvim_config_dir() -> PathBuf {
+    project_lazyvim_layout().config_dir
+}
+
+fn project_lazyvim_layout() -> LazyVimLayout {
+    let root = project_runtime_root().join(".keynova").join("lazyvim");
+    LazyVimLayout {
+        config_parent: root.join("config"),
+        config_dir: root.join("config").join("keynova-lazyvim"),
+        data_home: root.join("data"),
+        state_home: root.join("state"),
+        cache_home: root.join("cache"),
+    }
+}
+
+fn project_runtime_root() -> PathBuf {
+    if let Some(root) = std::env::var_os("KEYNOVA_PROJECT_DIR").map(PathBuf::from) {
+        return root;
+    }
+    if let Ok(current) = std::env::current_dir() {
+        if let Some(root) = find_project_root_from(&current) {
+            return root;
+        }
+    }
+    PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .parent()
+        .map(Path::to_path_buf)
+        .unwrap_or_else(|| PathBuf::from("."))
+}
+
+fn find_project_root_from(start: &Path) -> Option<PathBuf> {
+    start.ancestors().find_map(|path| {
+        (path.join("tasks.md").is_file() && path.join("src-tauri").is_dir())
+            .then(|| path.to_path_buf())
+    })
+}
+
+fn is_project_managed_lazyvim_dir(config_dir: &Path) -> bool {
+    let layout = project_lazyvim_layout();
+    config_dir == layout.config_dir
+        || config_dir.starts_with(project_runtime_root().join(".keynova"))
+}
+
 fn resolve_user_note_path(input: &str, notes_root: &Path) -> Result<PathBuf, String> {
     let value = strip_wrapping_quotes(input.trim());
     if value.is_empty() {
@@ -325,6 +561,43 @@ fn resolve_user_note_path(input: &str, notes_root: &Path) -> Result<PathBuf, Str
     } else {
         Ok(notes_root.join(path))
     }
+}
+
+fn expand_user_path(value: &str) -> PathBuf {
+    let mut expanded = value.to_string();
+    for key in [
+        "LOCALAPPDATA",
+        "APPDATA",
+        "USERPROFILE",
+        "HOME",
+        "XDG_CONFIG_HOME",
+    ] {
+        if let Some(env_value) = std::env::var_os(key).and_then(|value| value.into_string().ok()) {
+            expanded = expanded.replace(&format!("%{key}%"), &env_value);
+            expanded = expanded.replace(&format!("${key}"), &env_value);
+            expanded = expanded.replace(&format!("$env:{key}"), &env_value);
+        }
+    }
+    if expanded == "~" {
+        if let Some(home) = home_dir() {
+            return home;
+        }
+    }
+    if let Some(rest) = expanded
+        .strip_prefix("~/")
+        .or_else(|| expanded.strip_prefix("~\\"))
+    {
+        if let Some(home) = home_dir() {
+            return home.join(rest);
+        }
+    }
+    PathBuf::from(expanded)
+}
+
+fn home_dir() -> Option<PathBuf> {
+    std::env::var_os("HOME")
+        .or_else(|| std::env::var_os("USERPROFILE"))
+        .map(PathBuf::from)
 }
 
 fn strip_wrapping_quotes(value: &str) -> &str {
@@ -636,6 +909,19 @@ mod tests {
         (manager, root)
     }
 
+    fn write_lazyvim_config(root: &Path) -> PathBuf {
+        let config_dir = root.join("lazyvim-config");
+        let lazy_file = config_dir.join("lua").join("config").join("lazy.lua");
+        std::fs::create_dir_all(lazy_file.parent().expect("lazy marker parent"))
+            .expect("create lazyvim config dirs");
+        std::fs::write(
+            &lazy_file,
+            r#"{ "LazyVim/LazyVim", import = "lazyvim.plugins" }"#,
+        )
+        .expect("write lazyvim marker");
+        config_dir
+    }
+
     fn fake_finder(command: &str) -> Option<PathBuf> {
         (command == "nvim").then(|| PathBuf::from("nvim"))
     }
@@ -643,7 +929,7 @@ mod tests {
     #[test]
     fn note_without_args_keeps_builtin_panel() {
         let (manager, root) = temp_note_manager();
-        let result = run_note_command("", &manager, None, &fake_finder);
+        let result = run_note_command("", &manager, None, None, &fake_finder);
         assert!(matches!(result.ui_type, CommandUiType::Panel(ref name) if name == "note"));
         let _ = std::fs::remove_dir_all(root);
     }
@@ -651,12 +937,15 @@ mod tests {
     #[test]
     fn note_lazyvim_without_target_opens_notes_root() {
         let (manager, root) = temp_note_manager();
-        let result = run_note_command("lazyvim", &manager, None, &fake_finder);
+        let config_dir = write_lazyvim_config(&root);
+        let config_dir = config_dir.display().to_string();
+        let result = run_note_command("lazyvim", &manager, None, Some(&config_dir), &fake_finder);
         let CommandUiType::Terminal(spec) = result.ui_type else {
             panic!("expected terminal result");
         };
         assert_eq!(spec.args, vec![root.display().to_string()]);
         assert_eq!(spec.cwd, Some(root.display().to_string()));
+        assert!(spec.env.iter().any(|env| env.key == "NVIM_APPNAME"));
         assert!(spec.editor);
         let _ = std::fs::remove_dir_all(root);
     }
@@ -664,7 +953,15 @@ mod tests {
     #[test]
     fn note_lazyvim_named_note_resolves_markdown_file() {
         let (manager, root) = temp_note_manager();
-        let result = run_note_command("lazyvim project plan", &manager, None, &fake_finder);
+        let config_dir = write_lazyvim_config(&root);
+        let config_dir = config_dir.display().to_string();
+        let result = run_note_command(
+            "lazyvim project plan",
+            &manager,
+            None,
+            Some(&config_dir),
+            &fake_finder,
+        );
         let CommandUiType::Terminal(spec) = result.ui_type else {
             panic!("expected terminal result");
         };
@@ -676,10 +973,13 @@ mod tests {
     #[test]
     fn note_lazyvim_path_resolves_relative_path_under_notes_root() {
         let (manager, root) = temp_note_manager();
+        let config_dir = write_lazyvim_config(&root);
+        let config_dir = config_dir.display().to_string();
         let result = run_note_command(
             "lazyvim --path nested/today.md",
             &manager,
             None,
+            Some(&config_dir),
             &fake_finder,
         );
         let CommandUiType::Terminal(spec) = result.ui_type else {
@@ -697,7 +997,15 @@ mod tests {
     #[test]
     fn note_lazyvim_rejects_parent_dir_path_segments() {
         let (manager, root) = temp_note_manager();
-        let result = run_note_command("lazyvim --path ../escape.md", &manager, None, &fake_finder);
+        let config_dir = write_lazyvim_config(&root);
+        let config_dir = config_dir.display().to_string();
+        let result = run_note_command(
+            "lazyvim --path ../escape.md",
+            &manager,
+            None,
+            Some(&config_dir),
+            &fake_finder,
+        );
         assert!(matches!(result.ui_type, CommandUiType::Inline));
         assert!(result.text.contains(".."));
         let _ = std::fs::remove_dir_all(root);
@@ -706,9 +1014,34 @@ mod tests {
     #[test]
     fn note_lazyvim_missing_nvim_returns_inline_guidance() {
         let (manager, root) = temp_note_manager();
-        let result = run_note_command("lazyvim", &manager, None, &|_| None);
+        let result = run_note_command("lazyvim", &manager, None, None, &|_| None);
         assert!(matches!(result.ui_type, CommandUiType::Inline));
         assert!(result.text.contains("Neovim was not found"));
+        let _ = std::fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn note_lazyvim_missing_config_bootstraps_starter_files() {
+        let (manager, root) = temp_note_manager();
+        let missing_config = root.join("missing-lazyvim");
+        let missing_config_value = missing_config.display().to_string();
+        let result = run_note_command(
+            "lazyvim",
+            &manager,
+            None,
+            Some(&missing_config_value),
+            &fake_finder,
+        );
+        let CommandUiType::Terminal(spec) = result.ui_type else {
+            panic!("expected terminal result");
+        };
+        assert!(missing_config.join("init.lua").is_file());
+        assert!(missing_config
+            .join("lua")
+            .join("config")
+            .join("lazy.lua")
+            .is_file());
+        assert!(spec.env.iter().any(|env| env.key == "XDG_DATA_HOME"));
         let _ = std::fs::remove_dir_all(root);
     }
 
@@ -722,6 +1055,10 @@ mod tests {
                 args: vec!["note.md".into()],
                 cwd: Some("notes".into()),
                 title: Some("Note: note".into()),
+                env: vec![TerminalEnvVar {
+                    key: "NVIM_APPNAME".into(),
+                    value: "lazyvim".into(),
+                }],
                 editor: true,
             }),
         };
@@ -729,6 +1066,7 @@ mod tests {
         assert_eq!(value["ui_type"]["type"], "Terminal");
         assert_eq!(value["ui_type"]["value"]["launch_id"], "launch-1");
         assert_eq!(value["ui_type"]["value"]["args"][0], "note.md");
+        assert_eq!(value["ui_type"]["value"]["env"][0]["key"], "NVIM_APPNAME");
         assert_eq!(value["ui_type"]["value"]["editor"], true);
     }
 

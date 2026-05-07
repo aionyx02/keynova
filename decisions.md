@@ -9,6 +9,20 @@
   - `terminal.open` accepts optional `launch_spec`; plain terminal opens still use the pre-warmed shell path.
   - Editor sessions keep Escape for the editor and use `Ctrl+Shift+Q` or `Ctrl+Alt+Esc` to exit the launcher panel.
   - Note path resolution remains owned by `NoteManager`; command configuration uses `notes.lazyvim_command` with PATH fallback to `nvim`.
+  - LazyVim mode ensures a starter-style config marker. Missing config is bootstrapped from Keynova's built-in starter template into project-local `.keynova/lazyvim/config/keynova-lazyvim` unless the user points at an existing non-empty custom config directory.
+  - Terminal env support covers `NVIM_APPNAME`, `XDG_CONFIG_HOME`, `XDG_DATA_HOME`, `XDG_STATE_HOME`, and `XDG_CACHE_HOME`, so LazyVim config/plugin/cache content remains project-contained and removable with the project directory.
+
+## ADR-021 Persisted Search Index And Runtime Ranking
+
+- Status: Accepted
+- Decision: Keynova now treats Tantivy as a persisted on-disk search provider instead of only a backend preference label. The Windows rebuild path keeps the existing file-cache scan as the source of truth, snapshots it, and writes a Tantivy index with stored `name`, `path`, `kind`, and folder fields. Search diagnostics expose the configured index directory and indexed document count.
+- Consequences:
+  - `[search].index_dir` can override the default `%APPDATA%\Keynova\search\tantivy` location.
+  - `auto` backend selection can choose Tantivy when a persisted index has documents; empty or unavailable indexes fall back to app-cache behavior.
+  - Result rows keep IPC payloads light by returning `icon_key`; selected rows lazy-load icon assets through `search.icon`.
+  - Search selection ranking is in-memory and process-local for now, using `search.record_selection` to boost recent/frequent launches.
+  - Clipboard history stores optional `workspace_id` and ranks current-workspace matches above unrelated entries.
+  - Knowledge Store schema versioning uses SQLite `user_version = 2`, records migrations in `schema_migrations`, and creates sibling `backups/` copies before upgrading existing DBs.
 
 ## ADR-017 Automation Action Chain Executor
 

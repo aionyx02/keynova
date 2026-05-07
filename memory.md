@@ -1,5 +1,15 @@
 # memory.md — AI 工作記憶
 
+## 2026-05-07 Update - Search Runtime Batch 2/3
+
+- Search now stores a real on-disk Tantivy index with `name`, `path`, `kind`, and folder metadata. Windows rebuild refreshes the existing file cache, snapshots it, and writes the persisted index under `[search].index_dir` or `%APPDATA%\Keynova\search\tantivy`.
+- `search.backend` diagnostics now include Tantivy document count and index directory. `auto` can select Tantivy when a persisted index is present, with app-cache fallback if the index is empty or unavailable.
+- Search results still carry lightweight `icon_key`, but the selected result now lazy-loads an SVG icon asset through `search.icon`; the frontend caches icon assets by key.
+- Clipboard history entries record the active workspace id. History search ranks pinned entries first and boosts entries from the current workspace.
+- Recent/frequent search selection memory is tracked in-process through `search.record_selection`, boosting launched results by recency and frequency.
+- Knowledge Store connections now manage `PRAGMA user_version = 2`, create `schema_migrations`, and backup existing older DBs into a sibling `backups/` directory before migration.
+- Verification passed: `cargo test`, `npm run lint`, `npm run build`, `cargo clippy -- -D warnings`, `git diff --check`.
+
 ## 2026-05-07 Update - /note LazyVim Terminal Launch
 
 - `/note` default behavior remains the built-in note panel.
@@ -9,6 +19,8 @@
 - `NoteManager` exposes `notes_root()`, `resolve_named_note()`, and `create_parent_dirs_for_file()`.
 - `TerminalManager::create_pty_with_command` starts direct PTY commands without going through the default shell, and `terminal.open` accepts an optional `launch_spec`.
 - `TerminalPanel` recreates PTYs when `launch_id` changes. Editor sessions keep Escape for Vim and exit via `Ctrl+Shift+Q` or `Ctrl+Alt+Esc`.
+- LazyVim integration follows official docs: detect a LazyVim starter config marker, use `notes.lazyvim_config_dir` when configured, and auto-bootstrap missing starter config into project-local `.keynova/lazyvim/config/keynova-lazyvim`.
+- LazyVim terminal env now points `NVIM_APPNAME`, `XDG_CONFIG_HOME`, `XDG_DATA_HOME`, `XDG_STATE_HOME`, and `XDG_CACHE_HOME` at project-local `.keynova/lazyvim/*` paths so generated config/plugin/cache content is deleted with the project. `.keynova/` is git-ignored.
 - Verification passed: `cargo test`, `npm run lint`, `npm run build`, `cargo clippy -- -D warnings`, `git diff --check`. Manual app validation is still pending.
 
 ## 2026-05-06 Update - Tasks Compact + Automation Executor

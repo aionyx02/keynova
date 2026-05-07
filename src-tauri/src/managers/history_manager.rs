@@ -10,6 +10,8 @@ pub struct ClipboardEntry {
     pub content_type: String,
     pub timestamp: u64,
     pub pinned: bool,
+    #[serde(default)]
+    pub workspace_id: Option<usize>,
 }
 
 /// 管理剪貼簿歷史：去重、容量上限、搜尋、釘選、持久化。
@@ -66,7 +68,11 @@ impl HistoryManager {
     }
 
     /// 嘗試新增一條剪貼簿記錄。若內容與上次相同（去重），回傳 false。
-    pub fn push_text(&mut self, content: String) -> bool {
+    pub fn push_text_for_workspace(
+        &mut self,
+        content: String,
+        workspace_id: Option<usize>,
+    ) -> bool {
         if content.trim().is_empty() {
             return false;
         }
@@ -93,6 +99,7 @@ impl HistoryManager {
                 content_type: "text".into(),
                 timestamp,
                 pinned: false,
+                workspace_id,
             },
         );
 
@@ -115,11 +122,22 @@ impl HistoryManager {
     }
 
     pub fn search(&self, q: &str) -> Vec<&ClipboardEntry> {
+        self.search_ranked(q, None)
+    }
+
+    pub fn search_ranked(&self, q: &str, workspace_id: Option<usize>) -> Vec<&ClipboardEntry> {
         let q_low = q.to_lowercase();
-        self.entries
+        let mut entries: Vec<&ClipboardEntry> = self
+            .entries
             .iter()
             .filter(|e| e.content.to_lowercase().contains(&q_low))
-            .collect()
+            .collect();
+        entries.sort_by(|left, right| {
+            history_rank(right, workspace_id)
+                .cmp(&history_rank(left, workspace_id))
+                .then_with(|| right.timestamp.cmp(&left.timestamp))
+        });
+        entries
     }
 
     pub fn delete(&mut self, id: &str) -> bool {
@@ -148,6 +166,17 @@ impl HistoryManager {
     }
 }
 
+fn history_rank(entry: &ClipboardEntry, workspace_id: Option<usize>) -> i64 {
+    let mut score = 0;
+    if entry.pinned {
+        score += 1_000;
+    }
+    if workspace_id.is_some() && entry.workspace_id == workspace_id {
+        score += 250;
+    }
+    score
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -164,23 +193,32 @@ mod tests {
     #[test]
     fn push_and_dedup() {
         let mut m = make_mgr();
-        assert!(m.push_text("hello".into()));
-        assert!(!m.push_text("hello".into()));
+        assert!(m.push_text_for_workspace("hello".into(), None));
+        assert!(!m.push_text_for_workspace("hello".into(), None));
         assert_eq!(m.list().len(), 1);
     }
 
     #[test]
     fn search() {
         let mut m = make_mgr();
-        m.push_text("hello world".into());
-        m.push_text("foo bar".into());
+        m.push_text_for_workspace("hello world".into(), None);
+        m.push_text_for_workspace("foo bar".into(), None);
         assert_eq!(m.search("hello").len(), 1);
+    }
+
+    #[test]
+    fn search_prefers_current_workspace() {
+        let mut m = make_mgr();
+        assert!(m.push_text_for_workspace("shared token old".into(), Some(1)));
+        assert!(m.push_text_for_workspace("shared token current".into(), Some(0)));
+        let results = m.search_ranked("shared", Some(1));
+        assert_eq!(results[0].workspace_id, Some(1));
     }
 
     #[test]
     fn delete() {
         let mut m = make_mgr();
-        m.push_text("test".into());
+        m.push_text_for_workspace("test".into(), None);
         let id = m.list()[0].id.clone();
         assert!(m.delete(&id));
         assert!(m.list().is_empty());

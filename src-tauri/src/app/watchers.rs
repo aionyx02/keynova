@@ -109,10 +109,15 @@ fn clipboard_poll_loop(app: &tauri::AppHandle) {
         last_sequence = sequence;
         if let Some(text) = read_clipboard_text() {
             let state = app.state::<AppState>();
+            let workspace_id = state
+                ._workspace_manager
+                .lock()
+                .ok()
+                .map(|workspace| workspace.current().id);
             let added = state
                 ._history_manager
                 .lock()
-                .map(|mut mgr| mgr.push_text(text))
+                .map(|mut mgr| mgr.push_text_for_workspace(text, workspace_id))
                 .unwrap_or(false);
             if added {
                 let _ = state

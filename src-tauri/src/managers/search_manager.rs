@@ -1,11 +1,16 @@
+use std::collections::HashMap;
 use std::sync::{
     atomic::{AtomicU64, Ordering},
     Arc, Mutex,
 };
+use std::time::{SystemTime, UNIX_EPOCH};
 
 use serde::Serialize;
 
-use crate::managers::app_manager::AppManager;
+use crate::managers::{
+    app_manager::AppManager,
+    tantivy_index::{self, TantivyFileEntry},
+};
 use crate::models::search_result::{ResultKind, SearchResult};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
@@ -61,6 +66,8 @@ pub struct SearchBackendInfo {
     pub everything_available: bool,
     pub tantivy_available: bool,
     pub file_cache_entries: usize,
+    pub tantivy_index_entries: usize,
+    pub tantivy_index_dir: String,
     pub rebuild_supported: bool,
 }
 
@@ -74,32 +81,56 @@ pub struct SearchIndexRebuildStatus {
 pub struct SearchManager {
     app_manager: Arc<Mutex<AppManager>>,
     preference: SearchBackendPreference,
+    tantivy_index_dir: std::path::PathBuf,
+    rank_memory: Mutex<HashMap<String, SearchRankMemoryEntry>>,
     active_generation: AtomicU64,
     pub backend: SearchBackend,
+}
+
+#[derive(Debug, Clone)]
+struct SearchRankMemoryEntry {
+    count: u32,
+    last_seen_secs: u64,
 }
 
 impl SearchManager {
     pub fn new_with_config(
         app_manager: Arc<Mutex<AppManager>>,
         configured_backend: Option<&str>,
+        configured_index_dir: Option<&str>,
     ) -> Self {
         let preference = SearchBackendPreference::from_config(configured_backend);
-        let backend = Self::detect_backend(preference);
+        let tantivy_index_dir = tantivy_index::resolve_index_dir(configured_index_dir);
+        let backend = Self::detect_backend(preference, &tantivy_index_dir);
         Self {
             app_manager,
             preference,
+            tantivy_index_dir,
+            rank_memory: Mutex::new(HashMap::new()),
             active_generation: AtomicU64::new(0),
             backend,
         }
     }
 
-    pub fn set_configured_backend(&mut self, configured_backend: Option<&str>) {
+    pub fn set_configured_backend(
+        &mut self,
+        configured_backend: Option<&str>,
+        configured_index_dir: Option<&str>,
+    ) {
         self.preference = SearchBackendPreference::from_config(configured_backend);
-        self.backend = Self::detect_backend(self.preference);
+        self.tantivy_index_dir = tantivy_index::resolve_index_dir(configured_index_dir);
+        self.backend = Self::detect_backend(self.preference, &self.tantivy_index_dir);
     }
 
-    fn detect_backend(preference: SearchBackendPreference) -> SearchBackend {
-        Self::select_backend(preference, everything_available(), tantivy_available())
+    fn detect_backend(
+        preference: SearchBackendPreference,
+        tantivy_index_dir: &std::path::Path,
+    ) -> SearchBackend {
+        Self::select_backend(
+            preference,
+            everything_available(),
+            tantivy_available(tantivy_index_dir),
+        )
     }
 
     pub fn select_backend(
@@ -129,12 +160,15 @@ impl SearchManager {
     }
 
     pub fn backend_info(&self) -> SearchBackendInfo {
+        let tantivy_index_entries = tantivy_index::indexed_entries(&self.tantivy_index_dir);
         SearchBackendInfo {
             configured: self.preference.as_str(),
             active: self.backend.as_str(),
             everything_available: everything_available(),
-            tantivy_available: tantivy_available(),
+            tantivy_available: tantivy_index_entries > 0,
             file_cache_entries: file_cache_entries(),
+            tantivy_index_entries,
+            tantivy_index_dir: self.tantivy_index_dir.display().to_string(),
             rebuild_supported: rebuild_supported(),
         }
     }
@@ -142,9 +176,25 @@ impl SearchManager {
     pub fn rebuild_index(&self) -> SearchIndexRebuildStatus {
         #[cfg(target_os = "windows")]
         {
-            std::thread::spawn(|| {
+            let index_dir = self.tantivy_index_dir.clone();
+            std::thread::spawn(move || {
                 let count = crate::platform::windows::build_file_index();
-                eprintln!("[keynova] search file index rebuilt: {count} entries");
+                let entries = crate::platform::windows::file_index_snapshot()
+                    .into_iter()
+                    .map(|(name, path, is_folder)| TantivyFileEntry {
+                        name,
+                        path,
+                        is_folder,
+                    })
+                    .collect::<Vec<_>>();
+                match tantivy_index::rebuild(&index_dir, &entries) {
+                    Ok(indexed) => eprintln!(
+                        "[keynova] search file index rebuilt: {count} cache entries, {indexed} tantivy docs"
+                    ),
+                    Err(error) => eprintln!(
+                        "[keynova] tantivy index rebuild failed after cache rebuild ({count} entries): {error}"
+                    ),
+                }
             });
             SearchIndexRebuildStatus {
                 started: true,
@@ -165,6 +215,42 @@ impl SearchManager {
 
     pub fn begin_generation(&self) -> u64 {
         self.active_generation.fetch_add(1, Ordering::SeqCst) + 1
+    }
+
+    pub fn record_selection(&self, source: &str, path: &str) {
+        let key = rank_key(source, path);
+        if let Ok(mut memory) = self.rank_memory.lock() {
+            let entry = memory.entry(key).or_insert(SearchRankMemoryEntry {
+                count: 0,
+                last_seen_secs: 0,
+            });
+            entry.count = entry.count.saturating_add(1);
+            entry.last_seen_secs = now_secs();
+            if memory.len() > 512 {
+                trim_rank_memory(&mut memory);
+            }
+        }
+    }
+
+    pub fn rank_boost(&self, source: &str, path: &str) -> i64 {
+        let key = rank_key(source, path);
+        let Ok(memory) = self.rank_memory.lock() else {
+            return 0;
+        };
+        let Some(entry) = memory.get(&key) else {
+            return 0;
+        };
+        let age_secs = now_secs().saturating_sub(entry.last_seen_secs);
+        let recency = if age_secs < 60 * 60 {
+            25
+        } else if age_secs < 24 * 60 * 60 {
+            15
+        } else if age_secs < 7 * 24 * 60 * 60 {
+            8
+        } else {
+            0
+        };
+        recency + (entry.count.min(10) as i64 * 4)
     }
 
     pub fn cancel_generation(&self) -> u64 {
@@ -191,6 +277,7 @@ impl SearchManager {
                 self.backend,
                 query,
                 file_slots,
+                Some(&self.tantivy_index_dir),
             ));
         }
 
@@ -221,6 +308,7 @@ impl SearchManager {
         backend: SearchBackend,
         query: &str,
         limit: usize,
+        tantivy_index_dir: Option<&std::path::Path>,
     ) -> Vec<SearchResult> {
         if query.trim().is_empty() || limit == 0 {
             return Vec::new();
@@ -245,6 +333,15 @@ impl SearchManager {
                         .collect()
                 }
                 SearchBackend::AppCache | SearchBackend::Tantivy => {
+                    if backend == SearchBackend::Tantivy {
+                        if let Some(index_dir) = tantivy_index_dir {
+                            if let Ok(results) = tantivy_index::search(index_dir, query, limit) {
+                                if !results.is_empty() {
+                                    return results;
+                                }
+                            }
+                        }
+                    }
                     crate::platform::windows::scan_files_from_cache(query, limit)
                         .into_iter()
                         .map(|(name, path, is_folder)| SearchResult {
@@ -268,6 +365,13 @@ impl SearchManager {
 
         #[cfg(not(target_os = "windows"))]
         {
+            if backend == SearchBackend::Tantivy {
+                if let Some(index_dir) = tantivy_index_dir {
+                    if let Ok(results) = tantivy_index::search(index_dir, query, limit) {
+                        return results;
+                    }
+                }
+            }
             let _ = (backend, query, limit);
             Vec::new()
         }
@@ -275,6 +379,32 @@ impl SearchManager {
 
     pub fn active_backend_name(&self) -> &'static str {
         self.backend.as_str()
+    }
+
+    pub fn tantivy_index_dir(&self) -> std::path::PathBuf {
+        self.tantivy_index_dir.clone()
+    }
+}
+
+fn rank_key(source: &str, path: &str) -> String {
+    format!("{source}:{path}")
+}
+
+fn now_secs() -> u64 {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|duration| duration.as_secs())
+        .unwrap_or(0)
+}
+
+fn trim_rank_memory(memory: &mut HashMap<String, SearchRankMemoryEntry>) {
+    let mut entries = memory
+        .iter()
+        .map(|(key, entry)| (key.clone(), entry.last_seen_secs))
+        .collect::<Vec<_>>();
+    entries.sort_by_key(|(_, last_seen_secs)| *last_seen_secs);
+    for (key, _) in entries.into_iter().take(memory.len().saturating_sub(512)) {
+        memory.remove(&key);
     }
 }
 
@@ -290,8 +420,8 @@ fn everything_available() -> bool {
     }
 }
 
-fn tantivy_available() -> bool {
-    file_cache_entries() > 0
+fn tantivy_available(index_dir: &std::path::Path) -> bool {
+    tantivy_index::indexed_entries(index_dir) > 0
 }
 
 fn file_cache_entries() -> usize {
@@ -348,11 +478,20 @@ mod tests {
     #[test]
     fn generation_cancels_stale_searches() {
         let app_manager = Arc::new(Mutex::new(AppManager::new()));
-        let manager = SearchManager::new_with_config(app_manager, Some("app_cache"));
+        let manager = SearchManager::new_with_config(app_manager, Some("app_cache"), None);
         let first = manager.begin_generation();
         assert!(manager.is_current_generation(first));
         let second = manager.cancel_generation();
         assert!(!manager.is_current_generation(first));
         assert!(manager.is_current_generation(second));
+    }
+
+    #[test]
+    fn rank_memory_boosts_recent_selection() {
+        let app_manager = Arc::new(Mutex::new(AppManager::new()));
+        let manager = SearchManager::new_with_config(app_manager, Some("app_cache"), None);
+        assert_eq!(manager.rank_boost("file", "C:/tmp/a.txt"), 0);
+        manager.record_selection("file", "C:/tmp/a.txt");
+        assert!(manager.rank_boost("file", "C:/tmp/a.txt") > 0);
     }
 }

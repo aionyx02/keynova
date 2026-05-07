@@ -62,6 +62,7 @@ timeout_secs = 30
 storage_dir = ""         # 空字串代表 AppData/Keynova/notes/
 default_extension = "md"
 lazyvim_command = ""     # Empty means find nvim on PATH
+lazyvim_config_dir = ""  # Empty means project-local .keynova/lazyvim/config/keynova-lazyvim
 
 [history]
 max_items = 200

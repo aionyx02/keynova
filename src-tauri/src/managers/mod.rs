@@ -8,6 +8,7 @@ pub mod mouse_manager;
 pub mod note_manager;
 pub mod search_manager;
 pub mod system_manager;
+pub mod tantivy_index;
 pub mod terminal_manager;
 pub mod translation_manager;
 pub mod workspace_manager;

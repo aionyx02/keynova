@@ -51,3 +51,9 @@ export interface SearchMetadata {
   modified_ms?: number;
   preview?: string;
 }
+
+export interface SearchIconAsset {
+  icon_key: string;
+  mime: string;
+  data_url: string;
+}

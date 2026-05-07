@@ -25,7 +25,7 @@ use crate::handlers::{
     mouse::MouseHandler,
     note::NoteHandler,
     plugin::PluginHandler,
-    search::SearchHandler,
+    search::{SearchHandler, SearchHandlerDeps},
     setting::SettingHandler,
     system_control::SystemControlHandler,
     terminal::TerminalHandler,
@@ -101,9 +101,14 @@ impl AppState {
             .lock()
             .ok()
             .and_then(|c| c.get("search.backend"));
+        let configured_search_index_dir = config_manager
+            .lock()
+            .ok()
+            .and_then(|c| c.get("search.index_dir"));
         let search_manager = Arc::new(Mutex::new(SearchManager::new_with_config(
             Arc::clone(&app_manager),
             configured_search_backend.as_deref(),
+            configured_search_index_dir.as_deref(),
         )));
 
         // AI manager (with EventBus callback)
@@ -157,15 +162,16 @@ impl AppState {
             Arc::clone(&workspace_manager),
         )));
         command_router.register(Arc::new(MouseHandler::new(Arc::clone(&mouse_manager))));
-        command_router.register(Arc::new(SearchHandler::new(
-            Arc::clone(&search_manager),
-            Arc::clone(&action_arena),
-            Arc::clone(&builtin_registry),
-            Arc::clone(&note_manager),
-            Arc::clone(&history_manager),
-            Arc::clone(&model_manager),
-            event_bus.clone(),
-        )));
+        command_router.register(Arc::new(SearchHandler::new(SearchHandlerDeps {
+            manager: Arc::clone(&search_manager),
+            action_arena: Arc::clone(&action_arena),
+            builtin_registry: Arc::clone(&builtin_registry),
+            note_manager: Arc::clone(&note_manager),
+            history_manager: Arc::clone(&history_manager),
+            workspace_manager: Arc::clone(&workspace_manager),
+            model_manager: Arc::clone(&model_manager),
+            event_bus: event_bus.clone(),
+        })));
         let eb_for_model = event_bus.clone();
         command_router.register(Arc::new(ModelHandler::new(
             Arc::clone(&model_manager),

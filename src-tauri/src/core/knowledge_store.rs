@@ -8,6 +8,8 @@ use rusqlite::{params, Connection};
 use serde::{Deserialize, Serialize};
 use tokio::sync::oneshot;
 
+const CURRENT_SCHEMA_VERSION: u32 = 2;
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ActionLogEntry {
     pub action_id: String,
@@ -243,17 +245,35 @@ fn respond_error(request: DbRequest, error: String) {
 }
 
 fn open_connection(path: &Path) -> Result<Connection, String> {
+    let existed_before_open = path.exists();
     if let Some(parent) = path.parent() {
         std::fs::create_dir_all(parent).map_err(|e| e.to_string())?;
     }
     let conn = Connection::open(path).map_err(|e| e.to_string())?;
-    conn.pragma_update(None, "journal_mode", "WAL")
-        .map_err(|e| e.to_string())?;
     conn.pragma_update(None, "busy_timeout", 2500)
         .map_err(|e| e.to_string())?;
     conn.pragma_update(None, "foreign_keys", "ON")
         .map_err(|e| e.to_string())?;
+
+    let previous_version = read_user_version(&conn)?;
+    let backup_path = if existed_before_open && previous_version < CURRENT_SCHEMA_VERSION {
+        backup_before_migration(&conn, path, previous_version, CURRENT_SCHEMA_VERSION)?
+    } else {
+        None
+    };
+
+    conn.pragma_update(None, "journal_mode", "WAL")
+        .map_err(|e| e.to_string())?;
     init_schema(&conn)?;
+    if previous_version < CURRENT_SCHEMA_VERSION {
+        record_schema_migration(
+            &conn,
+            previous_version,
+            CURRENT_SCHEMA_VERSION,
+            backup_path.as_deref(),
+        )?;
+        set_user_version(&conn, CURRENT_SCHEMA_VERSION)?;
+    }
     Ok(conn)
 }
 
@@ -308,9 +328,92 @@ fn init_schema(conn: &Connection) -> Result<(), String> {
             definition TEXT NOT NULL,
             updated_at INTEGER NOT NULL DEFAULT (strftime('%s','now'))
         );
+        CREATE TABLE IF NOT EXISTS schema_migrations (
+            version INTEGER PRIMARY KEY,
+            previous_version INTEGER NOT NULL,
+            backup_path TEXT,
+            applied_at INTEGER NOT NULL DEFAULT (strftime('%s','now'))
+        );
         "#,
     )
     .map_err(|e| e.to_string())
+}
+
+fn read_user_version(conn: &Connection) -> Result<u32, String> {
+    conn.query_row("PRAGMA user_version", [], |row| row.get::<_, u32>(0))
+        .map_err(|e| e.to_string())
+}
+
+fn set_user_version(conn: &Connection, version: u32) -> Result<(), String> {
+    conn.execute_batch(&format!("PRAGMA user_version = {version};"))
+        .map_err(|e| e.to_string())
+}
+
+fn record_schema_migration(
+    conn: &Connection,
+    previous_version: u32,
+    version: u32,
+    backup_path: Option<&Path>,
+) -> Result<(), String> {
+    conn.execute(
+        "INSERT OR REPLACE INTO schema_migrations (version, previous_version, backup_path) VALUES (?1, ?2, ?3)",
+        params![
+            version,
+            previous_version,
+            backup_path.map(|path| path.display().to_string())
+        ],
+    )
+    .map_err(|e| e.to_string())?;
+    Ok(())
+}
+
+fn backup_before_migration(
+    conn: &Connection,
+    path: &Path,
+    previous_version: u32,
+    version: u32,
+) -> Result<Option<PathBuf>, String> {
+    if !path.exists() {
+        return Ok(None);
+    }
+    let backup_path = migration_backup_path(path, previous_version, version);
+    if let Some(parent) = backup_path.parent() {
+        std::fs::create_dir_all(parent).map_err(|e| e.to_string())?;
+    }
+    conn.execute_batch("PRAGMA wal_checkpoint(FULL);")
+        .map_err(|e| e.to_string())?;
+    std::fs::copy(path, &backup_path).map_err(|e| e.to_string())?;
+    copy_sidecar_if_present(path, &backup_path, "-wal")?;
+    copy_sidecar_if_present(path, &backup_path, "-shm")?;
+    Ok(Some(backup_path))
+}
+
+fn migration_backup_path(path: &Path, previous_version: u32, version: u32) -> PathBuf {
+    let parent = path.parent().unwrap_or_else(|| Path::new("."));
+    let stem = path
+        .file_stem()
+        .and_then(|value| value.to_str())
+        .unwrap_or("knowledge");
+    let id = uuid::Uuid::new_v4();
+    parent
+        .join("backups")
+        .join(format!("{stem}-v{previous_version}-to-v{version}-{id}.db"))
+}
+
+fn copy_sidecar_if_present(source_db: &Path, backup_db: &Path, suffix: &str) -> Result<(), String> {
+    let Some(source_name) = source_db.file_name().and_then(|value| value.to_str()) else {
+        return Ok(());
+    };
+    let Some(backup_name) = backup_db.file_name().and_then(|value| value.to_str()) else {
+        return Ok(());
+    };
+    let source = source_db.with_file_name(format!("{source_name}{suffix}"));
+    if !source.exists() {
+        return Ok(());
+    }
+    let backup = backup_db.with_file_name(format!("{backup_name}{suffix}"));
+    std::fs::copy(source, backup).map_err(|e| e.to_string())?;
+    Ok(())
 }
 
 fn insert_action_log(conn: &Connection, entry: &ActionLogEntry) -> Result<(), String> {
@@ -389,49 +492,99 @@ mod tests {
     use super::*;
 
     fn test_db_path(name: &str) -> PathBuf {
-        std::env::temp_dir().join(format!("keynova-{name}-{}.db", uuid::Uuid::new_v4()))
+        let dir = std::env::temp_dir().join(format!("keynova-{name}-{}", uuid::Uuid::new_v4()));
+        std::fs::create_dir_all(&dir).unwrap();
+        dir.join("knowledge.db")
+    }
+
+    fn cleanup_db_path(path: &Path) {
+        if let Some(parent) = path.parent() {
+            let _ = std::fs::remove_dir_all(parent);
+        }
     }
 
     #[tokio::test]
     async fn writes_action_logs_on_worker_thread() {
         let path = test_db_path("action-log");
-        let store = KnowledgeStoreHandle::new(path.clone(), 8);
-        store.try_log_action(ActionLogEntry {
-            action_id: "cmd:help".into(),
-            action_label: "Help".into(),
-            status: "ok".into(),
-            duration_ms: 3,
-            error: None,
-        });
-        store.flush().await.unwrap();
-        let stats = store.action_stats("cmd:help".into()).await.unwrap();
-        assert_eq!(stats.run_count, 1);
-        let _ = std::fs::remove_file(path);
-    }
-
-    #[tokio::test]
-    async fn batch_writes_action_logs_on_worker_thread() {
-        let path = test_db_path("action-log-batch");
-        let store = KnowledgeStoreHandle::new(path.clone(), 8);
-        store.try_log_actions(vec![
-            ActionLogEntry {
+        {
+            let store = KnowledgeStoreHandle::new(path.clone(), 8);
+            store.try_log_action(ActionLogEntry {
                 action_id: "cmd:help".into(),
                 action_label: "Help".into(),
                 status: "ok".into(),
                 duration_ms: 3,
                 error: None,
-            },
-            ActionLogEntry {
-                action_id: "cmd:help".into(),
-                action_label: "Help".into(),
-                status: "ok".into(),
-                duration_ms: 5,
-                error: None,
-            },
-        ]);
-        store.flush().await.unwrap();
-        let stats = store.action_stats("cmd:help".into()).await.unwrap();
-        assert_eq!(stats.run_count, 2);
-        let _ = std::fs::remove_file(path);
+            });
+            store.flush().await.unwrap();
+            let stats = store.action_stats("cmd:help".into()).await.unwrap();
+            assert_eq!(stats.run_count, 1);
+        }
+        cleanup_db_path(&path);
+    }
+
+    #[tokio::test]
+    async fn batch_writes_action_logs_on_worker_thread() {
+        let path = test_db_path("action-log-batch");
+        {
+            let store = KnowledgeStoreHandle::new(path.clone(), 8);
+            store.try_log_actions(vec![
+                ActionLogEntry {
+                    action_id: "cmd:help".into(),
+                    action_label: "Help".into(),
+                    status: "ok".into(),
+                    duration_ms: 3,
+                    error: None,
+                },
+                ActionLogEntry {
+                    action_id: "cmd:help".into(),
+                    action_label: "Help".into(),
+                    status: "ok".into(),
+                    duration_ms: 5,
+                    error: None,
+                },
+            ]);
+            store.flush().await.unwrap();
+            let stats = store.action_stats("cmd:help".into()).await.unwrap();
+            assert_eq!(stats.run_count, 2);
+        }
+        cleanup_db_path(&path);
+    }
+
+    #[test]
+    fn new_connection_sets_current_schema_version() {
+        let path = test_db_path("new-schema");
+        let conn = open_connection(&path).unwrap();
+        assert_eq!(read_user_version(&conn).unwrap(), CURRENT_SCHEMA_VERSION);
+        drop(conn);
+        cleanup_db_path(&path);
+    }
+
+    #[test]
+    fn existing_database_is_backed_up_before_migration() {
+        let path = test_db_path("migration-backup");
+        {
+            let conn = Connection::open(&path).unwrap();
+            conn.execute_batch(
+                r#"
+                CREATE TABLE legacy_data (id INTEGER PRIMARY KEY, name TEXT NOT NULL);
+                INSERT INTO legacy_data (name) VALUES ('before');
+                PRAGMA user_version = 1;
+                "#,
+            )
+            .unwrap();
+        }
+
+        let conn = open_connection(&path).unwrap();
+        assert_eq!(read_user_version(&conn).unwrap(), CURRENT_SCHEMA_VERSION);
+        let backup_path: String = conn
+            .query_row(
+                "SELECT backup_path FROM schema_migrations WHERE version = ?1",
+                params![CURRENT_SCHEMA_VERSION],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert!(PathBuf::from(backup_path).exists());
+        drop(conn);
+        cleanup_db_path(&path);
     }
 }

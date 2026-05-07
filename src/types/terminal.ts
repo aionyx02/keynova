@@ -13,5 +13,11 @@ export interface TerminalLaunchSpec {
   args: string[];
   cwd?: string;
   title?: string;
+  env?: TerminalEnvVar[];
   editor: boolean;
+}
+
+export interface TerminalEnvVar {
+  key: string;
+  value: string;
 }

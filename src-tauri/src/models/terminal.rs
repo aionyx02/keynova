@@ -1,5 +1,11 @@
 use serde::{Deserialize, Serialize};
 
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct TerminalEnvVar {
+    pub key: String,
+    pub value: String,
+}
+
 /// Direct process launch request for a terminal-backed command result.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct TerminalLaunchSpec {
@@ -11,6 +17,8 @@ pub struct TerminalLaunchSpec {
     pub cwd: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub title: Option<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub env: Vec<TerminalEnvVar>,
     #[serde(default)]
     pub editor: bool,
 }
