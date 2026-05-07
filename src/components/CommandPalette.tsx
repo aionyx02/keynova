@@ -101,6 +101,14 @@ function mergeSearchResults(existing: SearchResult[], incoming: SearchResult[]) 
   return merged;
 }
 
+function isCopyableLocationResult(result: SearchResult | null) {
+  return result?.kind === "app" || result?.kind === "file" || result?.kind === "folder";
+}
+
+function isCopyShortcut(e: React.KeyboardEvent) {
+  return (e.ctrlKey || e.metaKey) && !e.altKey && e.key.toLowerCase() === "c";
+}
+
 export function CommandPalette() {
   const { dispatch } = useIPC();
   const { query, setQuery, setLoading } = useAppStore();
@@ -123,11 +131,13 @@ export function CommandPalette() {
   const [metadataByPath, setMetadataByPath] = useState<Record<string, SearchMetadata>>({});
   const [iconsByKey, setIconsByKey] = useState<Record<string, SearchIconAsset>>({});
   const [timedOutProviders, setTimedOutProviders] = useState<string[]>([]);
+  const [copiedPath, setCopiedPath] = useState<string | null>(null);
 
   const inputRef = useRef<HTMLInputElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const argDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const copyResetRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const resizeRafRef = useRef<number | null>(null);
   const searchIdRef = useRef(0);
   const activeSearchRequestRef = useRef("");
@@ -181,6 +191,14 @@ export function CommandPalette() {
 
   useEffect(() => {
     inputRef.current?.focus();
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (copyResetRef.current) {
+        clearTimeout(copyResetRef.current);
+      }
+    };
   }, []);
 
   const scheduleWindowResize = useCallback(() => {
@@ -473,6 +491,7 @@ export function CommandPalette() {
   function handleQueryChange(value: string) {
     setQuery(value);
     setCmdResult(null);
+    setCopiedPath(null);
     setSelectedCmd(0);
     setSelectedArg(0);
     setArgSuggestions([]);
@@ -548,6 +567,20 @@ export function CommandPalette() {
     }
   }
 
+  async function copyResultLocation(result: SearchResult) {
+    if (!isCopyableLocationResult(result)) return;
+    try {
+      await navigator.clipboard.writeText(result.path);
+      setCopiedPath(result.path);
+      if (copyResetRef.current) {
+        clearTimeout(copyResetRef.current);
+      }
+      copyResetRef.current = setTimeout(() => setCopiedPath(null), 1200);
+    } catch {
+      setCopiedPath(null);
+    }
+  }
+
   async function runFirstSecondary(result: SearchResult) {
     if (!result.primary_action || !result.secondary_action_count) return;
     const actions = await dispatch<SecondaryAction[]>("action.list_secondary", {
@@ -570,6 +603,16 @@ export function CommandPalette() {
 
   function onKeyDown(e: React.KeyboardEvent) {
     if (mode === "search") {
+      if (isCopyShortcut(e)) {
+        const target = e.currentTarget as HTMLInputElement;
+        if (target.selectionStart !== target.selectionEnd) return;
+        const r = results[selected] ?? null;
+        if (isCopyableLocationResult(r)) {
+          e.preventDefault();
+          void copyResultLocation(r);
+          return;
+        }
+      }
       if (e.key === "ArrowDown") { e.preventDefault(); setSelected((i) => Math.min(i + 1, results.length - 1)); }
       else if (e.key === "ArrowUp") { e.preventDefault(); setSelected((i) => Math.max(i - 1, 0)); }
       else if (e.key === "Enter") {
@@ -643,8 +686,9 @@ export function CommandPalette() {
   const panelKey = `${cmdResult ? "command" : "live"}:${activePanelName}:${panelInitialArgs}`;
   const selectedResult = results[selected] ?? null;
   const selectedMetadata = selectedResult ? metadataByPath[selectedResult.path] : null;
-  const searchFooterHint =
-    timedOutProviders.length > 0
+  const searchFooterHint = copiedPath
+    ? `Copied path: ${copiedPath}`
+    : timedOutProviders.length > 0
       ? `Timed out: ${timedOutProviders.join(", ")}`
       : selectedMetadata?.preview
         ? selectedMetadata.preview

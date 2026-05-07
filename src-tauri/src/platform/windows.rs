@@ -389,15 +389,15 @@ fn user_search_dirs() -> Vec<(std::path::PathBuf, usize)> {
         }
         dirs.push((home, 2));
     }
-    dirs.extend(extra_drive_dirs());
+    dirs.extend(global_drive_dirs());
     dirs.extend(wsl_home_dirs());
     dirs
 }
 
-/// 枚舉 D–Z 槽，各以深度 3 掃描（跳過 SKIP_DIRS 定義的系統目錄）。
-fn extra_drive_dirs() -> Vec<(std::path::PathBuf, usize)> {
+/// Enumerates available C-Z drives with bounded depth while skipping system directories.
+fn global_drive_dirs() -> Vec<(std::path::PathBuf, usize)> {
     let mut dirs = Vec::new();
-    for letter in b'D'..=b'Z' {
+    for letter in b'C'..=b'Z' {
         let path = std::path::PathBuf::from(format!("{}:\\", letter as char));
         if path.exists() {
             dirs.push((path, 3));
@@ -435,6 +435,10 @@ fn wsl_distro_names() -> Vec<String> {
         .output()
     {
         if out.status.success() && !out.stdout.is_empty() {
+            let names = parse_wsl_distro_names(&out.stdout);
+            if !names.is_empty() {
+                return names;
+            }
             // wsl.exe 輸出 UTF-16 LE，含 BOM
             let words: Vec<u16> = out
                 .stdout
@@ -461,6 +465,48 @@ fn wsl_distro_names() -> Vec<String> {
         "Debian".into(),
         "kali-linux".into(),
     ]
+}
+
+fn parse_wsl_distro_names(stdout: &[u8]) -> Vec<String> {
+    if stdout.is_empty() {
+        return Vec::new();
+    }
+
+    let text = if looks_like_utf16_le(stdout) {
+        let words = stdout
+            .chunks_exact(2)
+            .map(|c| u16::from_le_bytes([c[0], c[1]]))
+            .collect::<Vec<_>>();
+        String::from_utf16_lossy(&words)
+    } else {
+        String::from_utf8_lossy(stdout).into_owned()
+    };
+
+    text.lines()
+        .map(|line| {
+            line.replace('\0', "")
+                .trim()
+                .trim_start_matches('\u{feff}')
+                .trim()
+                .to_string()
+        })
+        .filter(|line| !line.is_empty())
+        .collect()
+}
+
+fn looks_like_utf16_le(bytes: &[u8]) -> bool {
+    if bytes.len() < 4 {
+        return false;
+    }
+    let pairs = bytes.chunks_exact(2).count();
+    if pairs == 0 {
+        return false;
+    }
+    let nul_second_bytes = bytes
+        .chunks_exact(2)
+        .filter(|pair| pair[1] == 0)
+        .count();
+    nul_second_bytes * 2 >= pairs
 }
 
 // ─── Everything IPC ──────────────────────────────────────────────────────────
@@ -588,4 +634,25 @@ unsafe fn read_wstr(ptr: *const u16) -> String {
         len += 1;
     }
     String::from_utf16_lossy(std::slice::from_raw_parts(ptr, len)).to_string()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn parses_utf8_wsl_distro_names() {
+        let names = parse_wsl_distro_names(b"Ubuntu\r\nDebian\r\n");
+        assert_eq!(names, vec!["Ubuntu", "Debian"]);
+    }
+
+    #[test]
+    fn parses_utf16_wsl_distro_names() {
+        let bytes = "Ubuntu\r\nDebian\r\n"
+            .encode_utf16()
+            .flat_map(u16::to_le_bytes)
+            .collect::<Vec<_>>();
+        let names = parse_wsl_distro_names(&bytes);
+        assert_eq!(names, vec!["Ubuntu", "Debian"]);
+    }
 }
