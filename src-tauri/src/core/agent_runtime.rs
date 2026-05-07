@@ -1,21 +1,48 @@
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 
+use schemars::{schema_for, JsonSchema};
 use serde::{Deserialize, Serialize};
-use serde_json::json;
+use serde_json::{json, Value};
 use uuid::Uuid;
 
-use crate::core::AppEvent;
+use crate::core::{AgentObservationPolicy, AppEvent};
 use crate::models::action::ActionRisk;
 use crate::models::agent::{AgentRun, AgentRunStatus, ContextVisibility};
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum AgentToolApprovalPolicy {
+    Never,
+    Required,
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AgentToolSpec {
     pub name: String,
+    pub llm_name: String,
+    pub description: String,
     pub risk: ActionRisk,
+    pub approval_policy: AgentToolApprovalPolicy,
     pub allowed_visibility: Vec<ContextVisibility>,
     pub timeout_ms: u64,
     pub result_limit: usize,
+    pub parameters_schema: Value,
+    pub result_schema: Value,
+    pub observation_policy: AgentObservationPolicy,
+}
+
+impl AgentToolSpec {
+    pub fn openai_tool_schema(&self) -> Value {
+        json!({
+            "type": "function",
+            "function": {
+                "name": self.llm_name,
+                "description": self.description,
+                "parameters": self.parameters_schema,
+            }
+        })
+    }
 }
 
 #[derive(Default)]
@@ -26,40 +53,57 @@ pub struct AgentToolRegistry {
 impl AgentToolRegistry {
     pub fn with_default_readonly_tools() -> Self {
         let mut registry = Self::default();
-        registry.register(AgentToolSpec {
-            name: "web.search".into(),
-            risk: ActionRisk::Low,
-            allowed_visibility: vec![
+        registry.register(tool_spec::<WebSearchToolParams, ToolSourcesResult>(
+            "web.search",
+            "Search the public web using a structured web-search provider. Never include private project files, secrets, or local-only context in the query.",
+            ActionRisk::Low,
+            AgentToolApprovalPolicy::Never,
+            vec![
                 ContextVisibility::PublicContext,
                 ContextVisibility::UserPrivate,
             ],
-            timeout_ms: 5000,
-            result_limit: 5,
-        });
-        registry.register(AgentToolSpec {
-            name: "keynova.search".into(),
-            risk: ActionRisk::Low,
-            allowed_visibility: vec![
+            5000,
+            5,
+        ));
+        registry.register(tool_spec::<KeynovaSearchToolParams, ToolSourcesResult>(
+            "keynova.search",
+            "Search Keynova commands, settings, workspace metadata, notes, models, and history visible to the agent.",
+            ActionRisk::Low,
+            AgentToolApprovalPolicy::Never,
+            vec![
                 ContextVisibility::PublicContext,
                 ContextVisibility::UserPrivate,
             ],
-            timeout_ms: 1000,
-            result_limit: 10,
-        });
-        registry.register(AgentToolSpec {
-            name: "filesystem.search".into(),
-            risk: ActionRisk::Low,
-            allowed_visibility: vec![ContextVisibility::UserPrivate],
-            timeout_ms: 3500,
-            result_limit: 20,
-        });
-        registry.register(AgentToolSpec {
-            name: "filesystem.read".into(),
-            risk: ActionRisk::Low,
-            allowed_visibility: vec![ContextVisibility::UserPrivate],
-            timeout_ms: 1000,
-            result_limit: 1,
-        });
+            1000,
+            10,
+        ));
+        registry.register(tool_spec::<FilesystemSearchToolParams, ToolSourcesResult>(
+            "filesystem.search",
+            "Search local filesystem paths through indexed providers first, returning bounded metadata only.",
+            ActionRisk::Low,
+            AgentToolApprovalPolicy::Never,
+            vec![ContextVisibility::UserPrivate],
+            3500,
+            20,
+        ));
+        registry.register(tool_spec::<FilesystemReadToolParams, ToolSourcesResult>(
+            "filesystem.read",
+            "Read a bounded text preview from a user-private file without modifying it.",
+            ActionRisk::Low,
+            AgentToolApprovalPolicy::Never,
+            vec![ContextVisibility::UserPrivate],
+            1000,
+            1,
+        ));
+        registry.register(tool_spec::<GitStatusToolParams, GitStatusToolResult>(
+            "git.status",
+            "Run a fixed read-only git status command in an approved workspace. This is a typed tool, not a generic shell.",
+            ActionRisk::Medium,
+            AgentToolApprovalPolicy::Required,
+            vec![ContextVisibility::UserPrivate],
+            3000,
+            1,
+        ));
         registry
     }
 
@@ -72,6 +116,110 @@ impl AgentToolRegistry {
         tools.sort_by(|left, right| left.name.cmp(&right.name));
         tools
     }
+}
+
+fn tool_spec<P, R>(
+    name: &str,
+    description: &str,
+    risk: ActionRisk,
+    approval_policy: AgentToolApprovalPolicy,
+    allowed_visibility: Vec<ContextVisibility>,
+    timeout_ms: u64,
+    result_limit: usize,
+) -> AgentToolSpec
+where
+    P: JsonSchema,
+    R: JsonSchema,
+{
+    AgentToolSpec {
+        name: name.to_string(),
+        llm_name: llm_tool_name(name),
+        description: description.to_string(),
+        risk,
+        approval_policy,
+        allowed_visibility,
+        timeout_ms,
+        result_limit,
+        parameters_schema: schema_value::<P>(),
+        result_schema: schema_value::<R>(),
+        observation_policy: AgentObservationPolicy::default(),
+    }
+}
+
+fn schema_value<T: JsonSchema>() -> Value {
+    serde_json::to_value(schema_for!(T)).expect("schemars schema should serialize")
+}
+
+fn llm_tool_name(name: &str) -> String {
+    name.chars()
+        .map(|ch| {
+            if ch.is_ascii_alphanumeric() || ch == '_' || ch == '-' {
+                ch
+            } else {
+                '_'
+            }
+        })
+        .collect()
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub struct KeynovaSearchToolParams {
+    pub query: String,
+    pub limit: Option<usize>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub struct WebSearchToolParams {
+    pub query: String,
+    pub limit: Option<usize>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub struct FilesystemSearchToolParams {
+    pub query: String,
+    pub roots: Option<Vec<String>>,
+    pub limit: Option<usize>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub struct FilesystemReadToolParams {
+    pub path: String,
+    pub max_chars: Option<usize>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub struct GitStatusToolParams {
+    pub cwd: Option<String>,
+    pub include_untracked: Option<bool>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub struct ToolSourcesResult {
+    pub sources: Vec<ToolSourceResult>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub struct ToolSourceResult {
+    pub title: String,
+    pub snippet: String,
+    pub uri: Option<String>,
+    pub source_type: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub struct GitStatusToolResult {
+    pub cwd: String,
+    pub stdout: String,
+    pub stderr: String,
+    pub exit_code: Option<i32>,
 }
 
 pub struct AgentRuntime {
@@ -221,11 +369,38 @@ mod tests {
         let runtime = AgentRuntime::new(Arc::new(|_| {}));
         let tools = runtime.list_tools();
 
-        assert_eq!(tools.len(), 4);
+        assert_eq!(tools.len(), 5);
         assert_eq!(tools[0].name, "filesystem.read");
         assert_eq!(tools[1].name, "filesystem.search");
-        assert_eq!(tools[2].name, "keynova.search");
-        assert_eq!(tools[3].name, "web.search");
-        assert!(tools.iter().all(|tool| tool.risk == ActionRisk::Low));
+        assert_eq!(tools[2].name, "git.status");
+        assert_eq!(tools[3].name, "keynova.search");
+        assert_eq!(tools[4].name, "web.search");
+        assert!(tools
+            .iter()
+            .all(|tool| tool.name != "execute_shell_command"));
+        assert!(tools.iter().all(|tool| tool.name != "execute_bash_command"));
+        assert_eq!(tools[2].approval_policy, AgentToolApprovalPolicy::Required);
+    }
+
+    #[test]
+    fn tool_schemas_are_generated_and_openai_safe() {
+        let runtime = AgentRuntime::new(Arc::new(|_| {}));
+        let tools = runtime.list_tools();
+        let filesystem = tools
+            .iter()
+            .find(|tool| tool.name == "filesystem.read")
+            .expect("filesystem.read tool");
+
+        assert_eq!(filesystem.llm_name, "filesystem_read");
+        assert_eq!(
+            filesystem.parameters_schema["properties"]["path"]["type"],
+            "string"
+        );
+        let openai_schema = filesystem.openai_tool_schema();
+        assert_eq!(openai_schema["type"], "function");
+        assert_eq!(
+            openai_schema["function"]["name"],
+            filesystem.llm_name.as_str()
+        );
     }
 }

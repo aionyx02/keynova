@@ -12,6 +12,7 @@
 - [x] Knowledge Store batch writes, bounded queue/drop policy, shutdown flush, DB observability.
 - [x] Plugin manifest loader and deny-by-default permission parser.
 - [x] Agent read-only tool runtime: `agent.tool`, `keynova.search`, SearXNG-backed `web.search`, visibility filtering, grounding sources, search cancel/generation checks.
+- [x] Agent architecture gap identified: Agent mode still relies on local prompt heuristics, provider chat does not yet accept JSON Schema tools/tool calls, Agent filesystem search still has a bounded DFS fallback, and DuckDuckGo HTML parsing remains fragile.
 
 Last full verification baseline: `npm run build`, `npm run lint`, `cargo test`, `cargo clippy -- -D warnings`, `git diff --check`.
 
@@ -66,6 +67,29 @@ Last full verification baseline: `npm run build`, `npm run lint`, `cargo test`, 
 - [x] Regression test first pass: runtime cancellation/tool registry, terminal command parsing, prompt budget truncation, safe built-in allowlist, private architecture denial, secret redaction, and web-query redaction.
 - [ ] External agent integration contract: define the minimum provider interface that can return a plan, tool requests, and Keynova-safe action proposals without bypassing approval/audit.
 - [ ] Manual validation script for agent mode: local search, feature search, private architecture denial, note draft approval, terminal approval, rejected approval, disabled web search, and action payload handoff.
+
+## Batch 4.6 - ReAct Tool-Calling Agent Upgrade
+
+- [ ] Write ADR for provider-driven ReAct loop: Rust owns typed tools, policy, approval, audit, and observation handling; the LLM decides tool calls and final answer; local intent heuristics become fallback only.
+- [ ] Add provider tool-call contract in `managers/ai_manager.rs`: messages, generated JSON Schema tools, tool calls, tool observations, final text, and unsupported-provider errors; support the selected OpenAI-compatible or Ollama provider first.
+- [ ] Agent execution must resolve the same active provider/model as AI Chat (`ai.provider`, Ollama/OpenAI/Claude model settings); no hardcoded OpenAI/API-only path, and local Ollama must remain a first-class Agent backend when selected.
+- [x] Add `schemars` and derive tool parameter schemas from Rust structs instead of hand-building JSON; keep OpenAI-compatible tool schema generation covered by snapshot/unit tests.
+- [x] Expand `AgentToolSpec` in `core/agent_runtime.rs` with generated parameter schema, result schema, risk, approval policy, visibility policy, timeout, result limits, and observation redaction policy.
+- [ ] Implement the async Agent loop in `core/agent_runtime.rs` / `handlers/agent.rs`: build filtered context, inject tool schemas, call provider, execute approved tools, append bounded observations, continue until final text, cancel, timeout, or max steps.
+- [x] Add Observation Redaction & Truncation pipeline: hard token/char/line caps, secret redaction, stdout/stderr separation, head+tail preservation with middle redaction marker, and source/result count summaries before context insertion.
+- [ ] Move current direct prompt heuristics in `handlers/agent.rs` behind an offline fallback; normal Agent mode should ask the LLM before choosing `keynova.search`, `filesystem.search`, `filesystem.read`, `web.search`, or shell/tool actions.
+- [x] Do not ship a generic `execute_shell_command` / `execute_bash_command` tool in the first ReAct pass; replace it with narrow typed tools such as `execute_git_command`, `read_process_info`, and `read_system_logs`, using fixed binaries plus structured args.
+- [ ] Write command sandbox ADR before any generic shell tool: no `sh -c` / `cmd /c`, no regex-only read-only policy, platform sandbox requirements, cwd/root limits, network/exfiltration controls, stdout/stderr capture, and denied-error observations for LLM self-correction.
+- [ ] Prototype platform command sandbox only after ADR: Linux `bwrap`/namespace/seccomp path, Windows restricted token/job/AppContainer-style constraints, macOS sandbox strategy, and explicit unsupported-platform behavior.
+- [ ] Introduce a `SystemIndexer` trait for Agent filesystem tools with capability/status metadata and implementations for Windows Everything/Tantivy, macOS `mdfind`, Linux `plocate`/`locate`, plus bounded parallel `ignore` or `jwalk` fallback.
+- [ ] For CLI indexers (`mdfind`, `plocate`, `locate`), use `Command::new` with fixed binary and args, parse stdout with limits, detect missing/stale indexes, and report graceful degradation instead of treating empty results as truth.
+- [ ] Add OS search diagnostics: provider availability, index count/age when available, permission-denied count, fallback reason, visited count, timeout, cancellation, and source shown in the Agent UI.
+- [ ] Replace DuckDuckGo HTML as the default Agent web path with structured adapters for SearXNG JSON and Tavily API; normalize title/url/snippet/content, trim to token budget, and preserve grounding sources.
+- [ ] Keep DuckDuckGo HTML only as explicit best-effort fallback, surfacing parser failures as tool observations instead of pretending the search succeeded.
+- [ ] Persist ReAct step audit into Knowledge Store: provider request id, tool schemas offered, tool args preview, approval decision, observation summary, filtered/redacted sources, final answer, and failure/cancel reason.
+- [ ] Update the Agent frontend run view for LLM tool use: pending approval, approved/running/completed/denied tool states, stdout preview, observation count, redaction notices, and final grounded answer.
+- [ ] Regression tests: provider tool-call parsing, schema generation, observation loop max-step stop, cancellation while waiting/provider/tool running, one-shot approve/reject, unsafe command/tool denial, stdout/stderr truncation, provider timeout, unsupported provider, web-query redaction, stale/missing OS index fallback.
+- [ ] Manual validations: find JSON files, read-only file preview, latest web query, denied destructive shell request, typed git status command, project search through Everything/Tantivy/SystemIndexer, stale index warning, rejected approval self-correction, and final answer after tool observation.
 
 ## Batch 5 - Plugin And WASM Runtime
 
