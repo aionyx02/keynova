@@ -1,4 +1,4 @@
-use crate::models::terminal::{TerminalSession, TerminalStatus};
+use crate::models::terminal::{TerminalLaunchSpec, TerminalSession, TerminalStatus};
 use portable_pty::{native_pty_system, Child, CommandBuilder, MasterPty, PtySize};
 use std::collections::HashMap;
 use std::io::{Read, Write};
@@ -95,7 +95,32 @@ impl TerminalManager {
         if let Some(result) = self.take_warm(rows, cols) {
             return Ok(result);
         }
-        // Fallback: blocking creation (no warm session available)
+        self.create_pty_from_command(rows, cols, terminal_command())
+    }
+
+    pub fn create_pty_with_command(
+        &mut self,
+        launch: &TerminalLaunchSpec,
+        rows: u16,
+        cols: u16,
+    ) -> Result<(String, String), String> {
+        let mut cmd = CommandBuilder::new(&launch.program);
+        configure_terminal_env(&mut cmd);
+        for arg in &launch.args {
+            cmd.arg(arg);
+        }
+        if let Some(cwd) = launch.cwd.as_deref().filter(|cwd| !cwd.is_empty()) {
+            cmd.cwd(cwd);
+        }
+        self.create_pty_from_command(rows, cols, cmd)
+    }
+
+    fn create_pty_from_command(
+        &mut self,
+        rows: u16,
+        cols: u16,
+        cmd: CommandBuilder,
+    ) -> Result<(String, String), String> {
         let id = Uuid::new_v4().to_string();
         let pty_system = native_pty_system();
         let pair = pty_system
@@ -107,7 +132,6 @@ impl TerminalManager {
             })
             .map_err(|e| e.to_string())?;
 
-        let cmd = terminal_command();
         let child = pair.slave.spawn_command(cmd).map_err(|e| e.to_string())?;
 
         let writer = Arc::new(Mutex::new(

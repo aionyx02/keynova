@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
+import type { TerminalLaunchSpec } from "../types/terminal";
 
 export interface CommandMeta {
   name: string;
@@ -7,10 +8,10 @@ export interface CommandMeta {
   args_hint?: string;
 }
 
-export interface CommandUiType {
-  type: "Inline" | "Panel";
-  value?: string; // panel name when type === "Panel"
-}
+export type CommandUiType =
+  | { type: "Inline" }
+  | { type: "Panel"; value: string }
+  | { type: "Terminal"; value: TerminalLaunchSpec };
 
 export interface BuiltinCommandResult {
   text: string;

@@ -70,6 +70,44 @@ Last full verification baseline: `npm run build`, `npm run lint`, `cargo test`, 
 - [ ] Maintain panel first-open/ESC/resize regression checklist.
 - [ ] Add provider/action/search source metadata docs for user-facing diagnostics.
 
+### /note + LazyVim Workflow (Feasibility Confirmed)
+- [x] Extend CommandUiType with Terminal(TerminalLaunchSpec); keep Inline/Panel unchanged.
+- [x] Update frontend BuiltinCommandResult type to support Terminal result.
+- [x] Change NoteCommand to parse:
+  /note
+  /note lazyvim
+  /note lazyvim [note-name]
+  /note lazyvim --path <absolute-or-relative-path>
+- [x] Inject NoteManager/config into NoteCommand, or route lazyvim branch through NoteHandler.
+- [x] Expose NoteManager path helpers:
+  notes_root()
+  resolve_named_note(name) -> absolute .md path
+  create_parent_dirs_for_file(path)
+- [x] Add nvim availability detection:
+  configured command -> PATH lookup -> fallback result.
+- [x] Add TerminalManager.create_pty_with_command(...), bypassing shell.
+- [x] Update terminal.open payload to accept launch spec.
+- [x] Update TerminalPanel to recreate PTY when launchId changes.
+- [x] Disable Escape-to-exit for LazyVim/editor sessions; use Ctrl+Alt+Esc or Ctrl+Shift+Q instead.
+- [x] Keep /note default behavior returning Panel("note").
+- [x] Add fallback behavior:
+  nvim missing -> Inline guidance, optionally "open builtin note editor" action later.
+- [x] Add tests for:
+  /note no args
+  /note lazyvim
+  /note lazyvim foo
+  /note lazyvim --path ...
+  path sanitization
+  nvim missing
+  Terminal launch result serialization
+- [x] Verify automated:
+  npm run lint
+  npm run build
+  cargo test
+- [ ] Manual verify:
+  /note, /note lazyvim, /note lazyvim foo, Esc inside Vim, terminal exit shortcut
+
+
 ## Blocked
 
 - None.

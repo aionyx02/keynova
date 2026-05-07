@@ -45,6 +45,14 @@ interface SecondaryAction {
   risk: "low" | "medium" | "high";
 }
 
+function isEditorTerminalResult(result: BuiltinCommandResult | null) {
+  return result?.ui_type.type === "Terminal" && result.ui_type.value.editor;
+}
+
+function isTerminalResult(result: BuiltinCommandResult | null) {
+  return result?.ui_type.type === "Terminal";
+}
+
 async function hideWindow() {
   try {
     await getCurrentWindow().hide();
@@ -180,6 +188,10 @@ export function CommandPalette() {
     resizeRafRef.current = requestAnimationFrame(() => {
       resizeRafRef.current = null;
       if (modeRef.current === "terminal") {
+        getCurrentWindow().setSize(new LogicalSize(640, TERMINAL_HEIGHT)).catch(() => {});
+        return;
+      }
+      if (isTerminalResult(cmdResultRef.current)) {
         getCurrentWindow().setSize(new LogicalSize(640, TERMINAL_HEIGHT)).catch(() => {});
         return;
       }
@@ -353,6 +365,7 @@ export function CommandPalette() {
   useEffect(() => {
     function onKeyDown(e: KeyboardEvent) {
       if (e.key !== "Escape") return;
+      if (isEditorTerminalResult(cmdResultRef.current)) return;
       e.preventDefault();
       e.stopPropagation();
       e.stopImmediatePropagation();
@@ -593,6 +606,8 @@ export function CommandPalette() {
       : liveTranslationPanel
         ? cmdArgs
         : "";
+  const terminalLaunchSpec =
+    cmdResult?.ui_type.type === "Terminal" ? cmdResult.ui_type.value : null;
   const panelKey = `${cmdResult ? "command" : "live"}:${activePanelName}`;
   const selectedResult = results[selected] ?? null;
   const selectedMetadata = selectedResult ? metadataByPath[selectedResult.path] : null;
@@ -614,6 +629,15 @@ export function CommandPalette() {
     // Keep window open asynchronously — fire and forget
     void keepLauncherOpen();
   };
+
+  const terminalCommandOnExit = useCallback(() => {
+    containerRef.current?.focus();
+    setCmdResult(null);
+    setQuery("");
+    setResults([]);
+    requestAnimationFrame(() => inputRef.current?.focus());
+    void keepLauncherOpen();
+  }, [setQuery]);
 
   // BUG-12: passed to every panel so Escape inside textarea/input can close the panel
   const handlePanelClose = useCallback(() => {
@@ -766,6 +790,17 @@ export function CommandPalette() {
             <div className="bg-gray-900/95 backdrop-blur-md rounded-b-xl shadow-2xl px-4 py-3">
               <pre className="text-sm text-gray-300 whitespace-pre-wrap leading-relaxed">{cmdResult.text}</pre>
             </div>
+          )}
+
+          {/* Terminal command result */}
+          {terminalLaunchSpec && (
+            <Suspense fallback={<div className="h-[360px] bg-gray-900/95 rounded-b-xl" />}>
+              <TerminalPanel
+                isActive={true}
+                onExit={terminalCommandOnExit}
+                launchSpec={terminalLaunchSpec}
+              />
+            </Suspense>
           )}
 
           {/* Panel command result */}
