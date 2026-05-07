@@ -28,28 +28,33 @@ pub struct SearchHandler {
     builtin_registry: Arc<Mutex<BuiltinCommandRegistry>>,
     note_manager: Arc<Mutex<NoteManager>>,
     history_manager: Arc<Mutex<HistoryManager>>,
+    workspace_manager: Arc<Mutex<crate::managers::workspace_manager::WorkspaceManager>>,
     model_manager: Arc<ModelManager>,
     event_bus: EventBus,
 }
 
+pub struct SearchHandlerDeps {
+    pub manager: Arc<Mutex<SearchManager>>,
+    pub action_arena: Arc<ActionArena>,
+    pub builtin_registry: Arc<Mutex<BuiltinCommandRegistry>>,
+    pub note_manager: Arc<Mutex<NoteManager>>,
+    pub history_manager: Arc<Mutex<HistoryManager>>,
+    pub workspace_manager: Arc<Mutex<crate::managers::workspace_manager::WorkspaceManager>>,
+    pub model_manager: Arc<ModelManager>,
+    pub event_bus: EventBus,
+}
+
 impl SearchHandler {
-    pub fn new(
-        manager: Arc<Mutex<SearchManager>>,
-        action_arena: Arc<ActionArena>,
-        builtin_registry: Arc<Mutex<BuiltinCommandRegistry>>,
-        note_manager: Arc<Mutex<NoteManager>>,
-        history_manager: Arc<Mutex<HistoryManager>>,
-        model_manager: Arc<ModelManager>,
-        event_bus: EventBus,
-    ) -> Self {
+    pub fn new(deps: SearchHandlerDeps) -> Self {
         Self {
-            manager,
-            action_arena,
-            builtin_registry,
-            note_manager,
-            history_manager,
-            model_manager,
-            event_bus,
+            manager: deps.manager,
+            action_arena: deps.action_arena,
+            builtin_registry: deps.builtin_registry,
+            note_manager: deps.note_manager,
+            history_manager: deps.history_manager,
+            workspace_manager: deps.workspace_manager,
+            model_manager: deps.model_manager,
+            event_bus: deps.event_bus,
         }
     }
 }
@@ -78,6 +83,21 @@ impl CommandHandler for SearchHandler {
                 let mgr = self.manager.lock().map_err(|e| e.to_string())?;
                 Ok(serde_json::to_value(mgr.rebuild_index()).map_err(|e| e.to_string())?)
             }
+            "record_selection" => {
+                let source = payload
+                    .get("source")
+                    .and_then(Value::as_str)
+                    .unwrap_or("unknown");
+                let path = payload.get("path").and_then(Value::as_str).unwrap_or("");
+                if !path.is_empty() {
+                    self.manager
+                        .lock()
+                        .map_err(|e| e.to_string())?
+                        .record_selection(source, path);
+                }
+                Ok(json!({ "ok": true }))
+            }
+            "icon" => Ok(self.icon_payload(&payload)),
             "metadata" => Ok(self.metadata_payload(&payload)),
             _ => Err(format!("search: unknown command '{command}'")),
         }
@@ -292,9 +312,17 @@ impl SearchHandler {
         limit: usize,
     ) -> Option<Vec<SearchResult>> {
         let (tx, rx) = mpsc::channel();
+        let tantivy_index_dir = self
+            .manager
+            .lock()
+            .ok()
+            .map(|manager| manager.tantivy_index_dir());
         std::thread::spawn(move || {
             let _ = tx.send(SearchManager::file_results_for_backend(
-                backend, &query, limit,
+                backend,
+                &query,
+                limit,
+                tantivy_index_dir.as_deref(),
             ));
         });
         rx.recv_timeout(PROVIDER_TIMEOUT).ok()
@@ -358,22 +386,32 @@ impl SearchHandler {
                     ResultKind::History => "history",
                     ResultKind::Model => "model",
                 };
-                Ok(UiSearchItem {
+                let source = source.to_string();
+                let icon_key = icon_key_for_item(&source, &result.path, &result.kind);
+                let mut item = UiSearchItem {
                     item_ref: action_ref.clone(),
                     title: result.name.clone(),
                     subtitle: result.path.clone(),
-                    source: source.to_string(),
+                    source,
                     score: result.score,
-                    icon_key: Some(source.to_string()),
+                    icon_key: Some(icon_key),
                     primary_action: action_ref,
                     primary_action_label: "Open".into(),
                     secondary_action_count: 1,
                     kind: result.kind,
                     name: result.name,
                     path: result.path,
-                })
+                };
+                self.apply_rank_boost(&mut item);
+                Ok(item)
             })
             .collect()
+    }
+
+    fn apply_rank_boost(&self, item: &mut UiSearchItem) {
+        if let Ok(manager) = self.manager.lock() {
+            item.score += manager.rank_boost(&item.source, &item.path);
+        }
     }
 
     fn append_command_results(
@@ -398,7 +436,7 @@ impl SearchHandler {
                 json!({ "name": meta.name, "args": "" }),
             );
             let action_ref = self.action_arena.insert(session, action)?;
-            out.push(UiSearchItem {
+            let mut item = UiSearchItem {
                 item_ref: action_ref.clone(),
                 title: format!("/{}", meta.name),
                 subtitle: meta.description.to_string(),
@@ -411,7 +449,9 @@ impl SearchHandler {
                 kind: ResultKind::Command,
                 name: meta.name.to_string(),
                 path: format!("command://{}", meta.name),
-            });
+            };
+            self.apply_rank_boost(&mut item);
+            out.push(item);
         }
         Ok(())
     }
@@ -437,7 +477,7 @@ impl SearchHandler {
                 note.name.clone(),
             );
             let action_ref = self.action_arena.insert(session, action)?;
-            out.push(UiSearchItem {
+            let mut item = UiSearchItem {
                 item_ref: action_ref.clone(),
                 title: note.name.clone(),
                 subtitle: format!("{} bytes", note.size_bytes),
@@ -450,7 +490,9 @@ impl SearchHandler {
                 kind: ResultKind::Note,
                 name: note.name.clone(),
                 path: format!("note://{}", note.name),
-            });
+            };
+            self.apply_rank_boost(&mut item);
+            out.push(item);
         }
         Ok(())
     }
@@ -462,8 +504,17 @@ impl SearchHandler {
         session: &crate::core::action_registry::ActionSession,
         out: &mut Vec<UiSearchItem>,
     ) -> Result<(), String> {
+        let workspace_id = self
+            .workspace_manager
+            .lock()
+            .ok()
+            .map(|workspace| workspace.current().id);
         let history = self.history_manager.lock().map_err(|e| e.to_string())?;
-        for entry in history.search(query).into_iter().take(limit) {
+        for entry in history
+            .search_ranked(query, workspace_id)
+            .into_iter()
+            .take(limit)
+        {
             let action = Action::open_panel(
                 format!("history:{}", entry.id),
                 "Open history",
@@ -472,12 +523,16 @@ impl SearchHandler {
             );
             let action_ref = self.action_arena.insert(session, action)?;
             let snippet = entry.content.chars().take(80).collect::<String>();
-            out.push(UiSearchItem {
+            let mut score = if entry.pinned { 70 } else { 65 };
+            if workspace_id.is_some() && entry.workspace_id == workspace_id {
+                score += 10;
+            }
+            let mut item = UiSearchItem {
                 item_ref: action_ref.clone(),
                 title: snippet.clone(),
                 subtitle: entry.content_type.clone(),
                 source: "history".into(),
-                score: if entry.pinned { 70 } else { 65 },
+                score,
                 icon_key: Some("history".into()),
                 primary_action: action_ref,
                 primary_action_label: "Open history".into(),
@@ -485,7 +540,9 @@ impl SearchHandler {
                 kind: ResultKind::History,
                 name: snippet,
                 path: format!("history://{}", entry.id),
-            });
+            };
+            self.apply_rank_boost(&mut item);
+            out.push(item);
         }
         Ok(())
     }
@@ -516,7 +573,7 @@ impl SearchHandler {
                 model.name.clone(),
             );
             let action_ref = self.action_arena.insert(session, action)?;
-            out.push(UiSearchItem {
+            let mut item = UiSearchItem {
                 item_ref: action_ref.clone(),
                 title: model.name.clone(),
                 subtitle: model.rating.clone(),
@@ -529,7 +586,9 @@ impl SearchHandler {
                 kind: ResultKind::Model,
                 name: model.name.clone(),
                 path: format!("model://{}", model.name),
-            });
+            };
+            self.apply_rank_boost(&mut item);
+            out.push(item);
         }
         Ok(())
     }
@@ -554,6 +613,22 @@ impl SearchHandler {
             "size_bytes": metadata.as_ref().map(|meta| meta.len()),
             "modified_ms": modified_ms,
             "preview": preview,
+        })
+    }
+
+    fn icon_payload(&self, payload: &Value) -> Value {
+        let icon_key = payload
+            .get("icon_key")
+            .and_then(Value::as_str)
+            .unwrap_or("unknown");
+        let kind = payload.get("kind").and_then(Value::as_str).unwrap_or("");
+        let path = payload.get("path").and_then(Value::as_str).unwrap_or("");
+        let label = icon_label(icon_key, kind, path);
+        let color = icon_color(icon_key, kind);
+        json!({
+            "icon_key": icon_key,
+            "mime": "image/svg+xml",
+            "data_url": svg_data_url(&label, color),
         })
     }
 }
@@ -594,4 +669,107 @@ fn result_keys(results: &[UiSearchItem]) -> HashSet<String> {
 
 fn search_item_key(item: &UiSearchItem) -> String {
     format!("{}:{}", item.source, item.path)
+}
+
+fn icon_key_for_item(source: &str, path: &str, kind: &ResultKind) -> String {
+    match kind {
+        ResultKind::App => format!("app:{}", stable_hash(path)),
+        ResultKind::File => {
+            let ext = std::path::Path::new(path)
+                .extension()
+                .and_then(|ext| ext.to_str())
+                .unwrap_or("file")
+                .to_ascii_lowercase();
+            format!("file:{ext}")
+        }
+        ResultKind::Folder => "folder".into(),
+        _ => source.to_string(),
+    }
+}
+
+fn icon_label(icon_key: &str, kind: &str, path: &str) -> String {
+    if let Some(ext) = icon_key.strip_prefix("file:") {
+        return ext.chars().take(3).collect::<String>().to_uppercase();
+    }
+    match kind {
+        "app" => "APP".into(),
+        "folder" => "DIR".into(),
+        "command" => "CMD".into(),
+        "note" => "MD".into(),
+        "history" => "HIS".into(),
+        "model" => "AI".into(),
+        _ => std::path::Path::new(path)
+            .extension()
+            .and_then(|ext| ext.to_str())
+            .map(|ext| ext.chars().take(3).collect::<String>().to_uppercase())
+            .unwrap_or_else(|| "KEY".into()),
+    }
+}
+
+fn icon_color(icon_key: &str, kind: &str) -> &'static str {
+    if icon_key.starts_with("file:") {
+        return "#0ea5e9";
+    }
+    match kind {
+        "app" => "#8b5cf6",
+        "folder" => "#f59e0b",
+        "command" => "#10b981",
+        "note" => "#14b8a6",
+        "history" => "#71717a",
+        "model" => "#d946ef",
+        _ => "#64748b",
+    }
+}
+
+fn svg_data_url(label: &str, color: &str) -> String {
+    let safe_label = escape_xml(label);
+    let svg = format!(
+        r##"<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32"><rect width="32" height="32" rx="7" fill="{color}"/><text x="16" y="20" text-anchor="middle" font-family="Segoe UI,Arial,sans-serif" font-size="10" font-weight="700" fill="#fff">{safe_label}</text></svg>"##
+    );
+    format!("data:image/svg+xml;utf8,{}", percent_encode(&svg))
+}
+
+fn escape_xml(value: &str) -> String {
+    value
+        .replace('&', "&amp;")
+        .replace('<', "&lt;")
+        .replace('>', "&gt;")
+}
+
+fn percent_encode(value: &str) -> String {
+    value
+        .bytes()
+        .map(|byte| match byte {
+            b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'-' | b'_' | b'.' | b'~' => {
+                (byte as char).to_string()
+            }
+            _ => format!("%{byte:02X}"),
+        })
+        .collect()
+}
+
+fn stable_hash(value: &str) -> u64 {
+    let mut h: u64 = 14695981039346656037;
+    for b in value.bytes() {
+        h ^= b as u64;
+        h = h.wrapping_mul(1099511628211);
+    }
+    h
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn icon_keys_group_files_by_extension() {
+        assert_eq!(
+            icon_key_for_item("file", "C:/tmp/demo.rs", &ResultKind::File),
+            "file:rs"
+        );
+        assert_eq!(
+            icon_key_for_item("file", "C:/tmp/folder", &ResultKind::Folder),
+            "folder"
+        );
+    }
 }

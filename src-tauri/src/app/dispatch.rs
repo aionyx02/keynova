@@ -386,16 +386,23 @@ pub(crate) fn apply_config_changes(
         setup_global_shortcuts(app, true);
     }
 
-    if changes.iter().any(|change| change.key == "search.backend") {
+    if changes
+        .iter()
+        .any(|change| change.key == "search.backend" || change.key == "search.index_dir")
+    {
         let state = app.state::<AppState>();
         let search_manager = Arc::clone(&state._search_manager);
-        let configured_backend = state
+        let (configured_backend, configured_index_dir) = state
             ._config_manager
             .lock()
             .ok()
-            .and_then(|cfg| cfg.get("search.backend"));
+            .map(|cfg| (cfg.get("search.backend"), cfg.get("search.index_dir")))
+            .unwrap_or((None, None));
         if let Ok(mut manager) = search_manager.lock() {
-            manager.set_configured_backend(configured_backend.as_deref());
+            manager.set_configured_backend(
+                configured_backend.as_deref(),
+                configured_index_dir.as_deref(),
+            );
         };
     }
 

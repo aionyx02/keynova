@@ -328,6 +328,11 @@ pub fn scan_files_from_cache(query: &str, max: usize) -> Vec<FileEntry> {
         .collect()
 }
 
+pub fn file_index_snapshot() -> Vec<FileEntry> {
+    let cache = file_cache();
+    cache.lock().map(|guard| guard.clone()).unwrap_or_default()
+}
+
 pub fn file_index_len() -> usize {
     let cache = file_cache();
     cache.lock().map(|guard| guard.len()).unwrap_or(0)

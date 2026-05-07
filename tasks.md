@@ -25,20 +25,20 @@ Last full verification baseline: `npm run build`, `npm run lint`, `cargo test`, 
 - [x] Phase 4.1 Search chunked/progressive streaming so first visible batch returns under 50ms.
 - [x] Phase 4.1 First batch cap/paging: return first 10-20 items, then page/lazy fetch up to 50+.
 - [x] Phase 4.1 Preview and metadata lazy load through `search.metadata`.
-- [ ] Phase 4.1 Icon asset lazy load beyond lightweight `icon_key`.
+- [x] Phase 4.1 Icon asset lazy load beyond lightweight `icon_key`.
 - [x] Phase 4.4 Progressive results over Tauri channel chunks.
 - [x] Phase 4.4 Provider timeout boundary for slow file/search providers.
 - [x] Phase 2/4.4 Offline file provider path for the `tantivy` backend preference using the existing rebuilt file cache.
-- [ ] Phase 2/4.4 Persisted Tantivy index with real Tantivy schema and on-disk index storage.
+- [x] Phase 2/4.4 Persisted Tantivy index with real Tantivy schema and on-disk index storage.
 
 ## Batch 3 - Workspace And Knowledge
 
 - [x] Phase 4.3 Bind terminal sessions to current workspace.
 - [x] Phase 4.3 Bind notes to current workspace.
 - [x] Phase 4.3 Bind AI conversations to current workspace.
-- [ ] Phase 4.3 Workspace-weighted clipboard/history ranking.
-- [ ] Phase 4.5 Recent/frequent search ranking memory cache.
-- [ ] Phase 4.5 Migration and backup path for Knowledge Store.
+- [x] Phase 4.3 Workspace-weighted clipboard/history ranking.
+- [x] Phase 4.5 Recent/frequent search ranking memory cache.
+- [x] Phase 4.5 Migration and backup path for Knowledge Store.
 
 ## Batch 4 - Agent Runtime
 
@@ -92,6 +92,10 @@ Last full verification baseline: `npm run build`, `npm run lint`, `cargo test`, 
 - [x] Keep /note default behavior returning Panel("note").
 - [x] Add fallback behavior:
   nvim missing -> Inline guidance, optionally "open builtin note editor" action later.
+- [x] Detect official LazyVim starter config and include LazyVim/LazyVim + LazyVim/starter guidance.
+- [x] Support notes.lazyvim_config_dir and terminal env injection for NVIM_APPNAME/XDG_CONFIG_HOME.
+- [x] Auto-bootstrap missing LazyVim starter config into project-local `.keynova/lazyvim/`.
+- [x] Keep LazyVim config/data/state/cache project-contained and git-ignored.
 - [x] Add tests for:
   /note no args
   /note lazyvim
@@ -99,6 +103,7 @@ Last full verification baseline: `npm run build`, `npm run lint`, `cargo test`, 
   /note lazyvim --path ...
   path sanitization
   nvim missing
+  LazyVim config missing
   Terminal launch result serialization
 - [x] Verify automated:
   npm run lint

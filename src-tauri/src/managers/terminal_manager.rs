@@ -109,6 +109,9 @@ impl TerminalManager {
         for arg in &launch.args {
             cmd.arg(arg);
         }
+        for env in &launch.env {
+            cmd.env(&env.key, &env.value);
+        }
         if let Some(cwd) = launch.cwd.as_deref().filter(|cwd| !cwd.is_empty()) {
             cmd.cwd(cwd);
         }
