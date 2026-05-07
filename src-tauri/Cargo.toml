@@ -34,6 +34,7 @@ uuid = { version = "1", features = ["v4"] }
 toml = "0.8"
 clap = { version = "4", features = ["derive"] }
 notify = "6"
+ignore = "0.4"
 reqwest = { version = "0.12", default-features = false, features = ["blocking", "json", "rustls-tls"] }
 chrono = { version = "0.4", features = ["serde"] }
 rusqlite = { version = "0.32", features = ["bundled"] }

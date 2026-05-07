@@ -47,7 +47,7 @@ max_tokens = 4096
 timeout_secs = 30
 
 [agent]
-web_search_provider = "duckduckgo"
+web_search_provider = "disabled"
 long_term_memory_opt_in = false
 searxng_url = ""
 web_search_api_key = ""
