@@ -1,5 +1,15 @@
 # decisions.md — 架構決策紀錄（ADR）
 
+## ADR-020 Terminal Launch Specs For Builtin Commands
+
+- Status: Accepted
+- Decision: `BuiltinCommandResult` can now ask the frontend to render a terminal session through `CommandUiType::Terminal(TerminalLaunchSpec)`. The first consumer is `/note lazyvim`, which launches `nvim` directly through PTY instead of wrapping it in the default shell.
+- Consequences:
+  - Terminal-backed command results carry `launch_id`, program, args, cwd, title, and editor-session metadata.
+  - `terminal.open` accepts optional `launch_spec`; plain terminal opens still use the pre-warmed shell path.
+  - Editor sessions keep Escape for the editor and use `Ctrl+Shift+Q` or `Ctrl+Alt+Esc` to exit the launcher panel.
+  - Note path resolution remains owned by `NoteManager`; command configuration uses `notes.lazyvim_command` with PATH fallback to `nvim`.
+
 ## ADR-017 Automation Action Chain Executor
 
 - 狀態：Accepted

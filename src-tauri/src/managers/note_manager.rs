@@ -33,8 +33,23 @@ impl NoteManager {
     }
 
     fn note_path(&self, name: &str) -> PathBuf {
+        self.resolve_named_note(name)
+    }
+
+    pub fn notes_root(&self) -> PathBuf {
+        self.storage_dir.clone()
+    }
+
+    pub fn resolve_named_note(&self, name: &str) -> PathBuf {
         let safe = sanitize_name(name);
         self.storage_dir.join(format!("{safe}.{}", self.extension))
+    }
+
+    pub fn create_parent_dirs_for_file(&self, path: &std::path::Path) -> Result<(), String> {
+        if let Some(parent) = path.parent() {
+            std::fs::create_dir_all(parent).map_err(|e| e.to_string())?;
+        }
+        Ok(())
     }
 
     /// 列出所有筆記的元資料，依修改時間降序。
@@ -91,9 +106,7 @@ impl NoteManager {
     /// 儲存筆記內容（自動建立）。
     pub fn save(&self, name: &str, content: &str) -> Result<(), String> {
         let path = self.note_path(name);
-        if let Some(p) = path.parent() {
-            std::fs::create_dir_all(p).map_err(|e| e.to_string())?;
-        }
+        self.create_parent_dirs_for_file(&path)?;
         std::fs::write(&path, content).map_err(|e| e.to_string())
     }
 

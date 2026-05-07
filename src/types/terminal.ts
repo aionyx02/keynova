@@ -6,3 +6,12 @@ export interface TerminalSession {
   cols: number;
   status: TerminalStatus;
 }
+
+export interface TerminalLaunchSpec {
+  launch_id: string;
+  program: string;
+  args: string[];
+  cwd?: string;
+  title?: string;
+  editor: boolean;
+}

@@ -1,5 +1,16 @@
 # memory.md — AI 工作記憶
 
+## 2026-05-07 Update - /note LazyVim Terminal Launch
+
+- `/note` default behavior remains the built-in note panel.
+- `/note lazyvim`, `/note lazyvim <note-name>`, and `/note lazyvim --path <absolute-or-relative-path>` now return a terminal-backed command result when `nvim` is available.
+- `CommandUiType` now supports `Terminal(TerminalLaunchSpec)`; the frontend `BuiltinCommandResult` union mirrors that contract.
+- `NoteCommand` owns `NoteManager` + `ConfigManager` references so it can resolve note paths and read `notes.lazyvim_command`.
+- `NoteManager` exposes `notes_root()`, `resolve_named_note()`, and `create_parent_dirs_for_file()`.
+- `TerminalManager::create_pty_with_command` starts direct PTY commands without going through the default shell, and `terminal.open` accepts an optional `launch_spec`.
+- `TerminalPanel` recreates PTYs when `launch_id` changes. Editor sessions keep Escape for Vim and exit via `Ctrl+Shift+Q` or `Ctrl+Alt+Esc`.
+- Verification passed: `cargo test`, `npm run lint`, `npm run build`, `cargo clippy -- -D warnings`, `git diff --check`. Manual app validation is still pending.
+
 ## 2026-05-06 Update - Tasks Compact + Automation Executor
 
 - `tasks.md` is now a compact batch board instead of a long historical checklist. Completed work is summarized; remaining Phase 4 work is grouped into batches.

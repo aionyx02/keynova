@@ -136,7 +136,10 @@ impl AppState {
             reg.register(Box::new(AiCommand));
             reg.register(Box::new(ModelDownloadCommand));
             reg.register(Box::new(ModelListCommand));
-            reg.register(Box::new(NoteCommand));
+            reg.register(Box::new(NoteCommand::new(
+                Arc::clone(&note_manager),
+                Arc::clone(&config_manager),
+            )));
             reg.register(Box::new(CalCommand));
             reg.register(Box::new(HistoryCommand));
             reg.register(Box::new(SysCtlCommand));

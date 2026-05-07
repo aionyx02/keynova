@@ -430,6 +430,15 @@ pub fn builtin_setting_schema() -> Vec<SettingSchema> {
             &[],
         ),
         SettingSchema::new(
+            "notes.lazyvim_command",
+            "notes",
+            "LazyVim command",
+            String,
+            "",
+            false,
+            &[],
+        ),
+        SettingSchema::new(
             "history.max_items",
             "history",
             "Max items",
