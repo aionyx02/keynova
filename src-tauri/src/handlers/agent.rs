@@ -12,7 +12,10 @@ use crate::core::{
     BuiltinCommandRegistry, CommandHandler, CommandResult, KnowledgeStoreHandle,
 };
 use crate::managers::{
-    history_manager::HistoryManager, model_manager::ModelManager, note_manager::NoteManager,
+    history_manager::HistoryManager,
+    model_manager::ModelManager,
+    note_manager::NoteManager,
+    system_indexer::{search_system_index, SystemSearchOutcome},
     workspace_manager::WorkspaceManager,
 };
 use crate::models::action::ActionRisk;
@@ -767,8 +770,8 @@ impl AgentHandler {
 
     fn answer_filesystem_search(&self, prompt: &str, roots: &[PathBuf]) -> Option<String> {
         let query = extract_filesystem_search_query(prompt)?;
-        let outcome = search_filesystem(&query, roots, 20);
-        Some(format_filesystem_search_answer(&query, &outcome))
+        let outcome = search_system_index(&query, roots, 20);
+        Some(format_system_index_search_answer(&query, &outcome))
     }
 
     fn answer_file_read(&self, prompt: &str, roots: &[PathBuf]) -> Option<String> {
@@ -810,7 +813,7 @@ impl AgentHandler {
     }
 
     fn filesystem_search_sources(&self, query: &str, limit: usize) -> Vec<GroundingSource> {
-        search_filesystem(
+        search_system_index(
             query,
             &self.filesystem_search_roots_for_prompt(query),
             limit,
@@ -819,17 +822,11 @@ impl AgentHandler {
         .into_iter()
         .enumerate()
         .map(|(index, hit)| {
-            let title = hit
-                .path
-                .file_name()
-                .and_then(|name| name.to_str())
-                .map(ToOwned::to_owned)
-                .unwrap_or_else(|| hit.path.display().to_string());
             source(
-                format!("filesystem:{}", hit.path.display()),
+                format!("filesystem:{}", hit.path),
                 if hit.is_dir { "folder" } else { "file" },
-                title,
-                hit.path.display().to_string(),
+                hit.name,
+                hit.path,
                 0.88 - (index as f32 * 0.01),
                 ContextVisibility::UserPrivate,
             )
@@ -1026,13 +1023,14 @@ impl AgentHandler {
 
     fn web_search(&self, query: &str, limit: usize) -> Result<Vec<GroundingSource>, String> {
         let sanitized = sanitize_external_query(query)?;
-        let (provider, searxng_url, timeout_secs) = {
+        let (provider, searxng_url, api_key, timeout_secs) = {
             let config = self.config.lock().map_err(|e| e.to_string())?;
             (
                 config
                     .get("agent.web_search_provider")
                     .unwrap_or_else(|| "disabled".into()),
                 config.get("agent.searxng_url").unwrap_or_default(),
+                config.get("agent.web_search_api_key").unwrap_or_default(),
                 config
                     .get("agent.web_search_timeout_secs")
                     .and_then(|value| value.parse::<u64>().ok())
@@ -1042,9 +1040,10 @@ impl AgentHandler {
 
         match provider.as_str() {
             "searxng" => search_searxng(&searxng_url, &sanitized, limit, timeout_secs),
+            "tavily" => search_tavily(&api_key, &sanitized, limit, timeout_secs),
             "duckduckgo" => search_duckduckgo_html(&sanitized, limit, timeout_secs),
             "disabled" | "" => Err(
-                "web.search provider is disabled; set agent.web_search_provider=duckduckgo or configure searxng".into(),
+                "web.search provider is disabled; configure agent.web_search_provider=searxng or tavily. DuckDuckGo is an explicit best-effort fallback.".into(),
             ),
             other => Err(format!("web.search provider '{other}' is not supported yet")),
         }
@@ -1121,6 +1120,84 @@ fn search_searxng(
                 snippet: truncate(&snippet, 240),
                 uri: url,
                 score: 1.0 - (index as f32 * 0.03),
+                visibility: ContextVisibility::PublicContext,
+                redacted_reason: None,
+            }
+        })
+        .collect())
+}
+
+fn search_tavily(
+    api_key: &str,
+    query: &str,
+    limit: usize,
+    timeout_secs: u64,
+) -> Result<Vec<GroundingSource>, String> {
+    if api_key.trim().is_empty() {
+        return Err("agent.web_search_api_key is required for Tavily web.search".into());
+    }
+    let client = reqwest::blocking::Client::builder()
+        .timeout(Duration::from_secs(timeout_secs.max(1)))
+        .user_agent("Keynova/0.1 structured agent search")
+        .build()
+        .map_err(|e| e.to_string())?;
+    let response = client
+        .post("https://api.tavily.com/search")
+        .header("content-type", "application/json")
+        .json(&json!({
+            "api_key": api_key,
+            "query": query,
+            "search_depth": "basic",
+            "max_results": limit.max(1),
+            "include_answer": false,
+            "include_raw_content": false,
+        }))
+        .send()
+        .map_err(|e| format!("Tavily request failed: {e}"))?
+        .error_for_status()
+        .map_err(|e| e.to_string())?
+        .json::<Value>()
+        .map_err(|e| e.to_string())?;
+    parse_tavily_response(&response, limit)
+}
+
+fn parse_tavily_response(response: &Value, limit: usize) -> Result<Vec<GroundingSource>, String> {
+    let results = response
+        .get("results")
+        .and_then(Value::as_array)
+        .ok_or_else(|| "Tavily response missing results".to_string())?;
+    Ok(results
+        .iter()
+        .take(limit.max(1))
+        .enumerate()
+        .map(|(index, item)| {
+            let title = item
+                .get("title")
+                .and_then(Value::as_str)
+                .unwrap_or("Untitled")
+                .to_string();
+            let url = item
+                .get("url")
+                .and_then(Value::as_str)
+                .map(ToOwned::to_owned);
+            let snippet = item
+                .get("content")
+                .or_else(|| item.get("snippet"))
+                .and_then(Value::as_str)
+                .unwrap_or("")
+                .to_string();
+            let score = item
+                .get("score")
+                .and_then(Value::as_f64)
+                .map(|value| value as f32)
+                .unwrap_or(1.0 - (index as f32 * 0.03));
+            GroundingSource {
+                source_id: format!("web:tavily:{index}"),
+                source_type: "web".into(),
+                title,
+                snippet: truncate(&snippet, 240),
+                uri: url,
+                score,
                 visibility: ContextVisibility::PublicContext,
                 redacted_reason: None,
             }
@@ -1394,12 +1471,16 @@ fn answer_directory_listing(prompt: &str, roots: &[PathBuf]) -> Option<String> {
 }
 
 #[derive(Debug, Clone)]
+#[cfg(test)]
+#[allow(dead_code)]
 struct FileSearchHit {
     path: PathBuf,
     is_dir: bool,
 }
 
 #[derive(Debug, Clone)]
+#[cfg(test)]
+#[allow(dead_code)]
 struct FileSearchOutcome {
     hits: Vec<FileSearchHit>,
     checked_roots: Vec<PathBuf>,
@@ -1407,6 +1488,7 @@ struct FileSearchOutcome {
     stopped_early: bool,
 }
 
+#[cfg(test)]
 fn search_filesystem(query: &str, roots: &[PathBuf], limit: usize) -> FileSearchOutcome {
     let normalized = query.to_lowercase();
     let started = Instant::now();
@@ -1467,12 +1549,15 @@ fn search_filesystem(query: &str, roots: &[PathBuf], limit: usize) -> FileSearch
     }
 }
 
+#[cfg(test)]
 fn path_matches_query(path: &Path, query: &str) -> bool {
     path.file_name()
         .and_then(|name| name.to_str())
         .is_some_and(|name| name.to_lowercase().contains(query))
 }
 
+#[cfg(test)]
+#[allow(dead_code)]
 fn format_filesystem_search_answer(query: &str, outcome: &FileSearchOutcome) -> String {
     let roots = if outcome.checked_roots.is_empty() {
         "- 沒有可用搜尋根目錄".to_string()
@@ -1516,6 +1601,56 @@ fn format_filesystem_search_answer(query: &str, outcome: &FileSearchOutcome) -> 
         list,
         outcome.visited,
         suffix
+    )
+}
+
+fn format_system_index_search_answer(query: &str, outcome: &SystemSearchOutcome) -> String {
+    let diagnostics = &outcome.diagnostics;
+    let mut diagnostic_parts = vec![format!("provider={}", diagnostics.provider)];
+    if let Some(reason) = diagnostics.fallback_reason.as_deref() {
+        diagnostic_parts.push(format!("fallback={reason}"));
+    }
+    if diagnostics.visited > 0 {
+        diagnostic_parts.push(format!("visited={}", diagnostics.visited));
+    }
+    if diagnostics.permission_denied > 0 {
+        diagnostic_parts.push(format!(
+            "permission_denied={}",
+            diagnostics.permission_denied
+        ));
+    }
+    if let Some(age) = diagnostics.index_age_secs {
+        diagnostic_parts.push(format!("index_age_secs={age}"));
+    }
+    if diagnostics.timed_out {
+        diagnostic_parts.push("timed_out=true".into());
+    }
+    if let Some(message) = diagnostics.message.as_deref() {
+        diagnostic_parts.push(format!("message={message}"));
+    }
+    let diagnostics = diagnostic_parts.join(", ");
+
+    if outcome.hits.is_empty() {
+        return format!("No filesystem matches found for `{query}`.\n\nDiagnostics: {diagnostics}");
+    }
+
+    let list = outcome
+        .hits
+        .iter()
+        .map(|hit| {
+            format!(
+                "- [{}] {}",
+                if hit.is_dir { "folder" } else { "file" },
+                hit.path
+            )
+        })
+        .collect::<Vec<_>>()
+        .join("\n");
+    format!(
+        "Found {} filesystem matches for `{query}`.\n{}\n\nDiagnostics: {}",
+        outcome.hits.len(),
+        list,
+        diagnostics
     )
 }
 
@@ -3074,6 +3209,28 @@ mod tests {
         assert_eq!(results[0].title, "Example & News");
         assert_eq!(results[0].uri.as_deref(), Some("https://example.com/news"));
         assert!(results[0].snippet.contains("short & useful"));
+    }
+
+    #[test]
+    fn parses_tavily_json_result() {
+        let response = json!({
+            "results": [
+                {
+                    "title": "Example News",
+                    "url": "https://example.com/news",
+                    "content": "Structured search result content.",
+                    "score": 0.92
+                }
+            ]
+        });
+
+        let results = parse_tavily_response(&response, 3).expect("parse tavily");
+
+        assert_eq!(results.len(), 1);
+        assert_eq!(results[0].source_id, "web:tavily:0");
+        assert_eq!(results[0].title, "Example News");
+        assert_eq!(results[0].uri.as_deref(), Some("https://example.com/news"));
+        assert!(results[0].snippet.contains("Structured search"));
     }
 
     #[test]

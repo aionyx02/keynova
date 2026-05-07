@@ -7,6 +7,10 @@
 - Added `core::agent_observation` with hard character/line limits, likely-secret line redaction, and head+tail preservation so large stdout/file/search observations do not enter LLM context unbounded.
 - Added provider-neutral tool-call contract types in `AiManager`; Agent execution must use the same selected AI provider/model as AI Chat, with OpenAI-compatible and local Ollama declared as first ReAct tool-call targets.
 - Generic `execute_shell_command` / `execute_bash_command` is intentionally absent from the default tool registry. A typed `git.status` spec is present but approval-gated and blocked from the legacy direct `agent.tool` path.
+- README has been rewritten to reflect the current local-first AI/Agent architecture, selected-provider behavior, safety boundary, and development commands.
+- Added `SystemIndexer` for Agent filesystem search: Windows Everything/Tantivy, macOS `mdfind`, Linux `plocate`/`locate`, and bounded parallel `ignore` fallback with diagnostics.
+- Agent web search now treats DuckDuckGo HTML as explicit best-effort fallback. Structured paths are SearXNG JSON and Tavily API; default `agent.web_search_provider` is disabled until configured.
+- ADR-026 defines the selected-provider ReAct loop contract, and ADR-027 blocks generic shell tools until real platform sandboxing exists.
 - ADR-023 records this foundation. Verification passed: `cargo test`, `cargo clippy -- -D warnings`, `git diff --check`.
 
 ## 2026-05-07 Update - Agent Runtime Batch 4

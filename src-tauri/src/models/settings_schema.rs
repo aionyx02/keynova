@@ -346,7 +346,7 @@ pub fn builtin_setting_schema() -> Vec<SettingSchema> {
             String,
             "disabled",
             false,
-            &["disabled", "searxng"],
+            &["disabled", "searxng", "tavily", "duckduckgo"],
         ),
         SettingSchema::new(
             "agent.long_term_memory_opt_in",

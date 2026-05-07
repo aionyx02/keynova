@@ -1,135 +1,145 @@
-# Keynova: Industrial-Grade Desktop AI Orchestrator
+# Keynova
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Build Status](https://img.shields.io/badge/build-passing-brightgreen.svg)]()
-[![Release](https://img.shields.io/badge/release-v0.4.0--alpha-blue.svg)]()
-[![Platform: Cross-platform](https://img.shields.io/badge/platform-Windows%20%7C%20Linux%20%7C%20macOS-lightgrey.svg)]()
+Keynova is a keyboard-first desktop productivity launcher for developers, built with Tauri 2, React, and Rust. It combines command launching, local search, terminal panels, notes, history, model management, and an approval-gated AI Agent runtime.
 
-## 🌟 專案簡介 (Description)
+The project is local-first by design. AI Chat and Agent mode use the AI provider/model selected in settings, including local Ollama models. OpenAI-compatible or Claude API providers are optional configuration choices, not mandatory Agent backends.
 
-**Keynova** 不僅僅是一個啟動器，它是一個專為開發者與專業人士設計的 **桌面 AI 調度中樞**。在 AI 時代，我們需要的不再是單純的關鍵字搜尋，而是能理解作業系統狀態、具備長期記憶、且能在本機安全執行任務的「代理人（Agent）」。
+## Current Capabilities
 
-Keynova 透過 Rust 的高效能核心，無縫銜接了本地模型（Ollama）與雲端 LLM，並建立了一套嚴格的 **Action Arena** 行為準則，讓 AI 可以在您的授權下操作檔案、控制滑鼠、甚至與第三方 API 互動，同時確保所有敏感資料（如原始碼架構、API Keys）受到本地隱私過濾器的嚴密保護。
+- Command palette with app, file, command, note, history, model, and setting results.
+- Action Arena for backend-held actions, short-lived `ActionRef` values, secondary actions, and approval boundaries.
+- Progressive search with quick first results, streamed chunks, lazy metadata previews, lazy icon loading, recent/frequent ranking, and workspace-weighted history.
+- File search through Windows Everything IPC when available, persisted Tantivy index fallback, and app/file cache fallback.
+- `/ai` panel with normal chat and guarded Agent mode.
+- Notes, calculator, translation, history, workspace binding, terminal panel, hotkeys, mouse/system controls, and model management.
+- `/note lazyvim` support for opening notes in a project-contained LazyVim terminal session.
 
-## 🚀 核心技術亮點 (Deep Dive Features)
+## AI And Agent Runtime
 
-### 1. 雙引擎混合搜尋 (Hybrid Search Engine)
-Keynova 實作了一套具備自動回退機制的搜尋架構：
-- **Windows Everything IPC**: 在 Windows 上透過高效能 IPC 直接讀取 Everything 資料庫，達成 $O(1)$ 的秒級檔案索引。
-- **Cross-platform Tantivy**: 在非 Windows 平台或作為補充時，使用 Rust 原生的 Tantivy 引擎建立全文本索引，支援複雜的模糊匹配與權重排序。
-- **Action-Integrated Search**: 搜尋結果不僅是檔案，還包括可執行的 **ActionRef**（例如：直接在搜尋結果中預覽並執行 Git 指令）。
+Keynova has two AI surfaces:
 
-### 2. 本機優先的 AI Agent Runtime
-- **Context Privacy Filter**: 自動過濾敏感資訊，防止私有專案架構或憑證被意外傳送至外部模型。
-- **Grounding Sources**: Agent 可即時存取本機知識庫（Knowledge Store），包括您的筆記、歷史紀錄與剪貼簿上下文。
-- **Streaming Tool Execution**: 支援流式輸出工具執行狀態，讓您能即時看見 Agent 正在搜尋哪些檔案或調用哪些 API。
+- Chat mode: normal conversational AI through the selected `ai.provider` and model.
+- Agent mode: guarded local planning and tool use, with context filtering, grounding sources, audit logging, and approval gates.
 
-### 3. Action Arena 安全隔離區
-所有 AI 請求的系統操作都必須經過行為註冊系統：
-- **風險等級評估**: 行為被分為 `Low` (讀取), `Medium` (網路存取), `High` (寫入/系統更改)。
-- **Approval Gate**: 高風險操作強制觸發 UI 審核機制，確保 AI 不會在您不知情的情況下執行 `rm -rf`。
+Agent mode must use the same selected provider/model as AI Chat. If `ai.provider = "ollama"`, Agent work targets the configured local Ollama model and does not require an API key. If `ai.provider = "openai"` or `claude`, the matching configured API provider is used.
 
-### 4. 模組化 Panel UI 系統
-透過 `PanelRegistry` 實現了高度解耦的 UI 擴充：
-- **/ai**: 多輪對話與 Agent 模式切換。
-- **/tr**: 極速 Google 翻譯面板。
-- **/note**: 基於 SQLite 的快速筆記本。
-- **/history**: 全域動作審計與歷史紀錄查詢。
+The current Agent safety foundation includes:
 
-## 🛠️ 技術棧與架構 (Architecture)
+- Typed tool specifications with generated JSON Schemas from Rust structs.
+- Observation redaction and truncation before tool output enters model context.
+- Low-risk read-only tools such as Keynova search, filesystem search metadata, file previews, and web search.
+- Approval-gated action proposals for higher-risk work.
+- No generic shell tool in the default Agent tool registry. Generic shell execution requires a separate sandbox design before it can be enabled.
 
-Keynova 的底層架構旨在追求極致的穩定性與擴充性：
+The ReAct provider loop is being implemented incrementally. Until it is fully wired, some Agent behavior still uses local fallback heuristics.
 
-### 核心架構圖
-```mermaid
-graph TD
-    subgraph Frontend (React & TypeScript)
-        UI[Command Palette / Panels]
-        Store[Zustand Store]
-        IPC[useIPC Bridge]
-    end
+## Search
 
-    subgraph Backend Core (Rust & Tauri)
-        Router[Command Router]
-        AA[Action Arena Registry]
-        KS[Knowledge Store - SQLite]
-        AS[Agent Runtime]
-    end
+Keynova search is layered:
 
-    subgraph Platform Layer
-        EV[Everything IPC - Windows]
-        TV[Tantivy Engine]
-        PTY[PTY / xterm.js]
-    end
+- Windows: Everything IPC is preferred when available.
+- Cross-platform persisted index: Tantivy stores file/folder metadata on disk.
+- Fallback: existing app/file cache and bounded local search paths.
 
-    UI --> IPC
-    IPC --> Router
-    Router --> AA
-    AA --> KS
-    AA --> AS
-    AS --> TV
-    AS --> EV
-    Router --> PTY
+Agent filesystem search is being moved toward a `SystemIndexer` abstraction so OS-native indexers such as Everything, Spotlight `mdfind`, and Linux `plocate`/`locate` can be used first, with bounded fallback traversal only when the native index is missing or stale.
+
+## Configuration
+
+Runtime config lives in the platform config directory, for example:
+
+- Windows: `%APPDATA%\Keynova\config.toml`
+- Linux/macOS: `~/.config/keynova/config.toml`
+
+Important AI settings:
+
+```toml
+[ai]
+provider = "ollama" # claude | ollama | openai
+model = "qwen2.5:7b"
+ollama_url = "http://localhost:11434"
+ollama_timeout_secs = 120
+api_key = "" # Claude key, only needed when provider = "claude"
+openai_api_key = "" # only needed when provider = "openai"
+openai_base_url = "https://api.openai.com/v1"
+openai_model = "gpt-4o-mini"
+max_tokens = 4096
+timeout_secs = 30
+
+[agent]
+web_search_provider = "disabled" # disabled | searxng | tavily | duckduckgo
+searxng_url = ""
+web_search_api_key = "" # Tavily key when provider = "tavily"
+web_search_timeout_secs = 8
+long_term_memory_opt_in = false
 ```
 
-## 📦 安裝與建置 (Installation)
+For local-first Agent use, install Ollama, pull a model, and set `ai.provider = "ollama"` plus `ai.model` to the model name.
 
-### 開發者環境配置
-1.  **安裝 Rust 工具鏈**: 確保 `cargo` 與 `rustc` 已安裝。
-2.  **安裝 Node.js 依賴**:
-    ```bash
-    npm install
-    ```
-3.  **啟動本地 Ollama (選配)**:
-    - 下載並安裝 [Ollama](https://ollama.com/)。
-    - 推薦模型：`qwen2.5:7b` 或 `llama3.2:3b`。
+## Development
 
-### 執行與打包
+Install dependencies:
+
 ```bash
-# 開發模式
-npm run tauri dev
+npm install
+```
 
-# 建置產線版本 (Windows/macOS/Linux)
+Run the app in development:
+
+```bash
+npm run tauri dev
+```
+
+Build production artifacts:
+
+```bash
 npm run tauri build
 ```
 
-## ⌨️ 進階使用技巧 (Advanced Usage)
+Useful verification commands:
 
-- **快速切換面板**: 輸入 `/` 即可喚起面板清單，例如 `/ai` 進入聊天，`/setting` 進入配置。
-- **參數提示 (Args Hint)**: 在輸入指令時，面板底部會顯示即時的參數類型與說明。
-- **終端預熱 (Terminal Pre-warm)**: Keynova 會在背景預先啟動 PTY session，確保您在切換到終端面板時能獲得即時的回饋。
+```bash
+npm run lint
+npm run build
+cargo test
+cargo clippy -- -D warnings
+git diff --check
+```
 
-## 📈 效能指標 (Performance)
+Run Rust commands from `src-tauri/`.
 
-| 指標 | 效能表現 | 備註 |
-| :--- | :--- | :--- |
-| **啟動響應時間** | $< 100ms$ | 從快捷鍵按下到面板完全顯示 |
-| **檔案搜尋延遲** | $O(1)$ ~ $O(\log n)$ | 依賴 Windows Everything IPC 或 Tantivy |
-| **記憶體佔用** | $\approx 45MB$ | 閒置狀態下的 Rust 核心佔用 |
-| **IPC 往返延遲** | $< 1ms$ | 透過 Tauri 非同步橋接實現 |
+## Architecture
 
-## 🗺️ 開發路線圖 (Roadmap)
+```mermaid
+graph TD
+    UI["React Command Palette / Panels"]
+    IPC["Tauri IPC"]
+    Router["CommandRouter"]
+    Actions["Action Arena"]
+    Search["Search Manager / Registry"]
+    Agent["Agent Runtime"]
+    AI["Selected AI Provider / Model"]
+    Store["Knowledge Store"]
+    Platform["Platform Indexers / PTY / System APIs"]
 
-- [x] **Phase 1-3**: 核心啟動器、搜尋引擎與基本 Panels。
-- [x] **Phase 4 Foundation**: Action Arena 與 Knowledge Store 基礎。
-- [ ] **Phase 4.5**: 完善 Agent Mode 的真實 Web/File 工具呼叫。
-- [ ] **Phase 5**: WASM 插件熱插拔與社群插件商店。
-- [ ] **Mobile Sync**: 與行動端筆記同步功能。
+    UI --> IPC
+    IPC --> Router
+    Router --> Actions
+    Router --> Search
+    Router --> Agent
+    Agent --> AI
+    Agent --> Store
+    Search --> Platform
+    Actions --> Platform
+```
 
-## 🤝 參與貢獻 (Contributing)
+## Roadmap
 
-Keynova 是一個開放的專案，我們非常歡迎各種形式的貢獻：
-1. **Bug Report**: 如果您發現任何不符合預期的行為。
-2. **Feature Request**: 告訴我們您希望 Agent 具備什麼樣的「超能力」。
-3. **Documentation**: 幫助我們完善技術手冊。
+- Harden the provider-driven ReAct Agent loop.
+- Add `SystemIndexer` implementations for OS-native file search.
+- Replace fragile web-search HTML parsing with structured search adapters where configured.
+- Expand regression coverage for Agent cancellation, approval, observation redaction, provider timeout, and search fallback behavior.
+- Continue Phase 5 plugin/WASM runtime work.
 
-請閱讀 `memory.md` 以了解目前的技術邊界與開發規範。
+## License
 
-## 📜 授權 (License)
-
-本專案採用 **MIT License**。
-
----
-
-**維護者**: Shawn & Keynova Contributors
-**專案位置**: [GitHub - Keynova](https://github.com/aionyx02/keynova)
+MIT License.

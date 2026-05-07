@@ -10,6 +10,45 @@
   - Tool observations must pass through a redaction/truncation pipeline before entering an LLM context. The pipeline redacts likely secret lines, enforces hard line/character caps, and preserves both head and tail content with an explicit middle redaction marker.
   - Follow-up work can wire the ReAct loop against these contracts without relying on regex-only command denial or unbounded stdout/search/file observations.
 
+## ADR-024 Agent SystemIndexer Search Path
+
+- Status: Accepted
+- Decision: Agent filesystem search now goes through a `SystemIndexer` abstraction instead of treating bounded recursive traversal as the primary path. Windows uses Everything IPC when available, then the persisted Tantivy index when populated. macOS and Linux use fixed CLI indexers (`mdfind`, `plocate`, `locate`) through `Command::new` with bounded stdout parsing. Native indexer misses or unavailability gracefully fall back to bounded parallel traversal through the `ignore` crate.
+- Consequences:
+  - Agent filesystem results include diagnostics such as provider, fallback reason, visited count, permission-denied count, timeout, and index age when available.
+  - Empty or missing CLI indexer results are not treated as final truth when fallback roots are available.
+  - Fallback traversal respects standard ignore filters and remains bounded by visit count and timeout.
+
+## ADR-025 Structured Agent Web Search Providers
+
+- Status: Accepted
+- Decision: Agent web search defaults to disabled unless a structured provider is configured. SearXNG JSON and Tavily API are the structured adapters; DuckDuckGo HTML remains available only as an explicit best-effort fallback.
+- Consequences:
+  - `agent.web_search_provider` accepts `disabled`, `searxng`, `tavily`, and `duckduckgo`.
+  - Tavily uses `agent.web_search_api_key`; SearXNG uses `agent.searxng_url`.
+  - All web results normalize to grounded title/url/snippet sources and pass through existing query redaction before outbound network requests.
+
+## ADR-026 Provider-Driven ReAct Agent Loop
+
+- Status: Accepted
+- Decision: Agent mode will move from local prompt heuristics to a provider-driven ReAct loop. Rust owns context filtering, tool schema generation, policy, approval, execution, observation redaction, cancellation, timeout, max-step limits, and audit logging. The selected AI provider/model decides whether to answer or request tools. The loop must use the shared AI runtime config resolver, so local Ollama remains a first-class Agent backend when selected.
+- Consequences:
+  - Local prompt heuristics become offline/fallback behavior, not the primary Agent planner.
+  - Provider adapters normalize model responses into final text or typed tool calls.
+  - Tool observations are appended only after redaction/truncation and are never allowed to bypass visibility policy.
+  - Unsupported provider/tool-call combinations must fail clearly or fall back to safe chat/fallback behavior without switching providers behind the user's back.
+
+## ADR-027 Generic Shell Tool Sandbox Requirement
+
+- Status: Accepted
+- Decision: Keynova will not expose a generic `execute_shell_command` / `execute_bash_command` Agent tool until a real platform sandbox exists. Approval and regex/string deny lists are insufficient. The first ReAct tools must be narrow typed tools with fixed binaries and structured arguments.
+- Consequences:
+  - No `sh -c`, `cmd /c`, or shell-string execution is allowed for generic Agent tool use.
+  - Linux must require a namespace/seccomp-style sandbox path such as `bwrap` plus syscall and filesystem restrictions before generic shell is considered.
+  - Windows must require restricted token/job/AppContainer-style constraints or equivalent process isolation before generic shell is considered.
+  - macOS must define an explicit sandbox strategy or report unsupported behavior.
+  - Denied tool attempts should be returned to the LLM as observations so the model can self-correct toward typed read-only tools.
+
 ## ADR-022 Agent Approval Boundary And Prompt Audit
 
 - Status: Accepted
