@@ -640,7 +640,7 @@ export function CommandPalette() {
         : "";
   const terminalLaunchSpec =
     cmdResult?.ui_type.type === "Terminal" ? cmdResult.ui_type.value : null;
-  const panelKey = `${cmdResult ? "command" : "live"}:${activePanelName}`;
+  const panelKey = `${cmdResult ? "command" : "live"}:${activePanelName}:${panelInitialArgs}`;
   const selectedResult = results[selected] ?? null;
   const selectedMetadata = selectedResult ? metadataByPath[selectedResult.path] : null;
   const searchFooterHint =
@@ -670,6 +670,13 @@ export function CommandPalette() {
     requestAnimationFrame(() => inputRef.current?.focus());
     void keepLauncherOpen();
   }, [setQuery]);
+
+  const handlePanelCommandResult = useCallback((result: BuiltinCommandResult) => {
+    setCmdResult(result);
+    setResults([]);
+    activeSearchRequestRef.current = "";
+    void dispatch("search.cancel").catch(() => {});
+  }, [dispatch]);
 
   // BUG-12: passed to every panel so Escape inside textarea/input can close the panel
   const handlePanelClose = useCallback(() => {
@@ -852,6 +859,7 @@ export function CommandPalette() {
                 key={panelKey}
                 onClose={handlePanelClose}
                 initialArgs={panelInitialArgs}
+                onRunCommandResult={handlePanelCommandResult}
               />
             </Suspense>
           )}

@@ -18,4 +18,4 @@ pub use builtin_command_registry::BuiltinCommandRegistry;
 pub use command_router::{CommandHandler, CommandResult, CommandRouter};
 pub use event_bus::{AppEvent, EventBus};
 pub use ipc_error::IpcError;
-pub use knowledge_store::{ActionLogEntry, KnowledgeStoreHandle};
+pub use knowledge_store::{ActionLogEntry, AgentAuditEntry, AgentMemoryEntry, KnowledgeStoreHandle};

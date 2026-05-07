@@ -1,5 +1,15 @@
 # decisions.md — 架構決策紀錄（ADR）
 
+## ADR-022 Agent Approval Boundary And Prompt Audit
+
+- Status: Accepted
+- Decision: Batch 4 agent execution now uses an explicit approval state machine and agent-owned planned actions instead of reusing generic launcher actions for risk handling. Each run records a prompt audit with context budget, allowlisted sources, filtered private/secret sources, and optional session/workspace/long-term memory references.
+- Consequences:
+  - `agent.start` can return `waiting_approval` runs with typed planned actions for medium/high-risk work.
+  - Approved actions return a UI-safe `BuiltinCommandResult` so the AI panel can open note/setting/system/model panels or a terminal launch without bypassing the launcher UI boundary.
+  - High-risk file writes remain scaffolded rather than directly executed; system/model lifecycle requests are routed back through explicit panels after approval.
+  - Knowledge Store schema version 3 adds `agent_audit_logs` and `agent_memories`; long-term agent memory is opt-in through `agent.long_term_memory_opt_in`.
+
 ## ADR-020 Terminal Launch Specs For Builtin Commands
 
 - Status: Accepted

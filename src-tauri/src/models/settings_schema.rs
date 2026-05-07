@@ -349,6 +349,15 @@ pub fn builtin_setting_schema() -> Vec<SettingSchema> {
             &["disabled", "searxng"],
         ),
         SettingSchema::new(
+            "agent.long_term_memory_opt_in",
+            "agent",
+            "Long-term memory opt-in",
+            Boolean,
+            "false",
+            false,
+            &["true", "false"],
+        ),
+        SettingSchema::new(
             "agent.searxng_url",
             "agent",
             "SearXNG URL",
