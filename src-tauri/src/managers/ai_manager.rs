@@ -178,6 +178,32 @@ pub trait ToolCallProvider: Send + Sync {
     ) -> Result<AiToolTurn, ToolCallError>;
 }
 
+// ─── ToolCallProvider impl for AiProvider ───────────────────────────────────
+
+impl ToolCallProvider for AiProvider {
+    fn chat_with_tools(
+        &self,
+        messages: &[AiMessage],
+        tools: &[AiToolDefinition],
+        max_tokens: u32,
+        timeout_secs: u64,
+    ) -> Result<AiToolTurn, ToolCallError> {
+        match self {
+            AiProvider::OpenAI {
+                api_key,
+                base_url,
+                model,
+            } => openai_chat_with_tools(api_key, base_url, model, messages, tools, max_tokens, timeout_secs),
+            AiProvider::Ollama { base_url, model } => {
+                ollama_chat_with_tools(base_url, model, messages, tools, max_tokens, timeout_secs)
+            }
+            AiProvider::Claude { .. } => Err(ToolCallError::Unsupported),
+        }
+    }
+}
+
+// ─── Response structs for tool-call APIs ────────────────────────────────────
+
 /// Claude API response format used by the messages endpoint.
 #[derive(Deserialize)]
 struct ClaudeResponse {
@@ -212,6 +238,63 @@ struct OpenAiChoice {
 #[derive(Deserialize)]
 struct OpenAiMessage {
     content: Option<String>,
+}
+
+// ─── Tool-call response structs ──────────────────────────────────────────────
+
+/// OpenAI-format tool-call response (shared by OpenAI and OpenAI-compatible endpoints).
+#[derive(Deserialize)]
+struct OpenAiToolsResponse {
+    choices: Vec<OpenAiToolsChoice>,
+}
+
+#[derive(Deserialize)]
+struct OpenAiToolsChoice {
+    message: OpenAiToolsMessage,
+    finish_reason: Option<String>,
+}
+
+#[derive(Deserialize)]
+struct OpenAiToolsMessage {
+    content: Option<String>,
+    tool_calls: Option<Vec<OpenAiToolCallEntry>>,
+}
+
+#[derive(Deserialize)]
+struct OpenAiToolCallEntry {
+    id: String,
+    function: OpenAiToolCallFunction,
+}
+
+#[derive(Deserialize)]
+struct OpenAiToolCallFunction {
+    name: String,
+    /// Arguments are a JSON-encoded string in the OpenAI format.
+    arguments: String,
+}
+
+/// Ollama tool-call response (Ollama ≥ 0.3 / OpenAI-compatible endpoint).
+#[derive(Deserialize)]
+struct OllamaToolsResponse {
+    message: OllamaToolsMessage,
+}
+
+#[derive(Deserialize)]
+struct OllamaToolsMessage {
+    content: Option<String>,
+    tool_calls: Option<Vec<OllamaToolCallEntry>>,
+}
+
+#[derive(Deserialize)]
+struct OllamaToolCallEntry {
+    function: OllamaToolCallFunction,
+}
+
+#[derive(Deserialize)]
+struct OllamaToolCallFunction {
+    name: String,
+    /// Ollama returns arguments as a pre-parsed JSON object (not a string).
+    arguments: Value,
 }
 
 /// AI 對話管理器：管理多輪對話歷史，依 config 選擇 Claude/Ollama/OpenAI provider。
@@ -453,6 +536,212 @@ fn chat_openai(
         .ok_or_else(|| "empty response from OpenAI-compatible API".into())
 }
 
+// ─── chat_with_tools implementations ────────────────────────────────────────
+
+fn openai_chat_with_tools(
+    api_key: &str,
+    base_url: &str,
+    model: &str,
+    messages: &[AiMessage],
+    tools: &[AiToolDefinition],
+    max_tokens: u32,
+    timeout_secs: u64,
+) -> Result<AiToolTurn, ToolCallError> {
+    if api_key.trim().is_empty() {
+        return Err(ToolCallError::Network(
+            "OpenAI-compatible API key is not configured.".into(),
+        ));
+    }
+
+    let client = reqwest::blocking::Client::builder()
+        .timeout(std::time::Duration::from_secs(timeout_secs))
+        .build()
+        .map_err(|e| ToolCallError::Network(e.to_string()))?;
+
+    let url = format!("{}/chat/completions", normalize_base_url(base_url));
+    let tools_json: Vec<Value> = tools.iter().map(tool_def_to_openai).collect();
+
+    let body = serde_json::json!({
+        "model": model,
+        "max_tokens": max_tokens,
+        "messages": messages_json(messages),
+        "tools": tools_json,
+        "tool_choice": "auto",
+    });
+
+    let response = client
+        .post(&url)
+        .bearer_auth(api_key)
+        .header("content-type", "application/json")
+        .json(&body)
+        .send()
+        .map_err(|e| ToolCallError::Network(format!("request failed: {e}")))?;
+
+    if !response.status().is_success() {
+        let status = response.status();
+        let text = response.text().unwrap_or_default();
+        return Err(ToolCallError::Network(format!(
+            "OpenAI-compatible API error {status}: {text}"
+        )));
+    }
+
+    let resp: OpenAiToolsResponse = response
+        .json()
+        .map_err(|e| ToolCallError::Parse(format!("response parse failed: {e}")))?;
+
+    let choice = resp
+        .choices
+        .into_iter()
+        .next()
+        .ok_or_else(|| ToolCallError::Parse("empty choices array".into()))?;
+
+    // Tool-call response takes priority over content.
+    if let Some(tool_calls) = choice.message.tool_calls.filter(|v| !v.is_empty()) {
+        let parsed = parse_openai_tool_calls(tool_calls)?;
+        return Ok(AiToolTurn::ToolCalls { tool_calls: parsed });
+    }
+
+    // Plain text answer.
+    let content = choice
+        .message
+        .content
+        .unwrap_or_default()
+        .trim()
+        .to_string();
+
+    if content.is_empty() && choice.finish_reason.as_deref() == Some("length") {
+        return Err(ToolCallError::Parse(
+            "response truncated (finish_reason=length)".into(),
+        ));
+    }
+
+    Ok(AiToolTurn::FinalText { content })
+}
+
+fn ollama_chat_with_tools(
+    base_url: &str,
+    model: &str,
+    messages: &[AiMessage],
+    tools: &[AiToolDefinition],
+    max_tokens: u32,
+    timeout_secs: u64,
+) -> Result<AiToolTurn, ToolCallError> {
+    let client = reqwest::blocking::Client::builder()
+        .timeout(std::time::Duration::from_secs(timeout_secs))
+        .build()
+        .map_err(|e| ToolCallError::Network(e.to_string()))?;
+
+    let url = format!("{}/api/chat", normalize_base_url(base_url));
+    let tools_json: Vec<Value> = tools.iter().map(tool_def_to_openai).collect();
+
+    let body = serde_json::json!({
+        "model": model,
+        "stream": false,
+        "messages": messages_json(messages),
+        "tools": tools_json,
+        "options": { "num_predict": max_tokens },
+    });
+
+    let response = client
+        .post(&url)
+        .header("content-type", "application/json")
+        .json(&body)
+        .send()
+        .map_err(|e| {
+            ToolCallError::Network(format!(
+                "Ollama request failed: {e}. Is the Ollama daemon running?"
+            ))
+        })?;
+
+    if !response.status().is_success() {
+        let status = response.status();
+        let text = response.text().unwrap_or_default();
+        // Older Ollama versions return 400 when a model doesn't support tools.
+        if status.as_u16() == 400 && text.contains("does not support tools") {
+            return Err(ToolCallError::Unsupported);
+        }
+        return Err(ToolCallError::Network(format!(
+            "Ollama error {status}: {text}"
+        )));
+    }
+
+    let resp: OllamaToolsResponse = response
+        .json()
+        .map_err(|e| ToolCallError::Parse(format!("response parse failed: {e}")))?;
+
+    // Tool calls take priority over content.
+    if let Some(tool_calls) = resp.message.tool_calls.filter(|v| !v.is_empty()) {
+        let parsed = parse_ollama_tool_calls(tool_calls)?;
+        return Ok(AiToolTurn::ToolCalls { tool_calls: parsed });
+    }
+
+    let content = resp
+        .message
+        .content
+        .unwrap_or_default()
+        .trim()
+        .to_string();
+
+    // If content is also empty the model likely ignored the tool schema.
+    if content.is_empty() {
+        return Err(ToolCallError::Unsupported);
+    }
+
+    Ok(AiToolTurn::FinalText { content })
+}
+
+/// Convert an `AiToolDefinition` to the OpenAI function-calling schema format.
+fn tool_def_to_openai(def: &AiToolDefinition) -> Value {
+    serde_json::json!({
+        "type": "function",
+        "function": {
+            "name": def.name,
+            "description": def.description,
+            "parameters": def.parameters_schema,
+        }
+    })
+}
+
+/// Parse OpenAI-format tool calls where `arguments` is a JSON-encoded string.
+fn parse_openai_tool_calls(
+    calls: Vec<OpenAiToolCallEntry>,
+) -> Result<Vec<AiToolCallRequest>, ToolCallError> {
+    calls
+        .into_iter()
+        .map(|call| {
+            let arguments = serde_json::from_str::<Value>(&call.function.arguments)
+                .map_err(|e| {
+                    ToolCallError::Parse(format!(
+                        "invalid arguments JSON for '{}': {e}",
+                        call.function.name
+                    ))
+                })?;
+            Ok(AiToolCallRequest {
+                id: call.id,
+                name: call.function.name,
+                arguments,
+            })
+        })
+        .collect()
+}
+
+/// Parse Ollama-format tool calls where `arguments` is already a JSON object.
+fn parse_ollama_tool_calls(
+    calls: Vec<OllamaToolCallEntry>,
+) -> Result<Vec<AiToolCallRequest>, ToolCallError> {
+    calls
+        .into_iter()
+        .enumerate()
+        .map(|(idx, call)| {
+            Ok(AiToolCallRequest {
+                id: format!("ollama-call-{idx}"),
+                name: call.function.name,
+                arguments: call.function.arguments,
+            })
+        })
+        .collect()
+}
+
 fn build_client(timeout_secs: u64) -> Result<reqwest::blocking::Client, String> {
     reqwest::blocking::Client::builder()
         .timeout(std::time::Duration::from_secs(timeout_secs))
@@ -532,6 +821,79 @@ mod tests {
                 timeout_secs: 180,
             }
         );
+    }
+
+    // ─── tool-call parsing tests (5.5.A3 / A4) ───────────────────────────────
+
+    #[test]
+    fn tool_def_serialized_to_openai_function_schema() {
+        let def = AiToolDefinition {
+            name: "keynova_search".into(),
+            description: "Search Keynova.".into(),
+            parameters_schema: serde_json::json!({
+                "type": "object",
+                "properties": { "query": { "type": "string" } },
+                "required": ["query"],
+            }),
+        };
+        let schema = tool_def_to_openai(&def);
+        assert_eq!(schema["type"], "function");
+        assert_eq!(schema["function"]["name"], "keynova_search");
+        assert_eq!(schema["function"]["parameters"]["properties"]["query"]["type"], "string");
+    }
+
+    #[test]
+    fn parse_openai_tool_calls_decodes_arguments_string() {
+        let raw = vec![OpenAiToolCallEntry {
+            id: "call-1".into(),
+            function: OpenAiToolCallFunction {
+                name: "keynova_search".into(),
+                arguments: r#"{"query":"rust notes","limit":5}"#.into(),
+            },
+        }];
+        let parsed = parse_openai_tool_calls(raw).unwrap();
+        assert_eq!(parsed.len(), 1);
+        assert_eq!(parsed[0].id, "call-1");
+        assert_eq!(parsed[0].name, "keynova_search");
+        assert_eq!(parsed[0].arguments["query"], "rust notes");
+        assert_eq!(parsed[0].arguments["limit"], 5);
+    }
+
+    #[test]
+    fn parse_openai_tool_calls_returns_parse_error_on_invalid_json() {
+        let raw = vec![OpenAiToolCallEntry {
+            id: "call-2".into(),
+            function: OpenAiToolCallFunction {
+                name: "keynova_search".into(),
+                arguments: "NOT_JSON".into(),
+            },
+        }];
+        let result = parse_openai_tool_calls(raw);
+        assert!(matches!(result, Err(ToolCallError::Parse(_))));
+    }
+
+    #[test]
+    fn parse_ollama_tool_calls_uses_pre_parsed_json() {
+        let raw = vec![OllamaToolCallEntry {
+            function: OllamaToolCallFunction {
+                name: "keynova_search".into(),
+                arguments: serde_json::json!({"query": "notes", "limit": 3}),
+            },
+        }];
+        let parsed = parse_ollama_tool_calls(raw).unwrap();
+        assert_eq!(parsed.len(), 1);
+        assert_eq!(parsed[0].id, "ollama-call-0");
+        assert_eq!(parsed[0].arguments["limit"], 3);
+    }
+
+    #[test]
+    fn claude_provider_returns_unsupported() {
+        let provider = AiProvider::Claude {
+            api_key: "key".into(),
+            model: "claude-sonnet-4-6".into(),
+        };
+        let result = provider.chat_with_tools(&[], &[], 100, 5);
+        assert!(matches!(result, Err(ToolCallError::Unsupported)));
     }
 
     #[test]
