@@ -63,9 +63,9 @@
 
 ## 當前狀態
 
-- **進度**：Phase 4 第一輪核心 foundation 已完成；lazy panel 首次開啟視窗高度同步已修正；Phase 2 搜尋 backend debug/config/rebuild/test 補齊；Knowledge Store batch writes + shutdown flush 已補上；Plugin loader 已可讀取/驗證本機 manifest；Agent read-only tools 已可執行 `keynova.search` / SearXNG `web.search`。
-- **上次完成**：補齊 Agent read-only tool runtime 與搜尋 cancellation：`agent.tool` 可呼叫 `keynova.search` / `web.search`，`agent.start` 會在需要時帶入本機 grounding sources；`keynova.search` 搜尋 workspace、command、settings schema、model、notes、history 並套用 visibility filter；`web.search` 支援 SearXNG 且拒絕 private architecture / secret query；`search.cancel` 與 backend generation check 可丟棄 stale provider results。
-- **下一步**：補 Phase 4 尚未完成的重型 runtime：`lib.rs` 拆成 `app/*`、search chunk streaming、Tantivy provider、Agent approval/audit/memory、WASM runtime/hot reload。
+- **進度**：Phase 4 全部工作已 merge 進 main（1365e69）；搜尋評分品質分層、per-provider quota、OneDrive/Dropbox 動態發現、WSL 使用者目錄列舉均完成；28 項 Rust test 全通過。
+- **上次完成**：dev → main merge 完成（commit 1365e69，82 files，+14684/-1738 行），包含 Phase-4 全部功能：搜尋 SearchPlan/評分/串流、Agent runtime/approval/memory、Tantivy index、LazyVim note、workspace session tracking、automation executor、plugin security。
+- **下一步**：手動驗收搜尋結果排序（file/app 分數分層）與 Agent 流程；考慮 Phase 5 規劃。
 
 ## 已確認的技術選擇
 
@@ -99,16 +99,17 @@
 - feature/feat1-feat2-control-plane → dev/main 合併完成；BUG-11 終端 ESC keydown/keyup 修復完成（2026-05-04）
 - Phase 3.0–3.8 完成與後續任務整理（2026-05-04 ~ 05-05）：/tr /ai /note /cal /history /system + workspace 3 槽位完成；BUG-12/13/14 經 stale closure/捲動根因修復；tasks.md 壓縮並建立 FEAT-6/7
 - FEAT-6 完成（2026-05-05）：`/model_download` / `/model_list` 支援 AI Chat 與 Translation 分別切換模型、硬體推薦、Ollama catalog/progress、API provider 切換；後續 FEAT-7 已將 Translation 收斂為 Google only
+- Phase 4 foundation + Agent runtime + 搜尋串流/Tantivy/Plugin/Automation 全完成後 merge 進 main（2026-05-06 ~ 05-08）
 
 ## Session 交接紀錄（最近 5 筆）
 
 | 日期 | 完成事項 | 遺留問題 |
 |------|----------|----------|
-| 2026-05-08 | 搜尋排序與覆蓋率大修：(1) app/file 分數品質分層：app exact=100/prefix=90/substring=78；file exact=95/prefix=88/contains=80；command desc-only=40；(2) WSL home 改為枚舉 /home/<user> 各獲 depth=4，不再以 /home 為根消耗一層；(3) OneDrive 改用 env var 動態發現，Dropbox 改讀 info.json（移除所有硬編碼目錄名稱）；(4) SearchPlan per-provider quota + sort_balanced_truncate；105 個測試全通過 | 仍需在真實 app 手動確認；stream diagnostics 尚未做 |
-| 2026-05-06 | Phase 2 搜尋、Knowledge Store、Plugin loader 補齊：backend preference/active 選擇可測試、`search.backend` structured debug info、搜尋框 backend badge、`/rebuild_search_index` 背景重建 file cache、`[search]` config/schema、CSP connect-src 放行、`hotkey.register` 轉 structured `not_implemented`；DB worker 補 action/clipboard batch insert 與 shutdown flush；plugin.toml/json loader 會驗證 permission deny-by-default | Tantivy provider、WASM runtime proof-of-concept 尚未接入；BUG-1/BUG-4 仍建議在真實 DevTools/視窗手動確認 |
-| 2026-05-06 | Phase 4.4/4.5A：搜尋 backend generation/cancel 可丟棄 stale provider results；AgentHandler 注入 config/note/history/workspace/command/model context；新增 `agent.tool`，實作 `keynova.search` 與 SearXNG `web.search`；新增 private architecture/secret web-query redaction tests | `web.search` 預設 disabled，需設定 `agent.web_search_provider=searxng` 與 `agent.searxng_url`；尚未做 Agent approval/action phases 與 audit 寫入 Knowledge Store |
-| 2026-05-06 | 修正 BUG-15：lazy panel 首次開啟後內容載入完成未觸發 Tauri window resize，導致 UI 裁切、背景殘影與外層 scrollbar；改用 ResizeObserver/MutationObserver 同步高度，並關閉 root/body overflow | 需在真實 Tauri 視窗手動確認 `/cal`、`/ai`、`/history`、`/model_list` 首次開啟皆正常 |
-| 2026-05-06 | Phase 4 foundation：ActionArena/ActionRef、UiSearchItem、action.run、secondary actions、schema-driven settings、Workspace v2、KnowledgeStore DB worker、Agent mode UI/runtime skeleton、Automation/Plugin security model；補強 /ai Agent 搜尋隱私：web.search/keynova.search、visibility filter、architecture denylist | Phase 4 foundation 與 Agent 隱私規劃完成；WASM loader/hot reload 仍待做 |
+| 2026-05-08 | dev → main merge 完成（1365e69，82 files，+14684/-1738 行）；Phase-4 全部功能進入 main | 手動驗收搜尋結果排序與 Agent 流程 |
+| 2026-05-08 | 搜尋排序與覆蓋率大修：app/file 分數品質分層、WSL home 枚舉、OneDrive env var / Dropbox info.json 動態發現、SearchPlan per-provider quota；28 個測試全通過 | 仍需在真實 app 手動確認；stream diagnostics 尚未做 |
+| 2026-05-06 | Phase 4.4/4.5A：搜尋 backend generation/cancel；AgentHandler context 注入；`agent.tool` 實作 `keynova.search` / SearXNG `web.search`；private architecture/secret redaction tests | `web.search` 預設 disabled，需設定 searxng url；Agent approval/audit 尚未做 |
+| 2026-05-06 | 修正 BUG-15：lazy panel 首次開啟高度同步；改用 ResizeObserver/MutationObserver；關閉 root/body overflow | 需在真實 Tauri 視窗手動確認各 panel 首次開啟正常 |
+| 2026-05-06 | Phase 4 foundation：ActionArena/ActionRef、UiSearchItem、schema-driven settings、Workspace v2、KnowledgeStore DB worker、Agent mode UI/runtime skeleton、Automation/Plugin security model | WASM loader/hot reload 仍待做 |
 
 ## 2026-05-06 架構邊界與修正定位索引
 
