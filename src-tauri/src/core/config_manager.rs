@@ -3,6 +3,10 @@ use std::path::PathBuf;
 
 use serde::Serialize;
 
+use crate::models::settings_schema::{
+    builtin_setting_schema, is_sensitive_key, redact_setting_value, SettingSchema,
+};
+
 #[derive(Clone, Debug, Serialize)]
 pub struct ConfigChange {
     pub key: String,
@@ -108,6 +112,20 @@ impl ConfigManager {
             .collect();
         pairs.sort_by(|a, b| a.0.cmp(&b.0));
         pairs
+    }
+
+    pub fn list_all_redacted(&self) -> Vec<(String, String, bool)> {
+        let mut pairs: Vec<_> = self
+            .data
+            .iter()
+            .map(|(k, v)| (k.clone(), redact_setting_value(k, v), is_sensitive_key(k)))
+            .collect();
+        pairs.sort_by(|a, b| a.0.cmp(&b.0));
+        pairs
+    }
+
+    pub fn schema(&self) -> Vec<SettingSchema> {
+        builtin_setting_schema()
     }
 
     /// 以 TOML section 格式寫回磁碟，保留數字/bool 的正確型別。

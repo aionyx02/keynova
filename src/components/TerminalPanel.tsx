@@ -5,6 +5,7 @@ import "@xterm/xterm/css/xterm.css";
 import { listen } from "@tauri-apps/api/event";
 import { invoke } from "@tauri-apps/api/core";
 import { useTerminalTheme } from "../hooks/useTerminalTheme";
+import type { TerminalLaunchSpec } from "../types/terminal";
 
 interface OutputPayload {
   id: string;
@@ -28,14 +29,17 @@ interface ConfigReloadedPayload {
 interface Props {
   isActive: boolean;
   onExit: () => void | Promise<void>;
+  launchSpec?: TerminalLaunchSpec | null;
 }
 
-export function TerminalPanel({ isActive, onExit }: Props) {
+export function TerminalPanel({ isActive, onExit, launchSpec = null }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const xtermRef = useRef<Terminal | null>(null);
   const fitAddonRef = useRef<FitAddon | null>(null);
   const termOpts = useTerminalTheme();
   const onExitRef = useRef(onExit);
+  const launchKey = launchSpec?.launch_id ?? "shell";
+  const isEditorSession = Boolean(launchSpec?.editor);
   useEffect(() => {
     onExitRef.current = onExit;
   }, [onExit]);
@@ -126,8 +130,17 @@ export function TerminalPanel({ isActive, onExit }: Props) {
       xterm.focus();
 
       xterm.attachCustomKeyEventHandler((e: KeyboardEvent) => {
+        if (
+          e.type === "keydown" &&
+          ((e.ctrlKey && e.shiftKey && e.key.toLowerCase() === "q") ||
+            (e.ctrlKey && e.altKey && (e.key === "Escape" || e.code === "Escape")))
+        ) {
+          void Promise.resolve(onExitRef.current());
+          return false;
+        }
         // In WebView2/xterm, a physical Escape can surface as keyup only.
         if (
+          !isEditorSession &&
           (e.type === "keydown" || e.type === "keyup") &&
           (e.key === "Escape" || e.code === "Escape")
         ) {
@@ -141,7 +154,7 @@ export function TerminalPanel({ isActive, onExit }: Props) {
         if (!sessionId) return;
         // On Windows/WebView2, a physical Escape can reach xterm as the
         // focus-out escape sequence instead of a DOM keydown.
-        if (data === "\x1b" || data === "\x1b[O") {
+        if (!isEditorSession && (data === "\x1b" || data === "\x1b[O")) {
           void Promise.resolve(onExitRef.current());
           return;
         }
@@ -175,7 +188,7 @@ export function TerminalPanel({ isActive, onExit }: Props) {
 
         const resp = await invoke<OpenResponse>("cmd_dispatch", {
           route: "terminal.open",
-          payload: { rows: xterm.rows, cols: xterm.cols },
+          payload: { rows: xterm.rows, cols: xterm.cols, launch_spec: launchSpec },
         });
         if (cancelled) {
           void invoke("cmd_dispatch", { route: "terminal.close", payload: { id: resp.id } });
@@ -219,10 +232,19 @@ export function TerminalPanel({ isActive, onExit }: Props) {
       xterm?.dispose();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [launchKey]);
 
   const handleKeyDownCapture = (event: ReactKeyboardEvent<HTMLDivElement>) => {
-    if (event.key !== "Escape" && event.key !== "Esc" && event.code !== "Escape") return;
+    const isExitChord =
+      (event.ctrlKey && event.shiftKey && event.key.toLowerCase() === "q") ||
+      (event.ctrlKey &&
+        event.altKey &&
+        (event.key === "Escape" || event.key === "Esc" || event.code === "Escape"));
+    if (isEditorSession) {
+      if (!isExitChord) return;
+    } else if (event.key !== "Escape" && event.key !== "Esc" && event.code !== "Escape") {
+      return;
+    }
     event.preventDefault();
     event.stopPropagation();
     void Promise.resolve(onExitRef.current());
@@ -234,8 +256,12 @@ export function TerminalPanel({ isActive, onExit }: Props) {
       onKeyDownCapture={handleKeyDownCapture}
     >
       <div className="flex items-center px-3 py-1.5 bg-gray-800/60 border-b border-gray-700/40">
-        <span className="text-[11px] font-mono text-emerald-400 select-none">Terminal</span>
-        <span className="ml-auto text-[11px] text-gray-600 select-none">Esc to exit</span>
+        <span className="text-[11px] font-mono text-emerald-400 select-none">
+          {launchSpec?.title ?? "Terminal"}
+        </span>
+        <span className="ml-auto text-[11px] text-gray-600 select-none">
+          {isEditorSession ? "Ctrl+Shift+Q to exit" : "Esc to exit"}
+        </span>
       </div>
       <div
         ref={containerRef}

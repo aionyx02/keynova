@@ -1,4 +1,6 @@
+pub mod agent;
 pub mod ai;
+pub mod automation;
 pub mod builtin_cmd;
 pub mod calculator;
 pub mod history;
@@ -7,6 +9,7 @@ pub mod launcher;
 pub mod model;
 pub mod mouse;
 pub mod note;
+pub mod plugin;
 pub mod search;
 pub mod setting;
 pub mod system_control;

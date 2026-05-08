@@ -7,6 +7,10 @@ pub enum ResultKind {
     App,
     File,
     Folder,
+    Command,
+    Note,
+    History,
+    Model,
 }
 
 /// 統一搜尋結果，可來自 App 快取或 Everything IPC。

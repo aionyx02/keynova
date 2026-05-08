@@ -10,6 +10,8 @@ use windows::Win32::UI::Input::KeyboardAndMouse::{
     VK_RETURN, VK_SPACE,
 };
 
+const CF_UNICODETEXT_FORMAT: u32 = 13;
+
 // ─── App Scanner ────────────────────────────────────────────────────────────
 
 /// 掃描 Windows Start Menu 與 %LOCALAPPDATA%\Programs 下的捷徑。
@@ -120,6 +122,50 @@ pub fn type_text(text: &str) -> Result<(), String> {
         send_unicode_char(ch as u16, true)?;
     }
     Ok(())
+}
+
+/// Returns the Windows clipboard sequence number for low-cost change detection.
+pub fn clipboard_sequence_number() -> u32 {
+    unsafe { windows::Win32::System::DataExchange::GetClipboardSequenceNumber() }
+}
+
+/// Reads Unicode text from the Windows clipboard without spawning PowerShell.
+pub fn read_clipboard_text() -> Option<String> {
+    use windows::Win32::Foundation::{HGLOBAL, HWND};
+    use windows::Win32::System::DataExchange::{
+        CloseClipboard, GetClipboardData, IsClipboardFormatAvailable, OpenClipboard,
+    };
+    use windows::Win32::System::Memory::{GlobalLock, GlobalUnlock};
+
+    unsafe {
+        if IsClipboardFormatAvailable(CF_UNICODETEXT_FORMAT).is_err() {
+            return None;
+        }
+        if OpenClipboard(HWND(std::ptr::null_mut())).is_err() {
+            return None;
+        }
+
+        let result = (|| {
+            let handle = GetClipboardData(CF_UNICODETEXT_FORMAT).ok()?;
+            let global = HGLOBAL(handle.0);
+            let ptr = GlobalLock(global) as *const u16;
+            if ptr.is_null() {
+                return None;
+            }
+            let mut len = 0usize;
+            while *ptr.add(len) != 0 {
+                len += 1;
+            }
+            let text = String::from_utf16_lossy(std::slice::from_raw_parts(ptr, len))
+                .trim()
+                .to_string();
+            let _ = GlobalUnlock(global);
+            (!text.is_empty()).then_some(text)
+        })();
+
+        let _ = CloseClipboard();
+        result
+    }
 }
 
 // ─── Internal helpers ────────────────────────────────────────────────────────
@@ -253,14 +299,18 @@ fn file_cache() -> Arc<Mutex<Vec<FileEntry>>> {
 }
 
 /// 背景啟動後呼叫一次，將所有搜尋路徑的檔案條目寫入記憶體快取。
-pub fn build_file_index() {
+pub fn build_file_index() -> usize {
     let mut entries: Vec<FileEntry> = Vec::new();
     for (dir, depth) in user_search_dirs() {
         collect_all(&dir, &mut entries, depth);
     }
+    let len = entries.len();
     let cache = file_cache();
-    let Ok(mut guard) = cache.lock() else { return };
+    let Ok(mut guard) = cache.lock() else {
+        return 0;
+    };
     *guard = entries;
+    len
 }
 
 /// 從記憶體快取中搜尋符合 query 的條目，不觸發磁碟 I/O。
@@ -276,6 +326,16 @@ pub fn scan_files_from_cache(query: &str, max: usize) -> Vec<FileEntry> {
         .take(max)
         .cloned()
         .collect()
+}
+
+pub fn file_index_snapshot() -> Vec<FileEntry> {
+    let cache = file_cache();
+    cache.lock().map(|guard| guard.clone()).unwrap_or_default()
+}
+
+pub fn file_index_len() -> usize {
+    let cache = file_cache();
+    cache.lock().map(|guard| guard.len()).unwrap_or(0)
 }
 
 /// 掃描目錄樹，不做 query 過濾，只收集全部條目（供 build_file_index 使用）。
@@ -310,34 +370,113 @@ fn collect_all(dir: &Path, out: &mut Vec<FileEntry>, depth: usize) {
 }
 
 /// 回傳 (目錄路徑, 最大掃描深度) 清單。
+///
+/// 不使用硬編碼目錄名稱（如 "Dropbox"、"OneDrive - Personal"）——這些名稱因語系、
+/// 使用者設定而異。改用：
+/// - OS 標準子目錄（Desktop/Downloads/Documents 等，這些在 Windows 上名稱固定）
+/// - OneDrive env var（Microsoft sync client 設定，不受資料夾名稱影響）
+/// - Dropbox info.json（Dropbox 自己的規範格式，包含實際路徑）
+/// - 全磁碟掃描覆蓋其餘位置（global_drive_dirs）
 fn user_search_dirs() -> Vec<(std::path::PathBuf, usize)> {
-    let mut dirs = Vec::new();
-    if let Ok(home) = std::env::var("USERPROFILE") {
-        let home = std::path::PathBuf::from(home);
-        for sub in &[
-            "Desktop",
-            "Downloads",
-            "Documents",
-            "Pictures",
-            "Music",
-            "Videos",
-        ] {
-            let p = home.join(sub);
-            if p.exists() {
-                dirs.push((p, 3));
+    let mut seen = std::collections::HashSet::new();
+    let mut dirs: Vec<(std::path::PathBuf, usize)> = Vec::new();
+
+    let mut add = |path: std::path::PathBuf, depth: usize| {
+        if path.exists() && seen.insert(path.clone()) {
+            dirs.push((path, depth));
+        }
+    };
+
+    if let Ok(home_str) = std::env::var("USERPROFILE") {
+        let home = std::path::PathBuf::from(&home_str);
+
+        // OS-standardised user dirs: names are fixed by Windows shell APIs.
+        for sub in &["Desktop", "Downloads", "Documents", "Pictures", "Music", "Videos"] {
+            add(home.join(sub), 4);
+        }
+
+        // OneDrive: read the path that the sync client writes to env vars.
+        // Works regardless of the folder's display name or relocated root.
+        for key in &["OneDrive", "OneDriveConsumer", "OneDriveCommercial"] {
+            if let Ok(value) = std::env::var(key) {
+                add(std::path::PathBuf::from(value), 4);
             }
         }
-        dirs.push((home, 2));
+
+        // Dropbox: read the canonical path from its own config file.
+        // info.json is the authoritative source; the folder name is irrelevant.
+        for p in dropbox_paths() {
+            add(std::path::PathBuf::from(p), 4);
+        }
+
+        // Home at shallow depth as a catch-all for anything not covered above.
+        add(home, 2);
     }
-    dirs.extend(extra_drive_dirs());
+
+    dirs.extend(global_drive_dirs());
     dirs.extend(wsl_home_dirs());
     dirs
 }
 
-/// 枚舉 D–Z 槽，各以深度 3 掃描（跳過 SKIP_DIRS 定義的系統目錄）。
-fn extra_drive_dirs() -> Vec<(std::path::PathBuf, usize)> {
+/// Reads every `"path"` entry from a Dropbox `info.json` file.
+/// The file format is: `{ "personal": { "path": "C:\\Users\\foo\\Dropbox" }, ... }`
+fn dropbox_paths() -> Vec<String> {
+    let mut paths = Vec::new();
+    for env_key in &["LOCALAPPDATA", "APPDATA"] {
+        if let Ok(base) = std::env::var(env_key) {
+            let info = std::path::PathBuf::from(base).join("Dropbox").join("info.json");
+            if let Ok(content) = std::fs::read_to_string(info) {
+                paths.extend(extract_json_path_values(&content));
+                if !paths.is_empty() {
+                    break;
+                }
+            }
+        }
+    }
+    paths
+}
+
+/// Minimal extraction of every `"path": "<value>"` entry from a JSON string.
+/// Avoids pulling in serde_json for a single known-format file.
+fn extract_json_path_values(json: &str) -> Vec<String> {
+    let mut paths = Vec::new();
+    let mut s = json;
+    while let Some(pos) = s.find("\"path\"") {
+        s = &s[pos + 6..];
+        let after = s.trim_start();
+        if !after.starts_with(':') {
+            continue;
+        }
+        let after = after[1..].trim_start();
+        if !after.starts_with('"') {
+            continue;
+        }
+        let content = &after[1..];
+        let mut end = 0;
+        let bytes = content.as_bytes();
+        while end < bytes.len() {
+            if bytes[end] == b'\\' {
+                end += 2; // skip escaped char
+            } else if bytes[end] == b'"' {
+                break;
+            } else {
+                end += 1;
+            }
+        }
+        if end <= content.len() {
+            let path = content[..end].replace("\\\\", "\\");
+            if !path.is_empty() {
+                paths.push(path);
+            }
+        }
+    }
+    paths
+}
+
+/// Enumerates available C-Z drives with bounded depth while skipping system directories.
+fn global_drive_dirs() -> Vec<(std::path::PathBuf, usize)> {
     let mut dirs = Vec::new();
-    for letter in b'D'..=b'Z' {
+    for letter in b'C'..=b'Z' {
         let path = std::path::PathBuf::from(format!("{}:\\", letter as char));
         if path.exists() {
             dirs.push((path, 3));
@@ -347,17 +486,37 @@ fn extra_drive_dirs() -> Vec<(std::path::PathBuf, usize)> {
 }
 
 /// 透過 wsl.exe --list 取得已安裝的發行版名稱，
-/// 再直接構建 \\wsl.localhost\<Distro>\home 路徑（WSL2 執行中時可存取）。
+/// 枚舉 \\wsl.localhost\<Distro>\home 下的每個使用者目錄並各自加入索引根。
+///
+/// 直接加入 /home 根時，使用者的 ~/projects/code/file.py 需要 depth 3 才能到達，
+/// 但 /home 本身消耗一層 → 只能掃到 ~/code/file.py（2 層）。
+/// 改成枚舉 /home/<user>，每個使用者 home 獨立獲得 depth 4，才能覆蓋常見的
+/// ~/projects/<repo>/<file> 層級。
 fn wsl_home_dirs() -> Vec<(std::path::PathBuf, usize)> {
     let mut dirs = Vec::new();
     let distros = wsl_distro_names();
 
-    // 先嘗試 wsl.localhost（Windows 11+），再嘗試舊版 wsl$
     for prefix in &[r"\\wsl.localhost", r"\\wsl$"] {
         for distro in &distros {
-            let home = std::path::PathBuf::from(format!(r"{}\{}\home", prefix, distro));
-            if home.exists() {
-                dirs.push((home, 3));
+            let home_root =
+                std::path::PathBuf::from(format!(r"{}\{}\home", prefix, distro));
+            if !home_root.exists() {
+                continue;
+            }
+            // Enumerate individual user home dirs so each gets a fresh depth budget.
+            let mut found_any = false;
+            if let Ok(entries) = std::fs::read_dir(&home_root) {
+                for entry in entries.flatten() {
+                    let user_home = entry.path();
+                    if user_home.is_dir() {
+                        dirs.push((user_home, 4));
+                        found_any = true;
+                    }
+                }
+            }
+            if !found_any {
+                // Can't enumerate — fall back to /home with reduced depth.
+                dirs.push((home_root, 3));
             }
         }
         if !dirs.is_empty() {
@@ -375,6 +534,10 @@ fn wsl_distro_names() -> Vec<String> {
         .output()
     {
         if out.status.success() && !out.stdout.is_empty() {
+            let names = parse_wsl_distro_names(&out.stdout);
+            if !names.is_empty() {
+                return names;
+            }
             // wsl.exe 輸出 UTF-16 LE，含 BOM
             let words: Vec<u16> = out
                 .stdout
@@ -401,6 +564,48 @@ fn wsl_distro_names() -> Vec<String> {
         "Debian".into(),
         "kali-linux".into(),
     ]
+}
+
+fn parse_wsl_distro_names(stdout: &[u8]) -> Vec<String> {
+    if stdout.is_empty() {
+        return Vec::new();
+    }
+
+    let text = if looks_like_utf16_le(stdout) {
+        let words = stdout
+            .chunks_exact(2)
+            .map(|c| u16::from_le_bytes([c[0], c[1]]))
+            .collect::<Vec<_>>();
+        String::from_utf16_lossy(&words)
+    } else {
+        String::from_utf8_lossy(stdout).into_owned()
+    };
+
+    text.lines()
+        .map(|line| {
+            line.replace('\0', "")
+                .trim()
+                .trim_start_matches('\u{feff}')
+                .trim()
+                .to_string()
+        })
+        .filter(|line| !line.is_empty())
+        .collect()
+}
+
+fn looks_like_utf16_le(bytes: &[u8]) -> bool {
+    if bytes.len() < 4 {
+        return false;
+    }
+    let pairs = bytes.chunks_exact(2).count();
+    if pairs == 0 {
+        return false;
+    }
+    let nul_second_bytes = bytes
+        .chunks_exact(2)
+        .filter(|pair| pair[1] == 0)
+        .count();
+    nul_second_bytes * 2 >= pairs
 }
 
 // ─── Everything IPC ──────────────────────────────────────────────────────────
@@ -528,4 +733,47 @@ unsafe fn read_wstr(ptr: *const u16) -> String {
         len += 1;
     }
     String::from_utf16_lossy(std::slice::from_raw_parts(ptr, len)).to_string()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn parses_utf8_wsl_distro_names() {
+        let names = parse_wsl_distro_names(b"Ubuntu\r\nDebian\r\n");
+        assert_eq!(names, vec!["Ubuntu", "Debian"]);
+    }
+
+    #[test]
+    fn parses_utf16_wsl_distro_names() {
+        let bytes = "Ubuntu\r\nDebian\r\n"
+            .encode_utf16()
+            .flat_map(u16::to_le_bytes)
+            .collect::<Vec<_>>();
+        let names = parse_wsl_distro_names(&bytes);
+        assert_eq!(names, vec!["Ubuntu", "Debian"]);
+    }
+
+    #[test]
+    fn extracts_dropbox_personal_path() {
+        let json = r#"{"personal":{"path":"C:\\Users\\shawn\\Dropbox","host":123}}"#;
+        let paths = extract_json_path_values(json);
+        assert_eq!(paths, vec!["C:\\Users\\shawn\\Dropbox"]);
+    }
+
+    #[test]
+    fn extracts_multiple_dropbox_paths() {
+        let json = r#"{"personal":{"path":"C:\\Dropbox"},"business":{"path":"D:\\DropboxWork"}}"#;
+        let paths = extract_json_path_values(json);
+        assert_eq!(paths.len(), 2);
+        assert!(paths.contains(&"C:\\Dropbox".to_string()));
+        assert!(paths.contains(&"D:\\DropboxWork".to_string()));
+    }
+
+    #[test]
+    fn dropbox_extraction_handles_empty_json() {
+        assert!(extract_json_path_values("{}").is_empty());
+        assert!(extract_json_path_values("").is_empty());
+    }
 }
