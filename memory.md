@@ -63,9 +63,9 @@
 
 ## 當前狀態
 
-- **進度**：Phase 5 進行中；5.1.A、5.1.B、5.8、5.2.A、5.2.B、5.3.A、5.3.B、5.3.C 均已實作並 commit（8 個 commits on Phase-5 branch）。
-- **上次完成**：5.3.C Legacy Path Migration：`app::migration::run_legacy_migration()` 在 bootstrap 最早呼叫，偵測 cwd/exe-sibling Keynova/ 靜默複製 config/notes/db，寫 `.migration_v1_complete` marker，3 個 unit tests，111 tests 全通過。
-- **下一步**：5.4 Default AI Provider & First-Run UX（`default_config.toml` 改 ollama，Ollama reachability check，AiPanel setup card）。
+- **進度**：Phase 5 進行中；5.1.A、5.1.B、5.8、5.2.A、5.2.B、5.3.A~C、5.4 均已實作並 commit（9 個 commits on Phase-5 branch）。
+- **上次完成**：5.4 Default AI Provider & First-Run UX：default_config.toml 改 ollama/qwen2.5:7b；`ai.check_setup` 後端命令（3s ping /api/tags、prefix model match、空 API key 偵測、RAM 推薦）；AiPanel SetupCard 三步驟（安裝/pull/切換），Re-check + Use-anyway；111 tests + lint + build 全通過。
+- **下一步**：5.5.A1 Provider Trait 定義（`chat_with_tools`、移除 dead_code allow）。
 
 ## 已確認的技術選擇
 
@@ -105,6 +105,7 @@
 
 | 日期 | 完成事項 | 遺留問題 |
 |------|----------|----------|
+| 2026-05-08 | 5.4 完成：default_config.toml 改 ollama/qwen2.5:7b；ai.check_setup 後端命令（3s ping、prefix model match、空 key 偵測、RAM 推薦）；AiPanel SetupCard 三步驟 | README local-first 段落待補；手動驗收 setup card 需真實 app |
 | 2026-05-08 | 5.3.A+B+C 跨平台路徑修正完成：platform_dirs 模組（dirs crate）、4 個消費者對齊、legacy migration 在 bootstrap 最早執行；111 tests 通過 | 5.4 default provider、5.5 ReAct loop 待做；手動驗收路徑與 migration 需真實 app |
 | 2026-05-08 | 5.2.B Search diagnostics：SearchChunkDiagnostics struct + fileDiagnostics state + footer 人類可讀訊息（timed_out / index empty / hidden count）；5.1.A/B/5.8/5.2.A 共 5 個 commits on Phase-5 | 5.3 config paths、5.4 default provider 待做；手動驗收 search diagnostics 仍需真實 app |
 | 2026-05-08 | Phase 5 開始實作：5.1.A Agent runs ordering（prepend fix）、5.1.B AI chat retain（rposition）、5.8 note name validation（validate_note_name + reserved names + 3 tests）、5.2.A search stream quota（replace:true balanced final chunk + applySourceQuotas）| 5.2.B diagnostics、5.3 config paths、5.4 default provider 待做 |
