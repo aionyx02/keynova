@@ -20,10 +20,7 @@ impl NoteManager {
     pub fn new(storage_dir: Option<String>) -> Self {
         let dir = match storage_dir.filter(|s| !s.is_empty()) {
             Some(p) => PathBuf::from(p),
-            None => {
-                let base = std::env::var("APPDATA").unwrap_or_else(|_| ".".into());
-                PathBuf::from(base).join("Keynova").join("notes")
-            }
+            None => crate::platform_dirs::keynova_data_dir().join("notes"),
         };
         let _ = std::fs::create_dir_all(&dir);
         Self {

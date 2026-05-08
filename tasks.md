@@ -90,18 +90,19 @@ Last full verification baseline: `npm run build`, `npm run lint`, `cargo test`, 
 
 ## Phase 5.3 — P1 Cross-Platform Config Paths
 
-### 5.3.A — ConfigManager Path Fix
+### 5.3.A — ConfigManager Path Fix ✓
 
-- [ ] 替換 `ConfigManager::user_config_path()` 中的 `APPDATA`-only 邏輯，改用正確的跨平台路徑：
-  - Windows：`%APPDATA%\Keynova\config.toml`
-  - macOS：`~/Library/Application Support/Keynova/config.toml`
-  - Linux：`$XDG_CONFIG_HOME/keynova/config.toml`，fallback `~/.config/keynova/config.toml`
-- [ ] 使用 `dirs` crate（`dirs::config_dir()`）或 `#[cfg(target_os)]`；禁止 fallback 到 `"."`。
+- [x] 新增 `src/platform_dirs.rs`：`keynova_config_dir()`（`dirs::config_dir()` + `"Keynova"`）和 `keynova_data_dir()`（`dirs::data_dir()` + `"Keynova"`）。
+- [x] `ConfigManager::user_config_path()` → `keynova_config_dir().join("config.toml")`，移除 APPDATA env var 直讀。
+- [x] 加 `dirs = "5"` 到 `Cargo.toml`；`pub mod platform_dirs` 加入 `lib.rs`。
 
-### 5.3.B — 對齊所有資料路徑消費者
+### 5.3.B — 對齊所有資料路徑消費者 ✓
 
-- [ ] 將同樣的 platform-correct base dir 套用到 `HistoryManager`、`NoteManager`、Tantivy index 預設路徑、Knowledge Store DB 路徑。
-- [ ] Regression：從非預期 cwd 啟動 app，確認 config/notes/history 寫入正確的 OS 目錄。
+- [x] `NoteManager::new()` → `keynova_data_dir().join("notes")`
+- [x] `knowledge_store.rs` `default_db_path()` → `keynova_data_dir().join("knowledge.db")`
+- [x] `tantivy_index.rs` `default_index_dir()` → `keynova_data_dir().join("search/tantivy")`
+- [x] `system_indexer.rs` 呼叫 `resolve_index_dir(None)` 自動受益（不需另改）。
+- [ ] Regression（需手動驗收）：從非預期 cwd 啟動 app，確認 config/notes/history 寫入正確 OS 目錄。
 
 ### 5.3.C — Legacy Path Migration
 
