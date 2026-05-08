@@ -89,7 +89,7 @@ function searchResultKey(result: SearchResult) {
   return `${result.source ?? result.kind}:${result.path}`;
 }
 
-function mergeSearchResults(existing: SearchResult[], incoming: SearchResult[]) {
+function mergeSearchResults(existing: SearchResult[], incoming: SearchResult[], limit: number) {
   const seen = new Set(existing.map(searchResultKey));
   const merged = [...existing];
   for (const item of incoming) {
@@ -98,7 +98,37 @@ function mergeSearchResults(existing: SearchResult[], incoming: SearchResult[]) 
     seen.add(key);
     merged.push(item);
   }
-  return merged;
+  return sortSearchResults(merged).slice(0, limit);
+}
+
+function sortSearchResults(results: SearchResult[]) {
+  return [...results].sort((left, right) => {
+    if (right.score !== left.score) return right.score - left.score;
+    const sourceOrder = searchSourceOrder(left) - searchSourceOrder(right);
+    if (sourceOrder !== 0) return sourceOrder;
+    return (left.title ?? left.name).localeCompare(right.title ?? right.name);
+  });
+}
+
+function searchSourceOrder(result: SearchResult) {
+  switch (result.kind) {
+    case "app":
+      return 0;
+    case "command":
+      return 1;
+    case "folder":
+      return 2;
+    case "file":
+      return 3;
+    case "note":
+      return 4;
+    case "history":
+      return 5;
+    case "model":
+      return 6;
+    default:
+      return 7;
+  }
 }
 
 function isCopyableLocationResult(result: SearchResult | null) {
@@ -141,7 +171,7 @@ export function CommandPalette() {
   const resizeRafRef = useRef<number | null>(null);
   const searchIdRef = useRef(0);
   const activeSearchRequestRef = useRef("");
-  const searchLimitRef = useRef(10);
+  const searchLimitRef = useRef(30);
 
   const { mode, rawInput } = parseInputMode(query);
 
@@ -270,7 +300,7 @@ export function CommandPalette() {
       }
       if (payload.items.length > 0) {
         setResults((current) =>
-          mergeSearchResults(current, payload.items).slice(0, searchLimitRef.current),
+          mergeSearchResults(current, payload.items, searchLimitRef.current),
         );
       }
       if (payload.done) {
@@ -523,7 +553,7 @@ export function CommandPalette() {
           first_batch_limit: Math.min(20, searchLimitRef.current),
         });
         if (reqId !== searchIdRef.current) return;
-        setResults(data);
+        setResults(sortSearchResults(data).slice(0, searchLimitRef.current));
         setSelected(0);
         if (data.length >= searchLimitRef.current) {
           setLoading(false);
