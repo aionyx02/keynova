@@ -201,6 +201,7 @@ impl AppState {
             Arc::clone(&ai_manager),
             Arc::clone(&config_manager),
             Arc::clone(&workspace_manager),
+            Arc::clone(&model_manager),
         )));
         command_router.register(Arc::new(TranslationHandler::new(
             Arc::clone(&translation_manager),

@@ -34,9 +34,9 @@ calculator = true
 system = true
 
 [ai]
-provider = "claude"
+provider = "ollama"
 api_key = ""
-model = "claude-sonnet-4-6"
+model = "qwen2.5:7b"
 claude_model = "claude-sonnet-4-6"
 ollama_url = "http://localhost:11434"
 ollama_timeout_secs = 120
