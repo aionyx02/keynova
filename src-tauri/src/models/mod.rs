@@ -1,5 +1,10 @@
+pub mod action;
+pub mod agent;
 pub mod app;
 pub mod builtin_command;
 pub mod hotkey;
+pub mod plugin;
 pub mod search_result;
+pub mod settings_schema;
 pub mod terminal;
+pub mod workflow;

@@ -1,16 +1,27 @@
 use crate::core::{CommandHandler, CommandResult};
-use crate::managers::terminal_manager::{start_prewarm, TerminalManager};
+use crate::managers::{
+    terminal_manager::{start_prewarm, TerminalManager},
+    workspace_manager::WorkspaceManager,
+};
+use crate::models::terminal::TerminalLaunchSpec;
 use serde_json::{json, Value};
 use std::sync::{Arc, Mutex};
 
 /// 終端浮窗的 IPC 處理器。
 pub struct TerminalHandler {
     manager: Arc<Mutex<TerminalManager>>,
+    workspace_manager: Arc<Mutex<WorkspaceManager>>,
 }
 
 impl TerminalHandler {
-    pub fn new(manager: Arc<Mutex<TerminalManager>>) -> Self {
-        Self { manager }
+    pub fn new(
+        manager: Arc<Mutex<TerminalManager>>,
+        workspace_manager: Arc<Mutex<WorkspaceManager>>,
+    ) -> Self {
+        Self {
+            manager,
+            workspace_manager,
+        }
     }
 }
 
@@ -24,11 +35,26 @@ impl CommandHandler for TerminalHandler {
             "open" => {
                 let rows = payload.get("rows").and_then(Value::as_u64).unwrap_or(24) as u16;
                 let cols = payload.get("cols").and_then(Value::as_u64).unwrap_or(80) as u16;
+                let launch_spec = payload
+                    .get("launch_spec")
+                    .filter(|value| !value.is_null())
+                    .cloned()
+                    .map(serde_json::from_value::<TerminalLaunchSpec>)
+                    .transpose()
+                    .map_err(|e| format!("invalid launch_spec: {e}"))?;
                 let (id, initial_output) = {
                     let mut mgr = self.manager.lock().map_err(|e| e.to_string())?;
-                    mgr.create_pty(rows, cols)?
+                    match launch_spec.as_ref() {
+                        Some(spec) => mgr.create_pty_with_command(spec, rows, cols)?,
+                        None => mgr.create_pty(rows, cols)?,
+                    }
                 }; // MutexGuard dropped here — start_prewarm can lock without deadlock
-                start_prewarm(Arc::clone(&self.manager));
+                if let Ok(mut workspace) = self.workspace_manager.lock() {
+                    workspace.record_terminal_session(id.clone());
+                }
+                if launch_spec.is_none() {
+                    start_prewarm(Arc::clone(&self.manager));
+                }
                 Ok(json!({ "id": id, "initial_output": initial_output }))
             }
             "send" => {
@@ -51,6 +77,9 @@ impl CommandHandler for TerminalHandler {
                     .to_string();
                 let mut mgr = self.manager.lock().map_err(|e| e.to_string())?;
                 mgr.close_pty(&id)?;
+                if let Ok(mut workspace) = self.workspace_manager.lock() {
+                    workspace.remove_terminal_session(&id);
+                }
                 Ok(Value::Null)
             }
             "resize" => {

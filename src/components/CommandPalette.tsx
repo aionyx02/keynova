@@ -10,7 +10,8 @@ import { useCommands } from "../hooks/useCommands";
 import { CommandSuggestions } from "./CommandSuggestions";
 import { PanelRegistry } from "./panel/PanelRegistry";
 import { WorkspaceIndicator } from "./WorkspaceIndicator";
-import type { SearchResult } from "../types/search";
+import type { SearchChunkPayload, SearchErrorPayload, SearchIconAsset, SearchMetadata, SearchResult } from "../types/search";
+import type { ActionRef } from "../types/search";
 import type { BuiltinCommandResult } from "../hooks/useCommands";
 import type { WorkspaceState } from "../hooks/useWorkspace";
 
@@ -27,6 +28,31 @@ interface SettingEntry {
 
 interface ConfigReloadedPayload {
   changed_keys: string[];
+}
+
+interface SearchBackendInfo {
+  configured: string;
+  active: string;
+  everything_available: boolean;
+  tantivy_available: boolean;
+  file_cache_entries: number;
+  tantivy_index_entries: number;
+  tantivy_index_dir: string;
+  rebuild_supported: boolean;
+}
+
+interface SecondaryAction {
+  action_ref: ActionRef;
+  label: string;
+  risk: "low" | "medium" | "high";
+}
+
+function isEditorTerminalResult(result: BuiltinCommandResult | null) {
+  return result?.ui_type.type === "Terminal" && result.ui_type.value.editor;
+}
+
+function isTerminalResult(result: BuiltinCommandResult | null) {
+  return result?.ui_type.type === "Terminal";
 }
 
 async function hideWindow() {
@@ -53,7 +79,65 @@ const KIND_BADGE: Record<string, { label: string; cls: string }> = {
   app: { label: "App", cls: "bg-violet-500/30 text-violet-300" },
   file: { label: "File", cls: "bg-sky-500/30 text-sky-300" },
   folder: { label: "Dir", cls: "bg-amber-500/30 text-amber-300" },
+  command: { label: "Cmd", cls: "bg-emerald-500/30 text-emerald-300" },
+  note: { label: "Note", cls: "bg-teal-500/30 text-teal-300" },
+  history: { label: "Hist", cls: "bg-zinc-500/30 text-zinc-300" },
+  model: { label: "AI", cls: "bg-fuchsia-500/30 text-fuchsia-300" },
 };
+
+function searchResultKey(result: SearchResult) {
+  return `${result.source ?? result.kind}:${result.path}`;
+}
+
+function mergeSearchResults(existing: SearchResult[], incoming: SearchResult[], limit: number) {
+  const seen = new Set(existing.map(searchResultKey));
+  const merged = [...existing];
+  for (const item of incoming) {
+    const key = searchResultKey(item);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    merged.push(item);
+  }
+  return sortSearchResults(merged).slice(0, limit);
+}
+
+function sortSearchResults(results: SearchResult[]) {
+  return [...results].sort((left, right) => {
+    if (right.score !== left.score) return right.score - left.score;
+    const sourceOrder = searchSourceOrder(left) - searchSourceOrder(right);
+    if (sourceOrder !== 0) return sourceOrder;
+    return (left.title ?? left.name).localeCompare(right.title ?? right.name);
+  });
+}
+
+function searchSourceOrder(result: SearchResult) {
+  switch (result.kind) {
+    case "app":
+      return 0;
+    case "command":
+      return 1;
+    case "folder":
+      return 2;
+    case "file":
+      return 3;
+    case "note":
+      return 4;
+    case "history":
+      return 5;
+    case "model":
+      return 6;
+    default:
+      return 7;
+  }
+}
+
+function isCopyableLocationResult(result: SearchResult | null) {
+  return result?.kind === "app" || result?.kind === "file" || result?.kind === "folder";
+}
+
+function isCopyShortcut(e: React.KeyboardEvent) {
+  return (e.ctrlKey || e.metaKey) && !e.altKey && e.key.toLowerCase() === "c";
+}
 
 export function CommandPalette() {
   const { dispatch } = useIPC();
@@ -73,13 +157,21 @@ export function CommandPalette() {
   // Arg suggestions state (shown when user types space after an exact command match)
   const [argSuggestions, setArgSuggestions] = useState<string[]>([]);
   const [selectedArg, setSelectedArg] = useState(0);
+  const [searchBackend, setSearchBackend] = useState<SearchBackendInfo | null>(null);
+  const [metadataByPath, setMetadataByPath] = useState<Record<string, SearchMetadata>>({});
+  const [iconsByKey, setIconsByKey] = useState<Record<string, SearchIconAsset>>({});
+  const [timedOutProviders, setTimedOutProviders] = useState<string[]>([]);
+  const [copiedPath, setCopiedPath] = useState<string | null>(null);
 
   const inputRef = useRef<HTMLInputElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const argDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const copyResetRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const resizeRafRef = useRef<number | null>(null);
   const searchIdRef = useRef(0);
-  const searchLimitRef = useRef(10);
+  const activeSearchRequestRef = useRef("");
+  const searchLimitRef = useRef(30);
 
   const { mode, rawInput } = parseInputMode(query);
 
@@ -132,6 +224,38 @@ export function CommandPalette() {
   }, []);
 
   useEffect(() => {
+    return () => {
+      if (copyResetRef.current) {
+        clearTimeout(copyResetRef.current);
+      }
+    };
+  }, []);
+
+  const scheduleWindowResize = useCallback(() => {
+    if (!window.__TAURI_INTERNALS__) return;
+    if (resizeRafRef.current !== null) {
+      cancelAnimationFrame(resizeRafRef.current);
+    }
+    resizeRafRef.current = requestAnimationFrame(() => {
+      resizeRafRef.current = null;
+      if (modeRef.current === "terminal") {
+        getCurrentWindow().setSize(new LogicalSize(640, TERMINAL_HEIGHT)).catch(() => {});
+        return;
+      }
+      if (isTerminalResult(cmdResultRef.current)) {
+        getCurrentWindow().setSize(new LogicalSize(640, TERMINAL_HEIGHT)).catch(() => {});
+        return;
+      }
+      const el = containerRef.current;
+      if (!el) return;
+      const rectHeight = Math.ceil(el.getBoundingClientRect().height);
+      const scrollHeight = Math.ceil(el.scrollHeight);
+      const height = Math.max(rectHeight, scrollHeight, 56);
+      getCurrentWindow().setSize(new LogicalSize(640, height)).catch(() => {});
+    });
+  }, []);
+
+  useEffect(() => {
     if (!window.__TAURI_INTERNALS__) return;
 
     async function refreshLauncherSettings() {
@@ -166,6 +290,67 @@ export function CommandPalette() {
   }, []);
 
   useEffect(() => {
+    if (!window.__TAURI_INTERNALS__) return;
+
+    const chunkListener = listen<SearchChunkPayload>("search-results-chunk", (event) => {
+      const payload = event.payload;
+      if (payload.request_id !== activeSearchRequestRef.current) return;
+      if (payload.timed_out_providers?.length) {
+        setTimedOutProviders(payload.timed_out_providers);
+      }
+      if (payload.items.length > 0) {
+        setResults((current) =>
+          mergeSearchResults(current, payload.items, searchLimitRef.current),
+        );
+      }
+      if (payload.done) {
+        setLoading(false);
+      }
+    });
+    const errorListener = listen<SearchErrorPayload>("search-results-error", (event) => {
+      if (event.payload.request_id !== activeSearchRequestRef.current) return;
+      setTimedOutProviders([]);
+      setLoading(false);
+    });
+
+    return () => {
+      chunkListener.then((fn) => fn());
+      errorListener.then((fn) => fn());
+    };
+  }, [setLoading]);
+
+  useEffect(() => {
+    if (!window.__TAURI_INTERNALS__) return;
+
+    async function refreshSearchBackend() {
+      try {
+        const info = await invoke<SearchBackendInfo>("cmd_dispatch", {
+          route: "search.backend",
+          payload: null,
+        });
+        setSearchBackend(info);
+      } catch {
+        setSearchBackend(null);
+      }
+    }
+
+    void refreshSearchBackend();
+    const unlisten = listen<ConfigReloadedPayload>("config-reloaded", (event) => {
+      if (
+        event.payload.changed_keys.length === 0 ||
+        event.payload.changed_keys.includes("search.backend") ||
+        event.payload.changed_keys.includes("search.index_dir")
+      ) {
+        void refreshSearchBackend();
+      }
+    });
+
+    return () => {
+      unlisten.then((fn) => fn());
+    };
+  }, []);
+
+  useEffect(() => {
     if (mode !== "terminal") {
       const raf = requestAnimationFrame(() => { inputRef.current?.focus(); });
       return () => cancelAnimationFrame(raf);
@@ -173,16 +358,66 @@ export function CommandPalette() {
   }, [mode]);
 
   useEffect(() => {
+    if (!window.__TAURI_INTERNALS__) return;
+    const result = results[selected];
+    if (!result || metadataByPath[result.path]) return;
+    if (result.kind !== "file" && result.kind !== "folder" && result.kind !== "app") return;
+
+    let cancelled = false;
+    dispatch<SearchMetadata>("search.metadata", {
+      path: result.path,
+      kind: result.kind,
+    })
+      .then((metadata) => {
+        if (cancelled) return;
+        setMetadataByPath((current) => ({ ...current, [metadata.path]: metadata }));
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+    // dispatch is intentionally omitted because useIPC returns a fresh wrapper each render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selected, results, metadataByPath]);
+
+  useEffect(() => {
+    if (!window.__TAURI_INTERNALS__) return;
+    const result = results[selected];
+    const iconKey = result?.icon_key;
+    if (!result || !iconKey || iconsByKey[iconKey]) return;
+
+    let cancelled = false;
+    dispatch<SearchIconAsset>("search.icon", {
+      icon_key: iconKey,
+      kind: result.kind,
+      path: result.path,
+    })
+      .then((asset) => {
+        if (cancelled) return;
+        setIconsByKey((current) => ({ ...current, [asset.icon_key]: asset }));
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+    // dispatch is intentionally omitted because useIPC returns a fresh wrapper each render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selected, results, iconsByKey]);
+
+  useEffect(() => {
     const unlisten = listen<void>("window-focused", () => {
       if (modeRef.current === "terminal") return;
+      activeSearchRequestRef.current = "";
       setQuery("");
       setResults([]);
       setSelected(0);
       setCmdResult(null);
+      setTimedOutProviders([]);
+      void dispatch("search.cancel").catch(() => {});
       inputRef.current?.focus();
     });
     return () => { unlisten.then((fn) => fn()); };
-  }, [setQuery]);
+  }, [dispatch, setQuery]);
 
   // 工作區切換：載入切換後的 query 並重置 UI 狀態
   useEffect(() => {
@@ -193,16 +428,20 @@ export function CommandPalette() {
       setResults([]);
       setSelected(0);
       setCmdResult(null);
+      setTimedOutProviders([]);
+      activeSearchRequestRef.current = "";
+      void dispatch("search.cancel").catch(() => {});
       requestAnimationFrame(() => inputRef.current?.focus());
     });
     return () => { unlisten.then((fn) => fn()); };
-  }, [setQuery]);
+  }, [dispatch, setQuery]);
 
   // ESC handler — registered once; reads always-current values via refs
   // so there is no stale-closure race between setCmdResult and effect re-run.
   useEffect(() => {
     function onKeyDown(e: KeyboardEvent) {
       if (e.key !== "Escape") return;
+      if (isEditorTerminalResult(cmdResultRef.current)) return;
       e.preventDefault();
       e.stopPropagation();
       e.stopImmediatePropagation();
@@ -216,13 +455,19 @@ export function CommandPalette() {
       }
 
       if (cmdResultRef.current !== null) {
+        activeSearchRequestRef.current = "";
         setCmdResult(null);
         setQuery("");
         setResults([]);
+        setTimedOutProviders([]);
+        void dispatch("search.cancel").catch(() => {});
         requestAnimationFrame(() => inputRef.current?.focus());
       } else if (queryRef.current !== "") {
+        activeSearchRequestRef.current = "";
         setQuery("");
         setResults([]);
+        setTimedOutProviders([]);
+        void dispatch("search.cancel").catch(() => {});
         inputRef.current?.focus();
       } else {
         void hideWindow();
@@ -230,23 +475,53 @@ export function CommandPalette() {
     }
     window.addEventListener("keydown", onKeyDown, true);
     return () => window.removeEventListener("keydown", onKeyDown, true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [setQuery]); // stable Zustand setter — listener registered exactly once
 
   // Window sizing
   useEffect(() => {
-    if (mode === "terminal") {
-      getCurrentWindow().setSize(new LogicalSize(640, TERMINAL_HEIGHT)).catch(() => {});
-      return;
-    }
+    scheduleWindowResize();
+  }, [
+    scheduleWindowResize,
+    mode,
+    query,
+    results.length,
+    cmdSuggestions.length,
+    cmdResult,
+    argSuggestions.length,
+  ]);
+
+  useEffect(() => {
+    if (!window.__TAURI_INTERNALS__) return;
     const el = containerRef.current;
     if (!el) return;
-    const h = Math.ceil(el.getBoundingClientRect().height) || 56;
-    getCurrentWindow().setSize(new LogicalSize(640, h)).catch(() => {});
-  }, [mode, query, results, cmdSuggestions, cmdResult, argSuggestions]);
+
+    const observer = new ResizeObserver(() => scheduleWindowResize());
+    observer.observe(el);
+
+    const mutationObserver = new MutationObserver(() => scheduleWindowResize());
+    mutationObserver.observe(el, {
+      attributes: true,
+      childList: true,
+      subtree: true,
+    });
+
+    scheduleWindowResize();
+
+    return () => {
+      observer.disconnect();
+      mutationObserver.disconnect();
+      if (resizeRafRef.current !== null) {
+        cancelAnimationFrame(resizeRafRef.current);
+        resizeRafRef.current = null;
+      }
+    };
+  }, [scheduleWindowResize]);
 
   function handleQueryChange(value: string) {
     setQuery(value);
     setCmdResult(null);
+    setCopiedPath(null);
     setSelectedCmd(0);
     setSelectedArg(0);
     setArgSuggestions([]);
@@ -256,36 +531,94 @@ export function CommandPalette() {
     if (newMode !== "search" || ri.trim() === "") {
       setResults([]);
       setSelected(0);
+      setTimedOutProviders([]);
+      activeSearchRequestRef.current = "";
       if (debounceRef.current) clearTimeout(debounceRef.current);
+      void dispatch("search.cancel").catch(() => {});
       return;
     }
     if (debounceRef.current) clearTimeout(debounceRef.current);
     debounceRef.current = setTimeout(async () => {
       const reqId = ++searchIdRef.current;
+      const requestId = `search-${reqId}`;
+      activeSearchRequestRef.current = requestId;
       setLoading(true);
+      setTimedOutProviders([]);
       try {
         const data = await dispatch<SearchResult[]>("search.query", {
           query: ri,
           limit: searchLimitRef.current,
+          stream: true,
+          request_id: requestId,
+          first_batch_limit: Math.min(20, searchLimitRef.current),
         });
         if (reqId !== searchIdRef.current) return;
-        setResults(data);
+        setResults(sortSearchResults(data).slice(0, searchLimitRef.current));
         setSelected(0);
+        if (data.length >= searchLimitRef.current) {
+          setLoading(false);
+        }
       } catch {
-        if (reqId === searchIdRef.current) setResults([]);
-      } finally {
-        if (reqId === searchIdRef.current) setLoading(false);
+        if (reqId === searchIdRef.current) {
+          setResults([]);
+          setLoading(false);
+        }
       }
     }, 200);
   }
 
   async function launchResult(result: SearchResult) {
     try {
-      await dispatch("launcher.launch", { path: result.path });
+      await dispatch("search.record_selection", {
+        source: result.source ?? result.kind,
+        path: result.path,
+      }).catch(() => {});
+      if (result.primary_action) {
+        const actionResult = await dispatch<{ type: string; name?: string; initial_args?: string }>(
+          "action.run",
+          { action_ref: result.primary_action },
+        );
+        if (actionResult.type === "panel" && actionResult.name) {
+          setCmdResult({
+            text: actionResult.initial_args ?? "",
+            ui_type: { type: "Panel", value: actionResult.name },
+          });
+          return;
+        }
+      } else {
+        await dispatch("launcher.launch", { path: result.path });
+      }
     } finally {
-      setQuery("");
-      setResults([]);
-      void hideWindow();
+      if (result.kind === "app" || result.kind === "file" || result.kind === "folder") {
+        setQuery("");
+        setResults([]);
+        void hideWindow();
+      }
+    }
+  }
+
+  async function copyResultLocation(result: SearchResult) {
+    if (!isCopyableLocationResult(result)) return;
+    try {
+      await navigator.clipboard.writeText(result.path);
+      setCopiedPath(result.path);
+      if (copyResetRef.current) {
+        clearTimeout(copyResetRef.current);
+      }
+      copyResetRef.current = setTimeout(() => setCopiedPath(null), 1200);
+    } catch {
+      setCopiedPath(null);
+    }
+  }
+
+  async function runFirstSecondary(result: SearchResult) {
+    if (!result.primary_action || !result.secondary_action_count) return;
+    const actions = await dispatch<SecondaryAction[]>("action.list_secondary", {
+      action_ref: result.primary_action,
+    });
+    const first = actions[0];
+    if (first) {
+      await dispatch("action.run", { action_ref: first.action_ref });
     }
   }
 
@@ -300,9 +633,26 @@ export function CommandPalette() {
 
   function onKeyDown(e: React.KeyboardEvent) {
     if (mode === "search") {
+      if (isCopyShortcut(e)) {
+        const target = e.currentTarget as HTMLInputElement;
+        if (target.selectionStart !== target.selectionEnd) return;
+        const r = results[selected] ?? null;
+        if (isCopyableLocationResult(r)) {
+          e.preventDefault();
+          void copyResultLocation(r);
+          return;
+        }
+      }
       if (e.key === "ArrowDown") { e.preventDefault(); setSelected((i) => Math.min(i + 1, results.length - 1)); }
       else if (e.key === "ArrowUp") { e.preventDefault(); setSelected((i) => Math.max(i - 1, 0)); }
-      else if (e.key === "Enter") { e.preventDefault(); const r = results[selected]; if (r) void launchResult(r); }
+      else if (e.key === "Enter") {
+        e.preventDefault();
+        const r = results[selected];
+        if (r) {
+          if (e.shiftKey) void runFirstSecondary(r);
+          else void launchResult(r);
+        }
+      }
     } else if (mode === "command") {
       if (e.key === "ArrowDown") {
         e.preventDefault();
@@ -361,7 +711,20 @@ export function CommandPalette() {
       : liveTranslationPanel
         ? cmdArgs
         : "";
-  const panelKey = `${cmdResult ? "command" : "live"}:${activePanelName}`;
+  const terminalLaunchSpec =
+    cmdResult?.ui_type.type === "Terminal" ? cmdResult.ui_type.value : null;
+  const panelKey = `${cmdResult ? "command" : "live"}:${activePanelName}:${panelInitialArgs}`;
+  const selectedResult = results[selected] ?? null;
+  const selectedMetadata = selectedResult ? metadataByPath[selectedResult.path] : null;
+  const searchFooterHint = copiedPath
+    ? `Copied path: ${copiedPath}`
+    : timedOutProviders.length > 0
+      ? `Timed out: ${timedOutProviders.join(", ")}`
+      : selectedMetadata?.preview
+        ? selectedMetadata.preview
+        : selectedMetadata?.size_bytes !== undefined
+          ? `${selectedMetadata.size_bytes.toLocaleString()} bytes`
+          : "↑↓ 選擇";
 
   const terminalOnExit = () => {
     // Move focus to container first so terminal becoming display:none
@@ -372,6 +735,22 @@ export function CommandPalette() {
     // Keep window open asynchronously — fire and forget
     void keepLauncherOpen();
   };
+
+  const terminalCommandOnExit = useCallback(() => {
+    containerRef.current?.focus();
+    setCmdResult(null);
+    setQuery("");
+    setResults([]);
+    requestAnimationFrame(() => inputRef.current?.focus());
+    void keepLauncherOpen();
+  }, [setQuery]);
+
+  const handlePanelCommandResult = useCallback((result: BuiltinCommandResult) => {
+    setCmdResult(result);
+    setResults([]);
+    activeSearchRequestRef.current = "";
+    void dispatch("search.cancel").catch(() => {});
+  }, [dispatch]);
 
   // BUG-12: passed to every panel so Escape inside textarea/input can close the panel
   const handlePanelClose = useCallback(() => {
@@ -424,6 +803,14 @@ export function CommandPalette() {
               spellCheck={false}
               autoComplete="off"
             />
+            {searchBackend && mode === "search" && (
+              <span
+                title={`configured=${searchBackend.configured}, everything=${searchBackend.everything_available}, tantivy=${searchBackend.tantivy_available}, cache=${searchBackend.file_cache_entries}, tantivy_docs=${searchBackend.tantivy_index_entries}, index=${searchBackend.tantivy_index_dir}`}
+                className="mr-2 hidden shrink-0 rounded border border-gray-700/70 bg-gray-950/70 px-2 py-1 text-[10px] font-semibold uppercase text-gray-400 sm:inline-flex"
+              >
+                {searchBackend.active}
+              </span>
+            )}
             <div className="pr-3">
               <WorkspaceIndicator />
             </div>
@@ -435,6 +822,7 @@ export function CommandPalette() {
               <ul className="max-h-[352px] overflow-y-auto py-1">
                 {results.map((r, i) => {
                   const badge = KIND_BADGE[r.kind] ?? KIND_BADGE.file;
+                  const icon = r.icon_key ? iconsByKey[r.icon_key] : null;
                   return (
                     <li
                       key={r.path}
@@ -445,19 +833,33 @@ export function CommandPalette() {
                         i === selected ? "bg-blue-600/70 text-white" : "text-gray-300 hover:bg-white/8"
                       }`}
                     >
-                      <span className={`shrink-0 rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${badge.cls}`}>
-                        {badge.label}
-                      </span>
-                      <span className="truncate font-medium">{r.name}</span>
+                      {icon ? (
+                        <img
+                          src={icon.data_url}
+                          alt=""
+                          className="h-6 w-6 shrink-0 rounded"
+                          draggable={false}
+                        />
+                      ) : (
+                        <span className={`shrink-0 rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${badge.cls}`}>
+                          {badge.label}
+                        </span>
+                      )}
+                      <span className="truncate font-medium">{r.title ?? r.name}</span>
+                      {Boolean(r.secondary_action_count) && (
+                        <span className="shrink-0 text-[10px] text-gray-500">+{r.secondary_action_count}</span>
+                      )}
                       {r.kind !== "app" && (
-                        <span className="ml-auto shrink-0 max-w-[220px] truncate text-xs text-gray-500">{r.path}</span>
+                        <span className="ml-auto shrink-0 max-w-[220px] truncate text-xs text-gray-500">
+                          {r.subtitle ?? r.path}
+                        </span>
                       )}
                     </li>
                   );
                 })}
               </ul>
               <div className="border-t border-gray-700/50 px-4 py-1.5 text-[11px] text-gray-600 flex justify-between">
-                <span>↑↓ 選擇</span><span>Enter 開啟</span><span>Esc 關閉</span>
+                <span className="min-w-0 max-w-[320px] truncate">{searchFooterHint}</span><span>Enter 開啟</span><span>Shift+Enter 次要動作</span>
               </div>
             </div>
           )}
@@ -513,6 +915,17 @@ export function CommandPalette() {
             </div>
           )}
 
+          {/* Terminal command result */}
+          {terminalLaunchSpec && (
+            <Suspense fallback={<div className="h-[360px] bg-gray-900/95 rounded-b-xl" />}>
+              <TerminalPanel
+                isActive={true}
+                onExit={terminalCommandOnExit}
+                launchSpec={terminalLaunchSpec}
+              />
+            </Suspense>
+          )}
+
           {/* Panel command result */}
           {PanelComponent && (
             <Suspense fallback={<div className="h-16 bg-gray-900/95 rounded-b-xl" />}>
@@ -520,6 +933,7 @@ export function CommandPalette() {
                 key={panelKey}
                 onClose={handlePanelClose}
                 initialArgs={panelInitialArgs}
+                onRunCommandResult={handlePanelCommandResult}
               />
             </Suspense>
           )}

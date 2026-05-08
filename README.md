@@ -1,169 +1,145 @@
 # Keynova
 
-> 鍵盤優先的開發者生產力啟動器 — 90%+ 工作流無需滑鼠
+Keynova is a keyboard-first desktop productivity launcher for developers, built with Tauri 2, React, and Rust. It combines command launching, local search, terminal panels, notes, history, model management, and an approval-gated AI Agent runtime.
 
-基於 **Tauri 2.x + React 18 + Rust** 構建，輕量 ~50MB，跨平台（Windows / Linux / macOS）。
+The project is local-first by design. AI Chat and Agent mode use the AI provider/model selected in settings, including local Ollama models. OpenAI-compatible or Claude API providers are optional configuration choices, not mandatory Agent backends.
 
----
+## Current Capabilities
 
-## 快速開始
+- Command palette with app, file, command, note, history, model, and setting results.
+- Action Arena for backend-held actions, short-lived `ActionRef` values, secondary actions, and approval boundaries.
+- Progressive search with quick first results, streamed chunks, lazy metadata previews, lazy icon loading, recent/frequent ranking, and workspace-weighted history.
+- File search through Windows Everything IPC when available, persisted Tantivy index fallback, and app/file cache fallback.
+- `/ai` panel with normal chat and guarded Agent mode.
+- Notes, calculator, translation, history, workspace binding, terminal panel, hotkeys, mouse/system controls, and model management.
+- `/note lazyvim` support for opening notes in a project-contained LazyVim terminal session.
+
+## AI And Agent Runtime
+
+Keynova has two AI surfaces:
+
+- Chat mode: normal conversational AI through the selected `ai.provider` and model.
+- Agent mode: guarded local planning and tool use, with context filtering, grounding sources, audit logging, and approval gates.
+
+Agent mode must use the same selected provider/model as AI Chat. If `ai.provider = "ollama"`, Agent work targets the configured local Ollama model and does not require an API key. If `ai.provider = "openai"` or `claude`, the matching configured API provider is used.
+
+The current Agent safety foundation includes:
+
+- Typed tool specifications with generated JSON Schemas from Rust structs.
+- Observation redaction and truncation before tool output enters model context.
+- Low-risk read-only tools such as Keynova search, filesystem search metadata, file previews, and web search.
+- Approval-gated action proposals for higher-risk work.
+- No generic shell tool in the default Agent tool registry. Generic shell execution requires a separate sandbox design before it can be enabled.
+
+The ReAct provider loop is being implemented incrementally. Until it is fully wired, some Agent behavior still uses local fallback heuristics.
+
+## Search
+
+Keynova search is layered:
+
+- Windows: Everything IPC is preferred when available.
+- Cross-platform persisted index: Tantivy stores file/folder metadata on disk.
+- Fallback: existing app/file cache and bounded local search paths.
+
+Agent filesystem search is being moved toward a `SystemIndexer` abstraction so OS-native indexers such as Everything, Spotlight `mdfind`, and Linux `plocate`/`locate` can be used first, with bounded fallback traversal only when the native index is missing or stale.
+
+## Configuration
+
+Runtime config lives in the platform config directory, for example:
+
+- Windows: `%APPDATA%\Keynova\config.toml`
+- Linux/macOS: `~/.config/keynova/config.toml`
+
+Important AI settings:
+
+```toml
+[ai]
+provider = "ollama" # claude | ollama | openai
+model = "qwen2.5:7b"
+ollama_url = "http://localhost:11434"
+ollama_timeout_secs = 120
+api_key = "" # Claude key, only needed when provider = "claude"
+openai_api_key = "" # only needed when provider = "openai"
+openai_base_url = "https://api.openai.com/v1"
+openai_model = "gpt-4o-mini"
+max_tokens = 4096
+timeout_secs = 30
+
+[agent]
+web_search_provider = "disabled" # disabled | searxng | tavily | duckduckgo
+searxng_url = ""
+web_search_api_key = "" # Tavily key when provider = "tavily"
+web_search_timeout_secs = 8
+long_term_memory_opt_in = false
+```
+
+For local-first Agent use, install Ollama, pull a model, and set `ai.provider = "ollama"` plus `ai.model` to the model name.
+
+## Development
+
+Install dependencies:
 
 ```bash
 npm install
-npm run tauri dev   # 開發模式（熱重載）
-npm run tauri build # 生產構建
 ```
 
----
-
-## ⌨️ 快捷鍵速查
-
-### 已實作（Phase 2.A / 2.B）
-
-#### 搜尋、終端、指令
-
-| 快捷鍵 / 前綴 | 功能 | 說明 |
-|--------|------|------|
-| `Ctrl+K` | 開啟 / 關閉搜尋框 | 全域，任意前景視窗均可觸發 |
-| 無前綴 | 搜尋模式 | 模糊搜尋 App + 檔案（Everything 優先，否則 fallback 掃描 C / D / WSL） |
-| `>` 前綴 | 終端模式 | 視窗展開為 PTY 終端（xterm.js + pre-warm），支援 PowerShell / cmd |
-| `/` 前綴 | 指令模式 | 顯示內建指令建議，`/help` 列出所有指令、`/setting` 開啟設定面板 |
-| `↑` / `↓` | 移動選取 | 搜尋結果或指令建議中導航 |
-| `Enter` | 執行所選項目 | 開啟 App / 檔案，或執行指令 |
-| `Escape` | 關閉 / 退出終端 | App 常駐背景，不真正退出 |
-
-#### 全域滑鼠控制
-
-> 需先以 `Ctrl+Alt+M` 啟用滑鼠控制模式，其餘快捷鍵才會作用。
-
-| 快捷鍵 | 功能 | 說明 |
-|--------|------|------|
-| `Ctrl+Alt+M` | 切換滑鼠控制模式 | 開啟 / 關閉，狀態變更會通知前端 UI |
-| `Ctrl+Alt+W` | 游標向上移動 | 每次步進 15px（全域） |
-| `Ctrl+Alt+A` | 游標向左移動 | 同上 |
-| `Ctrl+Alt+S` | 游標向下移動 | 同上 |
-| `Ctrl+Alt+D` | 游標向右移動 | 同上 |
-| `Ctrl+Alt+Enter` | 滑鼠左鍵點擊 | 點擊游標目前位置 |
-
----
-
-### 規劃中
-
-#### Phase 2 剩餘（v1.0）
-
-| 快捷鍵 | 功能 | 說明 |
-|--------|------|------|
-| `Ctrl+=` | 快速計算機 | 支援單位轉換、進位換算 |
-| `Ctrl+Shift+V` | 剪貼簿歷史 | 文字 + 圖片預覽，快速貼上 |
-| `Win+S` | 系統控制面板 | 音量、亮度、WiFi 快速調整 |
-
-#### Phase 3（v2.0）
-
-| 快捷鍵 | 功能 | 說明 |
-|--------|------|------|
-| `Ctrl+Alt+1` / `2` / `3` | 切換虛擬工作區 | 組織視窗與應用，快速切換情境 |
-| `Ctrl+Shift+A` | AI 助理 | 整合 Claude API；程式碼解釋、文件生成、快速提問 |
-| `Win+N` | 快速筆記 | Markdown 編輯 + Notion 同步 |
-
----
-
-## 架構
-
-```
-Presentation   → React 18 + TypeScript（CommandPalette、TerminalPanel、SettingPanel）
-IPC Bridge     → Tauri + EventBus（cmd_dispatch 路由、terminal-output 事件推送）
-Core           → CommandRouter / EventBus / ConfigManager / BuiltinCommandRegistry
-Business       → Handlers → Managers（launcher, hotkey, terminal, mouse, search, builtin_cmd, setting）
-Indexer        → Everything IPC（Windows 加速）/ fallback 掃描（C/D/WSL home）/ tantivy（規劃中）
-Platform       → #[cfg] 條件編譯隔離 Windows / Linux / macOS
-```
-
-### 搜尋優先順序（Windows）
-
-```
-1. Everything IPC  ← 已安裝 Everything 且服務運行時
-2. Fallback 掃描   ← Desktop / Downloads / Documents / Pictures /
-                      D:–Z: 槽 / \\wsl.localhost\<Distro>\home
-```
-
-### 擴展指令
-
-新增 `/command` 只需：
-
-```rust
-// 1. 實作 trait
-struct MyCmd;
-impl BuiltinCommand for MyCmd {
-    fn name(&self) -> &'static str { "mycmd" }
-    fn description(&self) -> &'static str { "做某件事" }
-    fn execute(&self, _args: &str) -> BuiltinCommandResult { ... }
-}
-
-// 2. 在 lib.rs 注冊
-reg.register(Box::new(MyCmd));
-// 前端自動顯示於 / 建議列表，零改動
-```
-
----
-
-## 開發命令
+Run the app in development:
 
 ```bash
-npm run lint                  # ESLint
-npm run build                 # TypeScript + Vite 構建
-cargo clippy -- -D warnings   # Rust lint
-cargo test                    # Rust 單元測試
-npm run tauri dev             # 完整開發環境（熱重載）
+npm run tauri dev
 ```
 
----
-
-**文件詳見 [`files/`](./files/) 目錄**
- 
-## Keynova CLI
-
-The Tauri package also builds a small local-control binary named `keynova`.
-It talks to the running app over `127.0.0.1` JSON control messages and does not
-use any remote branch or external network service.
+Build production artifacts:
 
 ```bash
-keynova start   # Launch Keynova if needed, or focus the running launcher
-keynova down    # Gracefully quit the running app
-keynova reload  # Reload %APPDATA%\Keynova\config.toml and apply runtime settings
-keynova status  # Check whether the app control plane is alive
+npm run tauri build
 ```
 
-If `keynova` is not recognized in your shell during development, use:
+Useful verification commands:
 
 ```bash
-npm run keynova -- start
-npm run keynova -- status
+npm run lint
+npm run build
+cargo test
+cargo clippy -- -D warnings
+git diff --check
 ```
 
-To make `keynova` available globally in PowerShell/CMD, install it once:
+Run Rust commands from `src-tauri/`.
 
-```bash
-cargo install --path src-tauri --bin keynova --force
+## Architecture
+
+```mermaid
+graph TD
+    UI["React Command Palette / Panels"]
+    IPC["Tauri IPC"]
+    Router["CommandRouter"]
+    Actions["Action Arena"]
+    Search["Search Manager / Registry"]
+    Agent["Agent Runtime"]
+    AI["Selected AI Provider / Model"]
+    Store["Knowledge Store"]
+    Platform["Platform Indexers / PTY / System APIs"]
+
+    UI --> IPC
+    IPC --> Router
+    Router --> Actions
+    Router --> Search
+    Router --> Agent
+    Agent --> AI
+    Agent --> Store
+    Search --> Platform
+    Actions --> Platform
 ```
 
-Runtime config changes flow through the same reload pipeline whether they come
-from `/setting key value`, the settings panel, `keynova reload`, `/reload`, or
-an external edit to `%APPDATA%\Keynova\config.toml`. Hotkeys are re-registered
-in place; launcher, terminal, and mouse settings are refreshed without a full
-app restart.
+## Roadmap
 
----
+- Harden the provider-driven ReAct Agent loop.
+- Add `SystemIndexer` implementations for OS-native file search.
+- Replace fragile web-search HTML parsing with structured search adapters where configured.
+- Expand regression coverage for Agent cancellation, approval, observation redaction, provider timeout, and search fallback behavior.
+- Continue Phase 5 plugin/WASM runtime work.
 
-### Reload Scope
+## License
 
-| Setting area | Runtime behavior |
-| --- | --- |
-| `hotkeys.*` | Re-registers global shortcuts in place |
-| `launcher.max_results` | Refreshes the command palette search limit |
-| `terminal.font_size`, `terminal.scrollback_lines` | Updates open terminal views and applies to new sessions |
-| `mouse_control.step_size` | Applies on the next keyboard mouse movement |
-
-If `keynova reload` fails, check that the app is running with `keynova status`
-and validate `%APPDATA%\Keynova\config.toml` as TOML. The app emits
-`config-reload-failed` to the settings panel and writes the detailed error to
-stderr.
+MIT License.

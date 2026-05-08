@@ -1,5 +1,124 @@
 # decisions.md — 架構決策紀錄（ADR）
 
+## ADR-023 ReAct Tool Schema And Observation Safety Foundation
+
+- Status: Accepted
+- Decision: Batch 4.6 starts by making Agent tools typed, schema-generated, and observation-bounded before wiring a provider-driven ReAct loop. Tool parameter schemas are generated from Rust structs with `schemars`; `AgentToolSpec` carries an LLM-safe tool name, description, generated parameter/result schemas, approval policy, visibility policy, timeout, result limit, and observation redaction policy.
+- Consequences:
+  - Generic shell execution is not part of the first ReAct tool set. The registry may expose narrow typed tools such as `git.status`, but those must remain approval-gated and must not be callable through the legacy direct `agent.tool` path.
+  - Agent execution must use the user's selected AI provider/model rather than forcing an API-only path. OpenAI-compatible and local Ollama providers are declared tool-call-capable targets for the first ReAct adapters; Claude remains a regular chat provider until its provider-specific tool adapter is added.
+  - Tool observations must pass through a redaction/truncation pipeline before entering an LLM context. The pipeline redacts likely secret lines, enforces hard line/character caps, and preserves both head and tail content with an explicit middle redaction marker.
+  - Follow-up work can wire the ReAct loop against these contracts without relying on regex-only command denial or unbounded stdout/search/file observations.
+
+## ADR-024 Agent SystemIndexer Search Path
+
+- Status: Accepted
+- Decision: Agent filesystem search now goes through a `SystemIndexer` abstraction instead of treating bounded recursive traversal as the primary path. Windows uses Everything IPC when available, then the persisted Tantivy index when populated. macOS and Linux use fixed CLI indexers (`mdfind`, `plocate`, `locate`) through `Command::new` with bounded stdout parsing. Native indexer misses or unavailability gracefully fall back to bounded parallel traversal through the `ignore` crate.
+- Consequences:
+  - Agent filesystem results include diagnostics such as provider, fallback reason, visited count, permission-denied count, timeout, and index age when available.
+  - Empty or missing CLI indexer results are not treated as final truth when fallback roots are available.
+  - Fallback traversal respects standard ignore filters and remains bounded by visit count and timeout.
+
+## ADR-025 Structured Agent Web Search Providers
+
+- Status: Accepted
+- Decision: Agent web search defaults to disabled unless a structured provider is configured. SearXNG JSON and Tavily API are the structured adapters; DuckDuckGo HTML remains available only as an explicit best-effort fallback.
+- Consequences:
+  - `agent.web_search_provider` accepts `disabled`, `searxng`, `tavily`, and `duckduckgo`.
+  - Tavily uses `agent.web_search_api_key`; SearXNG uses `agent.searxng_url`.
+  - All web results normalize to grounded title/url/snippet sources and pass through existing query redaction before outbound network requests.
+
+## ADR-026 Provider-Driven ReAct Agent Loop
+
+- Status: Accepted
+- Decision: Agent mode will move from local prompt heuristics to a provider-driven ReAct loop. Rust owns context filtering, tool schema generation, policy, approval, execution, observation redaction, cancellation, timeout, max-step limits, and audit logging. The selected AI provider/model decides whether to answer or request tools. The loop must use the shared AI runtime config resolver, so local Ollama remains a first-class Agent backend when selected.
+- Consequences:
+  - Local prompt heuristics become offline/fallback behavior, not the primary Agent planner.
+  - Provider adapters normalize model responses into final text or typed tool calls.
+  - Tool observations are appended only after redaction/truncation and are never allowed to bypass visibility policy.
+  - Unsupported provider/tool-call combinations must fail clearly or fall back to safe chat/fallback behavior without switching providers behind the user's back.
+
+## ADR-027 Generic Shell Tool Sandbox Requirement
+
+- Status: Accepted
+- Decision: Keynova will not expose a generic `execute_shell_command` / `execute_bash_command` Agent tool until a real platform sandbox exists. Approval and regex/string deny lists are insufficient. The first ReAct tools must be narrow typed tools with fixed binaries and structured arguments.
+- Consequences:
+  - No `sh -c`, `cmd /c`, or shell-string execution is allowed for generic Agent tool use.
+  - Linux must require a namespace/seccomp-style sandbox path such as `bwrap` plus syscall and filesystem restrictions before generic shell is considered.
+  - Windows must require restricted token/job/AppContainer-style constraints or equivalent process isolation before generic shell is considered.
+  - macOS must define an explicit sandbox strategy or report unsupported behavior.
+  - Denied tool attempts should be returned to the LLM as observations so the model can self-correct toward typed read-only tools.
+
+## ADR-022 Agent Approval Boundary And Prompt Audit
+
+- Status: Accepted
+- Decision: Batch 4 agent execution now uses an explicit approval state machine and agent-owned planned actions instead of reusing generic launcher actions for risk handling. Each run records a prompt audit with context budget, allowlisted sources, filtered private/secret sources, and optional session/workspace/long-term memory references.
+- Consequences:
+  - `agent.start` can return `waiting_approval` runs with typed planned actions for medium/high-risk work.
+  - Approved actions return a UI-safe `BuiltinCommandResult` so the AI panel can open note/setting/system/model panels or a terminal launch without bypassing the launcher UI boundary.
+  - High-risk file writes remain scaffolded rather than directly executed; system/model lifecycle requests are routed back through explicit panels after approval.
+  - Knowledge Store schema version 3 adds `agent_audit_logs` and `agent_memories`; long-term agent memory is opt-in through `agent.long_term_memory_opt_in`.
+
+## ADR-020 Terminal Launch Specs For Builtin Commands
+
+- Status: Accepted
+- Decision: `BuiltinCommandResult` can now ask the frontend to render a terminal session through `CommandUiType::Terminal(TerminalLaunchSpec)`. The first consumer is `/note lazyvim`, which launches `nvim` directly through PTY instead of wrapping it in the default shell.
+- Consequences:
+  - Terminal-backed command results carry `launch_id`, program, args, cwd, title, and editor-session metadata.
+  - `terminal.open` accepts optional `launch_spec`; plain terminal opens still use the pre-warmed shell path.
+  - Editor sessions keep Escape for the editor and use `Ctrl+Shift+Q` or `Ctrl+Alt+Esc` to exit the launcher panel.
+  - Note path resolution remains owned by `NoteManager`; command configuration uses `notes.lazyvim_command` with PATH fallback to `nvim`.
+  - LazyVim mode ensures a starter-style config marker. Missing config is bootstrapped from Keynova's built-in starter template into project-local `.keynova/lazyvim/config/keynova-lazyvim` unless the user points at an existing non-empty custom config directory.
+  - Terminal env support covers `NVIM_APPNAME`, `XDG_CONFIG_HOME`, `XDG_DATA_HOME`, `XDG_STATE_HOME`, and `XDG_CACHE_HOME`, so LazyVim config/plugin/cache content remains project-contained and removable with the project directory.
+
+## ADR-021 Persisted Search Index And Runtime Ranking
+
+- Status: Accepted
+- Decision: Keynova now treats Tantivy as a persisted on-disk search provider instead of only a backend preference label. The Windows rebuild path keeps the existing file-cache scan as the source of truth, snapshots it, and writes a Tantivy index with stored `name`, `path`, `kind`, and folder fields. Search diagnostics expose the configured index directory and indexed document count.
+- Consequences:
+  - `[search].index_dir` can override the default `%APPDATA%\Keynova\search\tantivy` location.
+  - `auto` backend selection can choose Tantivy when a persisted index has documents; empty or unavailable indexes fall back to app-cache behavior.
+  - Result rows keep IPC payloads light by returning `icon_key`; selected rows lazy-load icon assets through `search.icon`.
+  - Search selection ranking is in-memory and process-local for now, using `search.record_selection` to boost recent/frequent launches.
+  - Clipboard history stores optional `workspace_id` and ranks current-workspace matches above unrelated entries.
+  - Knowledge Store schema versioning uses SQLite `user_version = 2`, records migrations in `schema_migrations`, and creates sibling `backups/` copies before upgrading existing DBs.
+
+## ADR-017 Automation Action Chain Executor
+
+- 狀態：Accepted
+- 決策：`automation.execute` 走既有 `cmd_dispatch` 邊界逐步執行 workflow actions，而不是讓 `AutomationHandler` 自己持有或繞過各 handler。
+- 理由：
+  - Automation 應重用 Action/Command/Setting/Search 等既有權限與錯誤邊界。
+  - 每一步需要可觀測的 output/error，失敗時停止，方便未來接 audit log 與 GUI workflow builder。
+  - 明確拒絕 recursive `automation.execute`，避免 workflow 自我呼叫造成無界遞迴。
+- 影響：
+  - `WorkflowExecutionReport` 回傳整體 log 與逐步 action execution。
+  - `AutomationEngine::execute` 是純 Rust executor，可用 closure 測試，也可由 Tauri dispatch 注入真實 action runner。
+
+## ADR-018 App Module Split
+
+- 狀態：Accepted
+- 決策：`src-tauri/src/lib.rs` 保持 thin entrypoint，將 app runtime 分成 `app/state.rs`、`app/bootstrap.rs`、`app/dispatch.rs`、`app/control_server.rs`、`app/watchers.rs`、`app/shortcuts.rs`、`app/tray.rs`、`app/window.rs`。
+- 理由：
+  - `lib.rs` 已同時承載 state、IPC dispatch、watchers、tray、shortcut、window、control plane，後續 Phase 4 搜尋/Agent/Plugin 會讓入口檔難以維護。
+  - Tauri command macro wrapper 保留在 `bootstrap.rs`，實際 command logic 委派到 `dispatch.rs`，避免 macro scope 問題，也讓 dispatch 可被 automation/action 重用。
+- 影響：
+  - `AppState` 改為 `pub(crate)` app state，跨 app modules 共享。
+  - `lib.rs` 只保留 module 宣告與 root `run()` delegate。
+
+## ADR-019 Progressive Search Runtime
+
+- 狀態：Accepted
+- 決策：`search.query` 保留同步相容路徑，新增 `stream=true` 模式；stream 模式先回傳 app/command/note/history/model 的 quick batch，再由背景 worker 透過 `search.results.chunk` EventBus topic 發送後續結果。
+- 理由：
+  - 第一批 UI 不應被 Everything/file backend 或未來 plugin provider 阻塞。
+  - EventBus 已橋接成 Tauri frontend events，可重用 `search-results-chunk` legacy topic。
+  - request id + backend generation 可以讓前端與後端同時丟棄 stale search。
+- 影響：
+  - file provider 透過 timeout boundary 包起來；timeout 時回報 `timed_out_providers` 而不是卡住 UI。
+  - `search.metadata` 成為 lazy metadata/preview 入口，避免搜尋結果 payload 變肥。
+  - `tantivy` backend preference 暫時走 rebuilt file cache 的 offline provider path；真 Tantivy persisted index 另列待辦。
+
 > 本檔用於記錄關鍵技術決策、原因與替代方案。
 > 2026-05-01：此檔於 Tauri 初始化過程中被覆蓋後重建，請在後續審查時確認內容是否與原版一致。
 
@@ -150,8 +269,53 @@
   - Tauri 沙盒（capabilities）不需特別開放，因為音量/亮度均由 Rust backend 處理，非 WebView API
 - 影響：
   - `managers/system_manager.rs`：Windows 實作 + stub
-  - `handlers/system_control.rs`：namespace "system"，含 volume.get/set/mute、brightness.get/set、wifi.info
-  - lib.rs 中原有的 inline `SystemHandler`（只有 ping）已由 `SystemControlHandler` 完全取代
+- `handlers/system_control.rs`：namespace "system"，含 volume.get/set/mute、brightness.get/set、wifi.info
+- lib.rs 中原有的 inline `SystemHandler`（只有 ping）已由 `SystemControlHandler` 完全取代
+
+## ADR-014 Phase 4 Action / Knowledge / Plugin 邊界
+
+- 狀態：Accepted
+- 決策：Phase 4 採漸進式收斂：前端只接收 `UiSearchItem` + `ActionRef`，完整 action payload 留在 Rust `ActionArena`；SQLite 透過 `KnowledgeStoreHandle` dedicated worker thread 存取；Agent 與 Plugin Runtime 預設 deny 高風險能力，所有本機動作必須走 Action System 或 Host Functions。
+- 原因：
+  - 搜尋熱路徑不應跨 IPC 傳送肥大的 JSON action payload
+  - SQLite 不可進入 Tauri command/search hot path，避免 UI 卡頓
+  - `/ai` Agent 與 Plugin 若直接取得 shell/filesystem/network/AI key 會形成高風險能力擴散
+  - ActionRef + audit log 能讓 Automation、Agent、Plugin 共用同一套執行與審計模型
+- 影響：
+  - 新增 `models/action.rs`、`core/action_registry.rs`、`action.run` / `action.list_secondary`
+  - 新增 `core/knowledge_store.rs`，使用 `rusqlite` + bounded channel + WAL
+  - Knowledge Store write path 支援 action/clipboard batch insert；shutdown 前先 flush DB worker，避免 pending writes 遺失
+  - 新增 Agent 資料模型、Agent mode UI、`docs/ai_agent.md`、`docs/ai_context_privacy.md`
+  - 新增 Plugin manifest / permission / audit model、plugin.toml/json loader 與 `docs/plugin_security.md`
+  - `SettingPanel` 改由 schema 驅動，敏感設定遮蔽顯示
+
+## ADR-015 Search Backend Preference 與重建入口
+
+- 狀態：Accepted
+- 決策：搜尋後端以 `[search].backend` 設定表達偏好（`auto` / `everything` / `app_cache` / `tantivy`），由 `SearchManager::select_backend` 依可用性決定 active backend；`search.backend` 回傳 structured debug info，`/rebuild_search_index` 先重建目前 Windows file cache，未來 Tantivy provider 接入後沿用同一入口。
+- 原因：
+  - `auto` 讓 Windows 使用者可優先走 Everything，缺少 DLL/服務時仍有 app/file cache fallback
+  - backend selection 純函式化後可用 `test_backend_selection_*` 鎖住回退規則
+  - 重建入口先穩定 UI/IPC/command contract，避免之後接 Tantivy 時再改前端命令名稱
+- 影響：
+  - `managers/search_manager.rs` 新增 `SearchBackendPreference`、`SearchBackendInfo`、rebuild status 與 selection tests
+  - `handlers/search.rs` 新增 `search.rebuild_index`，`handlers/builtin_cmd.rs` 新增 `/rebuild_search_index`
+  - `default_config.toml` 與 settings schema 新增 `[search]` keys
+  - `CommandPalette` 顯示 search backend debug badge
+
+## ADR-016 Agent Read-only Tool Runtime
+
+- 狀態：Accepted
+- 決策：`/ai` Agent 第一階段只執行 read-only tools。`agent.tool` 支援 `keynova.search` 與 `web.search`；`agent.start` 只在提示詞需要本機搜尋時帶入 `keynova.search` grounding sources，不執行本機寫入或 shell。`web.search` 第一版只支援 SearXNG JSON provider，預設 disabled。
+- 原因：
+  - 先把 tool boundary、visibility filter、redaction 與 source ViewModel 做實，再做 approval/action phases
+  - `keynova.search` 可安全讀取 workspace summary、command metadata、非敏感 settings schema、model catalog、notes/history 摘要
+  - `web.search` 不抓完整頁面，只回 title/url/snippet，並在送出前拒絕 `private_architecture` / `secret` query term
+- 影響：
+  - `handlers/agent.rs` 注入 config/note/history/workspace/command/model context，新增 `agent.tool`
+  - `default_config.toml` 與 schema 新增 `agent.web_search_provider`、`agent.searxng_url`、`agent.web_search_api_key`、`agent.web_search_timeout_secs`
+  - `AgentRuntime` 新增 `start_with_context`，讓 run output 帶 grounding source 摘要
+  - 搜尋 backend 新增 generation/cancel，前端離開搜尋時呼叫 `search.cancel`，降低 stale provider result 覆蓋新查詢的機率
 
 ## 待補強事項
 
