@@ -39,6 +39,7 @@ reqwest = { version = "0.12", default-features = false, features = ["blocking", 
 chrono = { version = "0.4", features = ["serde"] }
 rusqlite = { version = "0.32", features = ["bundled"] }
 tantivy = "0.26.1"
+dirs = "5"
 
 [target.'cfg(any(target_os = "macos", target_os = "windows", target_os = "linux"))'.dependencies]
 tauri-plugin-single-instance = "2"

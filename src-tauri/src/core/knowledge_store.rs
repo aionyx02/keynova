@@ -665,8 +665,7 @@ fn read_agent_memories(
 }
 
 fn default_db_path() -> PathBuf {
-    let base = std::env::var("APPDATA").unwrap_or_else(|_| ".".into());
-    PathBuf::from(base).join("Keynova").join("knowledge.db")
+    crate::platform_dirs::keynova_data_dir().join("knowledge.db")
 }
 
 #[cfg(test)]

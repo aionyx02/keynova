@@ -63,9 +63,9 @@
 
 ## 當前狀態
 
-- **進度**：Phase 4 全部工作已 merge 進 main（1365e69）；搜尋評分品質分層、per-provider quota、OneDrive/Dropbox 動態發現、WSL 使用者目錄列舉均完成；28 項 Rust test 全通過。
-- **上次完成**：dev → main merge 完成（commit 1365e69，82 files，+14684/-1738 行），包含 Phase-4 全部功能：搜尋 SearchPlan/評分/串流、Agent runtime/approval/memory、Tantivy index、LazyVim note、workspace session tracking、automation executor、plugin security。
-- **下一步**：手動驗收搜尋結果排序（file/app 分數分層）與 Agent 流程；考慮 Phase 5 規劃。
+- **進度**：Phase 5 進行中；5.1.A、5.1.B、5.8、5.2.A 均已實作並 commit（4 個 commits on Phase-5 branch）。
+- **上次完成**：5.2.B Search Stream Diagnostics：後端 SearchChunkDiagnostics struct（elapsed_ms / timed_out / cache entries / pre_balance_count / fallback_reason）帶進 final chunk；前端 fileDiagnostics state + footer 人類可讀訊息（timeout / index empty / hidden count）。
+- **下一步**：5.3.A ConfigManager 跨平台路徑修正（`dirs::config_dir()` 取代 APPDATA fallback）。
 
 ## 已確認的技術選擇
 
@@ -105,6 +105,10 @@
 
 | 日期 | 完成事項 | 遺留問題 |
 |------|----------|----------|
+| 2026-05-08 | 5.2.B Search diagnostics：SearchChunkDiagnostics struct + fileDiagnostics state + footer 人類可讀訊息（timed_out / index empty / hidden count）；5.1.A/B/5.8/5.2.A 共 5 個 commits on Phase-5 | 5.3 config paths、5.4 default provider 待做；手動驗收 search diagnostics 仍需真實 app |
+| 2026-05-08 | Phase 5 開始實作：5.1.A Agent runs ordering（prepend fix）、5.1.B AI chat retain（rposition）、5.8 note name validation（validate_note_name + reserved names + 3 tests）、5.2.A search stream quota（replace:true balanced final chunk + applySourceQuotas）| 5.2.B diagnostics、5.3 config paths、5.4 default provider 待做 |
+| 2026-05-08 | tasks.md 精修第二版：5.5 拆成 A1–A4/B1–B3 分批 milestone；5.8 提前；新增 5.3.C legacy migration；5.2.A replace payload；5.4 Ollama reachability；5.5.D research-only | 所有 Phase 5 任務待實作 |
+| 2026-05-08 | 架構分析：確認 10 項 P0/P1/P2 問題；tasks.md 初版重整為 Phase 5.1–5.10 | 所有 Phase 5 任務待實作；5.5.D sandbox blocked on ADR-027 |
 | 2026-05-08 | dev → main merge 完成（1365e69，82 files，+14684/-1738 行）；Phase-4 全部功能進入 main | 手動驗收搜尋結果排序與 Agent 流程 |
 | 2026-05-08 | 搜尋排序與覆蓋率大修：app/file 分數品質分層、WSL home 枚舉、OneDrive env var / Dropbox info.json 動態發現、SearchPlan per-provider quota；28 個測試全通過 | 仍需在真實 app 手動確認；stream diagnostics 尚未做 |
 | 2026-05-06 | Phase 4.4/4.5A：搜尋 backend generation/cancel；AgentHandler context 注入；`agent.tool` 實作 `keynova.search` / SearXNG `web.search`；private architecture/secret redaction tests | `web.search` 預設 disabled，需設定 searxng url；Agent approval/audit 尚未做 |

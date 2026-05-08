@@ -23,9 +23,7 @@ struct TantivyFields {
 }
 
 pub fn default_index_dir() -> PathBuf {
-    let base = std::env::var("APPDATA").unwrap_or_else(|_| ".".into());
-    PathBuf::from(base)
-        .join("Keynova")
+    crate::platform_dirs::keynova_data_dir()
         .join("search")
         .join("tantivy")
 }
