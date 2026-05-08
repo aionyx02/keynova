@@ -292,14 +292,18 @@ impl SearchManager {
         let Ok(mgr) = self.app_manager.lock() else {
             return Vec::new();
         };
+        let q = query.to_lowercase();
         mgr.search_apps(query)
             .into_iter()
             .take(limit)
-            .map(|app| SearchResult {
-                kind: ResultKind::App,
-                name: app.name,
-                path: app.path,
-                score: 100,
+            .map(|app| {
+                let score = app_name_match_score(&app.name, &q);
+                SearchResult {
+                    kind: ResultKind::App,
+                    name: app.name,
+                    path: app.path,
+                    score,
+                }
             })
             .collect()
     }
@@ -313,6 +317,7 @@ impl SearchManager {
         if query.trim().is_empty() || limit == 0 {
             return Vec::new();
         }
+        let q = query.to_lowercase();
 
         #[cfg(target_os = "windows")]
         {
@@ -326,9 +331,9 @@ impl SearchManager {
                             } else {
                                 ResultKind::File
                             },
+                            score: file_name_match_score(&name, &q),
                             name,
                             path,
-                            score: 80,
                         })
                         .collect()
                 }
@@ -350,9 +355,9 @@ impl SearchManager {
                             } else {
                                 ResultKind::File
                             },
+                            score: file_name_match_score(&name, &q),
                             name,
                             path,
-                            score: 80,
                         })
                         .collect()
                 }
@@ -379,6 +384,36 @@ impl SearchManager {
 
     pub fn tantivy_index_dir(&self) -> std::path::PathBuf {
         self.tantivy_index_dir.clone()
+    }
+}
+
+/// Score an app match by name quality.
+/// Exact match → 100, prefix → 90, substring → 78.
+/// Substring is kept below file scores (80–95) so that a weak app match
+/// does not crowd out files that match the query more precisely.
+fn app_name_match_score(name: &str, query_lower: &str) -> i64 {
+    let name_lower = name.to_lowercase();
+    if name_lower == query_lower {
+        100
+    } else if name_lower.starts_with(query_lower) {
+        90
+    } else {
+        78
+    }
+}
+
+/// Score a file/folder match by name quality.
+/// Exact match → 95, prefix → 88, substring → 80.
+/// Exact and prefix beat app prefix (90) so relevant files surface above
+/// apps that only partially match the query.
+fn file_name_match_score(name: &str, query_lower: &str) -> i64 {
+    let name_lower = name.to_lowercase();
+    if name_lower == query_lower {
+        95
+    } else if name_lower.starts_with(query_lower) {
+        88
+    } else {
+        80
     }
 }
 
