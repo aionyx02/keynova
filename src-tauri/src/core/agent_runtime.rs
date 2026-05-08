@@ -6,9 +6,12 @@ use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use uuid::Uuid;
 
-use crate::core::{AgentObservationPolicy, AppEvent};
+use crate::core::{prepare_observation, AgentObservationPolicy, AppEvent};
+use crate::managers::ai_manager::{
+    AiMessage, AiToolDefinition, AiToolTurn, ToolCallProvider,
+};
 use crate::models::action::ActionRisk;
-use crate::models::agent::{AgentRun, AgentRunStatus, ContextVisibility};
+use crate::models::agent::{AgentRun, AgentRunStatus, AgentStep, ContextVisibility};
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
@@ -307,6 +310,242 @@ impl AgentRuntime {
             }),
         ));
     }
+
+    /// Spawn a background ReAct loop for an already-inserted run.
+    ///
+    /// The run must already exist in the registry with `status = Running`.
+    /// Each loop step updates the run in-place and emits `agent.step` events.
+    pub fn spawn_react_loop(
+        self: &Arc<Self>,
+        run_id: String,
+        provider: Arc<dyn ToolCallProvider>,
+        tools: Vec<AgentToolSpec>,
+        config: ReactLoopConfig,
+        dispatch: Arc<ToolDispatch>,
+    ) {
+        let runtime = Arc::clone(self);
+        std::thread::spawn(move || {
+            react_loop_body(&runtime, &run_id, &*provider, &tools, &config, &*dispatch);
+        });
+    }
+}
+
+// ─── ReAct loop ─────────────────────────────────────────────────────────────
+
+/// Type alias for the tool dispatch closure used by `react_loop_body`.
+pub type ToolDispatch = dyn Fn(&str, &Value) -> Result<Value, String> + Send + Sync;
+
+/// Configuration for a single ReAct loop execution.
+pub struct ReactLoopConfig {
+    pub max_steps: usize,
+    pub max_tokens: u32,
+    pub timeout_secs: u64,
+    pub system_prompt: String,
+}
+
+impl Default for ReactLoopConfig {
+    fn default() -> Self {
+        Self {
+            max_steps: 8,
+            max_tokens: 4096,
+            timeout_secs: 30,
+            system_prompt: concat!(
+                "You are a helpful assistant integrated into Keynova. ",
+                "Use the provided tools to answer the user's request. ",
+                "Once you have enough information, provide a final answer ",
+                "without calling any more tools."
+            )
+            .into(),
+        }
+    }
+}
+
+/// Convert tool specs to the provider-neutral definition slice.
+pub fn tools_to_definitions(tools: &[AgentToolSpec]) -> Vec<AiToolDefinition> {
+    tools
+        .iter()
+        .map(|spec| AiToolDefinition {
+            name: spec.llm_name.clone(),
+            description: spec.description.clone(),
+            parameters_schema: spec.parameters_schema.clone(),
+        })
+        .collect()
+}
+
+/// Blocking ReAct loop body — runs on the calling thread.
+///
+/// Intended for use from `spawn_react_loop` (background thread) and directly
+/// from tests (no thread involved).
+pub fn react_loop_body(
+    runtime: &AgentRuntime,
+    run_id: &str,
+    provider: &dyn ToolCallProvider,
+    tools: &[AgentToolSpec],
+    config: &ReactLoopConfig,
+    dispatch: &ToolDispatch,
+) {
+    let prompt = match runtime.get(run_id) {
+        Ok(Some(run)) => run.prompt.clone(),
+        _ => {
+            eprintln!("[react] run '{run_id}' not found at loop start");
+            return;
+        }
+    };
+
+    let mut messages: Vec<AiMessage> = vec![
+        AiMessage {
+            role: "system".into(),
+            content: config.system_prompt.clone(),
+        },
+        AiMessage {
+            role: "user".into(),
+            content: prompt,
+        },
+    ];
+
+    let tool_defs = tools_to_definitions(tools);
+    let tool_map: HashMap<String, &AgentToolSpec> =
+        tools.iter().map(|s| (s.llm_name.clone(), s)).collect();
+
+    for step_idx in 0..config.max_steps {
+        // Check for cancellation.
+        match runtime.get(run_id) {
+            Ok(Some(run)) if run.status == AgentRunStatus::Cancelled => return,
+            Ok(None) => return,
+            _ => {}
+        }
+
+        let turn = match provider.chat_with_tools(
+            &messages,
+            &tool_defs,
+            config.max_tokens,
+            config.timeout_secs,
+        ) {
+            Ok(t) => t,
+            Err(e) => {
+                react_fail(runtime, run_id, &format!("Provider error at step {step_idx}: {e}"));
+                return;
+            }
+        };
+
+        match turn {
+            AiToolTurn::FinalText { content } => {
+                react_complete(runtime, run_id, step_idx, content);
+                return;
+            }
+            AiToolTurn::ToolCalls { tool_calls } => {
+                let mut obs_messages: Vec<AiMessage> = Vec::new();
+
+                for call in &tool_calls {
+                    let spec = tool_map.get(&call.name);
+
+                    // Approval-required tools are skipped in B1 (no interactive gate yet).
+                    let approval_required = spec
+                        .map(|s| s.approval_policy == AgentToolApprovalPolicy::Required)
+                        .unwrap_or(false);
+                    if approval_required {
+                        let obs = format!(
+                            "Tool '{}' requires explicit user approval and was not executed.",
+                            call.name
+                        );
+                        emit_react_step(runtime, run_id, step_idx, &call.name, "approval_required");
+                        obs_messages.push(AiMessage {
+                            role: "user".into(),
+                            content: format!("[Tool: {}]\n{}", call.name, obs),
+                        });
+                        continue;
+                    }
+
+                    let obs_policy = spec
+                        .map(|s| s.observation_policy.clone())
+                        .unwrap_or_default();
+
+                    let result = dispatch(&call.name, &call.arguments);
+                    let observation = match result {
+                        Ok(val) => {
+                            let raw = serde_json::to_string_pretty(&val).unwrap_or_default();
+                            prepare_observation(&raw, &obs_policy).content
+                        }
+                        Err(e) => format!("Error from tool '{}': {}", call.name, e),
+                    };
+
+                    emit_react_step(runtime, run_id, step_idx, &call.name, "executed");
+                    obs_messages.push(AiMessage {
+                        role: "user".into(),
+                        content: format!("[Tool: {}]\n{}", call.name, observation),
+                    });
+                }
+
+                // Append a synthetic assistant turn describing the tool calls.
+                let calls_desc = tool_calls
+                    .iter()
+                    .map(|c| format!("{}({})", c.name, c.arguments))
+                    .collect::<Vec<_>>()
+                    .join(", ");
+                messages.push(AiMessage {
+                    role: "assistant".into(),
+                    content: format!("[Calling tools: {calls_desc}]"),
+                });
+                messages.extend(obs_messages);
+            }
+        }
+    }
+
+    react_fail(runtime, run_id, "Maximum steps exceeded without a final answer.");
+}
+
+fn react_complete(runtime: &AgentRuntime, run_id: &str, final_step: usize, content: String) {
+    let step_id = format!("{run_id}:react:{final_step}:final");
+    if let Ok(Some(mut run)) = runtime.get(run_id) {
+        run.status = AgentRunStatus::Completed;
+        run.output = Some(content.clone());
+        run.steps.push(AgentStep {
+            id: step_id,
+            title: "Final answer".into(),
+            status: "completed".into(),
+            tool_calls: Vec::new(),
+        });
+        let _ = runtime.update_run(run, "agent.run.completed");
+    }
+    (runtime.publish_event)(AppEvent::new(
+        "agent.step",
+        json!({
+            "run_id": run_id,
+            "step": final_step,
+            "tool_name": null,
+            "status": "final",
+            "observation_preview": truncate_preview(&content, 120),
+        }),
+    ));
+}
+
+fn react_fail(runtime: &AgentRuntime, run_id: &str, reason: &str) {
+    if let Ok(Some(mut run)) = runtime.get(run_id) {
+        run.status = AgentRunStatus::Failed;
+        run.error = Some(reason.into());
+        let _ = runtime.update_run(run, "agent.run.failed");
+    }
+}
+
+fn emit_react_step(runtime: &AgentRuntime, run_id: &str, step: usize, tool_name: &str, status: &str) {
+    (runtime.publish_event)(AppEvent::new(
+        "agent.step",
+        json!({
+            "run_id": run_id,
+            "step": step,
+            "tool_name": tool_name,
+            "status": status,
+        }),
+    ));
+}
+
+fn truncate_preview(s: &str, max_chars: usize) -> String {
+    let chars: Vec<char> = s.chars().collect();
+    if chars.len() <= max_chars {
+        s.to_string()
+    } else {
+        format!("{}…", chars[..max_chars].iter().collect::<String>())
+    }
 }
 
 #[cfg(test)]
@@ -402,5 +641,159 @@ mod tests {
             openai_schema["function"]["name"],
             filesystem.llm_name.as_str()
         );
+    }
+
+    // ─── ReAct loop tests (5.5.B1) ──────────────────────────────────────────
+
+    use crate::managers::fake_provider::FakeToolCallProvider;
+
+    fn react_runtime() -> AgentRuntime {
+        AgentRuntime::new(Arc::new(|_| {}))
+    }
+
+    fn running_run(id: &str) -> AgentRun {
+        AgentRun {
+            id: id.into(),
+            prompt: "find my notes about Rust".into(),
+            status: AgentRunStatus::Running,
+            plan: Vec::new(),
+            steps: Vec::new(),
+            approvals: Vec::new(),
+            memory_refs: Vec::new(),
+            sources: Vec::new(),
+            prompt_audit: None,
+            command_result: None,
+            output: None,
+            error: None,
+        }
+    }
+
+    fn noop_dispatch(_name: &str, _args: &Value) -> Result<Value, String> {
+        Ok(json!({ "sources": [] }))
+    }
+
+    #[test]
+    fn react_loop_single_final_text_completes_run() {
+        let runtime = react_runtime();
+        runtime
+            .insert_run(running_run("r1"))
+            .expect("insert run");
+
+        let provider = FakeToolCallProvider::single_final("Here is your answer.");
+        react_loop_body(
+            &runtime,
+            "r1",
+            &provider,
+            &[],
+            &ReactLoopConfig::default(),
+            &noop_dispatch,
+        );
+
+        let run = runtime.get("r1").unwrap().unwrap();
+        assert_eq!(run.status, AgentRunStatus::Completed);
+        assert_eq!(run.output.as_deref(), Some("Here is your answer."));
+    }
+
+    #[test]
+    fn react_loop_tool_call_then_final_completes_run() {
+        let runtime = react_runtime();
+        runtime
+            .insert_run(running_run("r2"))
+            .expect("insert run");
+
+        let provider = FakeToolCallProvider::tool_then_final(
+            "keynova_search",
+            "call-abc",
+            json!({ "query": "Rust notes", "limit": 5 }),
+            "Found 2 notes about Rust.",
+        );
+
+        let dispatch_hits = Arc::new(Mutex::new(Vec::<String>::new()));
+        let hits = Arc::clone(&dispatch_hits);
+        let dispatch = move |name: &str, _args: &Value| -> Result<Value, String> {
+            hits.lock().unwrap().push(name.to_string());
+            Ok(json!({ "sources": [{ "title": "Rust notes", "snippet": "async/await", "source_type": "note" }] }))
+        };
+
+        // Build a keynova.search spec so the dispatch is recognized.
+        let tools = AgentToolRegistry::with_default_readonly_tools().list();
+
+        react_loop_body(
+            &runtime,
+            "r2",
+            &provider,
+            &tools,
+            &ReactLoopConfig::default(),
+            &dispatch,
+        );
+
+        let run = runtime.get("r2").unwrap().unwrap();
+        assert_eq!(run.status, AgentRunStatus::Completed);
+        assert_eq!(run.output.as_deref(), Some("Found 2 notes about Rust."));
+        assert_eq!(dispatch_hits.lock().unwrap().as_slice(), &["keynova_search"]);
+    }
+
+    #[test]
+    fn react_loop_cancel_mid_loop_stops_early() {
+        let runtime = react_runtime();
+        runtime
+            .insert_run(running_run("r3"))
+            .expect("insert run");
+
+        // Provider returns a tool call; we cancel the run before the loop checks status again.
+        // The trick: cancel first, then run the loop — it checks at the top of each iteration.
+        runtime.cancel("r3").expect("cancel run");
+
+        let provider = FakeToolCallProvider::single_final("Should never reach this.");
+        react_loop_body(
+            &runtime,
+            "r3",
+            &provider,
+            &[],
+            &ReactLoopConfig::default(),
+            &noop_dispatch,
+        );
+
+        // Status stays Cancelled (loop exits on cancel check without overwriting).
+        let run = runtime.get("r3").unwrap().unwrap();
+        assert_eq!(run.status, AgentRunStatus::Cancelled);
+    }
+
+    #[test]
+    fn react_loop_max_steps_exceeded_fails_run() {
+        let runtime = react_runtime();
+        runtime
+            .insert_run(running_run("r4"))
+            .expect("insert run");
+
+        // Provider always returns a tool call but dispatch is a no-op; the loop
+        // will hit max_steps without ever getting FinalText.
+        let infinite_calls: Vec<_> = (0..10)
+            .map(|i| crate::managers::ai_manager::AiToolTurn::ToolCalls {
+                tool_calls: vec![crate::managers::ai_manager::AiToolCallRequest {
+                    id: format!("call-{i}"),
+                    name: "keynova_search".into(),
+                    arguments: json!({ "query": "x" }),
+                }],
+            })
+            .collect();
+        let provider = FakeToolCallProvider::new(infinite_calls);
+
+        let config = ReactLoopConfig {
+            max_steps: 3,
+            ..ReactLoopConfig::default()
+        };
+        react_loop_body(
+            &runtime,
+            "r4",
+            &provider,
+            &AgentToolRegistry::with_default_readonly_tools().list(),
+            &config,
+            &noop_dispatch,
+        );
+
+        let run = runtime.get("r4").unwrap().unwrap();
+        assert_eq!(run.status, AgentRunStatus::Failed);
+        assert!(run.error.as_deref().unwrap_or("").contains("Maximum steps"));
     }
 }
