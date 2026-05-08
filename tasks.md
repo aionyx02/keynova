@@ -1,169 +1,267 @@
 # Keynova Tasks
 
-> Compact task board. Keep this file short: completed work is summarized, remaining work is grouped into executable batches.
+> Compact task board. Completed work is summarized; remaining work is grouped into Phase 5 sub-branches ordered by priority.
 > Update `memory.md` and `decisions.md` when a batch changes architecture or runtime behavior.
 
 ## Current Baseline
 
-- [x] Phase 0-3.8 foundation: Tauri/React/Rust scaffold, CommandRouter/EventBus, launcher UI, app/file search, terminal panel, settings, hotkeys, mouse/system controls, AI/translation/workspace/note/calculator/history/model features.
-- [x] BUG-1 to BUG-15 user-facing fixes, including first-open lazy panel sizing/scrollbar refresh.
-- [x] Phase 2 search backend debug/config/rebuild/test path, with `tantivy` preference currently backed by the rebuilt offline file cache; persisted Tantivy index still pending.
-- [x] Phase 4 foundation: ActionRef/ActionArena, UiSearchItem, action.run, secondary actions, schema-driven settings, Workspace Context v2 base, Knowledge Store DB worker, Agent mode skeleton, Automation/Plugin security docs.
-- [x] Knowledge Store batch writes, bounded queue/drop policy, shutdown flush, DB observability.
-- [x] Plugin manifest loader and deny-by-default permission parser.
-- [x] Agent read-only tool runtime: `agent.tool`, `keynova.search`, SearXNG-backed `web.search`, visibility filtering, grounding sources, search cancel/generation checks.
-- [x] Agent architecture gap identified: Agent mode still relies on local prompt heuristics, provider chat does not yet accept JSON Schema tools/tool calls, Agent filesystem search still has a bounded DFS fallback, and DuckDuckGo HTML parsing remains fragile.
+- [x] Phase 0–3.8: Tauri/React/Rust scaffold, CommandRouter/EventBus, launcher UI, app/file search, terminal, settings, hotkeys, mouse/system, AI/translation/workspace/note/calculator/history/model features.
+- [x] BUG-1 to BUG-15: All user-facing fixes including first-open lazy panel sizing/scrollbar refresh.
+- [x] Phase 4 Batches 1–5: ActionRef/ActionArena, UiSearchItem, schema-driven settings, Workspace Context v2, Knowledge Store DB worker, Plugin manifest/permissions, Agent runtime/approval/audit/memory, Tantivy persisted index, workspace session binding, search stream/chunked progressive results, automation executor, app struct split.
+- [x] Batch 4/4.5 Agent: transparency UI, read-only tools, approval state machine, prompt audit/context budget, medium/high-risk action scaffolding, SearXNG/Tavily web search, DuckDuckGo fallback, ReAct safety foundation (schemars, AgentToolSpec, observation redaction, SystemIndexer, ADR-026/027).
+- [x] Search ranking: SearchPlan per-provider quotas, sort_balanced_truncate, WSL home enumeration, OneDrive/Dropbox dynamic discovery, 28 Rust tests passing.
+- [x] /note LazyVim: Terminal(TerminalLaunchSpec), NoteManager path helpers, nvim detection, PTY direct launch, Escape policy, LazyVim config bootstrap, git-ignored .keynova/.
 
 Last full verification baseline: `npm run build`, `npm run lint`, `cargo test`, `cargo clippy -- -D warnings`, `git diff --check`.
 
-## Batch 1 - Automation And App Structure
+---
 
-- [x] Phase 4.6 Action chain executor.
-- [x] Phase 4.0 Split `src-tauri/src/lib.rs` into `src-tauri/src/app/*` modules (`state.rs`, `bootstrap.rs`, `shortcuts.rs`, `tray.rs`, `window.rs`, `watchers.rs`, `control_server.rs`).
+## 建議執行順序
 
-## Batch 2 - Search Runtime
+```
+5.1.A → 5.1.B → 5.8
+  → 5.2.A → 5.2.B
+  → 5.3.A → 5.3.B → 5.3.C
+  → 5.4
+  → 5.5.A1 → 5.5.A2 → 5.5.B1 → 5.5.A3/A4 → 5.5.B2 → 5.5.B3 → 5.5.C → 5.5.E → 5.5.F → 5.5.G/H
+  → 5.7.A → 5.7.B → 5.6 → 5.9+
+```
 
-- [x] Phase 4.1 Search chunked/progressive streaming so first visible batch returns under 50ms.
-- [x] Phase 4.1 First batch cap/paging: return first 10-20 items, then page/lazy fetch up to 50+.
-- [x] Phase 4.1 Preview and metadata lazy load through `search.metadata`.
-- [x] Phase 4.1 Icon asset lazy load beyond lightweight `icon_key`.
-- [x] Phase 4.4 Progressive results over Tauri channel chunks.
-- [x] Phase 4.4 Provider timeout boundary for slow file/search providers.
-- [x] Phase 2/4.4 Offline file provider path for the `tantivy` backend preference using the existing rebuilt file cache.
-- [x] Phase 2/4.4 Persisted Tantivy index with real Tantivy schema and on-disk index storage.
+5.5 是長期主線，每個子步驟獨立可測、分批 merge，不等全部完成才合併。
 
-### Active Search Bug - File Results Hidden
+---
 
-- [x] Confirmed likely pipeline shape: stream first batch uses `fast_results` and excludes files; file/folder results arrive later through `file_results_with_timeout`.
-- [x] Confirmed frontend risk: chunk merge can truncate to `launcher.max_results` before late file results get a fair sorted pass.
-- [x] Confirmed ranking risk: history/workspace results can monopolize the visible limit when file fallback scores are lower.
-- [ ] Confirm live backend readiness in the running app: `file_cache_entries`, `tantivy_index_entries`, `everything_available`, file provider result count, elapsed time, and timeout state.
-- [x] Fix search result presentation with diversity-aware re-ranking so history cannot hide all file/folder results: added `SearchPlan` with per-provider quotas (app=8, cmd=8, note=8, history=12, model=6), file candidate pool = display_limit×6 (min 120), worker now only fetches file results (no fast_results re-run), added `sort_balanced_truncate` with per-source caps.
-- [ ] Fix stream diagnostics so the UI clearly distinguishes file-provider timeout, empty file cache, empty Tantivy index, and score-based truncation.
-- [x] Add regression coverage for late file chunks merging into a history-filled first batch: `sort_balanced_truncate_respects_per_source_quotas` test verifies history capped at 12 even when 20 high-score history items flood the pool.
+## Phase 5.1 — P0 Critical Bug Fixes
 
-## Batch 3 - Workspace And Knowledge
+> 這兩個 bug 修完才開新功能。範圍小、影響明確。
 
-- [x] Phase 4.3 Bind terminal sessions to current workspace.
-- [x] Phase 4.3 Bind notes to current workspace.
-- [x] Phase 4.3 Bind AI conversations to current workspace.
-- [x] Phase 4.3 Workspace-weighted clipboard/history ranking.
-- [x] Phase 4.5 Recent/frequent search ranking memory cache.
-- [x] Phase 4.5 Migration and backup path for Knowledge Store.
+### 5.1.A — Agent Frontend Run Ordering Bug ✓
 
-## Batch 4 - Agent Runtime
+- [x] 修 `useAgent.ts` `upsertRunChronologically()`：新 run 改為 prepend（`[run, ...prev]`），確保 `runs[0]` 永遠是最新 run。
+- [x] 確認 `AiPanel.tsx` 讀 `agent.runs[0]` 為最新，且 `command_result` 能正確交付給 `onRunCommandResult()`。
+- [ ] Regression 三種情境（需在真實 app 手動驗收）：
+  - 第一次 Agent action → 開 note panel
+  - 第二次 Agent action → 開 setting panel
+  - 第三次 Agent action → 開 terminal result
+  - 驗證 `runs[0]`、`deliveredResultRef`、`onRunCommandResult()` 三者不互相卡住。
 
-- [x] Phase 4.5A Approval state machine and explicit agent action boundary: pending approvals, action allowlists, per-risk execution policy.
-- [x] Phase 4.5A Prompt builder with context budget, visibility filtering, secret redaction, and filtered-source audit.
-- [x] Phase 4.5A Medium-risk approved actions: open panel, create note draft, update setting draft, run allowlisted safe built-in command.
-- [x] Phase 4.5A High-risk action scaffolding with explicit approval: terminal command, file write, system control, model download/delete.
-- [x] Phase 4.5A Agent audit log into Knowledge Store.
-- [x] Phase 4.5A Agent memory layers: session, workspace, long-term with opt-in.
-- [ ] Phase 4.5A Regression tests for cancellation, approval, tool error, stale ActionRef, provider timeout, secret redaction, architecture context denied, web-query redaction.
-- [ ] Phase 4.5A Manual validations for project search, web search, Keynova feature search, private architecture denial, note draft, and terminal/process denial.
+### 5.1.B — AI Chat Message Retain Bug
 
-## Batch 4.5 - Agent Quality Recovery
+- [ ] 快速修：`AiManager::chat_async()` 失敗時只移除 history 中**最後一筆**符合 `role=user && content=prompt` 的訊息，不使用 `retain()` 全量刪除。
+- [ ] 後續正規化（非本 batch）：為每次 message 加 `request_id`；本次只做最小修正。
+- [ ] 單元測試：用相同 prompt 送兩次，第二次失敗，確認 history 只少一筆。
 
-- [x] Direction decision: do not wire an external/third-party agent yet. First harden Keynova's local agent boundary, transparency, approval UX, and regression coverage; add an external-agent provider seam only after this contract feels dependable.
-- [x] Agent transparency UI: show planned action kind/risk/payload preview, prompt audit counts, included/filtered grounding sources, tool-call status, memory refs, run error, and delivered UI action.
-- [x] Agent convenience first pass: answer capability/time questions directly and label no-action completed runs as answered instead of making them look like silent execution.
-- [x] Agent explicit read-only answers: directory-listing prompts now resolve the requested folder, list child folders, or report the checked paths when missing.
-- [x] Agent read-only filesystem tools: bounded whole-computer file/folder search plus text preview reads; no write/delete/move capability is exposed.
-- [x] Agent web query first pass: `web.search` supports SearXNG or no-key DuckDuckGo fallback, with default provider set to DuckDuckGo.
-- [x] Agent workflow planning first pass: task/workflow prompts return a custom execution plan that separates read-only steps from approval-gated side effects.
-- [ ] Agent planning quality: make no-action runs explain what Keynova can do next, reduce accidental panel/action matches, and keep high-risk actions scaffolded behind explicit approval.
-- [x] Agent planning quality first pass: avoid treating plain "start ..." wording as a terminal command unless the following text looks command-like.
-- [ ] Regression tests for cancellation/reject lifecycle, one-shot approval, tool error surfacing, prompt budget truncation, private architecture denial, secret redaction, and web-query redaction.
-- [x] Regression test first pass: runtime cancellation/tool registry, terminal command parsing, prompt budget truncation, safe built-in allowlist, private architecture denial, secret redaction, and web-query redaction.
-- [ ] External agent integration contract: define the minimum provider interface that can return a plan, tool requests, and Keynova-safe action proposals without bypassing approval/audit.
-- [ ] Manual validation script for agent mode: local search, feature search, private architecture denial, note draft approval, terminal approval, rejected approval, disabled web search, and action payload handoff.
+---
 
-## Batch 4.6 - ReAct Tool-Calling Agent Upgrade
+## Phase 5.8 — P2 Note Name Robustness（提前至 5.1 後）
 
-- [x] Write ADR for provider-driven ReAct loop: Rust owns typed tools, policy, approval, audit, and observation handling; the LLM decides tool calls and final answer; local intent heuristics become fallback only.
-- [ ] Add provider tool-call contract in `managers/ai_manager.rs`: messages, generated JSON Schema tools, tool calls, tool observations, final text, and unsupported-provider errors; support the selected OpenAI-compatible or Ollama provider first.
-- [x] Add a shared AI runtime config resolver for the selected AI Chat provider/model (`ai.provider`, Ollama/OpenAI/Claude model settings); the ReAct Agent loop must use this resolver when wired, with local Ollama as a first-class backend.
-- [x] Add `schemars` and derive tool parameter schemas from Rust structs instead of hand-building JSON; keep OpenAI-compatible tool schema generation covered by snapshot/unit tests.
-- [x] Expand `AgentToolSpec` in `core/agent_runtime.rs` with generated parameter schema, result schema, risk, approval policy, visibility policy, timeout, result limits, and observation redaction policy.
-- [ ] Implement the async Agent loop in `core/agent_runtime.rs` / `handlers/agent.rs`: build filtered context, inject tool schemas, call provider, execute approved tools, append bounded observations, continue until final text, cancel, timeout, or max steps.
-- [x] Add Observation Redaction & Truncation pipeline: hard token/char/line caps, secret redaction, stdout/stderr separation, head+tail preservation with middle redaction marker, and source/result count summaries before context insertion.
-- [ ] Move current direct prompt heuristics in `handlers/agent.rs` behind an offline fallback; normal Agent mode should ask the LLM before choosing `keynova.search`, `filesystem.search`, `filesystem.read`, `web.search`, or shell/tool actions.
-- [x] Do not ship a generic `execute_shell_command` / `execute_bash_command` tool in the first ReAct pass; replace it with narrow typed tools such as `execute_git_command`, `read_process_info`, and `read_system_logs`, using fixed binaries plus structured args.
-- [x] Write command sandbox ADR before any generic shell tool: no `sh -c` / `cmd /c`, no regex-only read-only policy, platform sandbox requirements, cwd/root limits, network/exfiltration controls, stdout/stderr capture, and denied-error observations for LLM self-correction.
-- [ ] Prototype platform command sandbox only after ADR: Linux `bwrap`/namespace/seccomp path, Windows restricted token/job/AppContainer-style constraints, macOS sandbox strategy, and explicit unsupported-platform behavior.
-- [x] Introduce a `SystemIndexer` trait for Agent filesystem tools with capability/status metadata and implementations for Windows Everything/Tantivy, macOS `mdfind`, Linux `plocate`/`locate`, plus bounded parallel `ignore` or `jwalk` fallback.
-- [x] For CLI indexers (`mdfind`, `plocate`, `locate`), use `Command::new` with fixed binary and args, parse stdout with limits, detect missing/stale indexes, and report graceful degradation instead of treating empty results as truth.
-- [x] Add OS search diagnostics: provider availability, index count/age when available, permission-denied count, fallback reason, visited count, timeout, cancellation, and source shown in the Agent UI.
-- [x] Replace DuckDuckGo HTML as the default Agent web path with structured adapters for SearXNG JSON and Tavily API; normalize title/url/snippet/content, trim to token budget, and preserve grounding sources.
-- [x] Keep DuckDuckGo HTML only as explicit best-effort fallback, surfacing parser failures as tool observations instead of pretending the search succeeded.
-- [ ] Persist ReAct step audit into Knowledge Store: provider request id, tool schemas offered, tool args preview, approval decision, observation summary, filtered/redacted sources, final answer, and failure/cancel reason.
-- [ ] Update the Agent frontend run view for LLM tool use: pending approval, approved/running/completed/denied tool states, stdout preview, observation count, redaction notices, and final grounded answer.
-- [ ] Regression tests: provider tool-call parsing, schema generation, observation loop max-step stop, cancellation while waiting/provider/tool running, one-shot approve/reject, unsafe command/tool denial, stdout/stderr truncation, provider timeout, unsupported provider, web-query redaction, stale/missing OS index fallback.
-- [ ] Manual validations: find JSON files, read-only file preview, latest web query, denied destructive shell request, typed git status command, project search through Everything/Tantivy/SystemIndexer, stale index warning, rejected approval self-correction, and final answer after tool observation.
+> 改動量極小、確定性高，插在搜尋和路徑修正之前。
 
-## Batch 5 - Plugin And WASM Runtime
+- [ ] 修 `NoteManager::sanitize_name()`：sanitize 後若結果為空（輸入全空白或全符號），回傳 `Err`，不產生 `.md`。
+- [ ] 加 reserved name 檢查：拒絕 `"."`、`".."`、Windows device names（`CON`、`NUL`、`PRN`、`AUX`、`COM1`–`COM9`、`LPT1`–`LPT9`）。
+- [ ] 單元測試：空輸入、純空白、reserved names、混合有效/無效字元。
 
-- [ ] Phase 4.8 WASM runtime proof-of-concept.
-- [ ] Phase 4.8 Host Functions API: log, get_setting, search_workspace, read_clipboard, http_fetch, run_action.
-- [ ] Phase 4.8 Plugin action registration.
-- [ ] Phase 4.8 Plugin search provider registration.
-- [ ] Phase 4.8 Plugin settings schema.
-- [ ] Phase 4.8 Plugin audit log into Knowledge Store.
-- [ ] Phase 4.8 Hot reload.
+---
 
-## Batch 6 - Future Features And Maintenance
+## Phase 5.2 — P1 Search Stream Fairness & Diagnostics
 
-- [ ] Smart Clipboard: classify code/url/path/email/json/error log/command/markdown/image and expose actions.
-- [ ] Dev Workflow Pack: git status/branch, cargo test, npm build, open project, search symbol, explain compiler error, create commit message.
-- [ ] Command chaining: `/search error | ai explain | note append`.
-- [ ] Universal Command Bar over app/file/note/history/command/action with AI fallback.
-- [ ] Keep shortcut docs synchronized with `README.md`.
-- [ ] Maintain panel first-open/ESC/resize regression checklist.
-- [ ] Add provider/action/search source metadata docs for user-facing diagnostics.
+### 5.2.A — Frontend Stream Merge Quota
 
-### /note + LazyVim Workflow (Feasibility Confirmed)
-- [x] Extend CommandUiType with Terminal(TerminalLaunchSpec); keep Inline/Panel unchanged.
-- [x] Update frontend BuiltinCommandResult type to support Terminal result.
-- [x] Change NoteCommand to parse:
-  /note
-  /note lazyvim
-  /note lazyvim [note-name]
-  /note lazyvim --path <absolute-or-relative-path>
-- [x] Inject NoteManager/config into NoteCommand, or route lazyvim branch through NoteHandler.
-- [x] Expose NoteManager path helpers:
-  notes_root()
-  resolve_named_note(name) -> absolute .md path
-  create_parent_dirs_for_file(path)
-- [x] Add nvim availability detection:
-  configured command -> PATH lookup -> fallback result.
-- [x] Add TerminalManager.create_pty_with_command(...), bypassing shell.
-- [x] Update terminal.open payload to accept launch spec.
-- [x] Update TerminalPanel to recreate PTY when launchId changes.
-- [x] Disable Escape-to-exit for LazyVim/editor sessions; use Ctrl+Alt+Esc or Ctrl+Shift+Q instead.
-- [x] Keep /note default behavior returning Panel("note").
-- [x] Add fallback behavior:
-  nvim missing -> Inline guidance, optionally "open builtin note editor" action later.
-- [x] Detect official LazyVim starter config and include LazyVim/LazyVim + LazyVim/starter guidance.
-- [x] Support notes.lazyvim_config_dir and terminal env injection for NVIM_APPNAME/XDG_CONFIG_HOME.
-- [x] Auto-bootstrap missing LazyVim starter config into project-local `.keynova/lazyvim/`.
-- [x] Keep LazyVim config/data/state/cache project-contained and git-ignored.
-- [x] Add tests for:
-  /note no args
-  /note lazyvim
-  /note lazyvim foo
-  /note lazyvim --path ...
-  path sanitization
-  nvim missing
-  LazyVim config missing
-  Terminal launch result serialization
-- [x] Verify automated:
-  npm run lint
-  npm run build
-  cargo test
-- [ ] Manual verify:
-  /note, /note lazyvim, /note lazyvim foo, Esc inside Vim, terminal exit shortcut
+- [ ] 將後端 `sort_balanced_truncate()` 的 per-source quota 邏輯移植到前端 `mergeSearchResults()`，防止 history/app/command 先填滿 limit 後，晚到 file chunk 被 `slice(0, limit)` 靜默丟棄。
+- [ ] 後端 worker 在所有 provider 完成後送出 final balanced batch，payload 結構：
+  ```ts
+  type SearchChunkPayload = {
+    request_id: string;
+    generation: number;
+    chunk_index: number;
+    items: SearchResult[];
+    done: boolean;
+    replace?: boolean; // final balanced batch 時為 true
+    diagnostics?: SearchChunkDiagnostics;
+  };
+  ```
+- [ ] 前端邏輯：`if replace: setResults(items)`，`else: mergeSearchResults(...)`。
+  - 注意：final batch 裡的 ActionRef 必須來自同一個 action session；若 generation 不同，前端須忽略舊 generation 的 batch。
+- [ ] 驗證：app/command/history 已滿 display limit 時，file results 仍可見。
 
+### 5.2.B — Search Stream Diagnostics
+
+- [ ] 在後端新增 `SearchChunkDiagnostics` struct：`provider`、`elapsed_ms`、`timed_out`、`file_cache_entries`、`tantivy_index_entries`、`everything_available`、`returned_count`、`truncated_by_score`、`fallback_reason`。
+- [ ] 將 diagnostics 包進 `search.results.chunk` payload（不另開事件）。
+- [ ] 前端 footer 顯示可讀訊息：
+  - `File search: Tantivy index empty, using cache fallback`
+  - `File search: Everything unavailable`
+  - `File search: returned N files, M hidden by display limit`
+  - `File search: provider timed out after 800ms`
+- [ ] 在真實 app 中確認 live backend readiness：`file_cache_entries`、`tantivy_index_entries`、`everything_available`、file provider result count、elapsed time、timeout 狀態。
+
+---
+
+## Phase 5.3 — P1 Cross-Platform Config Paths
+
+### 5.3.A — ConfigManager Path Fix
+
+- [ ] 替換 `ConfigManager::user_config_path()` 中的 `APPDATA`-only 邏輯，改用正確的跨平台路徑：
+  - Windows：`%APPDATA%\Keynova\config.toml`
+  - macOS：`~/Library/Application Support/Keynova/config.toml`
+  - Linux：`$XDG_CONFIG_HOME/keynova/config.toml`，fallback `~/.config/keynova/config.toml`
+- [ ] 使用 `dirs` crate（`dirs::config_dir()`）或 `#[cfg(target_os)]`；禁止 fallback 到 `"."`。
+
+### 5.3.B — 對齊所有資料路徑消費者
+
+- [ ] 將同樣的 platform-correct base dir 套用到 `HistoryManager`、`NoteManager`、Tantivy index 預設路徑、Knowledge Store DB 路徑。
+- [ ] Regression：從非預期 cwd 啟動 app，確認 config/notes/history 寫入正確的 OS 目錄。
+
+### 5.3.C — Legacy Path Migration
+
+- [ ] 啟動時偵測：若新 OS config dir 尚無資料，但舊路徑（`./Keynova/` 或 cwd-based APPDATA fallback）存在，執行以下流程：
+  - `config.toml`：自動複製一次。
+  - `notes/`、`history/`、db、search index：提示使用者或靜默複製（根據資料量決定）。
+  - 寫入 `migration_complete` marker，避免重複執行。
+- [ ] 確保升級後使用者筆記、history、設定不會憑空消失。
+
+---
+
+## Phase 5.4 — P1 Default AI Provider & First-Run UX
+
+- [ ] 修改 `default_config.toml`：預設 provider 改為 `"ollama"`，`model = "qwen2.5:7b"`（符合 local-first ADR）。
+- [ ] First-run / 每次 `/ai` 開啟時檢測：
+  1. Ollama daemon 是否 reachable（`http://localhost:11434/api/tags`）。
+  2. 目標 model 是否已 pull（比對 tags list）。
+  3. 若 daemon 不可達或 model 不存在，`AiPanel` 顯示 setup card：
+     - Step 1：安裝 Ollama（附連結）
+     - Step 2：`ollama pull qwen2.5:7b`（或根據 RAM 推薦 `qwen2.5:1.5b` / `llama3.2:1b`）
+     - Step 3：或切換到 OpenAI / Claude（填 API key）
+- [ ] RAM-based 推薦：`model_manager` 已有硬體推薦邏輯，first-run 可直接呼叫，推薦 model 顯示在 setup card。
+- [ ] 若 provider = "claude" 且 `api_key = ""`，同樣觸發 setup card，不在送出後才報錯。
+- [ ] 更新 `README.md` local-first 段落，反映新預設值。
+
+---
+
+## Phase 5.5 — P0 Agent ReAct Loop Wiring（長期主線，分批 merge）
+
+> 不一次做完。每個子步驟獨立可測，通過 `cargo test` / `npm run build` 後即可 merge。
+
+### 5.5.A1 — Provider Trait / Interface 定義
+
+- [ ] 在 `managers/ai_manager.rs` 定義 provider trait：`chat_with_tools(messages, tools) -> ToolCallResponse`。
+- [ ] `ToolCallResponse`：`{ tool_calls: Vec<AiToolCallRequest>, final_text: Option<String> }`。
+- [ ] 移除 `AiToolDefinition`、`AiToolCallRequest`、`AiToolObservation`、`AiToolTurn` 上的 `#[allow(dead_code)]`。
+
+### 5.5.A2 — FakeToolCallProvider（僅測試用）
+
+- [ ] 實作 `FakeToolCallProvider`：可設定「本輪回傳 tool call X」或「本輪回傳 final text Y」。
+- [ ] 用於 5.5.B1 skeleton 的整合測試，不進 production 路徑。
+
+### 5.5.B1 — ReAct Loop Skeleton（FakeProvider + keynova.search）
+
+- [ ] 在 `core/agent_runtime.rs` 實作最小 ReAct 迴圈：filtered context → inject schemas → call provider → parse tool calls → execute `keynova.search` → redact observation → append → 下一輪。
+- [ ] 停止條件：final text / cancel / timeout / max_steps。
+- [ ] 每步向前端 emit `agent.step { step, tool_name, status, observation_preview }`。
+- [ ] 所有測試用 FakeProvider；此步驟不接真 LLM。
+
+### 5.5.A3 — OpenAI-Compatible Provider Tool-Call Parsing
+
+- [ ] 實作 OpenAI-compatible `chat_with_tools()`：對應 `tools` + `tool_choice` request fields；解析 response choice 中的 `tool_calls`。
+- [ ] Provider 不支援 tool calls 時回傳 typed `UnsupportedToolCallError`。
+
+### 5.5.A4 — Ollama Provider Tool-Call Support
+
+- [ ] 實作 Ollama `chat_with_tools()`：對應 function-calling format（若模型支援）。
+- [ ] 不支援時回傳 `UnsupportedToolCallError`，觸發 5.5.C offline fallback。
+
+### 5.5.B2 — 加入 filesystem.read / filesystem.search 工具
+
+- [ ] 在已通過的 ReAct loop skeleton 上加入 `filesystem.read`（read-only preview）和 `filesystem.search` 工具。
+- [ ] 整合 SystemIndexer 作為 `filesystem.search` 後端。
+
+### 5.5.B3 — 加入 approval-gated git.status
+
+- [ ] 加入 `git.status` tool spec，標記為 approval-required。
+- [ ] 整合既有 approval gate；確認未批准前不執行。
+
+### 5.5.C — Move Heuristics to Offline Fallback
+
+- [ ] 在 `handlers/agent.rs` 中，將 `direct_local_answer()`、`sources_for_prompt()`、`detect_planned_action()` 移入 `provider_supports_tool_calls == false` 或 `agent.mode = "offline"` 的分支。
+- [ ] 正常模式：LLM 決定 tool calls；heuristics 僅在 provider 不可用或模型不支援 function calling 時啟動。
+
+### 5.5.D — Platform Command Sandbox（Research Only, Blocked）
+
+- [ ] 探索 Linux `bwrap`/seccomp、Windows restricted token/job、macOS `sandbox-exec` 的可行性。
+- [ ] **不進 main，不暴露 generic shell tool**。保持 research branch 狀態，等 ADR-027 批准後才進入 product 路徑。
+
+### 5.5.E — Persist ReAct Audit
+
+- [ ] 將每個 ReAct step 持久化到 Knowledge Store `agent_audit_logs`：`request_id`、tool schemas、args preview、approval decision、observation summary、redacted sources、final answer、failure/cancel reason。
+
+### 5.5.F — Frontend Agent Run View
+
+- [ ] 更新 `AiPanel` run view：pending approval 指示器、approved/running/completed/denied tool 狀態、stdout preview、observation count、redaction notices、final grounded answer。
+
+### 5.5.G — ReAct Regression Tests
+
+- [ ] Provider tool-call parsing、schema generation、loop max-step stop。
+- [ ] Cancellation、one-shot approve/reject、unsafe-command denial。
+- [ ] stdout/stderr 截斷、provider timeout、web-query redaction、stale OS index fallback。
+
+### 5.5.H — ReAct Manual Validations
+
+- [ ] JSON file find、read-only preview、web query。
+- [ ] Denied shell request、git status command（approval-gated）。
+- [ ] Project search via Everything/Tantivy/SystemIndexer。
+- [ ] Stale index warning、rejected-approval self-correction、final grounded answer。
+
+---
+
+## Phase 5.6 — P1 Agent Quality & Existing Regressions
+
+- [ ] Agent planning quality：no-action runs 解釋 Keynova 下一步能做什麼；減少意外的 panel/action matches；high-risk actions 維持在 explicit approval 後方。
+- [ ] Regression tests：cancellation/reject lifecycle、one-shot approval、tool error surfacing、prompt budget truncation、private architecture denial、secret redaction、web-query redaction。
+- [ ] External agent integration contract：定義最小 provider 介面，允許 plan + tool requests + Keynova-safe action proposals，且不繞過 approval/audit。
+- [ ] Manual validation script：local search、feature search、private architecture denial、note draft approval、terminal approval、rejected approval、disabled web search、action payload handoff。
+
+---
+
+## Phase 5.7 — P1/P2 Search & Index Alignment
+
+### 5.7.A — Agent/Launcher Tantivy Index Unification（可提前至 5.3 後）
+
+- [ ] 修 `system_indexer.rs` `search_system_index()`：接收來自 config 的 `tantivy_index_dir`，不再呼叫 `resolve_index_dir(None)`。
+- [ ] 引入 `SystemIndexerConfig { tantivy_index_dir, roots, timeout, max_visited }`，從 `SearchManager` config 傳入，確保 Agent 和 launcher 使用同一個 index。
+- [ ] 提前原因：Agent 和 launcher index 不同會讓搜尋診斷結果混亂，建議在 5.3 路徑統一後即執行。
+
+### 5.7.B — Non-Windows Launcher File Search（建議升至 P1）
+
+- [ ] 修 `SearchManager::file_results_for_backend()` 在非 Windows 上改用 `SystemIndexer`（macOS `mdfind`、Linux `plocate`/`locate`、`ignore` fallback），不再回傳 `Vec::new()`。
+- [ ] Launcher 和 Agent 在 Linux/macOS 上產生一致的 file results。
+- [ ] 注意：維持跨平台承諾需要此項；若主要開發環境仍為 Windows，可暫保持 P2。
+
+---
+
+## Phase 5.9 — Plugin & WASM Runtime
+
+- [ ] WASM runtime proof-of-concept。
+- [ ] Host Functions API：`log`、`get_setting`、`search_workspace`、`read_clipboard`、`http_fetch`、`run_action`。
+- [ ] Plugin action/search provider 註冊。
+- [ ] Plugin settings schema。
+- [ ] Plugin audit log 寫入 Knowledge Store。
+- [ ] Hot reload。
+
+---
+
+## Phase 5.10 — Future Features & Maintenance
+
+- [ ] Smart Clipboard：classify code/url/path/email/json/error log/command/markdown/image 並提供 actions。
+- [ ] Dev Workflow Pack：git status/branch、cargo test、npm build、open project、search symbol、explain compiler error、create commit message。
+- [ ] Command chaining：`/search error | ai explain | note append`。
+- [ ] Universal Command Bar：跨 app/file/note/history/command/action，AI fallback。
+- [ ] 保持快捷鍵文件與 `README.md` 同步。
+- [ ] 維護 panel first-open/ESC/resize regression checklist。
+- [ ] 新增 provider/action/search source metadata 文件供 user-facing diagnostics 使用。
+- [ ] 手動驗收 /note LazyVim：`/note`、`/note lazyvim`、`/note lazyvim foo`、Vim 內 Esc、terminal exit shortcut。
+
+---
 
 ## Blocked
 
-- None.
+- Phase 5.5.D（platform sandbox）— Research branch only。等待 ADR-027 批准後才進 product；generic shell tool 不在此前解封。

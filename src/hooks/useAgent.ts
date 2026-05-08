@@ -116,7 +116,7 @@ async function ipcDispatch<T>(route: string, payload?: Record<string, unknown>):
 
 function upsertRunChronologically(prev: AgentRun[], run: AgentRun): AgentRun[] {
   const index = prev.findIndex((item) => item.id === run.id);
-  if (index === -1) return [...prev, run];
+  if (index === -1) return [run, ...prev];
   return prev.map((item) => (item.id === run.id ? run : item));
 }
 
