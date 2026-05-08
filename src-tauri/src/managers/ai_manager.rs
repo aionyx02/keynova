@@ -100,7 +100,6 @@ where
 }
 
 /// Provider-neutral tool definition offered to models that support function/tool calling.
-#[allow(dead_code)]
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct AiToolDefinition {
     pub name: String,
@@ -109,7 +108,6 @@ pub struct AiToolDefinition {
 }
 
 /// A model-requested tool call after provider-specific response normalization.
-#[allow(dead_code)]
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct AiToolCallRequest {
     pub id: String,
@@ -118,6 +116,7 @@ pub struct AiToolCallRequest {
 }
 
 /// Observation returned to the model after Keynova executes or denies a tool request.
+/// Used by provider implementations (A3/A4) to format tool results for their specific API.
 #[allow(dead_code)]
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct AiToolObservation {
@@ -125,8 +124,7 @@ pub struct AiToolObservation {
     pub content: String,
 }
 
-/// One provider turn in the future ReAct loop: either final text or tool requests.
-#[allow(dead_code)]
+/// One provider turn in the ReAct loop: either final text or tool requests.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum AiToolTurn {
@@ -134,12 +132,50 @@ pub enum AiToolTurn {
     ToolCalls { tool_calls: Vec<AiToolCallRequest> },
 }
 
+/// Returns whether this provider variant is expected to support tool/function calling.
+/// Used by `agent.start` (5.5.C) to select between heuristic and ReAct paths.
 #[allow(dead_code)]
 pub fn provider_supports_tool_calls(provider: &AiProvider) -> bool {
     matches!(
         provider,
         AiProvider::OpenAI { .. } | AiProvider::Ollama { .. }
     )
+}
+
+/// Error variants a `ToolCallProvider` can return.
+#[derive(Debug, Clone)]
+pub enum ToolCallError {
+    /// This provider or model does not support function/tool calling.
+    Unsupported,
+    /// Network or API-level failure.
+    Network(String),
+    /// Could not parse the provider's response into a known format.
+    Parse(String),
+}
+
+impl std::fmt::Display for ToolCallError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Unsupported => write!(f, "provider does not support tool calls"),
+            Self::Network(e) => write!(f, "network error: {e}"),
+            Self::Parse(e) => write!(f, "parse error: {e}"),
+        }
+    }
+}
+
+/// Capability: respond to a message thread with tool schemas, returning either
+/// a batch of model-requested tool calls or a final text answer.
+///
+/// Implementations: `FakeToolCallProvider` (tests), OpenAI-compatible (5.5.A3),
+/// Ollama (5.5.A4).
+pub trait ToolCallProvider: Send + Sync {
+    fn chat_with_tools(
+        &self,
+        messages: &[AiMessage],
+        tools: &[AiToolDefinition],
+        max_tokens: u32,
+        timeout_secs: u64,
+    ) -> Result<AiToolTurn, ToolCallError>;
 }
 
 /// Claude API response format used by the messages endpoint.
