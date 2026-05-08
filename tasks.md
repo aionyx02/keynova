@@ -130,23 +130,25 @@ Last full verification baseline: `npm run build`, `npm run lint`, `cargo test`, 
 
 > 不一次做完。每個子步驟獨立可測，通過 `cargo test` / `npm run build` 後即可 merge。
 
-### 5.5.A1 — Provider Trait / Interface 定義
+### 5.5.A1 — Provider Trait / Interface 定義 ✓
 
-- [ ] 在 `managers/ai_manager.rs` 定義 provider trait：`chat_with_tools(messages, tools) -> ToolCallResponse`。
-- [ ] `ToolCallResponse`：`{ tool_calls: Vec<AiToolCallRequest>, final_text: Option<String> }`。
-- [ ] 移除 `AiToolDefinition`、`AiToolCallRequest`、`AiToolObservation`、`AiToolTurn` 上的 `#[allow(dead_code)]`。
+- [x] `ToolCallProvider` trait：`chat_with_tools(messages, tools, max_tokens, timeout_secs) -> Result<AiToolTurn, ToolCallError>`。
+- [x] `ToolCallError` enum：`Unsupported / Network / Parse` 三種錯誤，有 Display 實作。
+- [x] 移除 `AiToolDefinition`、`AiToolCallRequest`、`AiToolTurn` 上的 `#[allow(dead_code)]`。`AiToolObservation` 和 `provider_supports_tool_calls` 保留 allow（A3/A4 實作前暫未使用）。
 
-### 5.5.A2 — FakeToolCallProvider（僅測試用）
+### 5.5.A2 — FakeToolCallProvider（僅測試用）✓
 
-- [ ] 實作 `FakeToolCallProvider`：可設定「本輪回傳 tool call X」或「本輪回傳 final text Y」。
-- [ ] 用於 5.5.B1 skeleton 的整合測試，不進 production 路徑。
+- [x] `managers/fake_provider.rs`（`#[cfg(test)]` 模組）：`single_final` / `tool_then_final` 構造器。
+- [x] 2 個單元測試：空 turns 後回傳 Err；tool+final 順序正確。
 
-### 5.5.B1 — ReAct Loop Skeleton（FakeProvider + keynova.search）
+### 5.5.B1 — ReAct Loop Skeleton（FakeProvider + keynova.search）✓
 
-- [ ] 在 `core/agent_runtime.rs` 實作最小 ReAct 迴圈：filtered context → inject schemas → call provider → parse tool calls → execute `keynova.search` → redact observation → append → 下一輪。
-- [ ] 停止條件：final text / cancel / timeout / max_steps。
-- [ ] 每步向前端 emit `agent.step { step, tool_name, status, observation_preview }`。
-- [ ] 所有測試用 FakeProvider；此步驟不接真 LLM。
+- [x] `react_loop_body` + `ReactLoopConfig` + `ToolDispatch` 類型別名 in `agent_runtime.rs`。
+- [x] `spawn_react_loop`：把 loop_body 搬到 background thread。
+- [x] 停止條件：FinalText / cancel / provider error / max_steps 超限 → Failed。
+- [x] 每步 emit `agent.step { run_id, step, tool_name, status, observation_preview }`。
+- [x] Approval-required tool 在 B1 自動略過（B3 加入 gate）。
+- [x] 4 個整合測試（single-final, tool+final, cancel mid-loop, max-steps exceeded）全通過，無真實 LLM。
 
 ### 5.5.A3 — OpenAI-Compatible Provider Tool-Call Parsing
 
