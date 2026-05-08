@@ -32,6 +32,16 @@ Last full verification baseline: `npm run build`, `npm run lint`, `cargo test`, 
 - [x] Phase 2/4.4 Offline file provider path for the `tantivy` backend preference using the existing rebuilt file cache.
 - [x] Phase 2/4.4 Persisted Tantivy index with real Tantivy schema and on-disk index storage.
 
+### Active Search Bug - File Results Hidden
+
+- [x] Confirmed likely pipeline shape: stream first batch uses `fast_results` and excludes files; file/folder results arrive later through `file_results_with_timeout`.
+- [x] Confirmed frontend risk: chunk merge can truncate to `launcher.max_results` before late file results get a fair sorted pass.
+- [x] Confirmed ranking risk: history/workspace results can monopolize the visible limit when file fallback scores are lower.
+- [ ] Confirm live backend readiness in the running app: `file_cache_entries`, `tantivy_index_entries`, `everything_available`, file provider result count, elapsed time, and timeout state.
+- [x] Fix search result presentation with diversity-aware re-ranking so history cannot hide all file/folder results: added `SearchPlan` with per-provider quotas (app=8, cmd=8, note=8, history=12, model=6), file candidate pool = display_limit×6 (min 120), worker now only fetches file results (no fast_results re-run), added `sort_balanced_truncate` with per-source caps.
+- [ ] Fix stream diagnostics so the UI clearly distinguishes file-provider timeout, empty file cache, empty Tantivy index, and score-based truncation.
+- [x] Add regression coverage for late file chunks merging into a history-filled first batch: `sort_balanced_truncate_respects_per_source_quotas` test verifies history capped at 12 even when 20 high-score history items flood the pool.
+
 ## Batch 3 - Workspace And Knowledge
 
 - [x] Phase 4.3 Bind terminal sessions to current workspace.

@@ -104,11 +104,11 @@
 
 | 日期 | 完成事項 | 遺留問題 |
 |------|----------|----------|
+| 2026-05-08 | 修正 file/folder 搜尋結果被擠掉問題：引入 `SearchPlan`（per-provider quota：app=8/cmd=8/note=8/history=12/model=6/file=display×6 min 120）；stream worker 改為只取 file 結果；`sort_balanced_truncate` 防止非 file 佔滿顯示位；`file_results_with_timeout` 加 generation 早期退出；修正 command description-only 匹配分數過高（下調至 40，低於 file=80）：prefix=90, substring=85, desc-only=40；6 個測試全通過 | 仍需在真實 app 手動確認 file/folder 搜尋可見；stream diagnostics 尚未做 |
 | 2026-05-06 | Phase 2 搜尋、Knowledge Store、Plugin loader 補齊：backend preference/active 選擇可測試、`search.backend` structured debug info、搜尋框 backend badge、`/rebuild_search_index` 背景重建 file cache、`[search]` config/schema、CSP connect-src 放行、`hotkey.register` 轉 structured `not_implemented`；DB worker 補 action/clipboard batch insert 與 shutdown flush；plugin.toml/json loader 會驗證 permission deny-by-default | Tantivy provider、WASM runtime proof-of-concept 尚未接入；BUG-1/BUG-4 仍建議在真實 DevTools/視窗手動確認 |
 | 2026-05-06 | Phase 4.4/4.5A：搜尋 backend generation/cancel 可丟棄 stale provider results；AgentHandler 注入 config/note/history/workspace/command/model context；新增 `agent.tool`，實作 `keynova.search` 與 SearXNG `web.search`；新增 private architecture/secret web-query redaction tests | `web.search` 預設 disabled，需設定 `agent.web_search_provider=searxng` 與 `agent.searxng_url`；尚未做 Agent approval/action phases 與 audit 寫入 Knowledge Store |
 | 2026-05-06 | 修正 BUG-15：lazy panel 首次開啟後內容載入完成未觸發 Tauri window resize，導致 UI 裁切、背景殘影與外層 scrollbar；改用 ResizeObserver/MutationObserver 同步高度，並關閉 root/body overflow | 需在真實 Tauri 視窗手動確認 `/cal`、`/ai`、`/history`、`/model_list` 首次開啟皆正常 |
-| 2026-05-06 | Phase 4 foundation：ActionArena/ActionRef、UiSearchItem、action.run、secondary actions、schema-driven settings、Workspace v2、KnowledgeStore DB worker、Agent mode UI/runtime skeleton、Automation/Plugin security model；新增 ai/privacy/plugin/runtime docs；build/lint/test/clippy 全通過 | 尚未完成 `lib.rs` app 模組拆分、search chunk streaming/cancellation token、Tantivy provider、Agent 真實 web/keynova tool、WASM loader/hot reload |
-| 2026-05-06 | 補強 `/ai` Agent 搜尋與隱私規劃：加入 `web.search`、`keynova.search`、GroundingSource、context visibility、architecture denylist、prompt allowlist，確保專案架構可本地索引但不注入 LLM prompt | 尚未實作；需先做 context privacy 文件與 visibility filter，避免外部 LLM 看見 private architecture |
+| 2026-05-06 | Phase 4 foundation：ActionArena/ActionRef、UiSearchItem、action.run、secondary actions、schema-driven settings、Workspace v2、KnowledgeStore DB worker、Agent mode UI/runtime skeleton、Automation/Plugin security model；補強 /ai Agent 搜尋隱私：web.search/keynova.search、visibility filter、architecture denylist | Phase 4 foundation 與 Agent 隱私規劃完成；WASM loader/hot reload 仍待做 |
 
 ## 2026-05-06 架構邊界與修正定位索引
 

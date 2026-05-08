@@ -352,11 +352,7 @@ impl SearchManager {
                             },
                             name,
                             path,
-                            score: if backend == SearchBackend::Tantivy {
-                                75
-                            } else {
-                                70
-                            },
+                            score: 80,
                         })
                         .collect()
                 }
