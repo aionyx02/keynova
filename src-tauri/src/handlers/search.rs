@@ -18,6 +18,7 @@ use crate::models::action::{Action, UiSearchItem};
 use crate::models::search_result::{ResultKind, SearchResult};
 
 const DEFAULT_FIRST_BATCH_LIMIT: usize = 30;
+
 const DEFAULT_CHUNK_SIZE: usize = 30;
 const PROVIDER_TIMEOUT: Duration = Duration::from_millis(800);
 

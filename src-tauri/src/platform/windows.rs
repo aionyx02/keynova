@@ -370,28 +370,107 @@ fn collect_all(dir: &Path, out: &mut Vec<FileEntry>, depth: usize) {
 }
 
 /// 回傳 (目錄路徑, 最大掃描深度) 清單。
+///
+/// 不使用硬編碼目錄名稱（如 "Dropbox"、"OneDrive - Personal"）——這些名稱因語系、
+/// 使用者設定而異。改用：
+/// - OS 標準子目錄（Desktop/Downloads/Documents 等，這些在 Windows 上名稱固定）
+/// - OneDrive env var（Microsoft sync client 設定，不受資料夾名稱影響）
+/// - Dropbox info.json（Dropbox 自己的規範格式，包含實際路徑）
+/// - 全磁碟掃描覆蓋其餘位置（global_drive_dirs）
 fn user_search_dirs() -> Vec<(std::path::PathBuf, usize)> {
-    let mut dirs = Vec::new();
-    if let Ok(home) = std::env::var("USERPROFILE") {
-        let home = std::path::PathBuf::from(home);
-        for sub in &[
-            "Desktop",
-            "Downloads",
-            "Documents",
-            "Pictures",
-            "Music",
-            "Videos",
-        ] {
-            let p = home.join(sub);
-            if p.exists() {
-                dirs.push((p, 3));
+    let mut seen = std::collections::HashSet::new();
+    let mut dirs: Vec<(std::path::PathBuf, usize)> = Vec::new();
+
+    let mut add = |path: std::path::PathBuf, depth: usize| {
+        if path.exists() && seen.insert(path.clone()) {
+            dirs.push((path, depth));
+        }
+    };
+
+    if let Ok(home_str) = std::env::var("USERPROFILE") {
+        let home = std::path::PathBuf::from(&home_str);
+
+        // OS-standardised user dirs: names are fixed by Windows shell APIs.
+        for sub in &["Desktop", "Downloads", "Documents", "Pictures", "Music", "Videos"] {
+            add(home.join(sub), 4);
+        }
+
+        // OneDrive: read the path that the sync client writes to env vars.
+        // Works regardless of the folder's display name or relocated root.
+        for key in &["OneDrive", "OneDriveConsumer", "OneDriveCommercial"] {
+            if let Ok(value) = std::env::var(key) {
+                add(std::path::PathBuf::from(value), 4);
             }
         }
-        dirs.push((home, 2));
+
+        // Dropbox: read the canonical path from its own config file.
+        // info.json is the authoritative source; the folder name is irrelevant.
+        for p in dropbox_paths() {
+            add(std::path::PathBuf::from(p), 4);
+        }
+
+        // Home at shallow depth as a catch-all for anything not covered above.
+        add(home, 2);
     }
+
     dirs.extend(global_drive_dirs());
     dirs.extend(wsl_home_dirs());
     dirs
+}
+
+/// Reads every `"path"` entry from a Dropbox `info.json` file.
+/// The file format is: `{ "personal": { "path": "C:\\Users\\foo\\Dropbox" }, ... }`
+fn dropbox_paths() -> Vec<String> {
+    let mut paths = Vec::new();
+    for env_key in &["LOCALAPPDATA", "APPDATA"] {
+        if let Ok(base) = std::env::var(env_key) {
+            let info = std::path::PathBuf::from(base).join("Dropbox").join("info.json");
+            if let Ok(content) = std::fs::read_to_string(info) {
+                paths.extend(extract_json_path_values(&content));
+                if !paths.is_empty() {
+                    break;
+                }
+            }
+        }
+    }
+    paths
+}
+
+/// Minimal extraction of every `"path": "<value>"` entry from a JSON string.
+/// Avoids pulling in serde_json for a single known-format file.
+fn extract_json_path_values(json: &str) -> Vec<String> {
+    let mut paths = Vec::new();
+    let mut s = json;
+    while let Some(pos) = s.find("\"path\"") {
+        s = &s[pos + 6..];
+        let after = s.trim_start();
+        if !after.starts_with(':') {
+            continue;
+        }
+        let after = after[1..].trim_start();
+        if !after.starts_with('"') {
+            continue;
+        }
+        let content = &after[1..];
+        let mut end = 0;
+        let bytes = content.as_bytes();
+        while end < bytes.len() {
+            if bytes[end] == b'\\' {
+                end += 2; // skip escaped char
+            } else if bytes[end] == b'"' {
+                break;
+            } else {
+                end += 1;
+            }
+        }
+        if end <= content.len() {
+            let path = content[..end].replace("\\\\", "\\");
+            if !path.is_empty() {
+                paths.push(path);
+            }
+        }
+    }
+    paths
 }
 
 /// Enumerates available C-Z drives with bounded depth while skipping system directories.
@@ -407,17 +486,37 @@ fn global_drive_dirs() -> Vec<(std::path::PathBuf, usize)> {
 }
 
 /// 透過 wsl.exe --list 取得已安裝的發行版名稱，
-/// 再直接構建 \\wsl.localhost\<Distro>\home 路徑（WSL2 執行中時可存取）。
+/// 枚舉 \\wsl.localhost\<Distro>\home 下的每個使用者目錄並各自加入索引根。
+///
+/// 直接加入 /home 根時，使用者的 ~/projects/code/file.py 需要 depth 3 才能到達，
+/// 但 /home 本身消耗一層 → 只能掃到 ~/code/file.py（2 層）。
+/// 改成枚舉 /home/<user>，每個使用者 home 獨立獲得 depth 4，才能覆蓋常見的
+/// ~/projects/<repo>/<file> 層級。
 fn wsl_home_dirs() -> Vec<(std::path::PathBuf, usize)> {
     let mut dirs = Vec::new();
     let distros = wsl_distro_names();
 
-    // 先嘗試 wsl.localhost（Windows 11+），再嘗試舊版 wsl$
     for prefix in &[r"\\wsl.localhost", r"\\wsl$"] {
         for distro in &distros {
-            let home = std::path::PathBuf::from(format!(r"{}\{}\home", prefix, distro));
-            if home.exists() {
-                dirs.push((home, 3));
+            let home_root =
+                std::path::PathBuf::from(format!(r"{}\{}\home", prefix, distro));
+            if !home_root.exists() {
+                continue;
+            }
+            // Enumerate individual user home dirs so each gets a fresh depth budget.
+            let mut found_any = false;
+            if let Ok(entries) = std::fs::read_dir(&home_root) {
+                for entry in entries.flatten() {
+                    let user_home = entry.path();
+                    if user_home.is_dir() {
+                        dirs.push((user_home, 4));
+                        found_any = true;
+                    }
+                }
+            }
+            if !found_any {
+                // Can't enumerate — fall back to /home with reduced depth.
+                dirs.push((home_root, 3));
             }
         }
         if !dirs.is_empty() {
@@ -654,5 +753,27 @@ mod tests {
             .collect::<Vec<_>>();
         let names = parse_wsl_distro_names(&bytes);
         assert_eq!(names, vec!["Ubuntu", "Debian"]);
+    }
+
+    #[test]
+    fn extracts_dropbox_personal_path() {
+        let json = r#"{"personal":{"path":"C:\\Users\\shawn\\Dropbox","host":123}}"#;
+        let paths = extract_json_path_values(json);
+        assert_eq!(paths, vec!["C:\\Users\\shawn\\Dropbox"]);
+    }
+
+    #[test]
+    fn extracts_multiple_dropbox_paths() {
+        let json = r#"{"personal":{"path":"C:\\Dropbox"},"business":{"path":"D:\\DropboxWork"}}"#;
+        let paths = extract_json_path_values(json);
+        assert_eq!(paths.len(), 2);
+        assert!(paths.contains(&"C:\\Dropbox".to_string()));
+        assert!(paths.contains(&"D:\\DropboxWork".to_string()));
+    }
+
+    #[test]
+    fn dropbox_extraction_handles_empty_json() {
+        assert!(extract_json_path_values("{}").is_empty());
+        assert!(extract_json_path_values("").is_empty());
     }
 }
