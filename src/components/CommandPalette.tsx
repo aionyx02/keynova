@@ -10,7 +10,7 @@ import { useCommands } from "../hooks/useCommands";
 import { CommandSuggestions } from "./CommandSuggestions";
 import { PanelRegistry } from "./panel/PanelRegistry";
 import { WorkspaceIndicator } from "./WorkspaceIndicator";
-import type { SearchChunkPayload, SearchErrorPayload, SearchIconAsset, SearchMetadata, SearchResult } from "../types/search";
+import type { SearchChunkDiagnostics, SearchChunkPayload, SearchErrorPayload, SearchIconAsset, SearchMetadata, SearchResult } from "../types/search";
 import type { ActionRef } from "../types/search";
 import type { BuiltinCommandResult } from "../hooks/useCommands";
 import type { WorkspaceState } from "../hooks/useWorkspace";
@@ -185,6 +185,7 @@ export function CommandPalette() {
   const [metadataByPath, setMetadataByPath] = useState<Record<string, SearchMetadata>>({});
   const [iconsByKey, setIconsByKey] = useState<Record<string, SearchIconAsset>>({});
   const [timedOutProviders, setTimedOutProviders] = useState<string[]>([]);
+  const [fileDiagnostics, setFileDiagnostics] = useState<SearchChunkDiagnostics | null>(null);
   const [copiedPath, setCopiedPath] = useState<string | null>(null);
 
   const inputRef = useRef<HTMLInputElement>(null);
@@ -321,6 +322,9 @@ export function CommandPalette() {
       if (payload.request_id !== activeSearchRequestRef.current) return;
       if (payload.timed_out_providers?.length) {
         setTimedOutProviders(payload.timed_out_providers);
+      }
+      if (payload.diagnostics) {
+        setFileDiagnostics(payload.diagnostics);
       }
       if (payload.replace) {
         // Final balanced batch from backend — replace results entirely.
@@ -559,6 +563,7 @@ export function CommandPalette() {
       setResults([]);
       setSelected(0);
       setTimedOutProviders([]);
+      setFileDiagnostics(null);
       activeSearchRequestRef.current = "";
       if (debounceRef.current) clearTimeout(debounceRef.current);
       void dispatch("search.cancel").catch(() => {});
@@ -571,6 +576,7 @@ export function CommandPalette() {
       activeSearchRequestRef.current = requestId;
       setLoading(true);
       setTimedOutProviders([]);
+      setFileDiagnostics(null);
       try {
         const data = await dispatch<SearchResult[]>("search.query", {
           query: ri,
@@ -743,15 +749,27 @@ export function CommandPalette() {
   const panelKey = `${cmdResult ? "command" : "live"}:${activePanelName}:${panelInitialArgs}`;
   const selectedResult = results[selected] ?? null;
   const selectedMetadata = selectedResult ? metadataByPath[selectedResult.path] : null;
+  const fileSearchDiagHint = (() => {
+    if (!fileDiagnostics) return null;
+    const d = fileDiagnostics;
+    if (d.timed_out) return `File search: provider timed out after 800ms`;
+    if (d.fallback_reason) return `File search: ${d.fallback_reason}`;
+    const hidden = d.pre_balance_count - d.returned_count;
+    if (hidden > 0) return `File search: ${d.returned_count} shown, ${hidden} hidden by display limit`;
+    return null;
+  })();
+
   const searchFooterHint = copiedPath
     ? `Copied path: ${copiedPath}`
-    : timedOutProviders.length > 0
+    : timedOutProviders.length > 0 && !fileDiagnostics
       ? `Timed out: ${timedOutProviders.join(", ")}`
-      : selectedMetadata?.preview
-        ? selectedMetadata.preview
-        : selectedMetadata?.size_bytes !== undefined
-          ? `${selectedMetadata.size_bytes.toLocaleString()} bytes`
-          : "↑↓ 選擇";
+      : fileSearchDiagHint ?? (
+          selectedMetadata?.preview
+            ? selectedMetadata.preview
+            : selectedMetadata?.size_bytes !== undefined
+              ? `${selectedMetadata.size_bytes.toLocaleString()} bytes`
+              : "↑↓ 選擇"
+        );
 
   const terminalOnExit = () => {
     // Move focus to container first so terminal becoming display:none

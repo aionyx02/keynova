@@ -75,16 +75,16 @@ Last full verification baseline: `npm run build`, `npm run lint`, `cargo test`, 
 - [x] `SearchChunkPayload` 加 `replace?: boolean`；chunk listener 遇到 `replace: true` 直接 `setResults(applySourceQuotas(sortSearchResults(...)))`。
 - [ ] 驗證（需真實 app）：app/command/history 已滿 display limit 時，file results 仍可見。
 
-### 5.2.B — Search Stream Diagnostics
+### 5.2.B — Search Stream Diagnostics ✓
 
-- [ ] 在後端新增 `SearchChunkDiagnostics` struct：`provider`、`elapsed_ms`、`timed_out`、`file_cache_entries`、`tantivy_index_entries`、`everything_available`、`returned_count`、`truncated_by_score`、`fallback_reason`。
-- [ ] 將 diagnostics 包進 `search.results.chunk` payload（不另開事件）。
-- [ ] 前端 footer 顯示可讀訊息：
-  - `File search: Tantivy index empty, using cache fallback`
-  - `File search: Everything unavailable`
-  - `File search: returned N files, M hidden by display limit`
+- [x] 後端新增 `SearchChunkDiagnostics` struct：`elapsed_ms`、`timed_out`、`file_cache_entries`、`tantivy_index_entries`、`everything_available`、`pre_balance_count`、`returned_count`、`fallback_reason`。
+- [x] diagnostics 包進 `search.results.chunk` payload（`replace:true` 的 final chunk，不另開事件）。
+- [x] 前端 `fileDiagnostics` state；footer 顯示可讀訊息：
   - `File search: provider timed out after 800ms`
-- [ ] 在真實 app 中確認 live backend readiness：`file_cache_entries`、`tantivy_index_entries`、`everything_available`、file provider result count、elapsed time、timeout 狀態。
+  - `File search: Tantivy index empty, using cache fallback`
+  - `File search: Everything unavailable, using cache fallback`
+  - `File search: N shown, M hidden by display limit`
+- [ ] 在真實 app 中確認 live backend readiness（需手動驗收）。
 
 ---
 
