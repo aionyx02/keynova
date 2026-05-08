@@ -19,7 +19,6 @@ use crate::models::search_result::{ResultKind, SearchResult};
 
 const DEFAULT_FIRST_BATCH_LIMIT: usize = 30;
 
-const DEFAULT_CHUNK_SIZE: usize = 30;
 const PROVIDER_TIMEOUT: Duration = Duration::from_millis(800);
 
 const FILE_LIMIT_MULTIPLIER: usize = 6;
@@ -32,7 +31,6 @@ const MODEL_LIMIT: usize = 6;
 #[derive(Debug, Clone)]
 struct SearchPlan {
     display_limit: usize,
-    internal_limit: usize,
     first_batch_limit: usize,
     app_limit: usize,
     command_limit: usize,
@@ -45,10 +43,8 @@ struct SearchPlan {
 impl SearchPlan {
     fn from_limit(limit: usize, first_batch_limit: usize) -> Self {
         let display_limit = limit.max(1);
-        let internal_limit = display_limit.saturating_mul(8).max(160);
         Self {
             display_limit,
-            internal_limit,
             first_batch_limit: first_batch_limit.min(display_limit).max(1),
             app_limit: APP_LIMIT,
             command_limit: COMMAND_LIMIT,
@@ -214,6 +210,7 @@ impl SearchHandler {
         let mut first_batch = self.fast_results(&query, &plan, &session)?;
         sort_truncate(&mut first_batch, plan.first_batch_limit);
         let first_keys = result_keys(&first_batch);
+        let first_batch_items = first_batch.clone();
         observability::log_search_query(
             backend.as_str(),
             query.chars().count(),
@@ -232,6 +229,7 @@ impl SearchHandler {
                     backend,
                     session,
                     seen: first_keys,
+                    first_batch_items,
                     plan,
                 });
             });
@@ -242,6 +240,7 @@ impl SearchHandler {
                 chunk_index: 1,
                 items: Vec::new(),
                 done: true,
+                replace: false,
                 timed_out_providers: Vec::new(),
             });
         }
@@ -257,6 +256,7 @@ impl SearchHandler {
             backend,
             session,
             mut seen,
+            first_batch_items,
             plan,
         } = request;
 
@@ -265,11 +265,11 @@ impl SearchHandler {
         }
 
         let mut timed_out_providers = Vec::new();
-        let mut results = Vec::new();
+        let mut worker_items = Vec::new();
 
         match self.file_results_with_timeout(backend, query.clone(), plan.file_limit, generation) {
             Some(file_results) => match self.base_results_to_ui_items(file_results, &session) {
-                Ok(mut file_items) => results.append(&mut file_items),
+                Ok(mut file_items) => worker_items.append(&mut file_items),
                 Err(error) => {
                     self.emit_search_error(&request_id, generation, error);
                     return;
@@ -282,35 +282,23 @@ impl SearchHandler {
             return;
         }
 
-        sort_truncate(&mut results, plan.internal_limit);
-
-        let mut chunk_index = 1usize;
-        let mut chunk = Vec::new();
-        for item in results {
+        // Merge first-batch items with new worker items, deduplicate, then balance.
+        let mut combined = first_batch_items;
+        for item in worker_items {
             let key = search_item_key(&item);
-            if !seen.insert(key) {
-                continue;
-            }
-            chunk.push(item);
-            if chunk.len() >= DEFAULT_CHUNK_SIZE {
-                self.emit_search_chunk(SearchChunk {
-                    request_id: request_id.clone(),
-                    generation,
-                    chunk_index,
-                    items: std::mem::take(&mut chunk),
-                    done: false,
-                    timed_out_providers: timed_out_providers.clone(),
-                });
-                chunk_index += 1;
+            if seen.insert(key) {
+                combined.push(item);
             }
         }
+        sort_balanced_truncate(&mut combined, plan.display_limit);
 
         self.emit_search_chunk(SearchChunk {
             request_id,
             generation,
-            chunk_index,
-            items: chunk,
+            chunk_index: 1,
+            items: combined,
             done: true,
+            replace: true,
             timed_out_providers,
         });
     }
@@ -387,6 +375,7 @@ impl SearchHandler {
                 "chunk_index": chunk.chunk_index,
                 "items": chunk.items,
                 "done": chunk.done,
+                "replace": chunk.replace,
                 "timed_out_providers": chunk.timed_out_providers,
             }),
         ));
@@ -692,6 +681,7 @@ struct SearchChunk {
     chunk_index: usize,
     items: Vec<UiSearchItem>,
     done: bool,
+    replace: bool,
     timed_out_providers: Vec<String>,
 }
 
@@ -701,7 +691,10 @@ struct StreamWorkerRequest {
     generation: u64,
     backend: SearchBackend,
     session: crate::core::action_registry::ActionSession,
+    /// Keys of items already sent in the first batch (for dedup).
     seen: HashSet<String>,
+    /// The actual first-batch items, cloned so the worker can build a combined balanced set.
+    first_batch_items: Vec<UiSearchItem>,
     plan: SearchPlan,
 }
 
