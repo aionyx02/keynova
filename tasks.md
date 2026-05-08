@@ -53,13 +53,14 @@ Last full verification baseline: `npm run build`, `npm run lint`, `cargo test`, 
 
 ---
 
-## Phase 5.8 — P2 Note Name Robustness（提前至 5.1 後）
+## Phase 5.8 — P2 Note Name Robustness（提前至 5.1 後）✓
 
 > 改動量極小、確定性高，插在搜尋和路徑修正之前。
 
-- [ ] 修 `NoteManager::sanitize_name()`：sanitize 後若結果為空（輸入全空白或全符號），回傳 `Err`，不產生 `.md`。
-- [ ] 加 reserved name 檢查：拒絕 `"."`、`".."`、Windows device names（`CON`、`NUL`、`PRN`、`AUX`、`COM1`–`COM9`、`LPT1`–`LPT9`）。
-- [ ] 單元測試：空輸入、純空白、reserved names、混合有效/無效字元。
+- [x] 新增 `validate_note_name()`：sanitize 後結果為空時回傳 `Err`（保護 `get`/`create`/`save`/`delete`/`rename`）。
+- [x] 加 reserved name 檢查：拒絕 `CON`/`PRN`/`AUX`/`NUL` 及 `COM1`–`COM9`/`LPT1`–`LPT9`（case-insensitive，對 sanitized 名稱檢查）。
+- [x] 單元測試 4 個：空輸入、純空白、reserved names、valid names（含 `CONSOLE`/`COM10`/`lpt` 邊界確認）。
+- 說明：純符號輸入（`"!!!"`）sanitize 為 `"___"`，屬合法名稱不拒絕；`.` 和 `..` 同理 sanitize 為底線。
 
 ---
 
