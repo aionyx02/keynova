@@ -66,24 +66,14 @@ Last full verification baseline: `npm run build`, `npm run lint`, `cargo test`, 
 
 ## Phase 5.2 — P1 Search Stream Fairness & Diagnostics
 
-### 5.2.A — Frontend Stream Merge Quota
+### 5.2.A — Frontend Stream Merge Quota ✓
 
-- [ ] 將後端 `sort_balanced_truncate()` 的 per-source quota 邏輯移植到前端 `mergeSearchResults()`，防止 history/app/command 先填滿 limit 後，晚到 file chunk 被 `slice(0, limit)` 靜默丟棄。
-- [ ] 後端 worker 在所有 provider 完成後送出 final balanced batch，payload 結構：
-  ```ts
-  type SearchChunkPayload = {
-    request_id: string;
-    generation: number;
-    chunk_index: number;
-    items: SearchResult[];
-    done: boolean;
-    replace?: boolean; // final balanced batch 時為 true
-    diagnostics?: SearchChunkDiagnostics;
-  };
-  ```
-- [ ] 前端邏輯：`if replace: setResults(items)`，`else: mergeSearchResults(...)`。
-  - 注意：final batch 裡的 ActionRef 必須來自同一個 action session；若 generation 不同，前端須忽略舊 generation 的 batch。
-- [ ] 驗證：app/command/history 已滿 display limit 時，file results 仍可見。
+- [x] 新增 `applySourceQuotas()` 函式，caps 與後端 `sort_balanced_truncate` 常數一致（app/command/note:8, history:12, model:6, file:unbounded）。
+- [x] `mergeSearchResults()` 改用 `applySourceQuotas(sortSearchResults(merged), limit)` 取代 `.slice(0, limit)`。
+- [x] 後端 `run_stream_worker` 重構：不再發送 incremental chunks；在所有 provider 完成後，combine first_batch + worker items → `sort_balanced_truncate` → 單一 `replace: true, done: true` final chunk。
+- [x] 後端移除 `DEFAULT_CHUNK_SIZE` 常數和 `SearchPlan::internal_limit` 欄位（不再使用）。
+- [x] `SearchChunkPayload` 加 `replace?: boolean`；chunk listener 遇到 `replace: true` 直接 `setResults(applySourceQuotas(sortSearchResults(...)))`。
+- [ ] 驗證（需真實 app）：app/command/history 已滿 display limit 時，file results 仍可見。
 
 ### 5.2.B — Search Stream Diagnostics
 

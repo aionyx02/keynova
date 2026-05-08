@@ -34,6 +34,8 @@ export interface SearchChunkPayload {
   chunk_index: number;
   items: SearchResult[];
   done: boolean;
+  /** True on the final balanced batch — frontend should replace results entirely. */
+  replace?: boolean;
   timed_out_providers?: string[];
 }
 

@@ -89,6 +89,30 @@ function searchResultKey(result: SearchResult) {
   return `${result.source ?? result.kind}:${result.path}`;
 }
 
+// Per-source caps mirror the backend sort_balanced_truncate constants.
+const SOURCE_QUOTAS: Partial<Record<string, number>> = {
+  app: 8,
+  command: 8,
+  note: 8,
+  history: 12,
+  model: 6,
+};
+
+function applySourceQuotas(sorted: SearchResult[], limit: number): SearchResult[] {
+  const counts: Record<string, number> = {};
+  const out: SearchResult[] = [];
+  for (const item of sorted) {
+    const key = item.source ?? item.kind;
+    const quota = SOURCE_QUOTAS[key];
+    const n = counts[key] ?? 0;
+    if (quota !== undefined && n >= quota) continue;
+    counts[key] = n + 1;
+    out.push(item);
+    if (out.length >= limit) break;
+  }
+  return out;
+}
+
 function mergeSearchResults(existing: SearchResult[], incoming: SearchResult[], limit: number) {
   const seen = new Set(existing.map(searchResultKey));
   const merged = [...existing];
@@ -98,7 +122,7 @@ function mergeSearchResults(existing: SearchResult[], incoming: SearchResult[], 
     seen.add(key);
     merged.push(item);
   }
-  return sortSearchResults(merged).slice(0, limit);
+  return applySourceQuotas(sortSearchResults(merged), limit);
 }
 
 function sortSearchResults(results: SearchResult[]) {
@@ -298,7 +322,10 @@ export function CommandPalette() {
       if (payload.timed_out_providers?.length) {
         setTimedOutProviders(payload.timed_out_providers);
       }
-      if (payload.items.length > 0) {
+      if (payload.replace) {
+        // Final balanced batch from backend — replace results entirely.
+        setResults(applySourceQuotas(sortSearchResults(payload.items), searchLimitRef.current));
+      } else if (payload.items.length > 0) {
         setResults((current) =>
           mergeSearchResults(current, payload.items, searchLimitRef.current),
         );
