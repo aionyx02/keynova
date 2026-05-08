@@ -104,13 +104,13 @@ Last full verification baseline: `npm run build`, `npm run lint`, `cargo test`, 
 - [x] `system_indexer.rs` 呼叫 `resolve_index_dir(None)` 自動受益（不需另改）。
 - [ ] Regression（需手動驗收）：從非預期 cwd 啟動 app，確認 config/notes/history 寫入正確 OS 目錄。
 
-### 5.3.C — Legacy Path Migration
+### 5.3.C — Legacy Path Migration ✓
 
-- [ ] 啟動時偵測：若新 OS config dir 尚無資料，但舊路徑（`./Keynova/` 或 cwd-based APPDATA fallback）存在，執行以下流程：
-  - `config.toml`：自動複製一次。
-  - `notes/`、`history/`、db、search index：提示使用者或靜默複製（根據資料量決定）。
-  - 寫入 `migration_complete` marker，避免重複執行。
-- [ ] 確保升級後使用者筆記、history、設定不會憑空消失。
+- [x] 啟動時偵測：若舊路徑（cwd-based `./Keynova/` 或 exe-sibling `Keynova/`）存在，靜默複製 `config.toml`、`notes/`、`knowledge.db` 至新 OS 目錄（不覆蓋已存在的目標）。
+- [x] Tantivy index 略過（啟動時自動重建）。
+- [x] 寫入 `keynova_data_dir()/.migration_v1_complete` marker，避免重複執行。
+- [x] 3 個單元測試（candidates 後綴、copy 跳過既有 dst、copy 複製缺席 dst）。
+- [x] `app::migration::run_legacy_migration()` 在 bootstrap setup 最早呼叫。
 
 ---
 
