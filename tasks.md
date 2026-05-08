@@ -45,11 +45,11 @@ Last full verification baseline: `npm run build`, `npm run lint`, `cargo test`, 
   - 第三次 Agent action → 開 terminal result
   - 驗證 `runs[0]`、`deliveredResultRef`、`onRunCommandResult()` 三者不互相卡住。
 
-### 5.1.B — AI Chat Message Retain Bug
+### 5.1.B — AI Chat Message Retain Bug ✓
 
-- [ ] 快速修：`AiManager::chat_async()` 失敗時只移除 history 中**最後一筆**符合 `role=user && content=prompt` 的訊息，不使用 `retain()` 全量刪除。
+- [x] 快速修：`AiManager::chat_async()` 失敗時改用 `rposition()` 找最後一筆符合 `role=user && content=prompt` 的訊息並 `remove()`，不使用 `retain()` 全量刪除。
 - [ ] 後續正規化（非本 batch）：為每次 message 加 `request_id`；本次只做最小修正。
-- [ ] 單元測試：用相同 prompt 送兩次，第二次失敗，確認 history 只少一筆。
+- [ ] 單元測試：用相同 prompt 送兩次，第二次失敗，確認 history 只少一筆（需整合測試環境）。
 
 ---
 

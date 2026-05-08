@@ -252,7 +252,9 @@ impl AiManager {
                 }
                 Err(e) => {
                     if let Ok(mut h) = history.lock() {
-                        h.retain(|m| m.content != prompt || m.role != "user");
+                        if let Some(pos) = h.iter().rposition(|m| m.role == "user" && m.content == prompt) {
+                            h.remove(pos);
+                        }
                     }
                     publish(AppEvent::new(
                         "ai.response",
