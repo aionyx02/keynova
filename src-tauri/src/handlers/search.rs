@@ -242,6 +242,7 @@ impl SearchHandler {
                 done: true,
                 replace: false,
                 timed_out_providers: Vec::new(),
+                diagnostics: None,
             });
         }
 
@@ -260,22 +261,31 @@ impl SearchHandler {
             plan,
         } = request;
 
+        let started = Instant::now();
+
         if !self.is_generation_current(generation).unwrap_or(false) {
             return;
         }
 
         let mut timed_out_providers = Vec::new();
         let mut worker_items = Vec::new();
+        let timed_out;
 
         match self.file_results_with_timeout(backend, query.clone(), plan.file_limit, generation) {
-            Some(file_results) => match self.base_results_to_ui_items(file_results, &session) {
-                Ok(mut file_items) => worker_items.append(&mut file_items),
-                Err(error) => {
-                    self.emit_search_error(&request_id, generation, error);
-                    return;
+            Some(file_results) => {
+                timed_out = false;
+                match self.base_results_to_ui_items(file_results, &session) {
+                    Ok(mut file_items) => worker_items.append(&mut file_items),
+                    Err(error) => {
+                        self.emit_search_error(&request_id, generation, error);
+                        return;
+                    }
                 }
-            },
-            None => timed_out_providers.push(backend.as_str().to_string()),
+            }
+            None => {
+                timed_out = true;
+                timed_out_providers.push(backend.as_str().to_string());
+            }
         }
 
         if !self.is_generation_current(generation).unwrap_or(false) {
@@ -290,7 +300,33 @@ impl SearchHandler {
                 combined.push(item);
             }
         }
+        let pre_balance_count = combined.len();
         sort_balanced_truncate(&mut combined, plan.display_limit);
+        let returned_count = combined.len();
+        let elapsed_ms = started.elapsed().as_millis();
+
+        let diagnostics = self.manager.lock().ok().map(|mgr| {
+            let info = mgr.backend_info();
+            let fallback_reason = if timed_out {
+                None
+            } else if backend == SearchBackend::Tantivy && info.tantivy_index_entries == 0 {
+                Some("Tantivy index empty, using cache fallback".into())
+            } else if !info.everything_available && backend == SearchBackend::AppCache {
+                Some("Everything unavailable, using cache fallback".into())
+            } else {
+                None
+            };
+            SearchChunkDiagnostics {
+                elapsed_ms,
+                timed_out,
+                file_cache_entries: info.file_cache_entries,
+                tantivy_index_entries: info.tantivy_index_entries,
+                everything_available: info.everything_available,
+                pre_balance_count,
+                returned_count,
+                fallback_reason,
+            }
+        });
 
         self.emit_search_chunk(SearchChunk {
             request_id,
@@ -300,6 +336,7 @@ impl SearchHandler {
             done: true,
             replace: true,
             timed_out_providers,
+            diagnostics,
         });
     }
 
@@ -377,6 +414,7 @@ impl SearchHandler {
                 "done": chunk.done,
                 "replace": chunk.replace,
                 "timed_out_providers": chunk.timed_out_providers,
+                "diagnostics": chunk.diagnostics,
             }),
         ));
     }
@@ -675,6 +713,22 @@ impl SearchHandler {
     }
 }
 
+/// Per-provider diagnostics included in the final balanced search chunk.
+#[derive(serde::Serialize)]
+struct SearchChunkDiagnostics {
+    elapsed_ms: u128,
+    timed_out: bool,
+    file_cache_entries: usize,
+    tantivy_index_entries: usize,
+    everything_available: bool,
+    /// Items available before per-source quota balancing.
+    pre_balance_count: usize,
+    /// Items actually returned after balancing and truncation.
+    returned_count: usize,
+    /// Human-readable reason when a non-obvious fallback was chosen.
+    fallback_reason: Option<String>,
+}
+
 struct SearchChunk {
     request_id: String,
     generation: u64,
@@ -683,6 +737,7 @@ struct SearchChunk {
     done: bool,
     replace: bool,
     timed_out_providers: Vec<String>,
+    diagnostics: Option<SearchChunkDiagnostics>,
 }
 
 struct StreamWorkerRequest {
