@@ -17,6 +17,7 @@ use crate::app::watchers::{
 use crate::app::window::{setup_main_window, show_launcher};
 use crate::core::observability;
 use crate::core::{AppEvent, IpcError};
+use crate::app::migration::run_legacy_migration;
 use crate::managers::terminal_manager::start_prewarm;
 
 #[tauri::command]
@@ -66,6 +67,8 @@ pub fn run() {
         .plugin(tauri_plugin_global_shortcut::Builder::new().build())
         .manage(AppState::new())
         .setup(|app| {
+            run_legacy_migration();
+
             if !start_control_server(app) {
                 return Ok(());
             }
