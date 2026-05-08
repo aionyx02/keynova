@@ -114,19 +114,15 @@ Last full verification baseline: `npm run build`, `npm run lint`, `cargo test`, 
 
 ---
 
-## Phase 5.4 — P1 Default AI Provider & First-Run UX
+## Phase 5.4 — P1 Default AI Provider & First-Run UX ✓
 
-- [ ] 修改 `default_config.toml`：預設 provider 改為 `"ollama"`，`model = "qwen2.5:7b"`（符合 local-first ADR）。
-- [ ] First-run / 每次 `/ai` 開啟時檢測：
-  1. Ollama daemon 是否 reachable（`http://localhost:11434/api/tags`）。
-  2. 目標 model 是否已 pull（比對 tags list）。
-  3. 若 daemon 不可達或 model 不存在，`AiPanel` 顯示 setup card：
-     - Step 1：安裝 Ollama（附連結）
-     - Step 2：`ollama pull qwen2.5:7b`（或根據 RAM 推薦 `qwen2.5:1.5b` / `llama3.2:1b`）
-     - Step 3：或切換到 OpenAI / Claude（填 API key）
-- [ ] RAM-based 推薦：`model_manager` 已有硬體推薦邏輯，first-run 可直接呼叫，推薦 model 顯示在 setup card。
-- [ ] 若 provider = "claude" 且 `api_key = ""`，同樣觸發 setup card，不在送出後才報錯。
-- [ ] 更新 `README.md` local-first 段落，反映新預設值。
+- [x] 修改 `default_config.toml`：預設 provider 改為 `"ollama"`，`model = "qwen2.5:7b"`（符合 local-first ADR）。
+- [x] `ai.check_setup` 命令：3s timeout ping `/api/tags`，比對 model 名稱（prefix match），偵測 Claude/OpenAI 空 API key；回傳 `needs_setup / ollama_reachable / model_available / recommended_model / reason`。
+- [x] RAM-based 推薦：透過 `ModelManager::detect_hardware() + recommend_models()` 選出最適 model 顯示在 setup card。
+- [x] `SetupCard` 組件：三步驟（安裝 Ollama、pull model、或切換 /setting provider）；Re-check / Use-anyway 按鈕。
+- [x] 空 placeholder 在 setup card 顯示時隱藏。
+- [ ] README local-first 段落更新（非緊急，可在發布前補）。
+- [ ] 手動驗收：Ollama 未啟動時開啟 /ai → 看到 setup card；pull model 後按 Re-check → 卡片消失。
 
 ---
 
