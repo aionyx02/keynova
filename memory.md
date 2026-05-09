@@ -64,8 +64,8 @@
 ## 當前狀態
 
 - **進度**：Phase 5 進行中；5.1.A、5.1.B、5.8、5.2.A、5.2.B、5.3.A~C、5.4、5.5.A1+A2+B1+A3+A4+B2+B3+C+E、5.11.A~D 均已實作並 commit（Phase-5 branch）。Phase 6 架構設計完成（7 個新功能需求）。
-- **上次完成**：5.5.G — 新增 3 個 ReAct regression tests（provider network error → fail；unknown tool → error obs + loop completes；large 50KB observation 不崩潰）；157 tests passing，clippy clean。
-- **下一步**：5.5.H — ReAct manual validations（JSON file find、read-only preview、web query、denied shell、git status approval、project search 等）；或 Phase 6.7 記憶體優化。
+- **上次完成**：Phase 6.7 A+B — tantivy writer buffer 50MB→15MB + explicit drop；AppManager::list_all() 改回傳 &[AppInfo] 消除 clone；157 tests，clippy clean。
+- **下一步**：5.5.H manual validations（需真實 app）；或 Phase 6.1 /model_remove UI；6.7 WorkingSet 量測（需真實 app）。
 
 ## 已確認的技術選擇
 
@@ -107,11 +107,11 @@
 
 | 日期 | 完成事項 | 遺留問題 |
 |------|----------|----------|
+| 2026-05-09 | 6.7 A+B：tantivy writer 50MB→15MB + explicit drop；AppManager::list_all() → &[AppInfo] 消除 clone；157 tests，clippy clean | 6.7 WorkingSet 量測需真實 app；6.7 C/D 待 Phase 6.2/6.6 實作時遵守 |
 | 2026-05-09 | 5.5.G：3 個新 ReAct regression tests（provider error→fail；unknown tool→error obs；50KB obs 不崩潰）；157 tests passing，clippy clean | 5.5.H manual validations 待辦；5.2.A/B / 5.4 仍需真實 app 手動驗收 |
 | 2026-05-09 | 5.5.F：useAgent.ts ReactStep interface + agent-step listener + reactSteps state；AiPanel ReactStepTimeline（色碼、obs count）、pending approval header、ReAct gate 標示、final answer 突顯框；lint 通過 | 5.5.G regression tests（已在本 session 完成） |
 | 2026-05-09 | 驗證通過：5.1.B rposition 3 tests；5.3.B platform_dirs 5 tests + 修 history/workspace APPDATA 殘留；5.4 check_setup 6 tests + README 更新；5.2.A/B 靜態審查；154 tests，clippy 乾淨 | 5.2.A/B / 5.4 Ollama setup card 仍需真實 app 手動驗收 |
-| 2026-05-09 | 5.5.D：sandbox_manager.rs（Windows Job Object / Linux bwrap / macOS sandbox-exec）；5 sandbox tests；140 tests；clippy clean；decisions.md ADR-027 research findings 更新 | Windows AppContainer 網路隔離、Linux seccomp、macOS App Sandbox 評估為 product 解封前提 |
-| 2026-05-09 | Phase 6 架構設計：7 項新需求（/model_remove、/system_monitoring、個人化開關、/tr 全語言、編碼修復、LazyVim 可攜、記憶體優化）寫入 tasks.md 6.1–6.7 | 6.7 記憶體優化（P0）需最先實作 |
+| 2026-05-09 | 5.5.D + Phase 6 架構：sandbox_manager.rs（Job Object/bwrap/sandbox-exec）；7 項新需求設計寫入 tasks.md 6.1–6.7 | ADR-027 product 解封前提：AppContainer/seccomp/App Sandbox 評估 |
 
 ## 2026-05-06 架構邊界與修正定位索引
 

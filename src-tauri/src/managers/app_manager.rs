@@ -28,11 +28,11 @@ impl AppManager {
     }
 
     /// 回傳快取中的全部應用列表（快取為空時先掃描）。
-    pub fn list_all(&mut self) -> Vec<AppInfo> {
+    pub fn list_all(&mut self) -> &[AppInfo] {
         if self.cache.is_empty() {
             self.scan_applications();
         }
-        self.cache.clone()
+        &self.cache
     }
 
     /// 模糊搜尋應用程式，依匹配分數排序。

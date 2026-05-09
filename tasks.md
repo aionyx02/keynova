@@ -487,18 +487,18 @@ Last full verification baseline: `npm run build`, `npm run lint`, `cargo test`, 
 
 ---
 
-### Phase 6.7 — 記憶體優化（P0，建議最先執行）
+### Phase 6.7 — 記憶體優化（P0，建議最先執行）✓ A+B
 
 > 目前執行時占用 ~150MB。根本原因分析（已確認）：
 
 **根本原因清單**
 
-| # | 位置 | 問題 | 預估節省 |
-|---|------|------|---------|
-| A | `tantivy_index.rs:60` | `IndexWriter` buffer 固定 50MB，建完索引後 `writer` 未釋放 | ~40–50MB |
-| B | `app_manager.rs:35` | `list_all()` 每次 clone 全量 `Vec<AppInfo>` | 視應用數量，約 5–15MB |
-| C | 所有 Manager | startup 時全量初始化（即使對應功能未啟用）| 5–10MB |
-| D | sysinfo（待加入） | 若未做到按需建立，持續持有系統快照 | 預防性 |
+| # | 位置 | 問題 | 預估節省 | 狀態 |
+|---|------|------|---------|------|
+| A | `tantivy_index.rs:60` | `IndexWriter` buffer 固定 50MB，建完索引後 `writer` 未釋放 | ~35MB | ✓ 已修：15MB + explicit drop |
+| B | `app_manager.rs:35` | `list_all()` 每次 clone 全量 `Vec<AppInfo>` | 5–15MB | ✓ 已修：回傳 `&[AppInfo]` |
+| C | 所有 Manager | startup 時全量初始化（即使對應功能未啟用）| 5–10MB | 待辦（Phase 6.2/6.6 新 manager 才需要） |
+| D | sysinfo（待加入） | 若未做到按需建立，持續持有系統快照 | 預防性 | 待 Phase 6.2 實作時遵守 |
 
 **修復設計**
 
@@ -523,9 +523,9 @@ D — sysinfo 使用規範（6.2 實作時遵守）：
 - stream 停止時 drop `System` 物件，釋放 sysinfo 內部快照
 
 **驗收條件**
-- [ ] 冷啟動記憶體降至 80MB 以下（目標），120MB 以下為可接受
+- [ ] 冷啟動記憶體降至 80MB 以下（目標），120MB 以下為可接受（需真實 app 量測）
 - [ ] `/ai`、`/note lazyvim`、搜尋等功能正常運作（無 regression）
-- [ ] `cargo test` + `cargo clippy -- -D warnings` 通過
+- [x] `cargo test` + `cargo clippy -- -D warnings` 通過（157 tests）
 - [ ] 使用 Windows Task Manager 或 `tasklist /V` 在啟動 30 秒後量測 WorkingSet
 
 ---
