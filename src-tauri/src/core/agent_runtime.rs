@@ -11,7 +11,7 @@ use crate::managers::ai_manager::{
     AiMessage, AiToolDefinition, AiToolTurn, ToolCallProvider,
 };
 use crate::models::action::ActionRisk;
-use crate::models::agent::{AgentRun, AgentRunStatus, AgentStep, ContextVisibility};
+use crate::models::agent::{AgentApproval, AgentRun, AgentRunStatus, AgentStep, ContextVisibility};
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
@@ -372,6 +372,15 @@ pub fn tools_to_definitions(tools: &[AgentToolSpec]) -> Vec<AiToolDefinition> {
         .collect()
 }
 
+/// Outcome of waiting for a ReAct gate approval.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum ReactApprovalOutcome {
+    Approved,
+    Rejected,
+    Cancelled,
+    TimedOut,
+}
+
 /// Blocking ReAct loop body — runs on the calling thread.
 ///
 /// Intended for use from `spawn_react_loop` (background thread) and directly
@@ -439,16 +448,80 @@ pub fn react_loop_body(
                 for call in &tool_calls {
                     let spec = tool_map.get(&call.name);
 
-                    // Approval-required tools are skipped in B1 (no interactive gate yet).
+                    // Approval-required tools pause the loop and wait for user response.
                     let approval_required = spec
                         .map(|s| s.approval_policy == AgentToolApprovalPolicy::Required)
                         .unwrap_or(false);
                     if approval_required {
-                        let obs = format!(
-                            "Tool '{}' requires explicit user approval and was not executed.",
-                            call.name
+                        let approval_id = format!("react-gate:{}", Uuid::new_v4());
+                        let summary = format!(
+                            "Agent wants to run '{}' with args: {}",
+                            call.name,
+                            truncate_preview(&call.arguments.to_string(), 200)
                         );
-                        emit_react_step(runtime, run_id, step_idx, &call.name, "approval_required");
+                        let approval = AgentApproval {
+                            id: approval_id.clone(),
+                            action_ref: None,
+                            planned_action: None,
+                            risk: spec.map(|s| s.risk).unwrap_or(ActionRisk::Medium),
+                            summary,
+                            status: "pending".into(),
+                        };
+
+                        // Attach the approval to the run and set WaitingApproval status.
+                        if let Ok(Some(mut run)) = runtime.get(run_id) {
+                            run.approvals.push(approval);
+                            run.status = AgentRunStatus::WaitingApproval;
+                            let _ = runtime.update_run(run, "agent.approval.required");
+                        }
+                        emit_react_step(runtime, run_id, step_idx, &call.name, "waiting_approval");
+
+                        let outcome = wait_for_react_approval(
+                            runtime,
+                            run_id,
+                            &approval_id,
+                            300, // 5-minute gate timeout
+                        );
+
+                        let (obs, step_status) = match outcome {
+                            ReactApprovalOutcome::Approved => {
+                                // Restore Running status before executing the tool.
+                                if let Ok(Some(mut run)) = runtime.get(run_id) {
+                                    run.status = AgentRunStatus::Running;
+                                    let _ = runtime.update_run(run, "agent.step");
+                                }
+                                let obs_policy =
+                                    spec.map(|s| s.observation_policy.clone()).unwrap_or_default();
+                                let obs_text = match dispatch(&call.name, &call.arguments) {
+                                    Ok(val) => {
+                                        let raw =
+                                            serde_json::to_string_pretty(&val).unwrap_or_default();
+                                        prepare_observation(&raw, &obs_policy).content
+                                    }
+                                    Err(e) => {
+                                        format!("Error from tool '{}': {}", call.name, e)
+                                    }
+                                };
+                                (obs_text, "approved_executed")
+                            }
+                            ReactApprovalOutcome::Rejected => (
+                                format!(
+                                    "User rejected execution of '{}'. The tool was not run.",
+                                    call.name
+                                ),
+                                "approval_rejected",
+                            ),
+                            ReactApprovalOutcome::Cancelled => return,
+                            ReactApprovalOutcome::TimedOut => (
+                                format!(
+                                    "Approval for '{}' timed out. The tool was not run.",
+                                    call.name
+                                ),
+                                "approval_timeout",
+                            ),
+                        };
+
+                        emit_react_step(runtime, run_id, step_idx, &call.name, step_status);
                         obs_messages.push(AiMessage {
                             role: "user".into(),
                             content: format!("[Tool: {}]\n{}", call.name, obs),
@@ -548,6 +621,39 @@ fn truncate_preview(s: &str, max_chars: usize) -> String {
     }
 }
 
+/// Poll the run registry until the given approval changes from "pending",
+/// or until timeout or cancellation.
+fn wait_for_react_approval(
+    runtime: &AgentRuntime,
+    run_id: &str,
+    approval_id: &str,
+    timeout_secs: u64,
+) -> ReactApprovalOutcome {
+    let deadline =
+        std::time::Instant::now() + std::time::Duration::from_secs(timeout_secs.max(1));
+    loop {
+        if std::time::Instant::now() >= deadline {
+            return ReactApprovalOutcome::TimedOut;
+        }
+        match runtime.get(run_id) {
+            Ok(Some(run)) => {
+                if run.status == AgentRunStatus::Cancelled {
+                    return ReactApprovalOutcome::Cancelled;
+                }
+                if let Some(approval) = run.approvals.iter().find(|a| a.id == approval_id) {
+                    match approval.status.as_str() {
+                        "approved" => return ReactApprovalOutcome::Approved,
+                        "rejected" => return ReactApprovalOutcome::Rejected,
+                        _ => {}
+                    }
+                }
+            }
+            _ => return ReactApprovalOutcome::Cancelled,
+        }
+        std::thread::sleep(std::time::Duration::from_millis(100));
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -643,12 +749,16 @@ mod tests {
         );
     }
 
-    // ─── ReAct loop tests (5.5.B1) ──────────────────────────────────────────
+    // ─── ReAct loop tests (5.5.B1 / B2 / B3) ───────────────────────────────
 
     use crate::managers::fake_provider::FakeToolCallProvider;
 
     fn react_runtime() -> AgentRuntime {
         AgentRuntime::new(Arc::new(|_| {}))
+    }
+
+    fn react_runtime_arc() -> Arc<AgentRuntime> {
+        Arc::new(AgentRuntime::new(Arc::new(|_| {})))
     }
 
     fn running_run(id: &str) -> AgentRun {
@@ -862,6 +972,156 @@ mod tests {
         assert!(run.output.as_deref().unwrap_or("").contains("agent mode"));
 
         let _ = std::fs::remove_dir_all(tmp_root);
+    }
+
+    #[test]
+    fn react_loop_approval_gate_approved_executes_tool() {
+        use std::time::{Duration, Instant};
+
+        let runtime = react_runtime_arc();
+        runtime.insert_run(running_run("gate1")).expect("insert run");
+
+        let provider: Arc<dyn crate::managers::ai_manager::ToolCallProvider> =
+            Arc::new(FakeToolCallProvider::tool_then_final(
+                "git_status",
+                "call-git-approve",
+                serde_json::json!({}),
+                "Git status shows a clean working directory.",
+            ));
+        let dispatch: Arc<ToolDispatch> =
+            Arc::new(|name: &str, _args: &Value| -> Result<Value, String> {
+                if name == "git_status" {
+                    Ok(json!({ "cwd": ".", "stdout": "", "stderr": "", "exit_code": 0 }))
+                } else {
+                    Err(format!("unexpected tool: {name}"))
+                }
+            });
+
+        let tools = AgentToolRegistry::with_default_readonly_tools().list();
+        runtime.spawn_react_loop(
+            "gate1".into(),
+            provider,
+            tools,
+            ReactLoopConfig::default(),
+            dispatch,
+        );
+
+        // Wait until the loop sets WaitingApproval and adds the gate approval.
+        let approval_id = {
+            let deadline = Instant::now() + Duration::from_secs(5);
+            loop {
+                assert!(Instant::now() < deadline, "timed out waiting for approval");
+                let run = runtime.get("gate1").unwrap().unwrap();
+                if run.status == AgentRunStatus::WaitingApproval {
+                    let id = run.approvals.last().unwrap().id.clone();
+                    break id;
+                }
+                std::thread::sleep(Duration::from_millis(20));
+            }
+        };
+
+        // Approve: set approval to "approved" and restore Running status.
+        {
+            let mut run = runtime.get("gate1").unwrap().unwrap();
+            let approval = run.approvals.iter_mut().find(|a| a.id == approval_id).unwrap();
+            approval.status = "approved".into();
+            run.status = AgentRunStatus::Running;
+            runtime.update_run(run, "agent.run.updated").unwrap();
+        }
+
+        // Wait for the loop to complete.
+        let deadline = Instant::now() + Duration::from_secs(5);
+        let run = loop {
+            assert!(Instant::now() < deadline, "timed out waiting for completion");
+            let run = runtime.get("gate1").unwrap().unwrap();
+            if !matches!(
+                run.status,
+                AgentRunStatus::Running | AgentRunStatus::WaitingApproval
+            ) {
+                break run;
+            }
+            std::thread::sleep(Duration::from_millis(20));
+        };
+
+        assert_eq!(run.status, AgentRunStatus::Completed);
+        assert!(run
+            .output
+            .as_deref()
+            .unwrap_or("")
+            .contains("clean working directory"));
+    }
+
+    #[test]
+    fn react_loop_approval_gate_rejected_informs_llm_and_continues() {
+        use std::time::{Duration, Instant};
+
+        let runtime = react_runtime_arc();
+        runtime.insert_run(running_run("gate2")).expect("insert run");
+
+        // Provider: first calls git_status (requires approval), then returns final text.
+        let provider: Arc<dyn crate::managers::ai_manager::ToolCallProvider> =
+            Arc::new(FakeToolCallProvider::tool_then_final(
+                "git_status",
+                "call-git-reject",
+                serde_json::json!({}),
+                "I cannot check git status (request was denied), but the project looks clean.",
+            ));
+        let dispatch: Arc<ToolDispatch> =
+            Arc::new(|_name: &str, _args: &Value| -> Result<Value, String> {
+                panic!("dispatch must NOT be called when tool is rejected")
+            });
+
+        let tools = AgentToolRegistry::with_default_readonly_tools().list();
+        runtime.spawn_react_loop(
+            "gate2".into(),
+            provider,
+            tools,
+            ReactLoopConfig::default(),
+            dispatch,
+        );
+
+        // Wait for WaitingApproval.
+        let approval_id = {
+            let deadline = Instant::now() + Duration::from_secs(5);
+            loop {
+                assert!(Instant::now() < deadline, "timed out waiting for approval");
+                let run = runtime.get("gate2").unwrap().unwrap();
+                if run.status == AgentRunStatus::WaitingApproval {
+                    break run.approvals.last().unwrap().id.clone();
+                }
+                std::thread::sleep(Duration::from_millis(20));
+            }
+        };
+
+        // Reject: mark rejected, set Running so loop can continue.
+        {
+            let mut run = runtime.get("gate2").unwrap().unwrap();
+            let approval = run.approvals.iter_mut().find(|a| a.id == approval_id).unwrap();
+            approval.status = "rejected".into();
+            run.status = AgentRunStatus::Running;
+            runtime.update_run(run, "agent.run.updated").unwrap();
+        }
+
+        // Loop should resume, send rejection observation to LLM, get final text, complete.
+        let deadline = Instant::now() + Duration::from_secs(5);
+        let run = loop {
+            assert!(Instant::now() < deadline, "timed out waiting for completion");
+            let run = runtime.get("gate2").unwrap().unwrap();
+            if !matches!(
+                run.status,
+                AgentRunStatus::Running | AgentRunStatus::WaitingApproval
+            ) {
+                break run;
+            }
+            std::thread::sleep(Duration::from_millis(20));
+        };
+
+        assert_eq!(run.status, AgentRunStatus::Completed);
+        assert!(run
+            .output
+            .as_deref()
+            .unwrap_or("")
+            .contains("cannot check git status"));
     }
 
     #[test]

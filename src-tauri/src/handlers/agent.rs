@@ -229,47 +229,57 @@ impl AgentHandler {
         if run.approvals[approval_index].status != "pending" {
             return Err(format!("approval '{approval_id}' is not pending"));
         }
-        let action = run.approvals[approval_index]
-            .planned_action
-            .clone()
-            .ok_or_else(|| "approval is missing planned action".to_string())?;
-
-        let command_result = self.execute_planned_action(&action)?;
-        run.approvals[approval_index].status = "approved".into();
-        run.status = AgentRunStatus::Completed;
-        run.command_result = Some(command_result.clone());
-        run.output = Some(describe_execution(&action, &command_result));
-        if let Some(step) = run.steps.get_mut(1) {
-            step.status = "completed".into();
-            step.title = format!("Approved: {}", action.label);
+        match run.approvals[approval_index].planned_action.clone() {
+            None => {
+                // ReAct gate approval — mark approved, restore Running; loop resumes.
+                run.approvals[approval_index].status = "approved".into();
+                run.status = AgentRunStatus::Running;
+                self.log_audit(
+                    run_id,
+                    "approval_approved",
+                    "ok",
+                    &run.approvals[approval_index].summary,
+                    None,
+                );
+                self.runtime.update_run(run, "agent.run.updated")
+            }
+            Some(action) => {
+                // Heuristic flow — execute planned action and complete the run.
+                let command_result = self.execute_planned_action(&action)?;
+                run.approvals[approval_index].status = "approved".into();
+                run.status = AgentRunStatus::Completed;
+                run.command_result = Some(command_result.clone());
+                run.output = Some(describe_execution(&action, &command_result));
+                if let Some(step) = run.steps.get_mut(1) {
+                    step.status = "completed".into();
+                    step.title = format!("Approved: {}", action.label);
+                }
+                self.log_audit(
+                    run_id,
+                    "approval_approved",
+                    "ok",
+                    &action.summary,
+                    Some(json!({
+                        "action_id": action.id,
+                        "kind": action.kind,
+                        "risk": action.risk,
+                    })),
+                );
+                if long_term_memory_opt_in(&self.config) {
+                    let workspace_id =
+                        self.workspace_manager.lock().ok().map(|ws| ws.current().id);
+                    self.knowledge_store.try_store_agent_memory(AgentMemoryEntry {
+                        id: format!("run:{run_id}"),
+                        scope: "long_term".into(),
+                        workspace_id,
+                        title: truncate(&run.prompt, 80),
+                        content: run.output.clone().unwrap_or_default(),
+                        visibility: "user_private".into(),
+                    });
+                }
+                self.runtime.update_run(run, "agent.run.completed")
+            }
         }
-
-        self.log_audit(
-            run_id,
-            "approval_approved",
-            "ok",
-            &action.summary,
-            Some(json!({
-                "action_id": action.id,
-                "kind": action.kind,
-                "risk": action.risk,
-            })),
-        );
-
-        if long_term_memory_opt_in(&self.config) {
-            let workspace_id = self.workspace_manager.lock().ok().map(|ws| ws.current().id);
-            self.knowledge_store
-                .try_store_agent_memory(AgentMemoryEntry {
-                    id: format!("run:{run_id}"),
-                    scope: "long_term".into(),
-                    workspace_id,
-                    title: truncate(&run.prompt, 80),
-                    content: run.output.clone().unwrap_or_default(),
-                    visibility: "user_private".into(),
-                });
-        }
-
-        self.runtime.update_run(run, "agent.run.completed")
     }
 
     fn reject_run(&self, run_id: &str, approval_id: &str) -> Result<AgentRun, String> {
@@ -283,23 +293,22 @@ impl AgentHandler {
             .position(|approval| approval.id == approval_id)
             .ok_or_else(|| format!("approval '{approval_id}' not found"))?;
         run.approvals[approval_index].status = "rejected".into();
+        let summary = run.approvals[approval_index].summary.clone();
+        if run.approvals[approval_index].planned_action.is_none() {
+            // ReAct gate rejection — mark rejected, restore Running; loop continues.
+            run.status = AgentRunStatus::Running;
+            self.log_audit(run_id, "approval_rejected", "cancelled", &summary, None);
+            return self.runtime.update_run(run, "agent.run.updated");
+        }
+        // Heuristic flow — cancel the run.
         run.status = AgentRunStatus::Cancelled;
         run.command_result = None;
-        run.output = Some(format!(
-            "Approval rejected. {}",
-            run.approvals[approval_index].summary
-        ));
+        run.output = Some(format!("Approval rejected. {summary}"));
         if let Some(step) = run.steps.get_mut(1) {
             step.status = "cancelled".into();
             step.title = "Approval rejected".into();
         }
-        self.log_audit(
-            run_id,
-            "approval_rejected",
-            "cancelled",
-            &run.approvals[approval_index].summary,
-            None,
-        );
+        self.log_audit(run_id, "approval_rejected", "cancelled", &summary, None);
         self.runtime.update_run(run, "agent.run.failed")
     }
 
@@ -3027,9 +3036,7 @@ impl ReactDispatchState {
             "filesystem_search" => self.dispatch_filesystem_search(args),
             "filesystem_read" => self.dispatch_filesystem_read(args),
             "web_search" => self.dispatch_web_search(args),
-            "git_status" => Err(
-                "git.status requires explicit user approval; use agent.approve".into(),
-            ),
+            "git_status" => self.dispatch_git_status(args),
             other => Err(format!("unknown react tool '{other}'")),
         }
     }
@@ -3301,6 +3308,34 @@ impl ReactDispatchState {
         }
         roots.dedup();
         roots
+    }
+
+    /// Execute a fixed read-only `git status --short` in the workspace CWD.
+    /// Called only after the user has explicitly approved the gate approval.
+    fn dispatch_git_status(&self, args: &Value) -> Result<Value, String> {
+        let cwd = args
+            .get("cwd")
+            .and_then(Value::as_str)
+            .map(PathBuf::from)
+            .unwrap_or_else(|| {
+                self.default_search_roots()
+                    .into_iter()
+                    .next()
+                    .unwrap_or_else(|| std::env::current_dir().unwrap_or_default())
+            });
+
+        let output = std::process::Command::new("git")
+            .args(["status", "--short"])
+            .current_dir(&cwd)
+            .output()
+            .map_err(|e| format!("git.status: failed to run git: {e}"))?;
+
+        Ok(json!({
+            "cwd": cwd.display().to_string(),
+            "stdout": String::from_utf8_lossy(&output.stdout),
+            "stderr": String::from_utf8_lossy(&output.stderr),
+            "exit_code": output.status.code(),
+        }))
     }
 }
 
