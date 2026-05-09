@@ -2,6 +2,7 @@ pub mod ai_manager;
 #[cfg(test)]
 pub mod fake_provider;
 pub mod app_manager;
+pub mod sandbox_manager;
 pub mod calculator_manager;
 pub mod history_manager;
 pub mod hotkey_manager;
