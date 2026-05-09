@@ -477,6 +477,56 @@ pub(super) fn format_github_trending_answer(repos: &[GithubTrendingRepo]) -> Str
     )
 }
 
+// ─── WebSearchProvider trait ─────────────────────────────────────────────────
+
+pub(super) trait WebSearchProvider: Send + Sync {
+    fn search(&self, query: &str, limit: usize, timeout_secs: u64) -> Result<Vec<GroundingSource>, String>;
+}
+
+pub(super) struct SearxngProvider {
+    pub(super) base_url: String,
+}
+
+pub(super) struct TavilyProvider {
+    pub(super) api_key: String,
+}
+
+pub(super) struct DuckDuckGoProvider;
+
+impl WebSearchProvider for SearxngProvider {
+    fn search(&self, query: &str, limit: usize, timeout_secs: u64) -> Result<Vec<GroundingSource>, String> {
+        search_searxng(&self.base_url, query, limit, timeout_secs)
+    }
+}
+
+impl WebSearchProvider for TavilyProvider {
+    fn search(&self, query: &str, limit: usize, timeout_secs: u64) -> Result<Vec<GroundingSource>, String> {
+        search_tavily(&self.api_key, query, limit, timeout_secs)
+    }
+}
+
+impl WebSearchProvider for DuckDuckGoProvider {
+    fn search(&self, query: &str, limit: usize, timeout_secs: u64) -> Result<Vec<GroundingSource>, String> {
+        search_duckduckgo_html(query, limit, timeout_secs)
+    }
+}
+
+pub(super) fn resolve_web_search_provider(
+    provider: &str,
+    searxng_url: &str,
+    api_key: &str,
+) -> Result<Box<dyn WebSearchProvider>, String> {
+    match provider {
+        "searxng" => Ok(Box::new(SearxngProvider { base_url: searxng_url.to_string() })),
+        "tavily" => Ok(Box::new(TavilyProvider { api_key: api_key.to_string() })),
+        "duckduckgo" => Ok(Box::new(DuckDuckGoProvider)),
+        "disabled" | "" => Err(
+            "web.search provider is disabled; configure agent.web_search_provider=searxng or tavily. DuckDuckGo is an explicit best-effort fallback.".into()
+        ),
+        other => Err(format!("web.search provider '{other}' is not supported yet")),
+    }
+}
+
 pub(super) fn answer_workflow_plan(prompt: &str) -> Option<String> {
     let lower = prompt.to_lowercase();
     if !contains_any(

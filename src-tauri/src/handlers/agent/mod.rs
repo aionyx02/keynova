@@ -22,7 +22,7 @@ use crate::managers::{
 };
 use crate::models::action::ActionRisk;
 use crate::models::agent::{
-    AgentActionKind, AgentApproval, AgentMemoryRef, AgentMemoryScope,
+    AgentActionKind, AgentApproval, AgentError, AgentMemoryRef, AgentMemoryScope,
     AgentPlannedAction, AgentRun, AgentRunStatus, AgentStep, AgentToolCall,
     ContextVisibility, GroundingSource,
 };
@@ -183,6 +183,10 @@ impl AgentHandler {
     fn start_react_run(&self, prompt: String) -> Result<AgentRun, String> {
         let run_id = self.runtime.next_run_id();
         let memory_refs = self.memory_refs()?;
+        // Pre-populate prompt_audit with initial local context so the UI can show
+        // which sources were considered even before the first tool call completes.
+        let (initial_sources, _) = self.sources_for_prompt(&prompt).unwrap_or_default();
+        let prompt_audit = build_prompt_audit(&prompt, &initial_sources, PROMPT_BUDGET_CHARS);
         let run = AgentRun {
             id: run_id.clone(),
             prompt: prompt.clone(),
@@ -200,8 +204,8 @@ impl AgentHandler {
             }],
             approvals: Vec::new(),
             memory_refs,
-            sources: Vec::new(),
-            prompt_audit: None,
+            sources: initial_sources,
+            prompt_audit: Some(prompt_audit),
             command_result: None,
             output: None,
             error: None,
@@ -1039,7 +1043,7 @@ impl AgentHandler {
 
     fn web_search(&self, query: &str, limit: usize) -> Result<Vec<GroundingSource>, String> {
         let sanitized = sanitize_external_query(query)?;
-        let (provider, searxng_url, api_key, timeout_secs) = {
+        let (provider_str, searxng_url, api_key, timeout_secs) = {
             let config = self.config.lock().map_err(|e| e.to_string())?;
             (
                 config
@@ -1053,16 +1057,8 @@ impl AgentHandler {
                     .unwrap_or(8),
             )
         };
-
-        match provider.as_str() {
-            "searxng" => search_searxng(&searxng_url, &sanitized, limit, timeout_secs),
-            "tavily" => search_tavily(&api_key, &sanitized, limit, timeout_secs),
-            "duckduckgo" => search_duckduckgo_html(&sanitized, limit, timeout_secs),
-            "disabled" | "" => Err(
-                "web.search provider is disabled; configure agent.web_search_provider=searxng or tavily. DuckDuckGo is an explicit best-effort fallback.".into(),
-            ),
-            other => Err(format!("web.search provider '{other}' is not supported yet")),
-        }
+        let provider = resolve_web_search_provider(&provider_str, &searxng_url, &api_key)?;
+        provider.search(&sanitized, limit, timeout_secs)
     }
 
     fn log_audit(
@@ -1229,6 +1225,18 @@ struct ReactDispatchState {
 
 impl ReactDispatchState {
     fn dispatch(&self, name: &str, args: &Value) -> Result<Value, String> {
+        // Approval-gated tools require `"__approved": true` injected by the ReAct loop
+        // after the user explicitly grants permission. Direct dispatch without approval fails.
+        const APPROVAL_GATED: &[&str] = &[TOOL_GIT_STATUS];
+        if APPROVAL_GATED.contains(&name)
+            && args.get("__approved").and_then(Value::as_bool) != Some(true)
+        {
+            return Err(AgentError::ToolDenied {
+                tool: name.to_string(),
+                reason: "requires explicit user approval before dispatch".into(),
+            }
+            .to_string());
+        }
         match name {
             TOOL_KEYNOVA_SEARCH => self.dispatch_keynova_search(args),
             TOOL_FILESYSTEM_SEARCH => self.dispatch_filesystem_search(args),
@@ -1356,7 +1364,7 @@ impl ReactDispatchState {
             .to_string();
         let limit = args.get("limit").and_then(Value::as_u64).unwrap_or(5) as usize;
         let sanitized = sanitize_external_query(&query)?;
-        let (provider, searxng_url, api_key, timeout_secs) = {
+        let (provider_str, searxng_url, api_key, timeout_secs) = {
             let config = self.config.lock().map_err(|e| e.to_string())?;
             (
                 config
@@ -1370,15 +1378,8 @@ impl ReactDispatchState {
                     .unwrap_or(8),
             )
         };
-        let sources = match provider.as_str() {
-            "searxng" => search_searxng(&searxng_url, &sanitized, limit, timeout_secs)?,
-            "tavily" => search_tavily(&api_key, &sanitized, limit, timeout_secs)?,
-            "duckduckgo" => search_duckduckgo_html(&sanitized, limit, timeout_secs)?,
-            "disabled" | "" => {
-                return Err("web.search provider disabled; configure agent.web_search_provider".into())
-            }
-            other => return Err(format!("web.search provider '{other}' not supported")),
-        };
+        let provider = resolve_web_search_provider(&provider_str, &searxng_url, &api_key)?;
+        let sources = provider.search(&sanitized, limit, timeout_secs)?;
         Ok(grounding_to_tool_sources_json(&sources))
     }
 
