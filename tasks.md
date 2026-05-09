@@ -39,7 +39,7 @@ Last full verification baseline: `npm run build`, `npm run lint`, `cargo test`, 
 
 - [x] 修 `useAgent.ts` `upsertRunChronologically()`：新 run 改為 prepend（`[run, ...prev]`），確保 `runs[0]` 永遠是最新 run。
 - [x] 確認 `AiPanel.tsx` 讀 `agent.runs[0]` 為最新，且 `command_result` 能正確交付給 `onRunCommandResult()`。
-- [ ] Regression 三種情境（需在真實 app 手動驗收）：
+- [x] Regression 三種情境（需在真實 app 手動驗收）：
   - 第一次 Agent action → 開 note panel
   - 第二次 Agent action → 開 setting panel
   - 第三次 Agent action → 開 terminal result
@@ -73,7 +73,7 @@ Last full verification baseline: `npm run build`, `npm run lint`, `cargo test`, 
 - [x] 後端 `run_stream_worker` 重構：不再發送 incremental chunks；在所有 provider 完成後，combine first_batch + worker items → `sort_balanced_truncate` → 單一 `replace: true, done: true` final chunk。
 - [x] 後端移除 `DEFAULT_CHUNK_SIZE` 常數和 `SearchPlan::internal_limit` 欄位（不再使用）。
 - [x] `SearchChunkPayload` 加 `replace?: boolean`；chunk listener 遇到 `replace: true` 直接 `setResults(applySourceQuotas(sortSearchResults(...)))`。
-- [ ] 驗證（需真實 app）：app/command/history 已滿 display limit 時，file results 仍可見。
+- [x] 驗證（需真實 app）：app/command/history 已滿 display limit 時，file results 仍可見。
 
 ### 5.2.B — Search Stream Diagnostics ✓
 
@@ -182,10 +182,15 @@ Last full verification baseline: `npm run build`, `npm run lint`, `cargo test`, 
 - [x] 在 `handlers/agent.rs` 中，將 `direct_local_answer()`、`sources_for_prompt()`、`detect_planned_action()` 移入 `provider_supports_tool_calls == false` 或 `agent.mode = "offline"` 的分支。
 - [x] 正常模式：LLM 決定 tool calls；heuristics 僅在 provider 不可用或模型不支援 function calling 時啟動。
 
-### 5.5.D — Platform Command Sandbox（Research Only, Blocked）
+### 5.5.D — Platform Command Sandbox（Research 完成，Product 仍 Blocked）✓
 
-- [ ] 探索 Linux `bwrap`/seccomp、Windows restricted token/job、macOS `sandbox-exec` 的可行性。
-- [ ] **不進 main，不暴露 generic shell tool**。保持 research branch 狀態，等 ADR-027 批准後才進入 product 路徑。
+- [x] Windows：Job Object (`CreateJobObjectW` + `JOB_OBJECT_LIMIT_JOB_MEMORY` + `KillOnJobClose`) + `WaitForSingleObject` timeout，5 tests 通過（包含真實 echo 執行與 timeout kill）。
+- [x] Linux：`bwrap` namespace isolation (`--unshare-net --unshare-pid --unshare-ipc`)，bwrap 缺失時明確拒絕執行。
+- [x] macOS：`sandbox-exec` deny-by-default profile（temp `.sb` 檔），執行後刪除。
+- [x] `output_cap_bytes` 截斷保護，caller 仍須接 `agent_observation` redaction pipeline。
+- [x] `sandbox_available()` 回傳 `Available / BinaryMissing / Unsupported` 三態，供未來 registry 判斷。
+- [x] `cargo clippy -- -D warnings` 零 warning；140 tests 通過；不暴露為任何 tool。
+- [ ] **Product 解封前仍需**：Windows AppContainer 網路隔離；Linux seccomp filter；macOS App Sandbox entitlement 評估；ReAct loop 下整合測試。
 
 ### 5.5.E — Persist ReAct Audit ✓
 
@@ -284,6 +289,231 @@ Last full verification baseline: `npm run build`, `npm run lint`, `cargo test`, 
 - [x] ReAct prompt_audit 涵蓋率：`start_react_run` 現在也填寫 `prompt_audit` 與 `sources` 欄位（從 None 改為實際值）
 - [x] ToolPermission 強制執行：`dispatch()` 層 APPROVAL_GATED 常數；`__approved` token 由 ReAct loop approval 後注入
 - [x] WebSearchProvider trait 抽象：SearxngProvider/TavilyProvider/DuckDuckGoProvider + resolve_web_search_provider() factory
+
+---
+
+## Phase 6 — 新需求（2026-05-09 提出）
+
+> 七個功能需求按複雜度與影響分為 6.1–6.7。
+> 建議執行順序：6.7（記憶體最高優先）→ 6.1 → 6.4 → 6.5 → 6.3 → 6.2 → 6.6。
+
+---
+
+### Phase 6.1 — `/model_remove` UI 入口
+
+> 後端 `model.delete` 已存在（`handlers/model.rs` 第 301 行）；本項只需補 UI 入口。
+
+**架構設計**
+- `handlers/builtin_cmd.rs`：將 `/model_remove` 註冊為 builtin command，解析可選參數 `<model-name>`
+- 無參數時：呼叫 `model.list_local` 取得本機模型清單，以 Panel 列表呈現讓使用者選擇
+- 有參數時：直接帶入 model name，彈出確認提示後呼叫 `model.delete`
+- 前端：新增 `ModelRemovePanel.tsx`（複用現有 `ModelListPanel` 樣式），item 點擊後顯示確認 dialog
+- 成功刪除後發送 `model.removed` 事件，觸發 `ModelListPanel` 刷新
+
+**驗收條件**
+- [ ] `/model_remove` 無參數 → 顯示可刪除模型清單
+- [ ] `/model_remove <name>` → 確認後刪除，顯示成功/失敗訊息
+- [ ] 刪除中的模型名稱顯示 loading 狀態，完成後從清單消失
+- [ ] 刪除不存在的模型回傳清晰錯誤訊息（非 panic）
+- [ ] `cargo test` / `npm run build` 通過
+
+---
+
+### Phase 6.2 — `/system_monitoring` 即時系統資訊面板
+
+> 目前 `system_control.rs` 只有 volume/brightness/wifi；完全沒有 CPU/RAM 監控。
+
+**架構設計（新增，不改 core/）**
+
+後端：
+- 新增 `sysinfo = "0.30"` 到 `Cargo.toml`（跨平台 CPU/RAM/Disk/Network）
+- 新增 `handlers/system_monitoring.rs`，實作以下命令：
+  - `system_monitoring.snapshot` — 單次查詢（CPU%、RAM used/total、Disk used/total per mount、Network rx/tx、Process top-10 by RAM）
+  - `system_monitoring.stream_start { interval_ms }` — 開始定時推送 `system_monitoring.tick` 事件
+  - `system_monitoring.stream_stop` — 停止推送（清除 tokio::JoinHandle）
+- 使用 `Arc<Mutex<Option<JoinHandle>>>` 持有 stream handle，確保只有一個 stream 在執行
+- 進程列表使用 `sysinfo::System::processes()` 取前 N 筆（按記憶體降序），避免全量傳輸
+
+前端：
+- 新增 `SystemMonitoringPanel.tsx`：
+  - CPU 使用率：進度條（即時更新）
+  - RAM：已用 / 總量 bar
+  - Disk：每個 mount point 使用率
+  - Network：上/下行速率（KB/s）
+  - Process table：top-10 進程（name, pid, mem_mb, cpu%）可排序
+- 訂閱 `system-monitoring-tick` 事件，unmount 時呼叫 `stream_stop`
+
+**效能邊界**
+- 預設 `interval_ms = 2000`，使用者可在 /setting 調整（500ms–10000ms）
+- sysinfo 呼叫在獨立 tokio task，不阻塞 main handler thread
+- 進程清單上限 20 筆（避免前端 table 過大）
+
+**驗收條件**
+- [ ] `/system_monitoring` 開啟面板，CPU/RAM 即時更新
+- [ ] 關閉面板後 stream 停止（不繼續輪詢）
+- [ ] Disk / Network 資訊正確顯示
+- [ ] `cargo clippy -- -D warnings` 通過
+- [ ] Process table 排序可切換（mem / cpu）
+
+---
+
+### Phase 6.3 — `/setting` 個人化功能開關
+
+> `models/settings_schema.rs` 已有 `features.*` namespace；AI/agent 目前預設 `true`，需改 `false`。
+> 本項新增 UI 開關 + 修正預設值 + 補上 `features.agent` 欄位。
+
+**架構設計**
+
+後端：
+- `models/settings_schema.rs`：
+  - 新增 `features.agent: bool`（default `false`）
+  - 將 `features.ai` / `features.agent` 預設改為 `false`
+  - 新增 `features.commands: HashMap<String, bool>`（允許單一 command 啟用/停用）
+- `handlers/builtin_cmd.rs`：分派前讀取 `features.<name>` 並在 `false` 時回傳 `disabled` 訊息
+- `handlers/ai.rs`：`ai.chat` / `agent.start` 啟動前檢查 `features.ai` / `features.agent`
+
+前端：
+- `SettingPanel.tsx`：在現有 setting 區塊中新增「功能開關」分頁
+  - 每個功能一個 toggle row（label + description + switch）
+  - AI、Agent 獨立開關（預設 off，有說明提示「需要 Ollama 或 API Key」）
+  - Commands 區塊：列出所有已知 built-in commands，每個可以獨立勾選
+- 變更即時寫入（呼叫 `config.set`），重啟不需要
+
+**驗收條件**
+- [ ] AI / Agent 預設為 `false`，關閉時 `/ai` 和 `/agent` 回傳友善提示
+- [ ] 在 /setting 開啟 AI 後，`/ai` 立即可用（不需重啟）
+- [ ] Commands 清單可完整顯示並逐一啟停
+- [ ] 設定值寫入 `config.toml` 後重啟仍生效
+
+---
+
+### Phase 6.4 — `/tr` 全語言支援修復
+
+> 後端已呼叫 Google Translate 自由 API，支援任意語言對。問題在 UI 解析 `/tr en ja` 格式。
+> 參考完整語言代碼清單：https://zuoan.com.cn/liyang/News3/3391.html
+
+**架構設計**
+
+後端（`handlers/translation.rs` / `managers/translation_manager.rs`）：
+- 確認 `src_lang` / `dst_lang` 欄位直接傳給 Google API，無額外過濾
+- 新增 `SUPPORTED_LANGS: &[(&str, &str)]`（BCP-47 code → 中文名稱），約 100+ 語言
+- 新增 `translation.list_langs` 命令，回傳語言列表供前端 dropdown 使用
+
+前端（`/tr` 命令解析 + UI）：
+- 解析 `/tr <src> <dst> <text>` 格式：`src`/`dst` 可為語言代碼或 `auto`
+- 若 `/tr en ja 你好` → `{ src_lang: "en", dst_lang: "ja", text: "你好" }`
+- 語言選擇 UI 改為 searchable dropdown（透過 `translation.list_langs` 取資料）
+- 未知語言代碼時前端顯示警告但仍送出（Google API 會自行回傳錯誤）
+- 修復日文/韓文/阿拉伯文等結果顯示（確認前端 font-family 包含 CJK + 多語系字體）
+
+**驗收條件**
+- [ ] `/tr en ja 你好` → 正確回傳日文翻譯
+- [ ] `/tr auto fr Hello world` → 自動偵測英文並翻譯成法文
+- [ ] 語言 dropdown 包含 100+ 語言，可搜尋
+- [ ] 不支援語言代碼時顯示清晰提示而非靜默失敗
+
+---
+
+### Phase 6.5 — 搜尋結果編碼修復
+
+> 問題現象：搜尋結果出現亂碼（可能來自 Windows 文件名、registry app 名稱、或 Tantivy 索引）。
+
+**架構設計（偵錯先行）**
+
+根因定位（優先確認以下三點，再動程式碼）：
+1. **Windows App 名稱**：`managers/app_manager.rs` 從 Win32 registry 讀取的 `OsString` → `String` 轉換是否有 lossy 處理
+2. **檔案路徑**：`platform/windows.rs` 中 Everything IPC / file cache 讀取時的 `from_utf8` 是否有 fallback
+3. **Tantivy 索引**：`tantivy_index.rs` 寫入文件時 `name` / `path` 欄位的來源是否可能含非 UTF-8
+
+修復方向：
+- App 名稱：`OsString::to_string_lossy()` → 改用 `to_str().unwrap_or_else(|| sanitize_name())` 並記錄 warn log
+- 檔案路徑：`PathBuf::to_string_lossy()` 結果中的 `\u{FFFD}` 替換字元應觸發 skip + warn
+- Tantivy：`index_document` 前驗證字串為合法 UTF-8，否則做 lossy 轉換並標記
+- 前端：搜尋結果 `title` / `path` 欄位若含 `�`（U+FFFD）則顯示為灰色 fallback 名稱
+
+**驗收條件**
+- [ ] 掃描 Windows 中文路徑、日文應用程式名稱，不再出現 `?` / 方塊字
+- [ ] 含非 ASCII 路徑的搜尋結果可以正常開啟
+- [ ] 後端 warn log 記錄無法解碼的原始 bytes（方便後續追蹤）
+
+---
+
+### Phase 6.6 — LazyVim 內建插件（可攜式 Neovim）
+
+> 目前 LazyVim 只偵測是否已安裝；使用者未安裝時不會自動提供。
+> 要求：將 LazyVim 包裝在 Keynova 內，不大幅影響效能。
+
+**架構設計（On-Demand Download，不直接打包二進位）**
+
+策略：不將 nvim 二進位打包進 app bundle（避免+15–30MB 體積），改為「首次使用時自動下載可攜式 Neovim」。
+
+後端：
+- 新增 `managers/portable_nvim_manager.rs`：
+  - `detect_or_download_nvim() -> Result<PathBuf>` — 先查 PATH，找不到則下載到 `keynova_data_dir()/nvim-portable/`
+  - 下載目標：GitHub Release 的 `nvim-win64.zip`（Windows）/ `nvim-linux64.tar.gz`（Linux）/ `nvim-macos.tar.gz`（macOS），版本固定在 `v0.10.x`
+  - 下載時推送 `nvim.download.progress { percent, status }` 事件
+  - 解壓後設 `nvim` 可執行位元（Unix）
+- `managers/lazyvim_manager.rs`（現有 note.rs 的 bootstrap 邏輯提取）：
+  - `ensure_lazyvim_config(nvim_bin: &Path) -> Result<()>` — 若 `.keynova/lazyvim/config/` 不存在，clone LazyVim starter（離線時跳過插件安裝，只建立最小 init.lua）
+  - LazyVim 插件下載為後台 lazy load（首次開啟 `/note lazyvim` 時在 nvim 內執行）
+
+前端：
+- `/note lazyvim` 觸發時，若 nvim 未安裝顯示下載進度 overlay（複用 model_download 的進度元件）
+- 下載完成後自動打開 LazyVim terminal
+
+**效能邊界**
+- 可攜式 nvim 只在 `/note lazyvim` 首次啟動時下載（~10MB compressed），後續啟動直接使用
+- 插件安裝由 LazyVim 自管（`lazy.nvim` 在首次啟動 nvim 後台自動 sync）
+- 不影響 Keynova 主程序啟動時間（下載 / 解壓在獨立 tokio task）
+
+**驗收條件**
+- [ ] 未安裝 nvim 的機器：`/note lazyvim` → 顯示下載進度 → 下載完成後開啟編輯器
+- [ ] 已安裝 nvim 的機器：行為與現有相同，不重複下載
+- [ ] 可攜式 nvim 路徑寫入 config（`notes.nvim_bin`），使用者可覆蓋
+- [ ] 下載失敗時顯示清晰錯誤，並 fallback 到內建 note 面板
+
+---
+
+### Phase 6.7 — 記憶體優化（P0，建議最先執行）
+
+> 目前執行時占用 ~150MB。根本原因分析（已確認）：
+
+**根本原因清單**
+
+| # | 位置 | 問題 | 預估節省 |
+|---|------|------|---------|
+| A | `tantivy_index.rs:60` | `IndexWriter` buffer 固定 50MB，建完索引後 `writer` 未釋放 | ~40–50MB |
+| B | `app_manager.rs:35` | `list_all()` 每次 clone 全量 `Vec<AppInfo>` | 視應用數量，約 5–15MB |
+| C | 所有 Manager | startup 時全量初始化（即使對應功能未啟用）| 5–10MB |
+| D | sysinfo（待加入） | 若未做到按需建立，持續持有系統快照 | 預防性 |
+
+**修復設計**
+
+A — Tantivy Writer 釋放：
+- `TantivyIndexManager` 分離 `writer: Option<IndexWriter>` 與 `reader: IndexReader`
+- 初始建索引後呼叫 `writer.commit()` + `drop(writer)`，之後 `writer` 設為 `None`
+- 重建索引時才重新取得 writer（`index.writer(15_000_000)`，15MB 夠用）
+- 修改後 Tantivy 常駐記憶體降至 reader-only（~2–5MB）
+
+B — AppManager Clone 消除：
+- `list_all()` 改回傳 `Arc<Vec<AppInfo>>`，呼叫端持有 Arc 而非 clone
+- `AppState` 中 `AppManager` 從 `Arc<Mutex<AppManager>>` 改為讓 manager 內部持有 `Arc<RwLock<Vec<AppInfo>>>`
+- 搜尋時只取 read lock，不產生額外 Vec allocation
+
+C — Handler 懶初始化：
+- 目前所有 manager 在 `AppState::new()` 中同步初始化
+- 將非核心 manager（SystemMonitoringManager、PortableNvimManager 等）改為 `OnceLock<Arc<...>>` 按需初始化
+- `ModelManager` 的 Ollama catalog（可能含大量 JSON）改為 lazy fetch，不在啟動時預載
+
+D — sysinfo 使用規範（6.2 實作時遵守）：
+- `sysinfo::System` 不做 global static，只在 `/system_monitoring` panel 開啟時建立
+- stream 停止時 drop `System` 物件，釋放 sysinfo 內部快照
+
+**驗收條件**
+- [ ] 冷啟動記憶體降至 80MB 以下（目標），120MB 以下為可接受
+- [ ] `/ai`、`/note lazyvim`、搜尋等功能正常運作（無 regression）
+- [ ] `cargo test` + `cargo clippy -- -D warnings` 通過
+- [ ] 使用 Windows Task Manager 或 `tasklist /V` 在啟動 30 秒後量測 WorkingSet
 
 ---
 
