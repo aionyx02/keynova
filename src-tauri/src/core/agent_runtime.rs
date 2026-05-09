@@ -1314,4 +1314,112 @@ mod tests {
         assert_eq!(run.status, AgentRunStatus::Failed);
         assert!(run.error.as_deref().unwrap_or("").contains("Maximum steps"));
     }
+
+    #[test]
+    fn react_loop_provider_network_error_fails_run() {
+        let runtime = react_runtime();
+        runtime
+            .insert_run(running_run("r5"))
+            .expect("insert run");
+
+        // An empty FakeToolCallProvider returns ToolCallError::Network on the first call.
+        let provider = FakeToolCallProvider::new([]);
+        react_loop_body(
+            &runtime,
+            "r5",
+            &provider,
+            &[],
+            &ReactLoopConfig::default(),
+            &noop_dispatch,
+        );
+
+        let run = runtime.get("r5").unwrap().unwrap();
+        assert_eq!(run.status, AgentRunStatus::Failed);
+        assert!(run.error.as_deref().unwrap_or("").contains("Provider error"));
+    }
+
+    #[test]
+    fn react_loop_unknown_tool_produces_error_observation_and_loop_completes() {
+        let runtime = react_runtime();
+        runtime
+            .insert_run(running_run("r6"))
+            .expect("insert run");
+
+        // Provider calls an unregistered tool (not in the spec list, not in dispatch).
+        // The loop must not panic; it should surface an error observation and the LLM
+        // returns final text on the next turn, completing the run.
+        let provider = FakeToolCallProvider::tool_then_final(
+            "execute_shell_command",
+            "call-unsafe",
+            json!({ "cmd": "echo hello" }),
+            "I tried to run a shell command but it was not allowed; I found the answer another way.",
+        );
+
+        let deny_dispatch = |name: &str, _args: &Value| -> Result<Value, String> {
+            Err(format!("unknown react tool '{name}'"))
+        };
+
+        react_loop_body(
+            &runtime,
+            "r6",
+            &provider,
+            &[], // empty spec list: no approval_required, just hits dispatch and gets Err
+            &ReactLoopConfig::default(),
+            &deny_dispatch,
+        );
+
+        let run = runtime.get("r6").unwrap().unwrap();
+        assert_eq!(run.status, AgentRunStatus::Completed);
+        assert!(run
+            .output
+            .as_deref()
+            .unwrap_or("")
+            .contains("not allowed"));
+    }
+
+    #[test]
+    fn react_loop_large_dispatch_result_does_not_panic() {
+        let runtime = react_runtime();
+        runtime
+            .insert_run(running_run("r7"))
+            .expect("insert run");
+
+        // Dispatch returns a 50 KB sources blob to exercise the observation truncation path.
+        let large_snippet = "x".repeat(50_000);
+        let large_result = json!({
+            "sources": [{
+                "title": "Big file",
+                "snippet": large_snippet,
+                "source_type": "file",
+            }]
+        });
+        let dispatch_data = large_result.clone();
+        let big_dispatch = move |name: &str, _args: &Value| -> Result<Value, String> {
+            if name == "keynova_search" {
+                Ok(dispatch_data.clone())
+            } else {
+                Err(format!("unexpected tool: {name}"))
+            }
+        };
+
+        let provider = FakeToolCallProvider::tool_then_final(
+            "keynova_search",
+            "call-big",
+            json!({ "query": "large" }),
+            "The large result was processed successfully.",
+        );
+
+        let tools = AgentToolRegistry::with_default_readonly_tools().list();
+        react_loop_body(
+            &runtime,
+            "r7",
+            &provider,
+            &tools,
+            &ReactLoopConfig::default(),
+            &big_dispatch,
+        );
+
+        let run = runtime.get("r7").unwrap().unwrap();
+        assert_eq!(run.status, AgentRunStatus::Completed);
+    }
 }

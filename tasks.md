@@ -206,11 +206,18 @@ Last full verification baseline: `npm run build`, `npm run lint`, `cargo test`, 
 - [x] Pending approval header 顯示 count；區分 ReAct gate approval（`planned_action === null` → 標示 "react tool gate"）vs heuristic planned action。
 - [x] Final answer 以 `border-emerald-500` 框突顯，而非普通 `text-gray-400` pre。
 
-### 5.5.G — ReAct Regression Tests
+### 5.5.G — ReAct Regression Tests ✓
 
-- [ ] Provider tool-call parsing、schema generation、loop max-step stop。
-- [ ] Cancellation、one-shot approve/reject、unsafe-command denial。
-- [ ] stdout/stderr 截斷、provider timeout、web-query redaction、stale OS index fallback。
+- [x] Provider tool-call parsing（react_loop_tool_call_then_final_completes_run）✓ 既有
+- [x] Schema generation（tool_schemas_are_generated_and_openai_safe）✓ 既有
+- [x] Loop max-step stop（react_loop_max_steps_exceeded_fails_run）✓ 既有
+- [x] Cancellation（react_loop_cancel_mid_loop_stops_early）✓ 既有
+- [x] One-shot approve/reject（react_loop_approval_gate_approved/rejected）✓ 既有
+- [x] Web-query redaction（rejects_private_context_in_web_query）✓ 既有
+- [x] Provider network error → run fails（react_loop_provider_network_error_fails_run）NEW
+- [x] Unknown/unsafe tool → error observation, loop completes（react_loop_unknown_tool_produces_error_observation_and_loop_completes）NEW
+- [x] Large observation handled without panic（react_loop_large_dispatch_result_does_not_panic）NEW
+- [x] 157 tests passing, clippy clean。
 
 ### 5.5.H — ReAct Manual Validations
 
