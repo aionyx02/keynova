@@ -270,20 +270,20 @@ Last full verification baseline: `npm run build`, `npm run lint`, `cargo test`, 
 - [x] `dispatch_filesystem_read` 加入 `resolve_readable_path()`：canonicalize 後驗證在 workspace roots 內，並拒絕 `looks_sensitive_path()`（`/.ssh`, `/.gnupg`, `.env`, `id_rsa`, `id_ed25519`, `credentials` 等路徑）
 - [x] 優化 `truncate()`：單次 chars() scan，消除 `chars().count()` 的第二次 O(n) 遍歷
 
-### 5.11.B — 消除重複搜尋邏輯
+### 5.11.B — 消除重複搜尋邏輯 ✓
 
-- [ ] 提取 `LocalContextSearcher` struct，合併 `push_heuristic_workspace_source` / `push_react_workspace_source` 等兩組近乎相同的方法
+- [x] 提取 `LocalContextSearcher` struct，合併 `push_heuristic_workspace_source` / `push_react_workspace_source` 等兩組近乎相同的方法（~200 行節省）
 
-### 5.11.C — 檔案拆分（agent/ 子目錄）
+### 5.11.C — 檔案拆分（agent/ 子目錄）✓
 
-- [ ] 將 ~3700 行 agent.rs 拆分為：`agent/handler.rs`, `agent/tools/`, `agent/planner.rs`, `agent/intent.rs`, `agent/safety.rs`, `agent/formatting.rs`, `agent/audit.rs`, `agent/memory.rs`
+- [x] 將 3830 行 agent.rs 拆分為：`agent/mod.rs`, `agent/filesystem.rs`, `agent/formatting.rs`, `agent/intent.rs`, `agent/safety.rs`, `agent/web.rs`
 
-### 5.11.D — 型別化 AgentError 與強化 ReAct 覆蓋率
+### 5.11.D — 型別化 AgentError 與強化 ReAct 覆蓋率 ✓
 
-- [ ] `AgentError` enum 取代 `String` error，`CommandResult` 可攜帶結構化錯誤
-- [ ] ReAct prompt_audit 涵蓋率：確保 `start_react_run` 也填寫 `prompt_audit` 欄位
-- [ ] ToolPermission 強制執行：在 dispatch 層而非只在 comment 中阻擋 high-risk tool
-- [ ] WebSearchProvider trait 抽象：Searxng / Tavily / DuckDuckGo 共用介面
+- [x] `AgentError` enum（Config/LockPoisoned/ProviderUnavailable/ToolDenied/SafetyViolation/IoError）加入 `models/agent.rs`
+- [x] ReAct prompt_audit 涵蓋率：`start_react_run` 現在也填寫 `prompt_audit` 與 `sources` 欄位（從 None 改為實際值）
+- [x] ToolPermission 強制執行：`dispatch()` 層 APPROVAL_GATED 常數；`__approved` token 由 ReAct loop approval 後注入
+- [x] WebSearchProvider trait 抽象：SearxngProvider/TavilyProvider/DuckDuckGoProvider + resolve_web_search_provider() factory
 
 ---
 
