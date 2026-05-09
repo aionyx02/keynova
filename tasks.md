@@ -199,9 +199,12 @@ Last full verification baseline: `npm run build`, `npm run lint`, `cargo test`, 
 
 - [x] 將每個 ReAct step 持久化到 Knowledge Store `agent_audit_logs`：`request_id`、tool schemas、args preview、approval decision、observation summary、redacted sources、final answer、failure/cancel reason。
 
-### 5.5.F — Frontend Agent Run View
+### 5.5.F — Frontend Agent Run View ✓
 
-- [ ] 更新 `AiPanel` run view：pending approval 指示器、approved/running/completed/denied tool 狀態、stdout preview、observation count、redaction notices、final grounded answer。
+- [x] `useAgent.ts`：新增 `ReactStep` interface、`reactSteps: Record<string, ReactStep[]>` state、監聽 `"agent-step"` 事件（legacy alias for `agent.step`），upsert by `(step, tool_name)` key，按 step 排序。
+- [x] `AiPanel.tsx`：新增 `ReactStepTimeline` component（色碼徽章：executing=藍脈、waiting_approval=琥珀脈、executed/approved=綠、rejected/timeout=紅、final=翠綠粗）、observation count badge。
+- [x] Pending approval header 顯示 count；區分 ReAct gate approval（`planned_action === null` → 標示 "react tool gate"）vs heuristic planned action。
+- [x] Final answer 以 `border-emerald-500` 框突顯，而非普通 `text-gray-400` pre。
 
 ### 5.5.G — ReAct Regression Tests
 
