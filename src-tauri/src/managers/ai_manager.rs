@@ -133,8 +133,6 @@ pub enum AiToolTurn {
 }
 
 /// Returns whether this provider variant is expected to support tool/function calling.
-/// Used by `agent.start` (5.5.C) to select between heuristic and ReAct paths.
-#[allow(dead_code)]
 pub fn provider_supports_tool_calls(provider: &AiProvider) -> bool {
     matches!(
         provider,
