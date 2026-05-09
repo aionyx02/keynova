@@ -63,9 +63,9 @@
 
 ## 當前狀態
 
-- **進度**：Phase 5 進行中；5.1.A、5.1.B、5.8、5.2.A、5.2.B、5.3.A~C、5.4、5.5.A1+A2+B1 均已實作並 commit（11 個 commits on Phase-5 branch）。
-- **上次完成**：5.5.A1+A2+B1 ReAct loop skeleton：ToolCallProvider trait + ToolCallError；FakeToolCallProvider（test-only）；react_loop_body + ReactLoopConfig + spawn_react_loop；4 個整合測試（single-final/tool+final/cancel/max-steps）全通過；117 tests。
-- **下一步**：5.5.A3 OpenAI-compatible provider tool-call parsing（`chat_with_tools` 實作，對應 tools/tool_choice request，解析 tool_calls response）。
+- **進度**：Phase 5 進行中；5.1.A、5.1.B、5.8、5.2.A、5.2.B、5.3.A~C、5.4、5.5.A1+A2+B1+A3+A4+B2+B3+C+E、5.11.A 均已實作並 commit（Phase-5 branch）。
+- **上次完成**：5.11.A：修 extract_quoted bug（find_map）；5 個 TOOL_* 常數統一工具名稱；resolve_readable_path() + looks_sensitive_path() 防止路徑逃逸；truncate() 單次 scan；7 個新測試；共 135 tests。
+- **下一步**：5.5.F — 更新 AiPanel run view：pending approval 指示器、tool 狀態、observation count、final grounded answer。
 
 ## 已確認的技術選擇
 
@@ -100,23 +100,18 @@
 - Phase 3.0–3.8 完成與後續任務整理（2026-05-04 ~ 05-05）：/tr /ai /note /cal /history /system + workspace 3 槽位完成；BUG-12/13/14 經 stale closure/捲動根因修復；tasks.md 壓縮並建立 FEAT-6/7
 - FEAT-6 完成（2026-05-05）：`/model_download` / `/model_list` 支援 AI Chat 與 Translation 分別切換模型、硬體推薦、Ollama catalog/progress、API provider 切換；後續 FEAT-7 已將 Translation 收斂為 Google only
 - Phase 4 foundation + Agent runtime + 搜尋串流/Tantivy/Plugin/Automation 全完成後 merge 進 main（2026-05-06 ~ 05-08）
+- Phase 5 開始：tasks 整理→5.1~5.8→5.2.A/B→5.3.A~C→5.4→5.5.A1~C（2026-05-08）：search diagnostics、config paths、SetupCard、ReAct loop 骨架到 offline fallback 分支；128 tests on Phase-5
 
 ## Session 交接紀錄（最近 5 筆）
 
 | 日期 | 完成事項 | 遺留問題 |
 |------|----------|----------|
-| 2026-05-08 | 5.5.A1+A2+B1：ToolCallProvider trait、FakeToolCallProvider（test-only）、react_loop_body（check-cancel/tool-dispatch/observation-redact/max-steps）；4 整合測試；117 tests 通過 | 5.5.A3 OpenAI provider、5.5.A4 Ollama provider 待實作；B1 loop 尚未接真 LLM |
-| 2026-05-08 | 5.4 完成：default_config.toml 改 ollama/qwen2.5:7b；ai.check_setup 後端命令（3s ping、prefix model match、空 key 偵測、RAM 推薦）；AiPanel SetupCard 三步驟 | README local-first 段落待補；手動驗收 setup card 需真實 app |
-| 2026-05-08 | 5.3.A+B+C 跨平台路徑修正完成：platform_dirs 模組（dirs crate）、4 個消費者對齊、legacy migration 在 bootstrap 最早執行；111 tests 通過 | 5.4 default provider、5.5 ReAct loop 待做；手動驗收路徑與 migration 需真實 app |
-| 2026-05-08 | 5.2.B Search diagnostics：SearchChunkDiagnostics struct + fileDiagnostics state + footer 人類可讀訊息（timed_out / index empty / hidden count）；5.1.A/B/5.8/5.2.A 共 5 個 commits on Phase-5 | 5.3 config paths、5.4 default provider 待做；手動驗收 search diagnostics 仍需真實 app |
-| 2026-05-08 | Phase 5 開始實作：5.1.A Agent runs ordering（prepend fix）、5.1.B AI chat retain（rposition）、5.8 note name validation（validate_note_name + reserved names + 3 tests）、5.2.A search stream quota（replace:true balanced final chunk + applySourceQuotas）| 5.2.B diagnostics、5.3 config paths、5.4 default provider 待做 |
-| 2026-05-08 | tasks.md 精修第二版：5.5 拆成 A1–A4/B1–B3 分批 milestone；5.8 提前；新增 5.3.C legacy migration；5.2.A replace payload；5.4 Ollama reachability；5.5.D research-only | 所有 Phase 5 任務待實作 |
-| 2026-05-08 | 架構分析：確認 10 項 P0/P1/P2 問題；tasks.md 初版重整為 Phase 5.1–5.10 | 所有 Phase 5 任務待實作；5.5.D sandbox blocked on ADR-027 |
-| 2026-05-08 | dev → main merge 完成（1365e69，82 files，+14684/-1738 行）；Phase-4 全部功能進入 main | 手動驗收搜尋結果排序與 Agent 流程 |
-| 2026-05-08 | 搜尋排序與覆蓋率大修：app/file 分數品質分層、WSL home 枚舉、OneDrive env var / Dropbox info.json 動態發現、SearchPlan per-provider quota；28 個測試全通過 | 仍需在真實 app 手動確認；stream diagnostics 尚未做 |
-| 2026-05-06 | Phase 4.4/4.5A：搜尋 backend generation/cancel；AgentHandler context 注入；`agent.tool` 實作 `keynova.search` / SearXNG `web.search`；private architecture/secret redaction tests | `web.search` 預設 disabled，需設定 searxng url；Agent approval/audit 尚未做 |
-| 2026-05-06 | 修正 BUG-15：lazy panel 首次開啟高度同步；改用 ResizeObserver/MutationObserver；關閉 root/body overflow | 需在真實 Tauri 視窗手動確認各 panel 首次開啟正常 |
-| 2026-05-06 | Phase 4 foundation：ActionArena/ActionRef、UiSearchItem、schema-driven settings、Workspace v2、KnowledgeStore DB worker、Agent mode UI/runtime skeleton、Automation/Plugin security model | WASM loader/hot reload 仍待做 |
+| 2026-05-09 | 5.11.A：extract_quoted bug fix（find_map）；TOOL_* 常數；resolve_readable_path() + looks_sensitive_path()；truncate() 單次 scan；135 tests | 5.5.F AiPanel run view 待實作；5.11.B~D 架構改善待排 |
+| 2026-05-09 | 5.5.E：ReactLoopConfig.audit_log；maybe_audit()；10 audit events；KnowledgeStore 接入；128 tests | 5.5.F AiPanel run view 待實作 |
+| 2026-05-09 | 5.5.C：should_use_react_loop()；start_run→start_react_run（OpenAI/Ollama）/start_heuristic_run（Claude/offline）；移除 dead_code；2 tests；128 tests | 5.5.E ReAct step 持久化待實作 |
+| 2026-05-09 | 5.5.B3：wait_for_react_approval 輪詢；approve/reject gate；dispatch_git_status；approve_run/reject_run 分辨 ReAct vs heuristic；2 閘口測試；126 tests | 5.5.C heuristic → offline fallback 待實作 |
+| 2026-05-09 | 5.5.B2：ReactDispatchState（filesystem_search/read/keynova_search/web_search）；AgentHandler::build_react_dispatch()；2 整合測試（temp dir/file）；124 tests | 5.5.B3 git.status approval gate 待實作 |
+| 2026-05-08 | 5.5.A3+A4：impl ToolCallProvider for AiProvider；openai_chat_with_tools；ollama_chat_with_tools；5 解析測試；122 tests | 5.5.B2 filesystem 工具待實作 |
 
 ## 2026-05-06 架構邊界與修正定位索引
 

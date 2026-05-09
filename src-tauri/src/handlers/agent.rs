@@ -35,6 +35,12 @@ const PROMPT_SOURCE_LIMIT: usize = 6;
 const SESSION_MEMORY_LIMIT: usize = 3;
 const LONG_TERM_MEMORY_LIMIT: usize = 3;
 
+const TOOL_KEYNOVA_SEARCH: &str = "keynova_search";
+const TOOL_FILESYSTEM_SEARCH: &str = "filesystem_search";
+const TOOL_FILESYSTEM_READ: &str = "filesystem_read";
+const TOOL_WEB_SEARCH: &str = "web_search";
+const TOOL_GIT_STATUS: &str = "git_status";
+
 #[derive(Debug, Clone, Serialize)]
 struct AgentToolRunResult {
     tool_name: String,
@@ -2617,16 +2623,13 @@ fn extract_backticked(prompt: &str) -> Option<String> {
 }
 
 fn extract_quoted(prompt: &str) -> Option<String> {
-    for quote in ['"', '\''] {
+    ['"', '\''].into_iter().find_map(|quote| {
         let start = prompt.find(quote)?;
-        let rest = &prompt[start + 1..];
+        let rest = &prompt[start + quote.len_utf8()..];
         let end = rest.find(quote)?;
         let value = rest[..end].trim();
-        if !value.is_empty() {
-            return Some(value.to_string());
-        }
-    }
-    None
+        (!value.is_empty()).then(|| value.to_string())
+    })
 }
 
 fn extract_path_like(prompt: &str) -> Option<String> {
@@ -3053,8 +3056,16 @@ fn contains_any(haystack: &str, needles: &[&str]) -> bool {
 }
 
 fn truncate(value: &str, max_chars: usize) -> String {
-    let mut out = value.chars().take(max_chars).collect::<String>();
-    if value.chars().count() > max_chars {
+    let mut out = String::new();
+    let mut truncated = false;
+    for (count, ch) in value.chars().enumerate() {
+        if count >= max_chars {
+            truncated = true;
+            break;
+        }
+        out.push(ch);
+    }
+    if truncated {
         out.push_str("...");
     }
     out
@@ -3116,11 +3127,11 @@ struct ReactDispatchState {
 impl ReactDispatchState {
     fn dispatch(&self, name: &str, args: &Value) -> Result<Value, String> {
         match name {
-            "keynova_search" => self.dispatch_keynova_search(args),
-            "filesystem_search" => self.dispatch_filesystem_search(args),
-            "filesystem_read" => self.dispatch_filesystem_read(args),
-            "web_search" => self.dispatch_web_search(args),
-            "git_status" => self.dispatch_git_status(args),
+            TOOL_KEYNOVA_SEARCH => self.dispatch_keynova_search(args),
+            TOOL_FILESYSTEM_SEARCH => self.dispatch_filesystem_search(args),
+            TOOL_FILESYSTEM_READ => self.dispatch_filesystem_read(args),
+            TOOL_WEB_SEARCH => self.dispatch_web_search(args),
+            TOOL_GIT_STATUS => self.dispatch_git_status(args),
             other => Err(format!("unknown react tool '{other}'")),
         }
     }
@@ -3168,19 +3179,8 @@ impl ReactDispatchState {
             .and_then(Value::as_u64)
             .unwrap_or(4096) as usize;
 
-        let path = PathBuf::from(path_str);
-        let resolved = if path.is_absolute() {
-            path
-        } else {
-            let roots = self.default_search_roots();
-            roots
-                .iter()
-                .map(|r| r.join(path_str))
-                .find(|p| p.exists())
-                .ok_or_else(|| {
-                    format!("filesystem.read: '{path_str}' not found in workspace roots")
-                })?
-        };
+        let roots = self.default_search_roots();
+        let resolved = resolve_readable_path(path_str, &roots)?;
 
         let preview = read_text_preview(&resolved, max_chars.min(12_000))?;
         let observation = prepare_observation(
@@ -3421,6 +3421,68 @@ impl ReactDispatchState {
             "exit_code": output.status.code(),
         }))
     }
+}
+
+/// Returns true if the canonical path component names resemble a private/secret file.
+fn looks_sensitive_path(path: &Path) -> bool {
+    const SENSITIVE_COMPONENTS: &[&str] = &[
+        ".ssh", ".gnupg", ".gpg", ".aws", ".azure", ".gcloud",
+        "id_rsa", "id_ed25519", "id_ecdsa", "id_dsa",
+        ".env", ".env.local", ".env.production", ".env.secret",
+        "credentials", "secrets", "secret.json", "secret.toml",
+        "keystore", "truststore", ".netrc", ".pgpass",
+    ];
+    path.components().any(|comp| {
+        let s = comp.as_os_str().to_string_lossy();
+        SENSITIVE_COMPONENTS
+            .iter()
+            .any(|pat| s.eq_ignore_ascii_case(pat))
+    })
+}
+
+/// Resolve a path string to an absolute, canonicalized path that is:
+/// - reachable (exists on disk)
+/// - within one of the supplied workspace roots
+/// - not a sensitive credential path
+fn resolve_readable_path(path_str: &str, roots: &[PathBuf]) -> Result<PathBuf, String> {
+    let raw = PathBuf::from(path_str);
+
+    // Resolve to an absolute candidate (prefer workspace-relative when not absolute)
+    let candidate = if raw.is_absolute() {
+        raw.clone()
+    } else {
+        roots
+            .iter()
+            .map(|r| r.join(path_str))
+            .find(|p| p.exists())
+            .ok_or_else(|| format!("filesystem.read: '{path_str}' not found in workspace roots"))?
+    };
+
+    // Canonicalize to resolve symlinks / `..` traversal
+    let canonical = candidate
+        .canonicalize()
+        .map_err(|e| format!("filesystem.read: cannot resolve '{path_str}': {e}"))?;
+
+    // Verify the resolved path lies within at least one workspace root
+    let in_workspace = roots.iter().any(|root| {
+        root.canonicalize()
+            .map(|cr| canonical.starts_with(&cr))
+            .unwrap_or(false)
+    });
+    if !in_workspace {
+        return Err(format!(
+            "filesystem.read: '{path_str}' resolves outside workspace roots"
+        ));
+    }
+
+    // Block known sensitive paths regardless of workspace membership
+    if looks_sensitive_path(&canonical) {
+        return Err(format!(
+            "filesystem.read: '{path_str}' is a sensitive path and cannot be read by the agent"
+        ));
+    }
+
+    Ok(canonical)
 }
 
 /// Converts `GroundingSource` slice to the `ToolSourcesResult` JSON shape.
@@ -3776,5 +3838,67 @@ mod tests {
         })
         .unwrap();
         assert!(!provider_supports_tool_calls(&rt.provider));
+    }
+
+    #[test]
+    fn extract_quoted_prefers_double_over_single() {
+        assert_eq!(
+            extract_quoted(r#"read "config.toml" please"#).as_deref(),
+            Some("config.toml")
+        );
+    }
+
+    #[test]
+    fn extract_quoted_falls_back_to_single_when_no_double() {
+        assert_eq!(
+            extract_quoted("read 'config.toml' please").as_deref(),
+            Some("config.toml")
+        );
+    }
+
+    #[test]
+    fn extract_quoted_returns_none_for_no_quotes() {
+        assert!(extract_quoted("read config.toml please").is_none());
+    }
+
+    #[test]
+    fn truncate_appends_ellipsis_only_when_truncated() {
+        assert_eq!(truncate("hello", 10), "hello");
+        assert_eq!(truncate("hello world", 5), "hello...");
+    }
+
+    #[test]
+    fn looks_sensitive_path_blocks_ssh_keys() {
+        assert!(looks_sensitive_path(Path::new("/home/user/.ssh/id_rsa")));
+        assert!(looks_sensitive_path(Path::new("C:\\Users\\user\\.env")));
+        assert!(looks_sensitive_path(Path::new("/home/user/.aws/credentials")));
+        assert!(!looks_sensitive_path(Path::new("/home/user/projects/main.rs")));
+    }
+
+    #[test]
+    fn resolve_readable_path_rejects_out_of_workspace() {
+        let root = std::env::temp_dir()
+            .join(format!("keynova-path-test-{}", Uuid::new_v4()));
+        std::fs::create_dir_all(&root).expect("create root");
+        // Attempting to read something outside the root using `..` traversal
+        let err = resolve_readable_path("../../etc/passwd", &[root.clone()]).unwrap_err();
+        // Could fail at "not found" or "outside workspace" — both are correct rejections
+        assert!(
+            err.contains("not found") || err.contains("outside workspace") || err.contains("cannot resolve"),
+            "unexpected error: {err}"
+        );
+        let _ = std::fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn resolve_readable_path_allows_in_workspace() {
+        let root = std::env::temp_dir()
+            .join(format!("keynova-path-ok-{}", Uuid::new_v4()));
+        std::fs::create_dir_all(&root).expect("create root");
+        let file = root.join("note.txt");
+        std::fs::write(&file, "hello").expect("write file");
+        let resolved = resolve_readable_path("note.txt", &[root.clone()]).expect("should resolve");
+        assert!(resolved.starts_with(root.canonicalize().unwrap()));
+        let _ = std::fs::remove_dir_all(root);
     }
 }

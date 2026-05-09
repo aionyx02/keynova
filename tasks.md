@@ -150,39 +150,46 @@ Last full verification baseline: `npm run build`, `npm run lint`, `cargo test`, 
 - [x] Approval-required tool 在 B1 自動略過（B3 加入 gate）。
 - [x] 4 個整合測試（single-final, tool+final, cancel mid-loop, max-steps exceeded）全通過，無真實 LLM。
 
-### 5.5.A3 — OpenAI-Compatible Provider Tool-Call Parsing
+### 5.5.A3 — OpenAI-Compatible Provider Tool-Call Parsing ✓
 
-- [ ] 實作 OpenAI-compatible `chat_with_tools()`：對應 `tools` + `tool_choice` request fields；解析 response choice 中的 `tool_calls`。
-- [ ] Provider 不支援 tool calls 時回傳 typed `UnsupportedToolCallError`。
+- [x] 實作 OpenAI-compatible `chat_with_tools()`：對應 `tools` + `tool_choice` request fields；解析 response choice 中的 `tool_calls`。
+- [x] Provider 不支援 tool calls 時回傳 typed `UnsupportedToolCallError`。
 
-### 5.5.A4 — Ollama Provider Tool-Call Support
+### 5.5.A4 — Ollama Provider Tool-Call Support ✓
 
-- [ ] 實作 Ollama `chat_with_tools()`：對應 function-calling format（若模型支援）。
-- [ ] 不支援時回傳 `UnsupportedToolCallError`，觸發 5.5.C offline fallback。
+- [x] 實作 Ollama `chat_with_tools()`：對應 function-calling format（若模型支援）。
+- [x] 不支援時回傳 `UnsupportedToolCallError`，觸發 5.5.C offline fallback。
 
-### 5.5.B2 — 加入 filesystem.read / filesystem.search 工具
+### 5.5.B2 — 加入 filesystem.read / filesystem.search 工具 ✓
 
-- [ ] 在已通過的 ReAct loop skeleton 上加入 `filesystem.read`（read-only preview）和 `filesystem.search` 工具。
-- [ ] 整合 SystemIndexer 作為 `filesystem.search` 後端。
+- [x] 在已通過的 ReAct loop skeleton 上加入 `filesystem.read`（read-only preview）和 `filesystem.search` 工具。
+- [x] 整合 SystemIndexer 作為 `filesystem.search` 後端。
+- [x] `ReactDispatchState` 同時實作 `keynova_search` / `web_search` dispatch（完整 4 工具）。
+- [x] `AgentHandler::build_react_dispatch()` 建構完整 `Arc<ToolDispatch>` closure。
+- [x] 2 個 ReAct 整合測試（filesystem search + filesystem read via temp files）。
 
-### 5.5.B3 — 加入 approval-gated git.status
+### 5.5.B3 — 加入 approval-gated git.status ✓
 
-- [ ] 加入 `git.status` tool spec，標記為 approval-required。
-- [ ] 整合既有 approval gate；確認未批准前不執行。
+- [x] 加入 `git.status` tool spec，標記為 approval-required。
+- [x] ReAct loop 遇到 approval-required tool 時：建立 gate approval、設 WaitingApproval、publish event、poll 等待使用者回應。
+- [x] Approved：執行 `git status --short`（ReactDispatchState::dispatch_git_status）後繼續 loop。
+- [x] Rejected：告知 LLM 工具被拒，繼續 loop（不取消整個 run）。
+- [x] approve_run / reject_run 分辨 ReAct gate（planned_action=None）vs heuristic flow（planned_action=Some）。
+- [x] 2 個整合測試（approve gate + reject gate）；126 tests 全通過。
 
-### 5.5.C — Move Heuristics to Offline Fallback
+### 5.5.C — Move Heuristics to Offline Fallback ✓
 
-- [ ] 在 `handlers/agent.rs` 中，將 `direct_local_answer()`、`sources_for_prompt()`、`detect_planned_action()` 移入 `provider_supports_tool_calls == false` 或 `agent.mode = "offline"` 的分支。
-- [ ] 正常模式：LLM 決定 tool calls；heuristics 僅在 provider 不可用或模型不支援 function calling 時啟動。
+- [x] 在 `handlers/agent.rs` 中，將 `direct_local_answer()`、`sources_for_prompt()`、`detect_planned_action()` 移入 `provider_supports_tool_calls == false` 或 `agent.mode = "offline"` 的分支。
+- [x] 正常模式：LLM 決定 tool calls；heuristics 僅在 provider 不可用或模型不支援 function calling 時啟動。
 
 ### 5.5.D — Platform Command Sandbox（Research Only, Blocked）
 
 - [ ] 探索 Linux `bwrap`/seccomp、Windows restricted token/job、macOS `sandbox-exec` 的可行性。
 - [ ] **不進 main，不暴露 generic shell tool**。保持 research branch 狀態，等 ADR-027 批准後才進入 product 路徑。
 
-### 5.5.E — Persist ReAct Audit
+### 5.5.E — Persist ReAct Audit ✓
 
-- [ ] 將每個 ReAct step 持久化到 Knowledge Store `agent_audit_logs`：`request_id`、tool schemas、args preview、approval decision、observation summary、redacted sources、final answer、failure/cancel reason。
+- [x] 將每個 ReAct step 持久化到 Knowledge Store `agent_audit_logs`：`request_id`、tool schemas、args preview、approval decision、observation summary、redacted sources、final answer、failure/cancel reason。
 
 ### 5.5.F — Frontend Agent Run View
 
@@ -249,6 +256,34 @@ Last full verification baseline: `npm run build`, `npm run lint`, `cargo test`, 
 - [ ] 維護 panel first-open/ESC/resize regression checklist。
 - [ ] 新增 provider/action/search source metadata 文件供 user-facing diagnostics 使用。
 - [ ] 手動驗收 /note LazyVim：`/note`、`/note lazyvim`、`/note lazyvim foo`、Vim 內 Esc、terminal exit shortcut。
+
+---
+
+## Phase 5.11 — AgentHandler Refactor（agent.rs 架構改善）
+
+> 由使用者 10 點架構審查驅動。Phase A 無架構改動，直接可實作；B–D 逐步進行。
+
+### 5.11.A — 正確性／安全修正（無架構改動）✓
+
+- [x] 修 `extract_quoted`：將 `for quote in [...] { ... ? ... }` 改為 `find_map`，消除「雙引號不存在時單引號永不嘗試」的邏輯錯誤
+- [x] 新增工具名稱字串常數（`TOOL_KEYNOVA_SEARCH`, `TOOL_FILESYSTEM_SEARCH`, `TOOL_FILESYSTEM_READ`, `TOOL_WEB_SEARCH`, `TOOL_GIT_STATUS`），ReAct dispatch match 和 llm_name 賦值都引用同一常數
+- [x] `dispatch_filesystem_read` 加入 `resolve_readable_path()`：canonicalize 後驗證在 workspace roots 內，並拒絕 `looks_sensitive_path()`（`/.ssh`, `/.gnupg`, `.env`, `id_rsa`, `id_ed25519`, `credentials` 等路徑）
+- [x] 優化 `truncate()`：單次 chars() scan，消除 `chars().count()` 的第二次 O(n) 遍歷
+
+### 5.11.B — 消除重複搜尋邏輯
+
+- [ ] 提取 `LocalContextSearcher` struct，合併 `push_heuristic_workspace_source` / `push_react_workspace_source` 等兩組近乎相同的方法
+
+### 5.11.C — 檔案拆分（agent/ 子目錄）
+
+- [ ] 將 ~3700 行 agent.rs 拆分為：`agent/handler.rs`, `agent/tools/`, `agent/planner.rs`, `agent/intent.rs`, `agent/safety.rs`, `agent/formatting.rs`, `agent/audit.rs`, `agent/memory.rs`
+
+### 5.11.D — 型別化 AgentError 與強化 ReAct 覆蓋率
+
+- [ ] `AgentError` enum 取代 `String` error，`CommandResult` 可攜帶結構化錯誤
+- [ ] ReAct prompt_audit 涵蓋率：確保 `start_react_run` 也填寫 `prompt_audit` 欄位
+- [ ] ToolPermission 強制執行：在 dispatch 層而非只在 comment 中阻擋 high-risk tool
+- [ ] WebSearchProvider trait 抽象：Searxng / Tavily / DuckDuckGo 共用介面
 
 ---
 
