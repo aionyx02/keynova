@@ -6,6 +6,7 @@ use serde::Serialize;
 use serde_json::{json, Value};
 use uuid::Uuid;
 
+use crate::core::agent_runtime::ToolDispatch;
 use crate::core::config_manager::ConfigManager;
 use crate::core::{
     prepare_observation, AgentAuditEntry, AgentMemoryEntry, AgentObservationPolicy, AgentRuntime,
@@ -3000,6 +3001,341 @@ fn require_str<'a>(payload: &'a Value, key: &str) -> Result<&'a str, String> {
         .and_then(Value::as_str)
         .filter(|value| !value.is_empty())
         .ok_or_else(|| format!("missing or empty '{key}'"))
+}
+
+// ─── ReAct Tool Dispatch ─────────────────────────────────────────────────────
+
+/// Arc-captured state for the ReAct loop dispatch closure.
+/// One instance per agent run; shared across loop steps.
+/// Methods are wired into production in 5.5.C.
+#[allow(dead_code)]
+struct ReactDispatchState {
+    workspace_manager: Arc<Mutex<WorkspaceManager>>,
+    config: Arc<Mutex<ConfigManager>>,
+    note_manager: Arc<Mutex<NoteManager>>,
+    history_manager: Arc<Mutex<HistoryManager>>,
+    builtin_registry: Arc<Mutex<BuiltinCommandRegistry>>,
+    model_manager: Arc<ModelManager>,
+    #[allow(dead_code)]
+    knowledge_store: KnowledgeStoreHandle,
+}
+
+impl ReactDispatchState {
+    fn dispatch(&self, name: &str, args: &Value) -> Result<Value, String> {
+        match name {
+            "keynova_search" => self.dispatch_keynova_search(args),
+            "filesystem_search" => self.dispatch_filesystem_search(args),
+            "filesystem_read" => self.dispatch_filesystem_read(args),
+            "web_search" => self.dispatch_web_search(args),
+            "git_status" => Err(
+                "git.status requires explicit user approval; use agent.approve".into(),
+            ),
+            other => Err(format!("unknown react tool '{other}'")),
+        }
+    }
+
+    fn dispatch_filesystem_search(&self, args: &Value) -> Result<Value, String> {
+        let query = args.get("query").and_then(Value::as_str).unwrap_or("").to_string();
+        if query.trim().is_empty() {
+            return Err("filesystem.search: 'query' must not be empty".into());
+        }
+        let limit = args.get("limit").and_then(Value::as_u64).unwrap_or(20) as usize;
+        let roots: Vec<PathBuf> = args
+            .get("roots")
+            .and_then(Value::as_array)
+            .map(|arr| {
+                arr.iter()
+                    .filter_map(|v| v.as_str())
+                    .map(PathBuf::from)
+                    .collect()
+            })
+            .unwrap_or_else(|| self.default_search_roots());
+
+        let outcome = search_system_index(&query, &roots, limit.max(1));
+        let sources: Vec<Value> = outcome
+            .hits
+            .into_iter()
+            .map(|hit| {
+                json!({
+                    "title": hit.name,
+                    "snippet": hit.path,
+                    "uri": hit.path,
+                    "source_type": if hit.is_dir { "folder" } else { "file" },
+                })
+            })
+            .collect();
+        Ok(json!({ "sources": sources }))
+    }
+
+    fn dispatch_filesystem_read(&self, args: &Value) -> Result<Value, String> {
+        let path_str = args
+            .get("path")
+            .and_then(Value::as_str)
+            .ok_or_else(|| "filesystem.read: missing 'path' argument".to_string())?;
+        let max_chars = args
+            .get("max_chars")
+            .and_then(Value::as_u64)
+            .unwrap_or(4096) as usize;
+
+        let path = PathBuf::from(path_str);
+        let resolved = if path.is_absolute() {
+            path
+        } else {
+            let roots = self.default_search_roots();
+            roots
+                .iter()
+                .map(|r| r.join(path_str))
+                .find(|p| p.exists())
+                .ok_or_else(|| {
+                    format!("filesystem.read: '{path_str}' not found in workspace roots")
+                })?
+        };
+
+        let preview = read_text_preview(&resolved, max_chars.min(12_000))?;
+        let observation = prepare_observation(
+            &preview,
+            &AgentObservationPolicy {
+                max_chars,
+                max_lines: 120,
+                preserve_head_lines: 48,
+                preserve_tail_lines: 48,
+                redact_secrets: true,
+            },
+        );
+        let name = resolved
+            .file_name()
+            .and_then(|n| n.to_str())
+            .unwrap_or(path_str)
+            .to_string();
+        Ok(json!({
+            "sources": [{
+                "title": name,
+                "snippet": observation.content,
+                "uri": resolved.display().to_string(),
+                "source_type": "file_read",
+            }]
+        }))
+    }
+
+    fn dispatch_keynova_search(&self, args: &Value) -> Result<Value, String> {
+        let query = args
+            .get("query")
+            .and_then(Value::as_str)
+            .unwrap_or("")
+            .to_lowercase();
+        let limit = args.get("limit").and_then(Value::as_u64).unwrap_or(10) as usize;
+        let mut sources: Vec<GroundingSource> = Vec::new();
+
+        self.push_react_workspace_source(&mut sources);
+        self.push_react_command_sources(&query, &mut sources)?;
+        self.push_react_note_sources(&query, &mut sources)?;
+        self.push_react_history_sources(&query, &mut sources)?;
+        self.push_react_model_sources(&query, &mut sources);
+
+        sources.sort_by(|a, b| {
+            b.score
+                .partial_cmp(&a.score)
+                .unwrap_or(std::cmp::Ordering::Equal)
+        });
+        sources.truncate(limit.max(1));
+        Ok(grounding_to_tool_sources_json(&sources))
+    }
+
+    fn dispatch_web_search(&self, args: &Value) -> Result<Value, String> {
+        let query = args
+            .get("query")
+            .and_then(Value::as_str)
+            .unwrap_or("")
+            .to_string();
+        let limit = args.get("limit").and_then(Value::as_u64).unwrap_or(5) as usize;
+        let sanitized = sanitize_external_query(&query)?;
+        let (provider, searxng_url, api_key, timeout_secs) = {
+            let config = self.config.lock().map_err(|e| e.to_string())?;
+            (
+                config
+                    .get("agent.web_search_provider")
+                    .unwrap_or_else(|| "disabled".into()),
+                config.get("agent.searxng_url").unwrap_or_default(),
+                config.get("agent.web_search_api_key").unwrap_or_default(),
+                config
+                    .get("agent.web_search_timeout_secs")
+                    .and_then(|v| v.parse::<u64>().ok())
+                    .unwrap_or(8),
+            )
+        };
+        let sources = match provider.as_str() {
+            "searxng" => search_searxng(&searxng_url, &sanitized, limit, timeout_secs)?,
+            "tavily" => search_tavily(&api_key, &sanitized, limit, timeout_secs)?,
+            "duckduckgo" => search_duckduckgo_html(&sanitized, limit, timeout_secs)?,
+            "disabled" | "" => {
+                return Err("web.search provider disabled; configure agent.web_search_provider".into())
+            }
+            other => return Err(format!("web.search provider '{other}' not supported")),
+        };
+        Ok(grounding_to_tool_sources_json(&sources))
+    }
+
+    fn push_react_workspace_source(&self, sources: &mut Vec<GroundingSource>) {
+        let Ok(ws) = self.workspace_manager.lock() else {
+            return;
+        };
+        let cur = ws.current();
+        sources.push(source(
+            format!("workspace:{}", cur.id),
+            "workspace",
+            cur.name.clone(),
+            format!(
+                "mode={}, panel={}, files={}, notes={}",
+                cur.mode,
+                cur.panel.as_deref().unwrap_or("none"),
+                cur.recent_files.len(),
+                cur.note_ids.len()
+            ),
+            0.92,
+            ContextVisibility::PublicContext,
+        ));
+    }
+
+    fn push_react_command_sources(
+        &self,
+        query: &str,
+        sources: &mut Vec<GroundingSource>,
+    ) -> Result<(), String> {
+        let registry = self.builtin_registry.lock().map_err(|e| e.to_string())?;
+        for meta in registry.list().into_iter().filter(|meta| {
+            query.is_empty()
+                || meta.name.contains(query)
+                || meta.description.to_lowercase().contains(query)
+        }) {
+            sources.push(source(
+                format!("command:{}", meta.name),
+                "command",
+                format!("/{}", meta.name),
+                meta.description.to_string(),
+                0.84,
+                ContextVisibility::PublicContext,
+            ));
+        }
+        Ok(())
+    }
+
+    fn push_react_note_sources(
+        &self,
+        query: &str,
+        sources: &mut Vec<GroundingSource>,
+    ) -> Result<(), String> {
+        let notes = self.note_manager.lock().map_err(|e| e.to_string())?;
+        for note in notes.list() {
+            let content = notes.get(&note.name).unwrap_or_default();
+            let searchable = format!("{} {}", note.name, content).to_lowercase();
+            if !query.is_empty() && !searchable.contains(query) {
+                continue;
+            }
+            let snippet = truncate(&content.replace('\n', " "), 160);
+            sources.push(visibility_filtered_source(
+                format!("note:{}", note.name),
+                "note",
+                note.name,
+                if snippet.is_empty() {
+                    format!("{} bytes", note.size_bytes)
+                } else {
+                    snippet
+                },
+                0.78,
+            ));
+        }
+        Ok(())
+    }
+
+    fn push_react_history_sources(
+        &self,
+        query: &str,
+        sources: &mut Vec<GroundingSource>,
+    ) -> Result<(), String> {
+        let history = self.history_manager.lock().map_err(|e| e.to_string())?;
+        for entry in history.search(query) {
+            sources.push(visibility_filtered_source(
+                format!("history:{}", entry.id),
+                "history",
+                entry.content_type.clone(),
+                truncate(&entry.content.replace('\n', " "), 160),
+                if entry.pinned { 0.7 } else { 0.62 },
+            ));
+        }
+        Ok(())
+    }
+
+    fn push_react_model_sources(&self, query: &str, sources: &mut Vec<GroundingSource>) {
+        let hardware = crate::managers::model_manager::HardwareInfo {
+            ram_mb: 0,
+            vram_mb: 0,
+        };
+        for model in self
+            .model_manager
+            .catalog_fast(&hardware)
+            .into_iter()
+            .filter(|model| query.is_empty() || model.name.to_lowercase().contains(query))
+        {
+            sources.push(source(
+                format!("model:{}", model.name),
+                "model",
+                model.name,
+                model.rating,
+                0.68,
+                ContextVisibility::PublicContext,
+            ));
+        }
+    }
+
+    fn default_search_roots(&self) -> Vec<PathBuf> {
+        let mut roots = Vec::new();
+        if let Ok(ws) = self.workspace_manager.lock() {
+            if let Some(root) = ws.current().project_root.as_deref() {
+                if !root.trim().is_empty() {
+                    roots.push(PathBuf::from(root));
+                }
+            }
+        }
+        if let Ok(cwd) = std::env::current_dir() {
+            roots.push(cwd);
+        }
+        roots.dedup();
+        roots
+    }
+}
+
+/// Converts `GroundingSource` slice to the `ToolSourcesResult` JSON shape.
+#[allow(dead_code)]
+fn grounding_to_tool_sources_json(sources: &[GroundingSource]) -> Value {
+    json!({
+        "sources": sources.iter().map(|s| json!({
+            "title": s.title,
+            "snippet": s.snippet,
+            "uri": s.uri,
+            "source_type": s.source_type,
+        })).collect::<Vec<_>>()
+    })
+}
+
+impl AgentHandler {
+    /// Build a `ToolDispatch` closure wiring all ReAct-compatible tools.
+    ///
+    /// The closure captures Arc clones of every dep needed and is `Send + Sync`,
+    /// so it can safely be passed to `spawn_react_loop`.
+    /// Called from `start_run` in 5.5.C once the heuristic path is retired.
+    #[allow(dead_code)]
+    pub fn build_react_dispatch(&self) -> Arc<ToolDispatch> {
+        let state = Arc::new(ReactDispatchState {
+            workspace_manager: Arc::clone(&self.workspace_manager),
+            config: Arc::clone(&self.config),
+            note_manager: Arc::clone(&self.note_manager),
+            history_manager: Arc::clone(&self.history_manager),
+            builtin_registry: Arc::clone(&self.builtin_registry),
+            model_manager: Arc::clone(&self.model_manager),
+            knowledge_store: self.knowledge_store.clone(),
+        });
+        Arc::new(move |name: &str, args: &Value| state.dispatch(name, args))
+    }
 }
 
 #[cfg(test)]
