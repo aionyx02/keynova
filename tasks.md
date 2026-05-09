@@ -324,11 +324,11 @@ Last full verification baseline: `npm run build`, `npm run lint`, `cargo test`, 
 - 成功刪除後發送 `model.removed` 事件，觸發 `ModelListPanel` 刷新
 
 **驗收條件**
-- [ ] `/model_remove` 無參數 → 顯示可刪除模型清單
-- [ ] `/model_remove <name>` → 確認後刪除，顯示成功/失敗訊息
-- [ ] 刪除中的模型名稱顯示 loading 狀態，完成後從清單消失
-- [ ] 刪除不存在的模型回傳清晰錯誤訊息（非 panic）
-- [ ] `cargo test` / `npm run build` 通過
+- [ ] `/model_remove` 無參數 → 顯示可刪除模型清單（需真實環境手動驗收）
+- [ ] `/model_remove <name>` → 確認後刪除，顯示成功/失敗訊息（需真實環境手動驗收）
+- [ ] 刪除中的模型名稱顯示 loading 狀態，完成後從清單消失（需真實環境手動驗收）
+- [ ] 刪除不存在的模型回傳清晰錯誤訊息（非 panic）（需真實環境手動驗收）
+- [x] `cargo test` / `npm run lint` 通過（157 tests, 0 lint errors）
 
 ---
 

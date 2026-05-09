@@ -64,8 +64,8 @@
 ## 當前狀態
 
 - **進度**：Phase 5 進行中；5.1.A、5.1.B、5.8、5.2.A、5.2.B、5.3.A~C、5.4、5.5.A1+A2+B1+A3+A4+B2+B3+C+E、5.11.A~D 均已實作並 commit（Phase-5 branch）。Phase 6 架構設計完成（7 個新功能需求）。
-- **上次完成**：Phase 6.7 A+B — tantivy writer buffer 50MB→15MB + explicit drop；AppManager::list_all() 改回傳 &[AppInfo] 消除 clone；157 tests，clippy clean。
-- **下一步**：5.5.H manual validations（需真實 app）；或 Phase 6.1 /model_remove UI；6.7 WorkingSet 量測（需真實 app）。
+- **上次完成**：Phase 6.1 — ModelRemoveCommand（builtin_cmd.rs）+ ModelRemovePanel.tsx + PanelRegistry 登記；157 tests，0 lint errors。
+- **下一步**：5.5.H manual validations（需真實 app）；Phase 6.4 /tr 全語言支援；6.7 WorkingSet 量測（需真實 app）。
 
 ## 已確認的技術選擇
 
@@ -107,6 +107,7 @@
 
 | 日期 | 完成事項 | 遺留問題 |
 |------|----------|----------|
+| 2026-05-09 | Phase 6.1：ModelRemoveCommand（builtin_cmd + state）+ ModelRemovePanel.tsx + PanelRegistry；157 tests，0 lint errors，commit f1e8fb4 | 手動驗收仍需真實 app（list 顯示、刪除 loading、不存在 model 錯誤）；6.7 WorkingSet 量測待辦 |
 | 2026-05-09 | 6.7 A+B：tantivy writer 50MB→15MB + explicit drop；AppManager::list_all() → &[AppInfo] 消除 clone；157 tests，clippy clean | 6.7 WorkingSet 量測需真實 app；6.7 C/D 待 Phase 6.2/6.6 實作時遵守 |
 | 2026-05-09 | 5.5.G：3 個新 ReAct regression tests（provider error→fail；unknown tool→error obs；50KB obs 不崩潰）；157 tests passing，clippy clean | 5.5.H manual validations 待辦；5.2.A/B / 5.4 仍需真實 app 手動驗收 |
 | 2026-05-09 | 5.5.F：useAgent.ts ReactStep interface + agent-step listener + reactSteps state；AiPanel ReactStepTimeline（色碼、obs count）、pending approval header、ReAct gate 標示、final answer 突顯框；lint 通過 | 5.5.G regression tests（已在本 session 完成） |
