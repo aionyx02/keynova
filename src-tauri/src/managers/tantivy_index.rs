@@ -57,7 +57,8 @@ pub fn rebuild(index_dir: &Path, entries: &[TantivyFileEntry]) -> Result<usize, 
 
     let (schema, fields) = build_schema();
     let index = Index::create_in_dir(index_dir, schema).map_err(|e| e.to_string())?;
-    let mut writer = index.writer(50_000_000).map_err(|e| e.to_string())?;
+    // 15 MB is sufficient for indexing; 50 MB was wasting address space during rebuild.
+    let mut writer = index.writer(15_000_000).map_err(|e| e.to_string())?;
     for entry in entries {
         let kind = if entry.is_folder { "folder" } else { "file" };
         writer
@@ -70,6 +71,7 @@ pub fn rebuild(index_dir: &Path, entries: &[TantivyFileEntry]) -> Result<usize, 
             .map_err(|e| e.to_string())?;
     }
     writer.commit().map_err(|e| e.to_string())?;
+    drop(writer); // release the 15 MB index buffer immediately
     Ok(entries.len())
 }
 
