@@ -63,8 +63,8 @@
 
 ## 當前狀態
 
-- **進度**：Phase 5 進行中；5.1.A、5.1.B、5.8、5.2.A、5.2.B、5.3.A~C、5.4、5.5.A1+A2+B1+A3+A4+B2+B3+C+E、5.11.A 均已實作並 commit（Phase-5 branch）。
-- **上次完成**：5.11.A：修 extract_quoted bug（find_map）；5 個 TOOL_* 常數統一工具名稱；resolve_readable_path() + looks_sensitive_path() 防止路徑逃逸；truncate() 單次 scan；7 個新測試；共 135 tests。
+- **進度**：Phase 5 進行中；5.1.A、5.1.B、5.8、5.2.A、5.2.B、5.3.A~C、5.4、5.5.A1+A2+B1+A3+A4+B2+B3+C+E、5.11.A~D 均已實作並 commit（Phase-5 branch）。
+- **上次完成**：5.11.B+C+D — LocalContextSearcher 提取（~200 行節省）；agent.rs 拆分為 6 個子模組（mod/filesystem/formatting/intent/safety/web）；AgentError enum；start_react_run prompt_audit；ToolPermission dispatch gate；WebSearchProvider trait；135 tests 全通過，clippy 乾淨。
 - **下一步**：5.5.F — 更新 AiPanel run view：pending approval 指示器、tool 狀態、observation count、final grounded answer。
 
 ## 已確認的技術選擇
@@ -106,12 +106,11 @@
 
 | 日期 | 完成事項 | 遺留問題 |
 |------|----------|----------|
-| 2026-05-09 | 5.11.A：extract_quoted bug fix（find_map）；TOOL_* 常數；resolve_readable_path() + looks_sensitive_path()；truncate() 單次 scan；135 tests | 5.5.F AiPanel run view 待實作；5.11.B~D 架構改善待排 |
+| 2026-05-09 | 5.11.B+C+D：LocalContextSearcher；agent.rs→6 子模組；AgentError enum；start_react_run prompt_audit；dispatch ToolPermission gate；WebSearchProvider trait；135 tests | 5.5.F AiPanel run view 待實作 |
+| 2026-05-09 | 5.11.A：extract_quoted bug fix（find_map）；TOOL_* 常數；resolve_readable_path() + looks_sensitive_path()；truncate() 單次 scan；135 tests | 5.11.B~D 架構改善（同 session 已完成） |
 | 2026-05-09 | 5.5.E：ReactLoopConfig.audit_log；maybe_audit()；10 audit events；KnowledgeStore 接入；128 tests | 5.5.F AiPanel run view 待實作 |
 | 2026-05-09 | 5.5.C：should_use_react_loop()；start_run→start_react_run（OpenAI/Ollama）/start_heuristic_run（Claude/offline）；移除 dead_code；2 tests；128 tests | 5.5.E ReAct step 持久化待實作 |
 | 2026-05-09 | 5.5.B3：wait_for_react_approval 輪詢；approve/reject gate；dispatch_git_status；approve_run/reject_run 分辨 ReAct vs heuristic；2 閘口測試；126 tests | 5.5.C heuristic → offline fallback 待實作 |
-| 2026-05-09 | 5.5.B2：ReactDispatchState（filesystem_search/read/keynova_search/web_search）；AgentHandler::build_react_dispatch()；2 整合測試（temp dir/file）；124 tests | 5.5.B3 git.status approval gate 待實作 |
-| 2026-05-08 | 5.5.A3+A4：impl ToolCallProvider for AiProvider；openai_chat_with_tools；ollama_chat_with_tools；5 解析測試；122 tests | 5.5.B2 filesystem 工具待實作 |
 
 ## 2026-05-06 架構邊界與修正定位索引
 
@@ -140,7 +139,7 @@
 3. 後端功能 Handler 層（命令入口）
    - `/src-tauri/src/handlers/launcher.rs`：`launcher.*` 命令入口
    - `/src-tauri/src/handlers/builtin_cmd.rs`：`/ai`, `/tr`, `/cal`, `/setting` 等內建指令註冊
-   - `/src-tauri/src/handlers/ai.rs` / `agent.rs`：AI 對話與 Agent 控制命令
+   - `/src-tauri/src/handlers/ai.rs` / `agent/mod.rs`：AI 對話與 Agent 控制命令（agent/ 子目錄：mod/filesystem/formatting/intent/safety/web）
    - `/src-tauri/src/handlers/model.rs`：模型切換、下載管理
    - `/src-tauri/src/handlers/search.rs`：`search.*` 搜尋引擎入口
    - `/src-tauri/src/handlers/note.rs` / `workspace.rs`：筆記與工作空間管理
