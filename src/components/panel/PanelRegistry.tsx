@@ -28,6 +28,9 @@ const HistoryPanel = React.lazy(() =>
 const SystemPanel = React.lazy(() =>
   import("../SystemPanel").then((m) => ({ default: m.SystemPanel })),
 );
+const ModelRemovePanel = React.lazy(() =>
+  import("../ModelRemovePanel").then((m) => ({ default: m.ModelRemovePanel })),
+);
 
 /** 將後端回傳的 panel name 對應至 React 元件。新增面板只需在此 Record 加一筆。 */
 export const PanelRegistry: Record<string, React.ComponentType<PanelProps>> = {
@@ -35,6 +38,7 @@ export const PanelRegistry: Record<string, React.ComponentType<PanelProps>> = {
   ai: AiPanel,
   model_download: ModelDownloadPanel,
   model_list: ModelListPanel,
+  model_remove: ModelRemovePanel,
   translation: TranslationPanel,
   note: NoteEditor,
   calculator: CalculatorPanel,
