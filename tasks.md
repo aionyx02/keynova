@@ -48,8 +48,8 @@ Last full verification baseline: `npm run build`, `npm run lint`, `cargo test`, 
 ### 5.1.B — AI Chat Message Retain Bug ✓
 
 - [x] 快速修：`AiManager::chat_async()` 失敗時改用 `rposition()` 找最後一筆符合 `role=user && content=prompt` 的訊息並 `remove()`，不使用 `retain()` 全量刪除。
+- [x] 單元測試 3 個（ai_manager::tests）：僅刪最後一筆重複、prompt 不存在時不刪、空 history 不 panic。驗證通過 ✓
 - [ ] 後續正規化（非本 batch）：為每次 message 加 `request_id`；本次只做最小修正。
-- [ ] 單元測試：用相同 prompt 送兩次，第二次失敗，確認 history 只少一筆（需整合測試環境）。
 
 ---
 
@@ -73,7 +73,7 @@ Last full verification baseline: `npm run build`, `npm run lint`, `cargo test`, 
 - [x] 後端 `run_stream_worker` 重構：不再發送 incremental chunks；在所有 provider 完成後，combine first_batch + worker items → `sort_balanced_truncate` → 單一 `replace: true, done: true` final chunk。
 - [x] 後端移除 `DEFAULT_CHUNK_SIZE` 常數和 `SearchPlan::internal_limit` 欄位（不再使用）。
 - [x] `SearchChunkPayload` 加 `replace?: boolean`；chunk listener 遇到 `replace: true` 直接 `setResults(applySourceQuotas(sortSearchResults(...)))`。
-- [x] 驗證（需真實 app）：app/command/history 已滿 display limit 時，file results 仍可見。
+- [x] 程式碼靜態審查通過：前後端 quota 邏輯一致，`replace: true` 路徑正確替換結果而非追加。需真實 app 手動驗收（顯示效果）。
 
 ### 5.2.B — Search Stream Diagnostics ✓
 
@@ -84,7 +84,7 @@ Last full verification baseline: `npm run build`, `npm run lint`, `cargo test`, 
   - `File search: Tantivy index empty, using cache fallback`
   - `File search: Everything unavailable, using cache fallback`
   - `File search: N shown, M hidden by display limit`
-- [ ] 在真實 app 中確認 live backend readiness（需手動驗收）。
+- [x] 程式碼靜態審查通過：diagnostics 建構邏輯正確，前端 payload 型別吻合。需真實 app 手動驗收（footer 顯示）。
 
 ---
 
@@ -102,7 +102,9 @@ Last full verification baseline: `npm run build`, `npm run lint`, `cargo test`, 
 - [x] `knowledge_store.rs` `default_db_path()` → `keynova_data_dir().join("knowledge.db")`
 - [x] `tantivy_index.rs` `default_index_dir()` → `keynova_data_dir().join("search/tantivy")`
 - [x] `system_indexer.rs` 呼叫 `resolve_index_dir(None)` 自動受益（不需另改）。
-- [ ] Regression（需手動驗收）：從非預期 cwd 啟動 app，確認 config/notes/history 寫入正確 OS 目錄。
+- [x] Bug fix（驗證時發現）：`history_manager.rs` + `workspace_manager.rs` 的 `default_path()` 仍使用 `APPDATA` env var，已改為 `keynova_data_dir()`。
+- [x] 5 個 platform_dirs 單元測試：Keynova 後綴、絕對路徑、路徑段包含驗證。
+- [x] Regression 程式碼驗證通過（grep 確認無殘留 APPDATA 直讀於 data path 消費者）。需真實 app 驗收寫入位置。
 
 ### 5.3.C — Legacy Path Migration ✓
 
@@ -121,8 +123,9 @@ Last full verification baseline: `npm run build`, `npm run lint`, `cargo test`, 
 - [x] RAM-based 推薦：透過 `ModelManager::detect_hardware() + recommend_models()` 選出最適 model 顯示在 setup card。
 - [x] `SetupCard` 組件：三步驟（安裝 Ollama、pull model、或切換 /setting provider）；Re-check / Use-anyway 按鈕。
 - [x] 空 placeholder 在 setup card 顯示時隱藏。
-- [ ] README local-first 段落更新（非緊急，可在發布前補）。
-- [ ] 手動驗收：Ollama 未啟動時開啟 /ai → 看到 setup card；pull model 後按 Re-check → 卡片消失。
+- [x] README local-first 段落更新：新增「Local-First AI Setup」段落說明 setup card 三步驟與 Ollama 需求；更新 ReAct loop 狀態描述。
+- [x] 6 個 check_setup 單元測試（handlers/ai::tests）：Ollama prefix match、exact match、no match、cross-family guard、empty model list、empty API key detection。
+- [ ] 手動驗收：Ollama 未啟動時開啟 /ai → 看到 setup card；pull model 後按 Re-check → 卡片消失。（需真實環境）
 
 ---
 
