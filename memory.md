@@ -64,8 +64,8 @@
 ## 當前狀態
 
 - **進度**：Phase 5 進行中；5.1.A、5.1.B、5.8、5.2.A、5.2.B、5.3.A~C、5.4、5.5.A1+A2+B1+A3+A4+B2+B3+C+E、5.11.A~D 均已實作並 commit（Phase-5 branch）。Phase 6 架構設計完成（7 個新功能需求）。
-- **上次完成**：驗證通過 — 5.1.B rposition 3 tests；5.3.B platform_dirs 5 tests + 修復 history/workspace_manager APPDATA 殘留；5.4 check_setup 6 tests + README Local-First AI Setup 段落；5.2.A/B 靜態審查通過；154 tests，clippy 零 warning，npm build+lint 通過。
-- **下一步**：5.5.F — 更新 AiPanel run view（pending approval 指示器、tool 狀態、observation count、final grounded answer）；之後可進行 Phase 6.7 記憶體優化。
+- **上次完成**：5.5.F — `useAgent.ts` 新增 `ReactStep` interface + `agent-step` event listener + `reactSteps` state；`AiPanel.tsx` 新增 `ReactStepTimeline`（色碼徽章、obs count）、pending approval header + ReAct gate 標示、final answer 突顯框。lint 通過。
+- **下一步**：5.5.G — ReAct regression tests（provider tool-call parsing、loop max-step、cancellation、approve/reject、unsafe-command denial、stdout 截斷等）；之後 Phase 6.7 記憶體優化。
 
 ## 已確認的技術選擇
 
@@ -101,17 +101,17 @@
 - FEAT-6 完成（2026-05-05）：`/model_download` / `/model_list` 支援 AI Chat 與 Translation 分別切換模型、硬體推薦、Ollama catalog/progress、API provider 切換；後續 FEAT-7 已將 Translation 收斂為 Google only
 - Phase 4 foundation + Agent runtime + 搜尋串流/Tantivy/Plugin/Automation 全完成後 merge 進 main（2026-05-06 ~ 05-08）
 - Phase 5 開始：tasks 整理→5.1~5.8→5.2.A/B→5.3.A~C→5.4→5.5.A1~C（2026-05-08）：search diagnostics、config paths、SetupCard、ReAct loop 骨架到 offline fallback 分支；128 tests on Phase-5
+- 5.5.E（2026-05-09）：ReactLoopConfig.audit_log；maybe_audit()；10 audit events；KnowledgeStore 接入；128 tests
 
 ## Session 交接紀錄（最近 5 筆）
 
 | 日期 | 完成事項 | 遺留問題 |
 |------|----------|----------|
+| 2026-05-09 | 5.5.F：useAgent.ts ReactStep interface + agent-step listener + reactSteps state；AiPanel ReactStepTimeline（色碼、obs count）、pending approval header、ReAct gate 標示、final answer 突顯框；lint 通過 | 5.5.G regression tests 待實作；5.2.A/B / 5.4 仍需真實 app 手動驗收 |
 | 2026-05-09 | 驗證通過：5.1.B rposition 3 tests；5.3.B platform_dirs 5 tests + 修 history/workspace APPDATA 殘留；5.4 check_setup 6 tests + README 更新；5.2.A/B 靜態審查；154 tests，clippy 乾淨 | 5.2.A/B / 5.4 Ollama setup card 仍需真實 app 手動驗收 |
 | 2026-05-09 | 5.5.D：sandbox_manager.rs（Windows Job Object / Linux bwrap / macOS sandbox-exec）；5 sandbox tests；140 tests；clippy clean；decisions.md ADR-027 research findings 更新 | Windows AppContainer 網路隔離、Linux seccomp、macOS App Sandbox 評估為 product 解封前提 |
 | 2026-05-09 | Phase 6 架構設計：7 項新需求（/model_remove、/system_monitoring、個人化開關、/tr 全語言、編碼修復、LazyVim 可攜、記憶體優化）寫入 tasks.md 6.1–6.7 | 6.7 記憶體優化（P0）需最先實作；5.5.F AiPanel view 仍待辦 |
-| 2026-05-09 | 5.11.B+C+D：LocalContextSearcher；agent.rs→6 子模組；AgentError enum；start_react_run prompt_audit；dispatch ToolPermission gate；WebSearchProvider trait；135 tests | 5.5.F AiPanel run view 待實作 |
-| 2026-05-09 | 5.11.A：extract_quoted bug fix（find_map）；TOOL_* 常數；resolve_readable_path() + looks_sensitive_path()；truncate() 單次 scan；135 tests | 5.11.B~D 架構改善（同 session 已完成） |
-| 2026-05-09 | 5.5.E：ReactLoopConfig.audit_log；maybe_audit()；10 audit events；KnowledgeStore 接入；128 tests | 5.5.F AiPanel run view 待實作 |
+| 2026-05-09 | 5.11.A~D：extract_quoted fix；TOOL_* 常數；resolve_readable_path + looks_sensitive_path；agent.rs→6 子模組；AgentError enum；ToolPermission gate；WebSearchProvider trait；135 tests | 5.5.F AiPanel run view 待實作 |
 
 ## 2026-05-06 架構邊界與修正定位索引
 

@@ -64,6 +64,13 @@ export interface AgentMemoryRef {
   summary: string;
 }
 
+export interface ReactStep {
+  step: number;
+  tool_name: string | null;
+  status: string;
+  observation_preview?: string | null;
+}
+
 export interface AgentPlannedAction {
   id: string;
   kind:
@@ -110,6 +117,14 @@ interface AgentEventPayload {
   run: AgentRun;
 }
 
+interface AgentStepEventPayload {
+  run_id: string;
+  step: number;
+  tool_name: string | null;
+  status: string;
+  observation_preview?: string | null;
+}
+
 async function ipcDispatch<T>(route: string, payload?: Record<string, unknown>): Promise<T> {
   return invoke<T>("cmd_dispatch", { route, payload: payload ?? null });
 }
@@ -123,6 +138,7 @@ function upsertRunChronologically(prev: AgentRun[], run: AgentRun): AgentRun[] {
 export function useAgent() {
   const [runs, setRuns] = useState<AgentRun[]>([]);
   const [loading, setLoading] = useState(false);
+  const [reactSteps, setReactSteps] = useState<Record<string, ReactStep[]>>({});
 
   useEffect(() => {
     if (!window.__TAURI_INTERNALS__) return;
@@ -130,11 +146,25 @@ export function useAgent() {
       setRuns((prev) => upsertRunChronologically(prev, event.payload.run));
       setLoading(false);
     };
+    const updateStep = (event: { payload: AgentStepEventPayload }) => {
+      const { run_id, step, tool_name, status, observation_preview } = event.payload;
+      setReactSteps((prev) => {
+        const existing = prev[run_id] ?? [];
+        const idx = existing.findIndex((s) => s.step === step && s.tool_name === tool_name);
+        const updated: ReactStep = { step, tool_name, status, observation_preview };
+        const next =
+          idx === -1
+            ? [...existing, updated].sort((a, b) => a.step - b.step)
+            : existing.map((s, i) => (i === idx ? updated : s));
+        return { ...prev, [run_id]: next };
+      });
+    };
     const listeners = Promise.all([
       listen<AgentEventPayload>("agent-run-started", updateFromEvent),
       listen<AgentEventPayload>("agent-approval-required", updateFromEvent),
       listen<AgentEventPayload>("agent-run-completed", updateFromEvent),
       listen<AgentEventPayload>("agent-run-failed", updateFromEvent),
+      listen<AgentStepEventPayload>("agent-step", updateStep),
     ]);
     return () => {
       listeners.then((fns) => fns.forEach((fn) => fn()));
@@ -173,5 +203,5 @@ export function useAgent() {
     setRuns((prev) => upsertRunChronologically(prev, run));
   }, []);
 
-  return { runs, loading, start, cancel, approve, reject };
+  return { runs, loading, start, cancel, approve, reject, reactSteps };
 }

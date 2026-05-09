@@ -5,6 +5,7 @@ import type {
   AgentFilteredSource,
   AgentRun,
   GroundingSource,
+  ReactStep,
 } from "../hooks/useAgent";
 import { useAi } from "../hooks/useAi";
 import type { AiSetupStatus } from "../hooks/useAi";
@@ -75,6 +76,60 @@ function FilteredSourceList({ sources }: { sources: AgentFilteredSource[] }) {
           <p className="mt-0.5 text-[11px] text-gray-500">
             {source.source_type} · {source.visibility}
           </p>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function stepStatusBadge(status: string) {
+  switch (status) {
+    case "executing":
+      return "animate-pulse bg-blue-500/30 text-blue-200";
+    case "waiting_approval":
+      return "animate-pulse bg-amber-500/30 text-amber-200";
+    case "approved_executed":
+    case "executed":
+      return "bg-emerald-500/20 text-emerald-300";
+    case "approval_rejected":
+    case "approval_timeout":
+      return "bg-red-500/20 text-red-300";
+    case "final":
+      return "bg-emerald-600/30 text-emerald-200 font-semibold";
+    default:
+      return "bg-gray-700/30 text-gray-400";
+  }
+}
+
+function ReactStepTimeline({ steps }: { steps: ReactStep[] }) {
+  if (steps.length === 0) return null;
+  const obsCount = steps.filter((s) => s.observation_preview).length;
+  return (
+    <div className="mt-3 space-y-1 rounded bg-gray-900/40 px-2 py-2">
+      <div className="mb-1 flex items-center gap-2">
+        <span className="text-[10px] uppercase text-gray-500">ReAct steps</span>
+        {obsCount > 0 && (
+          <span className="rounded bg-gray-800 px-1.5 py-0.5 text-[10px] text-gray-400">
+            {obsCount} obs
+          </span>
+        )}
+      </div>
+      {steps.map((s, i) => (
+        <div key={i} className="flex items-center gap-2 text-[11px]">
+          <span className="w-4 shrink-0 text-right text-[10px] text-gray-600">{s.step + 1}</span>
+          <span
+            className={`shrink-0 rounded px-1.5 py-0.5 text-[10px] uppercase ${stepStatusBadge(s.status)}`}
+          >
+            {s.status.replace(/_/g, " ")}
+          </span>
+          <span className="min-w-0 flex-1 truncate text-gray-400">
+            {s.tool_name ?? "(thinking)"}
+          </span>
+          {s.observation_preview && (
+            <span className="ml-1 shrink-0 max-w-[38%] truncate text-right text-[10px] text-gray-600">
+              {s.observation_preview}
+            </span>
+          )}
         </div>
       ))}
     </div>
@@ -329,6 +384,7 @@ export function AiPanel({ onClose, onRunCommandResult }: PanelProps) {
             const pendingApprovals = run.approvals.filter(
               (approval) => approval.status === "pending",
             );
+            const runReactSteps = agent.reactSteps[run.id] ?? [];
             const audit = run.prompt_audit;
             const toolCalls = run.steps.flatMap((step) =>
               step.tool_calls.map((tool) => ({ ...tool, stepTitle: step.title })),
@@ -383,8 +439,13 @@ export function AiPanel({ onClose, onRunCommandResult }: PanelProps) {
                   ))}
                 </ul>
 
+                <ReactStepTimeline steps={runReactSteps} />
+
                 {pendingApprovals.length > 0 && (
                   <div className="mt-3 space-y-2">
+                    <p className="text-[10px] uppercase text-amber-400/80">
+                      Pending approval ({pendingApprovals.length})
+                    </p>
                     {pendingApprovals.map((approval) => (
                       <div
                         key={approval.id}
@@ -394,7 +455,10 @@ export function AiPanel({ onClose, onRunCommandResult }: PanelProps) {
                           <div>
                             <p className="text-xs font-medium text-current">{approval.summary}</p>
                             <p className="text-[10px] uppercase text-current opacity-80">
-                              {approval.planned_action?.kind ?? "planned_action"} · {approval.risk}
+                              {approval.planned_action === null
+                                ? "react tool gate"
+                                : (approval.planned_action?.kind ?? "planned_action")}{" "}
+                              · {approval.risk}
                             </p>
                           </div>
                           <div className="flex gap-2">
@@ -498,7 +562,15 @@ export function AiPanel({ onClose, onRunCommandResult }: PanelProps) {
                   </details>
                 )}
 
-                {run.output && (
+                {run.status === "completed" && run.output && (
+                  <div className="mt-3 rounded border border-emerald-500/25 bg-emerald-500/5 px-3 py-2">
+                    <p className="mb-1 text-[10px] uppercase tracking-wide text-emerald-400/70">
+                      Final Answer
+                    </p>
+                    <pre className="whitespace-pre-wrap text-xs text-gray-200">{run.output}</pre>
+                  </div>
+                )}
+                {run.status !== "completed" && run.output && (
                   <pre className="mt-2 whitespace-pre-wrap text-xs text-gray-400">{run.output}</pre>
                 )}
 
