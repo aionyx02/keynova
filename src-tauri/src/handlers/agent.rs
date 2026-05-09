@@ -6,13 +6,14 @@ use serde::Serialize;
 use serde_json::{json, Value};
 use uuid::Uuid;
 
-use crate::core::agent_runtime::ToolDispatch;
+use crate::core::agent_runtime::{ReactLoopConfig, ToolDispatch};
 use crate::core::config_manager::ConfigManager;
 use crate::core::{
     prepare_observation, AgentAuditEntry, AgentMemoryEntry, AgentObservationPolicy, AgentRuntime,
     BuiltinCommandRegistry, CommandHandler, CommandResult, KnowledgeStoreHandle,
 };
 use crate::managers::{
+    ai_manager::{provider_supports_tool_calls, resolve_ai_runtime_config, ToolCallProvider},
     history_manager::HistoryManager,
     model_manager::ModelManager,
     note_manager::NoteManager,
@@ -132,6 +133,84 @@ impl CommandHandler for AgentHandler {
 
 impl AgentHandler {
     fn start_run(&self, prompt: String) -> Result<AgentRun, String> {
+        if self.should_use_react_loop() {
+            self.start_react_run(prompt)
+        } else {
+            self.start_heuristic_run(prompt)
+        }
+    }
+
+    /// Returns true when the current AI provider supports function/tool calling
+    /// and `agent.mode` has not been explicitly set to `"offline"`.
+    fn should_use_react_loop(&self) -> bool {
+        let Ok(config) = self.config.lock() else {
+            return false;
+        };
+        if config.get("agent.mode").as_deref() == Some("offline") {
+            return false;
+        }
+        match resolve_ai_runtime_config(|key| config.get(key)) {
+            Ok(rt) => provider_supports_tool_calls(&rt.provider),
+            Err(_) => false,
+        }
+    }
+
+    /// Normal mode: insert a Running run and spawn the ReAct loop.
+    /// The LLM drives tool selection; local heuristics are not involved.
+    fn start_react_run(&self, prompt: String) -> Result<AgentRun, String> {
+        let run_id = self.runtime.next_run_id();
+        let memory_refs = self.memory_refs()?;
+        let run = AgentRun {
+            id: run_id.clone(),
+            prompt: prompt.clone(),
+            status: AgentRunStatus::Running,
+            plan: vec![
+                "Classify context by visibility.".into(),
+                "LLM selects tools via ReAct loop.".into(),
+                "Return grounded final answer.".into(),
+            ],
+            steps: vec![AgentStep {
+                id: format!("{run_id}:react"),
+                title: "ReAct loop".into(),
+                status: "running".into(),
+                tool_calls: Vec::new(),
+            }],
+            approvals: Vec::new(),
+            memory_refs,
+            sources: Vec::new(),
+            prompt_audit: None,
+            command_result: None,
+            output: None,
+            error: None,
+        };
+        self.log_audit(
+            &run_id,
+            "run_started",
+            "ok",
+            "ReAct loop initiated",
+            Some(json!({ "prompt_chars": prompt.chars().count() })),
+        );
+        let rt_config = {
+            let config = self.config.lock().map_err(|e| e.to_string())?;
+            resolve_ai_runtime_config(|key| config.get(key))?
+        };
+        let provider: Arc<dyn ToolCallProvider> = Arc::new(rt_config.provider);
+        let tools = self.runtime.list_tools();
+        let dispatch = self.build_react_dispatch();
+        let inserted = self.runtime.insert_run(run)?;
+        self.runtime.spawn_react_loop(
+            run_id,
+            provider,
+            tools,
+            ReactLoopConfig::default(),
+            dispatch,
+        );
+        Ok(inserted)
+    }
+
+    /// Offline fallback: resolve sources and planned actions with local heuristics.
+    /// Used when the provider does not support tool calls or `agent.mode = "offline"`.
+    fn start_heuristic_run(&self, prompt: String) -> Result<AgentRun, String> {
         let (sources, tool_calls) = self.sources_for_prompt(&prompt)?;
         let memory_refs = self.memory_refs()?;
         let prompt_audit = build_prompt_audit(&prompt, &sources, PROMPT_BUDGET_CHARS);
@@ -3016,8 +3095,6 @@ fn require_str<'a>(payload: &'a Value, key: &str) -> Result<&'a str, String> {
 
 /// Arc-captured state for the ReAct loop dispatch closure.
 /// One instance per agent run; shared across loop steps.
-/// Methods are wired into production in 5.5.C.
-#[allow(dead_code)]
 struct ReactDispatchState {
     workspace_manager: Arc<Mutex<WorkspaceManager>>,
     config: Arc<Mutex<ConfigManager>>,
@@ -3340,7 +3417,6 @@ impl ReactDispatchState {
 }
 
 /// Converts `GroundingSource` slice to the `ToolSourcesResult` JSON shape.
-#[allow(dead_code)]
 fn grounding_to_tool_sources_json(sources: &[GroundingSource]) -> Value {
     json!({
         "sources": sources.iter().map(|s| json!({
@@ -3357,8 +3433,6 @@ impl AgentHandler {
     ///
     /// The closure captures Arc clones of every dep needed and is `Send + Sync`,
     /// so it can safely be passed to `spawn_react_loop`.
-    /// Called from `start_run` in 5.5.C once the heuristic path is retired.
-    #[allow(dead_code)]
     pub fn build_react_dispatch(&self) -> Arc<ToolDispatch> {
         let state = Arc::new(ReactDispatchState {
             workspace_manager: Arc::clone(&self.workspace_manager),
@@ -3664,5 +3738,36 @@ mod tests {
         assert!(is_allowlisted_safe_builtin("help", ""));
         assert!(!is_allowlisted_safe_builtin("help", "--danger"));
         assert!(!is_allowlisted_safe_builtin("rebuild_search_index", ""));
+    }
+
+    #[test]
+    fn openai_provider_selects_react_loop() {
+        use crate::managers::ai_manager::{provider_supports_tool_calls, resolve_ai_runtime_config};
+        let pairs = [
+            ("ai.provider", "openai"),
+            ("ai.openai_api_key", "test-key"),
+            ("ai.openai_base_url", "https://api.openai.com/v1"),
+            ("ai.model", "gpt-4o-mini"),
+        ];
+        let rt = resolve_ai_runtime_config(|k| {
+            pairs.iter().find(|(key, _)| *key == k).map(|(_, v)| v.to_string())
+        })
+        .unwrap();
+        assert!(provider_supports_tool_calls(&rt.provider));
+    }
+
+    #[test]
+    fn claude_provider_selects_heuristic_fallback() {
+        use crate::managers::ai_manager::{provider_supports_tool_calls, resolve_ai_runtime_config};
+        let pairs = [
+            ("ai.provider", "claude"),
+            ("ai.api_key", "test-key"),
+            ("ai.model", "claude-sonnet-4-6"),
+        ];
+        let rt = resolve_ai_runtime_config(|k| {
+            pairs.iter().find(|(key, _)| *key == k).map(|(_, v)| v.to_string())
+        })
+        .unwrap();
+        assert!(!provider_supports_tool_calls(&rt.provider));
     }
 }
