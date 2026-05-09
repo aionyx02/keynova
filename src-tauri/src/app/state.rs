@@ -14,7 +14,8 @@ use crate::handlers::{
     automation::AutomationHandler,
     builtin_cmd::{
         AiCommand, BuiltinCmdHandler, CalCommand, DownCommand, HelpCommand, HistoryCommand,
-        ModelDownloadCommand, ModelListCommand, NoteCommand, RebuildSearchIndexCommand,
+        ModelDownloadCommand, ModelListCommand, ModelRemoveCommand, NoteCommand,
+        RebuildSearchIndexCommand,
         ReloadCommand, SettingCommand, SysCtlCommand, TrCommand,
     },
     calculator::CalculatorHandler,
@@ -141,6 +142,10 @@ impl AppState {
             reg.register(Box::new(AiCommand));
             reg.register(Box::new(ModelDownloadCommand));
             reg.register(Box::new(ModelListCommand));
+            reg.register(Box::new(ModelRemoveCommand::new(
+                Arc::clone(&model_manager),
+                Arc::clone(&config_manager),
+            )));
             reg.register(Box::new(NoteCommand::new(
                 Arc::clone(&note_manager),
                 Arc::clone(&config_manager),

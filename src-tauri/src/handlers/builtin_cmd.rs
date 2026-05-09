@@ -7,7 +7,9 @@ use uuid::Uuid;
 use crate::core::builtin_command_registry::BuiltinCommand;
 use crate::core::config_manager::ConfigManager;
 use crate::core::{BuiltinCommandRegistry, CommandHandler, CommandResult};
-use crate::managers::{note_manager::NoteManager, search_manager::SearchManager};
+use crate::managers::{
+    model_manager::ModelManager, note_manager::NoteManager, search_manager::SearchManager,
+};
 use crate::models::builtin_command::{BuiltinCommandResult, CommandUiType};
 use crate::models::terminal::{TerminalEnvVar, TerminalLaunchSpec};
 
@@ -144,6 +146,54 @@ impl BuiltinCommand for ModelListCommand {
         BuiltinCommandResult {
             text: String::new(),
             ui_type: CommandUiType::Panel("model_list".into()),
+        }
+    }
+}
+
+pub struct ModelRemoveCommand {
+    manager: Arc<ModelManager>,
+    config: Arc<Mutex<ConfigManager>>,
+}
+
+impl ModelRemoveCommand {
+    pub fn new(manager: Arc<ModelManager>, config: Arc<Mutex<ConfigManager>>) -> Self {
+        Self { manager, config }
+    }
+
+    fn ollama_url(&self) -> String {
+        self.config
+            .lock()
+            .ok()
+            .and_then(|c| c.get("ollama.base_url"))
+            .unwrap_or_else(|| "http://localhost:11434".into())
+    }
+}
+
+impl BuiltinCommand for ModelRemoveCommand {
+    fn name(&self) -> &'static str {
+        "model_remove"
+    }
+    fn description(&self) -> &'static str {
+        "Remove a local Ollama model"
+    }
+    fn execute(&self, args: &str) -> BuiltinCommandResult {
+        let name = args.trim();
+        if name.is_empty() {
+            return BuiltinCommandResult {
+                text: String::new(),
+                ui_type: CommandUiType::Panel("model_remove".into()),
+            };
+        }
+        let base_url = self.ollama_url();
+        match self.manager.delete(&base_url, name) {
+            Ok(()) => BuiltinCommandResult {
+                text: format!("已刪除模型 {name}"),
+                ui_type: CommandUiType::Inline,
+            },
+            Err(e) => BuiltinCommandResult {
+                text: format!("刪除失敗: {e}"),
+                ui_type: CommandUiType::Inline,
+            },
         }
     }
 }
