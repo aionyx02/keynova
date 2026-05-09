@@ -256,6 +256,7 @@ export function TranslationPanel({ onClose, initialArgs }: PanelProps) {
   const pendingIdRef = useRef<string | null>(null);
   const lastSentKeyRef = useRef("");
   const lastAppliedInitialArgsRef = useRef<string | null>(null);
+  const clientTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Load language list once on mount
   useEffect(() => {
@@ -292,6 +293,10 @@ export function TranslationPanel({ onClose, initialArgs }: PanelProps) {
       const { request_id, ok, text: translated, error: err } = event.payload;
       if (request_id !== pendingIdRef.current) return;
 
+      if (clientTimeoutRef.current !== null) {
+        window.clearTimeout(clientTimeoutRef.current);
+        clientTimeoutRef.current = null;
+      }
       pendingIdRef.current = null;
       setLoading(false);
       if (ok && translated !== undefined) {
@@ -311,6 +316,10 @@ export function TranslationPanel({ onClose, initialArgs }: PanelProps) {
       const normalizedText = nextText.trim();
       const normalizedDst = nextDst.trim();
       if (!normalizedText || !normalizedDst) {
+        if (clientTimeoutRef.current !== null) {
+          window.clearTimeout(clientTimeoutRef.current);
+          clientTimeoutRef.current = null;
+        }
         pendingIdRef.current = null;
         lastSentKeyRef.current = "";
         setLoading(false);
@@ -328,6 +337,17 @@ export function TranslationPanel({ onClose, initialArgs }: PanelProps) {
       setLoading(true);
       setError("");
       setResult("");
+
+      if (clientTimeoutRef.current !== null) window.clearTimeout(clientTimeoutRef.current);
+      clientTimeoutRef.current = window.setTimeout(() => {
+        if (pendingIdRef.current === requestId) {
+          pendingIdRef.current = null;
+          clientTimeoutRef.current = null;
+          setLoading(false);
+          setError("翻譯請求逾時（35 秒），請確認網路連線或稍後再試。");
+        }
+      }, 35_000);
+
       try {
         await ipcDispatch("translation.translate", {
           request_id: requestId,
@@ -336,6 +356,10 @@ export function TranslationPanel({ onClose, initialArgs }: PanelProps) {
           text: normalizedText,
         });
       } catch (err) {
+        if (clientTimeoutRef.current !== null) {
+          window.clearTimeout(clientTimeoutRef.current);
+          clientTimeoutRef.current = null;
+        }
         if (pendingIdRef.current === requestId) {
           pendingIdRef.current = null;
           setLoading(false);

@@ -137,9 +137,10 @@ impl TranslationManager {
 
     pub fn translate_async(&self, req: TranslateRequest) {
         let publish = Arc::clone(&self.publish_event);
-        std::thread::spawn(move || {
+        tokio::spawn(async move {
             let result =
-                translate_google_free(&req.src_lang, &req.dst_lang, &req.text, req.timeout_secs);
+                translate_google_free(&req.src_lang, &req.dst_lang, &req.text, req.timeout_secs)
+                    .await;
             let payload = match result {
                 Ok(translated) => serde_json::json!({
                     "request_id": req.request_id,
@@ -159,7 +160,7 @@ impl TranslationManager {
     }
 }
 
-fn translate_google_free(
+async fn translate_google_free(
     src: &str,
     dst: &str,
     text: &str,
@@ -180,11 +181,13 @@ fn translate_google_free(
         .header("accept", "application/json")
         .header("user-agent", "Mozilla/5.0 (Keynova)")
         .send()
+        .await
         .map_err(|e| format!("GoogleFree request failed: {e}"))?;
 
     let status = response.status();
     let body_text = response
         .text()
+        .await
         .map_err(|e| format!("GoogleFree response read failed: {e}"))?;
 
     if is_google_rate_limited(status, &body_text) {
@@ -203,8 +206,8 @@ fn translate_google_free(
     extract_google_free_translation(&value)
 }
 
-fn build_client(timeout_secs: u64) -> Result<reqwest::blocking::Client, String> {
-    reqwest::blocking::Client::builder()
+fn build_client(timeout_secs: u64) -> Result<reqwest::Client, String> {
+    reqwest::Client::builder()
         .timeout(std::time::Duration::from_secs(timeout_secs))
         .build()
         .map_err(|e| e.to_string())
