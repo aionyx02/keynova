@@ -58,4 +58,6 @@ windows = { version = "0.58", features = [
   "Win32_Media_Audio_Endpoints",
   "Win32_System_Memory",
   "Win32_System_ProcessStatus",
+  "Win32_System_JobObjects",
+  "Win32_Security",
 ] }
