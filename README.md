@@ -14,6 +14,18 @@ The project is local-first by design. AI Chat and Agent mode use the AI provider
 - Notes, calculator, translation, history, workspace binding, terminal panel, hotkeys, mouse/system controls, and model management.
 - `/note lazyvim` support for opening notes in a project-contained LazyVim terminal session.
 
+## Local-First AI Setup
+
+Keynova defaults to local AI: `ai.provider = "ollama"` with `model = "qwen2.5:7b"`. On first `/ai` launch, a setup card guides through three steps:
+
+1. Install [Ollama](https://ollama.com) if not present.
+2. Pull the recommended model: `ollama pull qwen2.5:7b` (model is chosen based on detected RAM).
+3. Or switch provider to Claude or OpenAI in `/setting → ai.provider`.
+
+The setup card disappears once Keynova can reach Ollama and find the configured model. A "Use anyway" button dismisses it without completing setup.
+
+Cloud provider options (Claude, OpenAI) require an API key in settings and work without Ollama installed.
+
 ## AI And Agent Runtime
 
 Keynova has two AI surfaces:
@@ -29,9 +41,9 @@ The current Agent safety foundation includes:
 - Observation redaction and truncation before tool output enters model context.
 - Low-risk read-only tools such as Keynova search, filesystem search metadata, file previews, and web search.
 - Approval-gated action proposals for higher-risk work.
-- No generic shell tool in the default Agent tool registry. Generic shell execution requires a separate sandbox design before it can be enabled.
+- No generic shell tool in the default Agent tool registry. Generic shell execution is guarded by a per-platform sandbox (Windows Job Objects, Linux bwrap, macOS sandbox-exec) that must be fully evaluated before the tool is enabled.
 
-The ReAct provider loop is being implemented incrementally. Until it is fully wired, some Agent behavior still uses local fallback heuristics.
+The provider-driven ReAct loop is implemented; OpenAI-compatible and Ollama providers support tool calls. Claude and providers that do not support function calling fall back to local heuristics.
 
 ## Search
 

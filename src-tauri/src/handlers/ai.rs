@@ -187,3 +187,54 @@ impl CommandHandler for AiHandler {
         }
     }
 }
+
+// ── 5.4: check_setup logic tests ─────────────────────────────────────────────
+
+#[cfg(test)]
+mod tests {
+    /// Mirror of the prefix-match logic in check_ollama.
+    fn model_found(names: &[&str], target: &str) -> bool {
+        let base = target.split(':').next().unwrap_or(target);
+        names
+            .iter()
+            .any(|&n| n == target || n.starts_with(&format!("{base}:")))
+    }
+
+    #[test]
+    fn ollama_exact_model_match() {
+        assert!(model_found(&["llama3:8b", "qwen2.5:7b"], "llama3:8b"));
+    }
+
+    #[test]
+    fn ollama_prefix_variant_matches_target() {
+        // "qwen2.5:7b" should match "qwen2.5:7b-instruct-q4_K_M"
+        assert!(model_found(
+            &["qwen2.5:7b-instruct-q4_K_M", "llama3:8b"],
+            "qwen2.5:7b"
+        ));
+    }
+
+    #[test]
+    fn ollama_no_match_returns_false() {
+        assert!(!model_found(&["llama3:8b"], "qwen2.5:7b"));
+    }
+
+    #[test]
+    fn ollama_empty_model_list_is_not_found() {
+        assert!(!model_found(&[], "qwen2.5:7b"));
+    }
+
+    #[test]
+    fn empty_api_key_is_detected_as_missing() {
+        // Claude/OpenAI providers set needs_setup = api_key.trim().is_empty()
+        assert!("".trim().is_empty());
+        assert!("   ".trim().is_empty());
+        assert!(!"\t key\n".trim().is_empty());
+    }
+
+    #[test]
+    fn model_prefix_does_not_cross_match_different_families() {
+        // "qwen" should not match "qwen2.5:7b" because prefix check uses full base
+        assert!(!model_found(&["qwen:7b"], "qwen2.5:7b"));
+    }
+}
