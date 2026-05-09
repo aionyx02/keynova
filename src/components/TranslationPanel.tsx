@@ -17,6 +17,11 @@ interface ParsedTrArgs {
   text: string;
 }
 
+interface Lang {
+  code: string;
+  name: string;
+}
+
 type FocusTarget = "command" | "source" | "output";
 
 const DEFAULT_SRC = "auto";
@@ -90,6 +95,146 @@ function isAtEnd(textarea: HTMLTextAreaElement): boolean {
   );
 }
 
+// ─── LangPicker ──────────────────────────────────────────────────────────────
+
+interface LangPickerProps {
+  value: string;
+  onChange: (code: string) => void;
+  langs: Lang[];
+  allowAuto?: boolean;
+}
+
+function LangPicker({ value, onChange, langs, allowAuto = false }: LangPickerProps) {
+  const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState("");
+  const [cursor, setCursor] = useState(0);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const listRef = useRef<HTMLDivElement>(null);
+
+  const options = allowAuto ? langs : langs.filter((l) => l.code !== "auto");
+  const filtered = options
+    .filter(
+      (l) =>
+        !query ||
+        l.code.toLowerCase().includes(query.toLowerCase()) ||
+        l.name.includes(query),
+    )
+    .slice(0, 10);
+
+  const label = langs.find((l) => l.code === value)?.name;
+  const isUnknown = langs.length > 0 && !langs.find((l) => l.code === value);
+
+  const select = useCallback(
+    (code: string) => {
+      onChange(code);
+      setOpen(false);
+      setQuery("");
+    },
+    [onChange],
+  );
+
+  useEffect(() => {
+    if (open) {
+      const timer = window.setTimeout(() => {
+        setCursor(0);
+        inputRef.current?.focus();
+      }, 0);
+      return () => window.clearTimeout(timer);
+    }
+  }, [open]);
+
+  useEffect(() => {
+    if (!open) return;
+    const item = listRef.current?.children[cursor] as HTMLElement | undefined;
+    item?.scrollIntoView({ block: "nearest" });
+  }, [cursor, open]);
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === "Escape") {
+      e.stopPropagation();
+      setOpen(false);
+      return;
+    }
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      setCursor((c) => Math.min(c + 1, filtered.length - 1));
+      return;
+    }
+    if (e.key === "ArrowUp") {
+      e.preventDefault();
+      setCursor((c) => Math.max(c - 1, 0));
+      return;
+    }
+    if (e.key === "Enter") {
+      e.preventDefault();
+      const chosen = filtered[cursor];
+      if (chosen) select(chosen.code);
+    }
+  };
+
+  return (
+    <div className="relative">
+      <button
+        type="button"
+        onMouseDown={(e) => {
+          e.preventDefault();
+          setOpen((o) => !o);
+        }}
+        className={`flex items-center gap-1 rounded px-2 py-1 text-xs transition-colors ${
+          open
+            ? "bg-blue-600/40 text-white"
+            : isUnknown
+              ? "bg-amber-900/30 text-amber-300 hover:bg-amber-900/50"
+              : "bg-gray-800/70 text-gray-200 hover:bg-gray-700/70"
+        }`}
+      >
+        <span className="font-mono font-semibold">{value}</span>
+        {label && <span className="text-gray-400 text-[11px]">— {label}</span>}
+        {isUnknown && <span className="text-amber-400 text-[10px] ml-0.5">?未知代碼</span>}
+        <span className="text-gray-500 text-[10px]">▾</span>
+      </button>
+
+      {open && (
+        <div className="absolute z-50 top-full mt-1 left-0 w-52 rounded-lg bg-gray-800 border border-gray-700/60 shadow-2xl overflow-hidden">
+          <input
+            ref={inputRef}
+            value={query}
+            onChange={(e) => {
+              setQuery(e.target.value);
+              setCursor(0);
+            }}
+            onKeyDown={handleKeyDown}
+            placeholder="搜尋語言代碼或名稱…"
+            className="w-full bg-gray-700/60 text-gray-100 text-xs px-3 py-1.5 outline-none placeholder-gray-500 border-b border-gray-700"
+          />
+          <div ref={listRef} className="max-h-44 overflow-y-auto">
+            {filtered.length === 0 && (
+              <p className="px-3 py-2 text-[11px] text-gray-500">無符合結果</p>
+            )}
+            {filtered.map((l, i) => (
+              <button
+                key={l.code}
+                type="button"
+                onMouseDown={() => select(l.code)}
+                className={`flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs transition-colors ${
+                  i === cursor
+                    ? "bg-blue-600/40 text-white"
+                    : "text-gray-300 hover:bg-gray-700/50"
+                }`}
+              >
+                <span className="font-mono w-10 shrink-0 text-gray-400">{l.code}</span>
+                <span className="truncate">{l.name}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+
 export function TranslationPanel({ onClose, initialArgs }: PanelProps) {
   const t = useI18n();
   const parsedInitial = parseTranslationArgs(initialArgs ?? "");
@@ -104,12 +249,21 @@ export function TranslationPanel({ onClose, initialArgs }: PanelProps) {
   const [result, setResult] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [langs, setLangs] = useState<Lang[]>([]);
   const commandRef = useRef<HTMLInputElement>(null);
   const sourceRef = useRef<HTMLTextAreaElement>(null);
   const outputRef = useRef<HTMLTextAreaElement>(null);
   const pendingIdRef = useRef<string | null>(null);
   const lastSentKeyRef = useRef("");
   const lastAppliedInitialArgsRef = useRef<string | null>(null);
+
+  // Load language list once on mount
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      void ipcDispatch<Lang[]>("translation.list_langs").then(setLangs).catch(() => {});
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, []);
 
   const focusSection = useCallback((target: FocusTarget) => {
     const element =
@@ -212,6 +366,17 @@ export function TranslationPanel({ onClose, initialArgs }: PanelProps) {
     [translate],
   );
 
+  // Called when a LangPicker changes src or dst; syncs command line + re-translates.
+  const updateFromPicker = useCallback(
+    (nextSrc: string, nextDst: string) => {
+      setSrc(nextSrc);
+      setDst(nextDst);
+      setCommandLine(formatCommandLine(nextSrc, nextDst, text));
+      void translate(nextSrc, nextDst, text, false);
+    },
+    [text, translate],
+  );
+
   const updateSourceText = useCallback(
     (nextText: string) => {
       setText(nextText);
@@ -283,6 +448,24 @@ export function TranslationPanel({ onClose, initialArgs }: PanelProps) {
         className="bg-gray-800/70 text-gray-100 text-sm rounded px-3 py-2 outline-none placeholder-gray-600"
       />
 
+      {/* Visual language pickers — stay in sync with the command line above */}
+      {langs.length > 0 && (
+        <div className="flex items-center gap-2">
+          <LangPicker
+            value={src}
+            onChange={(code) => updateFromPicker(code, dst)}
+            langs={langs}
+            allowAuto
+          />
+          <span className="text-gray-600 text-xs">→</span>
+          <LangPicker
+            value={dst}
+            onChange={(code) => updateFromPicker(src, code)}
+            langs={langs}
+          />
+        </div>
+      )}
+
       <textarea
         ref={sourceRef}
         value={text}
@@ -306,6 +489,7 @@ export function TranslationPanel({ onClose, initialArgs }: PanelProps) {
         placeholder={t.translation.textPlaceholder}
         rows={5}
         className="bg-gray-800/60 text-gray-200 text-sm rounded px-3 py-2 outline-none resize-none placeholder-gray-600 overflow-y-auto"
+        style={{ fontFamily: "'Segoe UI', 'Microsoft JhengHei', 'PingFang TC', 'Noto Sans', sans-serif" }}
       />
 
       {error && (
@@ -337,10 +521,11 @@ export function TranslationPanel({ onClose, initialArgs }: PanelProps) {
         placeholder={loading ? t.translation.translating : "Google Translate output"}
         rows={5}
         className="bg-gray-800/60 text-gray-100 text-sm rounded px-3 py-2 outline-none resize-none placeholder-gray-600 overflow-y-auto selection:bg-blue-500/40 selection:text-white"
+        style={{ fontFamily: "'Segoe UI', 'Microsoft JhengHei', 'PingFang TC', 'Malgun Gothic', 'Hiragino Sans', 'Noto Sans', sans-serif" }}
       />
 
       <div className="text-[10px] text-gray-700">
-        Command format: source destination text. Arrow keys move between command, source, and output.
+        Command：&lt;src&gt; &lt;dst&gt; &lt;text&gt;，例如 <span className="text-gray-600">en ja 你好</span>。↑↓ 切換區域 · Esc 關閉
       </div>
     </div>
   );
