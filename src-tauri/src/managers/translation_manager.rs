@@ -137,10 +137,17 @@ impl TranslationManager {
 
     pub fn translate_async(&self, req: TranslateRequest) {
         let publish = Arc::clone(&self.publish_event);
-        tokio::spawn(async move {
-            let result =
-                translate_google_free(&req.src_lang, &req.dst_lang, &req.text, req.timeout_secs)
-                    .await;
+        std::thread::spawn(move || {
+            let rt = tokio::runtime::Builder::new_current_thread()
+                .enable_all()
+                .build()
+                .expect("tokio rt for translation");
+            let result = rt.block_on(translate_google_free(
+                &req.src_lang,
+                &req.dst_lang,
+                &req.text,
+                req.timeout_secs,
+            ));
             let payload = match result {
                 Ok(translated) => serde_json::json!({
                     "request_id": req.request_id,
