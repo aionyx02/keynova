@@ -760,6 +760,111 @@ mod tests {
     }
 
     #[test]
+    fn react_loop_filesystem_search_dispatch_finds_file() {
+        use crate::managers::system_indexer::search_system_index;
+        use uuid::Uuid;
+
+        let tmp_root =
+            std::env::temp_dir().join(format!("keynova-react-fs-{}", Uuid::new_v4()));
+        std::fs::create_dir_all(&tmp_root).expect("create tmp dir");
+        let file_path = tmp_root.join("react-test-note.md");
+        std::fs::write(&file_path, "# React test\nSome content.").expect("write file");
+
+        let root = tmp_root.clone();
+        let dispatch = Arc::new(move |name: &str, args: &Value| -> Result<Value, String> {
+            match name {
+                "filesystem_search" => {
+                    let query = args.get("query").and_then(Value::as_str).unwrap_or("");
+                    let outcome = search_system_index(query, &[root.clone()], 10);
+                    let sources: Vec<Value> = outcome
+                        .hits
+                        .iter()
+                        .map(|h| {
+                            json!({
+                                "title": h.name,
+                                "snippet": h.path,
+                                "uri": h.path,
+                                "source_type": "file",
+                            })
+                        })
+                        .collect();
+                    Ok(json!({ "sources": sources }))
+                }
+                other => Err(format!("unexpected tool: {other}")),
+            }
+        });
+
+        let provider = FakeToolCallProvider::tool_then_final(
+            "filesystem_search",
+            "call-fs",
+            json!({ "query": "react-test-note" }),
+            "I found the file react-test-note.md in the workspace.",
+        );
+
+        let runtime = react_runtime();
+        runtime.insert_run(running_run("fs1")).expect("insert run");
+
+        let tools = AgentToolRegistry::with_default_readonly_tools().list();
+        react_loop_body(&runtime, "fs1", &provider, &tools, &ReactLoopConfig::default(), &*dispatch);
+
+        let run = runtime.get("fs1").unwrap().unwrap();
+        assert_eq!(run.status, AgentRunStatus::Completed);
+        assert!(run.output.as_deref().unwrap_or("").contains("react-test-note.md"));
+
+        let _ = std::fs::remove_dir_all(tmp_root);
+    }
+
+    #[test]
+    fn react_loop_filesystem_read_dispatch_returns_content() {
+        use uuid::Uuid;
+
+        let tmp_root =
+            std::env::temp_dir().join(format!("keynova-react-read-{}", Uuid::new_v4()));
+        std::fs::create_dir_all(&tmp_root).expect("create tmp dir");
+        let file_path = tmp_root.join("sample.toml");
+        std::fs::write(&file_path, "[agent]\nmode = \"local\"\n").expect("write file");
+
+        let dispatch = Arc::new(move |name: &str, args: &Value| -> Result<Value, String> {
+            match name {
+                "filesystem_read" => {
+                    let path_str =
+                        args.get("path").and_then(Value::as_str).unwrap_or("");
+                    let content = std::fs::read_to_string(path_str)
+                        .map_err(|e| format!("read error: {e}"))?;
+                    Ok(json!({
+                        "sources": [{
+                            "title": "sample.toml",
+                            "snippet": content,
+                            "uri": path_str,
+                            "source_type": "file_read",
+                        }]
+                    }))
+                }
+                other => Err(format!("unexpected tool: {other}")),
+            }
+        });
+
+        let provider = FakeToolCallProvider::tool_then_final(
+            "filesystem_read",
+            "call-read",
+            json!({ "path": file_path.display().to_string() }),
+            "The config file sets agent mode to local.",
+        );
+
+        let runtime = react_runtime();
+        runtime.insert_run(running_run("fs2")).expect("insert run");
+
+        let tools = AgentToolRegistry::with_default_readonly_tools().list();
+        react_loop_body(&runtime, "fs2", &provider, &tools, &ReactLoopConfig::default(), &*dispatch);
+
+        let run = runtime.get("fs2").unwrap().unwrap();
+        assert_eq!(run.status, AgentRunStatus::Completed);
+        assert!(run.output.as_deref().unwrap_or("").contains("agent mode"));
+
+        let _ = std::fs::remove_dir_all(tmp_root);
+    }
+
+    #[test]
     fn react_loop_max_steps_exceeded_fails_run() {
         let runtime = react_runtime();
         runtime
