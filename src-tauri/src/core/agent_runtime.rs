@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use uuid::Uuid;
 
-use crate::core::{prepare_observation, AgentObservationPolicy, AppEvent};
+use crate::core::{prepare_observation, AgentAuditEntry, AgentObservationPolicy, AppEvent};
 use crate::managers::ai_manager::{
     AiMessage, AiToolDefinition, AiToolTurn, ToolCallProvider,
 };
@@ -341,6 +341,8 @@ pub struct ReactLoopConfig {
     pub max_tokens: u32,
     pub timeout_secs: u64,
     pub system_prompt: String,
+    /// Optional callback invoked for each audit event during the loop.
+    pub audit_log: Option<Arc<dyn Fn(AgentAuditEntry) + Send + Sync>>,
 }
 
 impl Default for ReactLoopConfig {
@@ -356,6 +358,7 @@ impl Default for ReactLoopConfig {
                 "without calling any more tools."
             )
             .into(),
+            audit_log: None,
         }
     }
 }
@@ -370,6 +373,26 @@ pub fn tools_to_definitions(tools: &[AgentToolSpec]) -> Vec<AiToolDefinition> {
             parameters_schema: spec.parameters_schema.clone(),
         })
         .collect()
+}
+
+/// Fire-and-forget audit helper; no-op when `config.audit_log` is `None`.
+fn maybe_audit(
+    config: &ReactLoopConfig,
+    run_id: &str,
+    event_type: &str,
+    status: &str,
+    summary: &str,
+    payload: Option<Value>,
+) {
+    if let Some(log) = &config.audit_log {
+        log(AgentAuditEntry {
+            run_id: run_id.to_string(),
+            event_type: event_type.to_string(),
+            status: status.to_string(),
+            summary: summary.to_string(),
+            payload_json: payload.map(|v| v.to_string()),
+        });
+    }
 }
 
 /// Outcome of waiting for a ReAct gate approval.
@@ -401,6 +424,19 @@ pub fn react_loop_body(
         }
     };
 
+    maybe_audit(
+        config,
+        run_id,
+        "react_started",
+        "ok",
+        "ReAct loop started",
+        Some(json!({
+            "prompt_chars": prompt.chars().count(),
+            "tool_count": tools.len(),
+            "tools": tools.iter().map(|t| t.llm_name.as_str()).collect::<Vec<_>>(),
+        })),
+    );
+
     let mut messages: Vec<AiMessage> = vec![
         AiMessage {
             role: "system".into(),
@@ -419,7 +455,10 @@ pub fn react_loop_body(
     for step_idx in 0..config.max_steps {
         // Check for cancellation.
         match runtime.get(run_id) {
-            Ok(Some(run)) if run.status == AgentRunStatus::Cancelled => return,
+            Ok(Some(run)) if run.status == AgentRunStatus::Cancelled => {
+                maybe_audit(config, run_id, "react_cancelled", "cancelled", "Run cancelled.", None);
+                return;
+            }
             Ok(None) => return,
             _ => {}
         }
@@ -432,13 +471,27 @@ pub fn react_loop_body(
         ) {
             Ok(t) => t,
             Err(e) => {
-                react_fail(runtime, run_id, &format!("Provider error at step {step_idx}: {e}"));
+                let reason = format!("Provider error at step {step_idx}: {e}");
+                maybe_audit(config, run_id, "react_failed", "error", &reason, None);
+                react_fail(runtime, run_id, &reason);
                 return;
             }
         };
 
         match turn {
             AiToolTurn::FinalText { content } => {
+                maybe_audit(
+                    config,
+                    run_id,
+                    "react_completed",
+                    "ok",
+                    "Final answer produced",
+                    Some(json!({
+                        "step": step_idx,
+                        "answer_chars": content.chars().count(),
+                        "answer_preview": truncate_preview(&content, 200),
+                    })),
+                );
                 react_complete(runtime, run_id, step_idx, content);
                 return;
             }
@@ -464,9 +517,21 @@ pub fn react_loop_body(
                             action_ref: None,
                             planned_action: None,
                             risk: spec.map(|s| s.risk).unwrap_or(ActionRisk::Medium),
-                            summary,
+                            summary: summary.clone(),
                             status: "pending".into(),
                         };
+
+                        maybe_audit(
+                            config,
+                            run_id,
+                            "approval_required",
+                            "pending",
+                            &summary,
+                            Some(json!({
+                                "tool_name": call.name,
+                                "args_preview": truncate_preview(&call.arguments.to_string(), 200),
+                            })),
+                        );
 
                         // Attach the approval to the run and set WaitingApproval status.
                         if let Ok(Some(mut run)) = runtime.get(run_id) {
@@ -485,6 +550,14 @@ pub fn react_loop_body(
 
                         let (obs, step_status) = match outcome {
                             ReactApprovalOutcome::Approved => {
+                                maybe_audit(
+                                    config,
+                                    run_id,
+                                    "approval_approved",
+                                    "ok",
+                                    &format!("Approved '{}'", call.name),
+                                    None,
+                                );
                                 // Restore Running status before executing the tool.
                                 if let Ok(Some(mut run)) = runtime.get(run_id) {
                                     run.status = AgentRunStatus::Running;
@@ -502,23 +575,64 @@ pub fn react_loop_body(
                                         format!("Error from tool '{}': {}", call.name, e)
                                     }
                                 };
+                                maybe_audit(
+                                    config,
+                                    run_id,
+                                    "tool_observation",
+                                    "ok",
+                                    &format!("Observation from '{}'", call.name),
+                                    Some(json!({
+                                        "tool_name": call.name,
+                                        "observation_preview": truncate_preview(&obs_text, 200),
+                                    })),
+                                );
                                 (obs_text, "approved_executed")
                             }
-                            ReactApprovalOutcome::Rejected => (
-                                format!(
-                                    "User rejected execution of '{}'. The tool was not run.",
-                                    call.name
-                                ),
-                                "approval_rejected",
-                            ),
-                            ReactApprovalOutcome::Cancelled => return,
-                            ReactApprovalOutcome::TimedOut => (
-                                format!(
-                                    "Approval for '{}' timed out. The tool was not run.",
-                                    call.name
-                                ),
-                                "approval_timeout",
-                            ),
+                            ReactApprovalOutcome::Rejected => {
+                                maybe_audit(
+                                    config,
+                                    run_id,
+                                    "approval_rejected",
+                                    "cancelled",
+                                    &format!("Rejected '{}'", call.name),
+                                    None,
+                                );
+                                (
+                                    format!(
+                                        "User rejected execution of '{}'. The tool was not run.",
+                                        call.name
+                                    ),
+                                    "approval_rejected",
+                                )
+                            }
+                            ReactApprovalOutcome::Cancelled => {
+                                maybe_audit(
+                                    config,
+                                    run_id,
+                                    "react_cancelled",
+                                    "cancelled",
+                                    "Run cancelled during approval wait.",
+                                    None,
+                                );
+                                return;
+                            }
+                            ReactApprovalOutcome::TimedOut => {
+                                maybe_audit(
+                                    config,
+                                    run_id,
+                                    "approval_timeout",
+                                    "error",
+                                    &format!("Approval timed out for '{}'", call.name),
+                                    None,
+                                );
+                                (
+                                    format!(
+                                        "Approval for '{}' timed out. The tool was not run.",
+                                        call.name
+                                    ),
+                                    "approval_timeout",
+                                )
+                            }
                         };
 
                         emit_react_step(runtime, run_id, step_idx, &call.name, step_status);
@@ -528,6 +642,19 @@ pub fn react_loop_body(
                         });
                         continue;
                     }
+
+                    maybe_audit(
+                        config,
+                        run_id,
+                        "tool_called",
+                        "ok",
+                        &format!("Calling '{}'", call.name),
+                        Some(json!({
+                            "tool_name": call.name,
+                            "args_preview": truncate_preview(&call.arguments.to_string(), 200),
+                            "step": step_idx,
+                        })),
+                    );
 
                     let obs_policy = spec
                         .map(|s| s.observation_policy.clone())
@@ -541,6 +668,18 @@ pub fn react_loop_body(
                         }
                         Err(e) => format!("Error from tool '{}': {}", call.name, e),
                     };
+
+                    maybe_audit(
+                        config,
+                        run_id,
+                        "tool_observation",
+                        "ok",
+                        &format!("Observation from '{}'", call.name),
+                        Some(json!({
+                            "tool_name": call.name,
+                            "observation_preview": truncate_preview(&observation, 200),
+                        })),
+                    );
 
                     emit_react_step(runtime, run_id, step_idx, &call.name, "executed");
                     obs_messages.push(AiMessage {
@@ -564,7 +703,16 @@ pub fn react_loop_body(
         }
     }
 
-    react_fail(runtime, run_id, "Maximum steps exceeded without a final answer.");
+    let reason = "Maximum steps exceeded without a final answer.";
+    maybe_audit(
+        config,
+        run_id,
+        "react_failed",
+        "error",
+        reason,
+        Some(json!({ "max_steps": config.max_steps })),
+    );
+    react_fail(runtime, run_id, reason);
 }
 
 fn react_complete(runtime: &AgentRuntime, run_id: &str, final_step: usize, content: String) {

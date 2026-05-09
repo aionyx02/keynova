@@ -197,12 +197,19 @@ impl AgentHandler {
         let provider: Arc<dyn ToolCallProvider> = Arc::new(rt_config.provider);
         let tools = self.runtime.list_tools();
         let dispatch = self.build_react_dispatch();
+        let knowledge_store = self.knowledge_store.clone();
+        let loop_config = ReactLoopConfig {
+            audit_log: Some(Arc::new(move |entry| {
+                knowledge_store.try_log_agent_audit(entry);
+            })),
+            ..ReactLoopConfig::default()
+        };
         let inserted = self.runtime.insert_run(run)?;
         self.runtime.spawn_react_loop(
             run_id,
             provider,
             tools,
-            ReactLoopConfig::default(),
+            loop_config,
             dispatch,
         );
         Ok(inserted)
