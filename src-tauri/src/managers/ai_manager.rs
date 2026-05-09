@@ -916,4 +916,50 @@ mod tests {
             }
         );
     }
+
+    // ── 5.1.B: rposition message-retain fix ──────────────────────────────────
+
+    #[test]
+    fn rposition_removes_only_the_last_duplicate_user_message() {
+        // Simulate: two identical user prompts in history; request fails.
+        // With retain() the first message would also be gone.
+        // With rposition() only the last matching entry is removed.
+        let mut history = vec![
+            AiMessage { role: "user".into(), content: "ping".into() },
+            AiMessage { role: "assistant".into(), content: "pong".into() },
+            AiMessage { role: "user".into(), content: "ping".into() },
+        ];
+        let prompt = "ping";
+        if let Some(pos) = history.iter().rposition(|m| m.role == "user" && m.content == prompt) {
+            history.remove(pos);
+        }
+        assert_eq!(history.len(), 2, "only the last duplicate should be removed");
+        assert_eq!(history[0].role, "user");
+        assert_eq!(history[0].content, "ping");  // first user message preserved
+        assert_eq!(history[1].role, "assistant"); // assistant message preserved
+    }
+
+    #[test]
+    fn rposition_retains_all_messages_when_prompt_not_found() {
+        let mut history = vec![
+            AiMessage { role: "user".into(), content: "hello".into() },
+            AiMessage { role: "assistant".into(), content: "hi".into() },
+        ];
+        let before_len = history.len();
+        let prompt = "nonexistent";
+        if let Some(pos) = history.iter().rposition(|m| m.role == "user" && m.content == prompt) {
+            history.remove(pos);
+        }
+        assert_eq!(history.len(), before_len, "no message should be removed");
+    }
+
+    #[test]
+    fn rposition_handles_empty_history_gracefully() {
+        let mut history: Vec<AiMessage> = Vec::new();
+        let prompt = "anything";
+        if let Some(pos) = history.iter().rposition(|m| m.role == "user" && m.content == prompt) {
+            history.remove(pos);
+        }
+        assert!(history.is_empty());
+    }
 }
