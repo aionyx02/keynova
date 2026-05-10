@@ -63,9 +63,9 @@
 
 ## 當前狀態
 
-- **進度**：Phase 4 第一輪核心 foundation 已完成；lazy panel 首次開啟視窗高度同步已修正；Phase 2 搜尋 backend debug/config/rebuild/test 補齊；Knowledge Store batch writes + shutdown flush 已補上；Plugin loader 已可讀取/驗證本機 manifest；Agent read-only tools 已可執行 `keynova.search` / SearXNG `web.search`。
-- **上次完成**：補齊 Agent read-only tool runtime 與搜尋 cancellation：`agent.tool` 可呼叫 `keynova.search` / `web.search`，`agent.start` 會在需要時帶入本機 grounding sources；`keynova.search` 搜尋 workspace、command、settings schema、model、notes、history 並套用 visibility filter；`web.search` 支援 SearXNG 且拒絕 private architecture / secret query；`search.cancel` 與 backend generation check 可丟棄 stale provider results。
-- **下一步**：補 Phase 4 尚未完成的重型 runtime：`lib.rs` 拆成 `app/*`、search chunk streaming、Tantivy provider、Agent approval/audit/memory、WASM runtime/hot reload。
+- **進度**：Phase 5 進行中；5.1.A、5.1.B、5.8、5.2.A、5.2.B、5.3.A~C、5.4、5.5.A1+A2+B1+A3+A4+B2+B3+C+E、5.11.A~D 均已實作並 commit（Phase-5 branch）。Phase 6 架構設計完成（7 個新功能需求）。
+- **上次完成**：Phase 6.6 LazyVim portable Neovim — `portable_nvim_manager.rs`（detect_nvim/download_nvim/reqwest blocking progress）；`handlers/nvim.rs`（nvim.detect/nvim.download）；`NvimDownloadPanel.tsx`（progress bar、error/retry、done → close）；`builtin_cmd.rs` nvim 未找到改回傳 `Panel("nvim_download")`；PanelRegistry 註冊；cargo check + tsc --noEmit 通過。
+- **下一步**：Phase 5.5.H ReAct 手動驗收；或 Phase 6.7.C Manager lazy init；或 Phase 5.6 Agent quality tests。
 
 ## 已確認的技術選擇
 
@@ -99,16 +99,21 @@
 - feature/feat1-feat2-control-plane → dev/main 合併完成；BUG-11 終端 ESC keydown/keyup 修復完成（2026-05-04）
 - Phase 3.0–3.8 完成與後續任務整理（2026-05-04 ~ 05-05）：/tr /ai /note /cal /history /system + workspace 3 槽位完成；BUG-12/13/14 經 stale closure/捲動根因修復；tasks.md 壓縮並建立 FEAT-6/7
 - FEAT-6 完成（2026-05-05）：`/model_download` / `/model_list` 支援 AI Chat 與 Translation 分別切換模型、硬體推薦、Ollama catalog/progress、API provider 切換；後續 FEAT-7 已將 Translation 收斂為 Google only
+- Phase 4 foundation + Agent runtime + 搜尋串流/Tantivy/Plugin/Automation 全完成後 merge 進 main（2026-05-06 ~ 05-08）
+- Phase 5 開始：tasks 整理→5.1~5.8→5.2.A/B→5.3.A~C→5.4→5.5.A1~C（2026-05-08）：search diagnostics、config paths、SetupCard、ReAct loop 骨架到 offline fallback 分支；128 tests on Phase-5
+- 5.5.E + 5.11.A~D（2026-05-09）：ReactLoopConfig.audit_log；maybe_audit()；10 audit events；extract_quoted fix；TOOL_* 常數；resolve_readable_path + looks_sensitive_path；agent.rs→6 子模組；AgentError enum；ToolPermission gate；WebSearchProvider trait；135 tests
 
 ## Session 交接紀錄（最近 5 筆）
 
 | 日期 | 完成事項 | 遺留問題 |
 |------|----------|----------|
-| 2026-05-08 | 搜尋排序與覆蓋率大修：(1) app/file 分數品質分層：app exact=100/prefix=90/substring=78；file exact=95/prefix=88/contains=80；command desc-only=40；(2) WSL home 改為枚舉 /home/<user> 各獲 depth=4，不再以 /home 為根消耗一層；(3) OneDrive 改用 env var 動態發現，Dropbox 改讀 info.json（移除所有硬編碼目錄名稱）；(4) SearchPlan per-provider quota + sort_balanced_truncate；105 個測試全通過 | 仍需在真實 app 手動確認；stream diagnostics 尚未做 |
-| 2026-05-06 | Phase 2 搜尋、Knowledge Store、Plugin loader 補齊：backend preference/active 選擇可測試、`search.backend` structured debug info、搜尋框 backend badge、`/rebuild_search_index` 背景重建 file cache、`[search]` config/schema、CSP connect-src 放行、`hotkey.register` 轉 structured `not_implemented`；DB worker 補 action/clipboard batch insert 與 shutdown flush；plugin.toml/json loader 會驗證 permission deny-by-default | Tantivy provider、WASM runtime proof-of-concept 尚未接入；BUG-1/BUG-4 仍建議在真實 DevTools/視窗手動確認 |
-| 2026-05-06 | Phase 4.4/4.5A：搜尋 backend generation/cancel 可丟棄 stale provider results；AgentHandler 注入 config/note/history/workspace/command/model context；新增 `agent.tool`，實作 `keynova.search` 與 SearXNG `web.search`；新增 private architecture/secret web-query redaction tests | `web.search` 預設 disabled，需設定 `agent.web_search_provider=searxng` 與 `agent.searxng_url`；尚未做 Agent approval/action phases 與 audit 寫入 Knowledge Store |
-| 2026-05-06 | 修正 BUG-15：lazy panel 首次開啟後內容載入完成未觸發 Tauri window resize，導致 UI 裁切、背景殘影與外層 scrollbar；改用 ResizeObserver/MutationObserver 同步高度，並關閉 root/body overflow | 需在真實 Tauri 視窗手動確認 `/cal`、`/ai`、`/history`、`/model_list` 首次開啟皆正常 |
-| 2026-05-06 | Phase 4 foundation：ActionArena/ActionRef、UiSearchItem、action.run、secondary actions、schema-driven settings、Workspace v2、KnowledgeStore DB worker、Agent mode UI/runtime skeleton、Automation/Plugin security model；補強 /ai Agent 搜尋隱私：web.search/keynova.search、visibility filter、architecture denylist | Phase 4 foundation 與 Agent 隱私規劃完成；WASM loader/hot reload 仍待做 |
+| 2026-05-10 | Phase 6.2 /system_monitoring：SystemMonitoringHandler(snapshot/stream_start/stream_stop)、SysMonitorCommand、SystemMonitoringPanel.tsx(CPU/RAM/Disk/Network/Process)、PanelRegistry；159 tests + clippy + lint 通過 | 需真實 app 驗收；Process table 排序切換尚未實作 |
+| 2026-05-10 | Phase 6.3 功能開關：features.ai/agent 預設 false；FEATURE_GUARDS in cmd.run；ai.chat/agent.start guards；SettingPanel toggle UI；157 tests + clippy + lint 通過 | 需真實 app 驗收 /ai disable 提示 |
+| 2026-05-10 | Phase 6.5 搜尋編碼修復：windows.rs 3 處 + tantivy_index.rs + CommandPalette.tsx hasEncodingError()；157 tests + lint 通過 | 需真實 app 驗收中文/日文路徑不出現方塊字 |
+| 2026-05-10 | 翻譯自動觸發 bug（React Strict Mode ref guard）+ crash fix（tokio::spawn→std::thread+per-thread rt）+ 35s timeout；6.4 SUPPORTED_LANGS 108 語言+LangPicker；6.1 ModelRemove panel | 需真實 app 驗收翻譯/ai 各功能 |
+| 2026-05-09 | 6.7A/B tantivy 50MB→15MB；搜尋深度 6+visited；5.5.F~G ReactStep UI+tests；5.11.A~D agent拆模組+AgentError+ToolPermission+WebSearchProvider；Phase 6 架構設計 | 5.5.H / ADR-027 解封評估待辦 |
+| 2026-05-10 | Phase 6.6 LazyVim portable Neovim：portable_nvim_manager(detect/download/reqwest-progress)、handlers/nvim(detect/download)、NvimDownloadPanel.tsx(progress/retry/done)、builtin_cmd Panel("nvim_download")、PanelRegistry；cargo+tsc clean | config 覆蓋路徑（notes.nvim_bin）未實作 |
+| 2026-05-09 | Phase 5 主線（5.1~5.8/5.2~5.4/5.5.A~E/5.11.A~D）全部完成，merge Phase-5 branch；搜尋串流/Tantivy/Plugin/Automation/Agent runtime/Knowledge Store 已完成 | Phase 6 功能群待續 |
 
 ## 2026-05-06 架構邊界與修正定位索引
 
@@ -137,7 +142,7 @@
 3. 後端功能 Handler 層（命令入口）
    - `/src-tauri/src/handlers/launcher.rs`：`launcher.*` 命令入口
    - `/src-tauri/src/handlers/builtin_cmd.rs`：`/ai`, `/tr`, `/cal`, `/setting` 等內建指令註冊
-   - `/src-tauri/src/handlers/ai.rs` / `agent.rs`：AI 對話與 Agent 控制命令
+   - `/src-tauri/src/handlers/ai.rs` / `agent/mod.rs`：AI 對話與 Agent 控制命令（agent/ 子目錄：mod/filesystem/formatting/intent/safety/web）
    - `/src-tauri/src/handlers/model.rs`：模型切換、下載管理
    - `/src-tauri/src/handlers/search.rs`：`search.*` 搜尋引擎入口
    - `/src-tauri/src/handlers/note.rs` / `workspace.rs`：筆記與工作空間管理

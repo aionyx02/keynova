@@ -369,12 +369,27 @@ impl SearchManager {
             if backend == SearchBackend::Tantivy {
                 if let Some(index_dir) = tantivy_index_dir {
                     if let Ok(results) = tantivy_index::search(index_dir, query, limit) {
-                        return results;
+                        if !results.is_empty() {
+                            return results;
+                        }
                     }
                 }
             }
-            let _ = (backend, query, limit);
-            Vec::new()
+            // Use native system indexer (mdfind / plocate / locate / ignore_walk)
+            crate::managers::system_indexer::search_system_index(query, &[], limit, tantivy_index_dir)
+                .hits
+                .into_iter()
+                .map(|hit| SearchResult {
+                    kind: if hit.is_dir {
+                        ResultKind::Folder
+                    } else {
+                        ResultKind::File
+                    },
+                    score: hit.score,
+                    name: hit.name,
+                    path: hit.path,
+                })
+                .collect()
         }
     }
 

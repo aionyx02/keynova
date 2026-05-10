@@ -28,6 +28,15 @@ const HistoryPanel = React.lazy(() =>
 const SystemPanel = React.lazy(() =>
   import("../SystemPanel").then((m) => ({ default: m.SystemPanel })),
 );
+const ModelRemovePanel = React.lazy(() =>
+  import("../ModelRemovePanel").then((m) => ({ default: m.ModelRemovePanel })),
+);
+const SystemMonitoringPanel = React.lazy(() =>
+  import("../SystemMonitoringPanel").then((m) => ({ default: m.SystemMonitoringPanel })),
+);
+const NvimDownloadPanel = React.lazy(() =>
+  import("../NvimDownloadPanel").then((m) => ({ default: m.NvimDownloadPanel })),
+);
 
 /** 將後端回傳的 panel name 對應至 React 元件。新增面板只需在此 Record 加一筆。 */
 export const PanelRegistry: Record<string, React.ComponentType<PanelProps>> = {
@@ -35,9 +44,12 @@ export const PanelRegistry: Record<string, React.ComponentType<PanelProps>> = {
   ai: AiPanel,
   model_download: ModelDownloadPanel,
   model_list: ModelListPanel,
+  model_remove: ModelRemovePanel,
   translation: TranslationPanel,
   note: NoteEditor,
   calculator: CalculatorPanel,
   history: HistoryPanel,
   system: SystemPanel,
+  system_monitoring: SystemMonitoringPanel,
+  nvim_download: NvimDownloadPanel,
 };
