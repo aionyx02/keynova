@@ -53,6 +53,7 @@ export function SystemMonitoringPanel({ onClose }: PanelProps) {
   const [snap, setSnap] = useState<Snapshot | null>(null);
   const [streaming, setStreaming] = useState(false);
   const [error, setError] = useState("");
+  const [sortBy, setSortBy] = useState<"mem" | "cpu">("mem");
 
   const stopStream = useCallback(async () => {
     if (!window.__TAURI_INTERNALS__) return;
@@ -165,16 +166,35 @@ export function SystemMonitoringPanel({ onClose }: PanelProps) {
 
           {/* Processes */}
           <div>
-            <div className="text-[10px] text-gray-600 mb-1.5 uppercase tracking-wide">Top Processes (RAM)</div>
+            <div className="flex items-center mb-1.5">
+              <span className="text-[10px] text-gray-600 uppercase tracking-wide flex-1">Top Processes</span>
+              <div className="flex gap-1">
+                <button
+                  onClick={() => setSortBy("mem")}
+                  className={`text-[9px] px-1.5 py-0.5 rounded transition-colors ${sortBy === "mem" ? "bg-amber-500/20 text-amber-400" : "text-gray-600 hover:text-gray-400"}`}
+                >
+                  RAM
+                </button>
+                <button
+                  onClick={() => setSortBy("cpu")}
+                  className={`text-[9px] px-1.5 py-0.5 rounded transition-colors ${sortBy === "cpu" ? "bg-blue-500/20 text-blue-400" : "text-gray-600 hover:text-gray-400"}`}
+                >
+                  CPU
+                </button>
+              </div>
+            </div>
             <div className="space-y-0.5">
-              {snap.processes.slice(0, 15).map((p) => (
-                <div key={p.pid} className="flex items-center gap-2 text-[10px]">
-                  <span className="text-gray-400 truncate flex-1">{p.name}</span>
-                  <span className="text-gray-600 font-mono shrink-0">{p.pid}</span>
-                  <span className="text-amber-400 font-mono shrink-0 w-16 text-right">{p.mem_mb}&thinsp;MB</span>
-                  <span className="text-blue-400 font-mono shrink-0 w-14 text-right">{p.cpu_pct.toFixed(1)}%</span>
-                </div>
-              ))}
+              {[...snap.processes]
+                .sort((a, b) => sortBy === "cpu" ? b.cpu_pct - a.cpu_pct : b.mem_mb - a.mem_mb)
+                .slice(0, 15)
+                .map((p) => (
+                  <div key={p.pid} className="flex items-center gap-2 text-[10px]">
+                    <span className="text-gray-400 truncate flex-1">{p.name}</span>
+                    <span className="text-gray-600 font-mono shrink-0">{p.pid}</span>
+                    <span className="text-amber-400 font-mono shrink-0 w-16 text-right">{p.mem_mb}&thinsp;MB</span>
+                    <span className="text-blue-400 font-mono shrink-0 w-14 text-right">{p.cpu_pct.toFixed(1)}%</span>
+                  </div>
+                ))}
             </div>
           </div>
         </>
