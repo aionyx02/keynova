@@ -209,7 +209,8 @@ export function SettingPanel({ initialArgs }: PanelProps) {
       return;
     }
     if (e.key === "ArrowLeft") {
-      if (isHotkey || (e.currentTarget.selectionStart === 0 && e.currentTarget.selectionEnd === 0)) {
+      const input = e.currentTarget as HTMLInputElement;
+      if (isHotkey || (input.selectionStart === 0 && input.selectionEnd === 0)) {
         e.preventDefault();
         switchSection(-1);
       }
@@ -220,8 +221,9 @@ export function SettingPanel({ initialArgs }: PanelProps) {
         e.preventDefault();
         switchSection(1);
       } else {
-        const len = e.currentTarget.value.length;
-        if (e.currentTarget.selectionStart === len && e.currentTarget.selectionEnd === len) {
+        const input = e.currentTarget as HTMLInputElement;
+        const len = input.value.length;
+        if (input.selectionStart === len && input.selectionEnd === len) {
           e.preventDefault();
           switchSection(1);
         }
