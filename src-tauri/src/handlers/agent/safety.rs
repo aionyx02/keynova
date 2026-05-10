@@ -10,7 +10,7 @@ pub(super) fn sanitize_external_query(query: &str) -> Result<String, String> {
     }
     let lower = trimmed.to_lowercase();
     for denied in [
-        "claude.md",
+        "CLAUDE.md",
         "tasks.md",
         "memory.md",
         "decisions.md",
