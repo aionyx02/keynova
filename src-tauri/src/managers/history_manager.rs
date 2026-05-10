@@ -35,10 +35,7 @@ impl HistoryManager {
     }
 
     fn default_path() -> PathBuf {
-        let base = std::env::var("APPDATA").unwrap_or_else(|_| ".".into());
-        PathBuf::from(base)
-            .join("Keynova")
-            .join("clipboard_history.json")
+        crate::platform_dirs::keynova_data_dir().join("clipboard_history.json")
     }
 
     fn load(path: &PathBuf) -> Vec<ClipboardEntry> {

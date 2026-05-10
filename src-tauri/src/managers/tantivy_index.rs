@@ -23,9 +23,7 @@ struct TantivyFields {
 }
 
 pub fn default_index_dir() -> PathBuf {
-    let base = std::env::var("APPDATA").unwrap_or_else(|_| ".".into());
-    PathBuf::from(base)
-        .join("Keynova")
+    crate::platform_dirs::keynova_data_dir()
         .join("search")
         .join("tantivy")
 }
@@ -59,8 +57,13 @@ pub fn rebuild(index_dir: &Path, entries: &[TantivyFileEntry]) -> Result<usize, 
 
     let (schema, fields) = build_schema();
     let index = Index::create_in_dir(index_dir, schema).map_err(|e| e.to_string())?;
-    let mut writer = index.writer(50_000_000).map_err(|e| e.to_string())?;
+    // 15 MB is sufficient for indexing; 50 MB was wasting address space during rebuild.
+    let mut writer = index.writer(30_000_000).map_err(|e| e.to_string())?;
     for entry in entries {
+        if entry.name.contains('\u{FFFD}') || entry.path.contains('\u{FFFD}') {
+            eprintln!("[keynova] tantivy: skipping entry with non-UTF-8 path: {:?}", entry.path);
+            continue;
+        }
         let kind = if entry.is_folder { "folder" } else { "file" };
         writer
             .add_document(doc!(
@@ -72,6 +75,7 @@ pub fn rebuild(index_dir: &Path, entries: &[TantivyFileEntry]) -> Result<usize, 
             .map_err(|e| e.to_string())?;
     }
     writer.commit().map_err(|e| e.to_string())?;
+    drop(writer); // release the 15 MB index buffer immediately
     Ok(entries.len())
 }
 

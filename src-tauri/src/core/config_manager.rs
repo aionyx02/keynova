@@ -14,7 +14,7 @@ pub struct ConfigChange {
     pub new: Option<String>,
 }
 
-/// 讀寫 %APPDATA%\Keynova\config.toml，回退至 default_config.toml。
+/// 讀寫 Keynova config.toml（跨平台路徑），回退至 default_config.toml。
 /// 值以字串形式暴露給外部，但 persist() 時會偵測型別寫出正確 TOML 格式。
 pub struct ConfigManager {
     data: HashMap<String, String>,
@@ -32,8 +32,7 @@ impl ConfigManager {
     }
 
     pub fn user_config_path() -> PathBuf {
-        let base = std::env::var("APPDATA").unwrap_or_else(|_| ".".into());
-        PathBuf::from(base).join("Keynova").join("config.toml")
+        crate::platform_dirs::keynova_config_dir().join("config.toml")
     }
 
     fn load_result(path: &PathBuf) -> Result<HashMap<String, String>, String> {

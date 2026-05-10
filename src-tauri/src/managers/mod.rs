@@ -1,11 +1,15 @@
 pub mod ai_manager;
+#[cfg(test)]
+pub mod fake_provider;
 pub mod app_manager;
+pub mod sandbox_manager;
 pub mod calculator_manager;
 pub mod history_manager;
 pub mod hotkey_manager;
 pub mod model_manager;
 pub mod mouse_manager;
 pub mod note_manager;
+pub mod portable_nvim_manager;
 pub mod search_manager;
 pub mod system_indexer;
 pub mod system_manager;

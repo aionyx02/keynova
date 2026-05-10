@@ -34,6 +34,14 @@ impl CommandHandler for TranslationHandler {
 
     fn execute(&self, command: &str, payload: Value) -> CommandResult {
         match command {
+            "list_langs" => {
+                let list: Vec<serde_json::Value> =
+                    crate::managers::translation_manager::SUPPORTED_LANGS
+                        .iter()
+                        .map(|(code, name)| json!({ "code": code, "name": name }))
+                        .collect();
+                Ok(serde_json::to_value(list).map_err(|e| e.to_string())?)
+            }
             "translate" => {
                 let request_id = payload
                     .get("request_id")

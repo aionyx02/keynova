@@ -28,13 +28,27 @@ export interface SearchResult {
   score: number;
 }
 
+export interface SearchChunkDiagnostics {
+  elapsed_ms: number;
+  timed_out: boolean;
+  file_cache_entries: number;
+  tantivy_index_entries: number;
+  everything_available: boolean;
+  pre_balance_count: number;
+  returned_count: number;
+  fallback_reason: string | null;
+}
+
 export interface SearchChunkPayload {
   request_id: string;
   generation: number;
   chunk_index: number;
   items: SearchResult[];
   done: boolean;
+  /** True on the final balanced batch — frontend should replace results entirely. */
+  replace?: boolean;
   timed_out_providers?: string[];
+  diagnostics?: SearchChunkDiagnostics;
 }
 
 export interface SearchErrorPayload {

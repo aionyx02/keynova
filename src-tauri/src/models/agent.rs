@@ -141,3 +141,36 @@ pub struct AgentRun {
     pub output: Option<String>,
     pub error: Option<String>,
 }
+
+/// Structured error type for agent handler internals.
+/// Converted to `String` at the `CommandResult` boundary so the external API is unchanged.
+#[derive(Debug)]
+pub enum AgentError {
+    Config(String),
+    LockPoisoned,
+    ProviderUnavailable(String),
+    ToolDenied { tool: String, reason: String },
+    SafetyViolation(String),
+    IoError(String),
+    Unknown(String),
+}
+
+impl std::fmt::Display for AgentError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            AgentError::Config(msg) => write!(f, "config error: {msg}"),
+            AgentError::LockPoisoned => write!(f, "internal lock was poisoned"),
+            AgentError::ProviderUnavailable(msg) => write!(f, "AI provider unavailable: {msg}"),
+            AgentError::ToolDenied { tool, reason } => write!(f, "tool '{tool}' denied: {reason}"),
+            AgentError::SafetyViolation(msg) => write!(f, "safety violation: {msg}"),
+            AgentError::IoError(msg) => write!(f, "I/O error: {msg}"),
+            AgentError::Unknown(msg) => write!(f, "{msg}"),
+        }
+    }
+}
+
+impl From<AgentError> for String {
+    fn from(e: AgentError) -> Self {
+        e.to_string()
+    }
+}

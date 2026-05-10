@@ -10,7 +10,7 @@ import { useCommands } from "../hooks/useCommands";
 import { CommandSuggestions } from "./CommandSuggestions";
 import { PanelRegistry } from "./panel/PanelRegistry";
 import { WorkspaceIndicator } from "./WorkspaceIndicator";
-import type { SearchChunkPayload, SearchErrorPayload, SearchIconAsset, SearchMetadata, SearchResult } from "../types/search";
+import type { SearchChunkDiagnostics, SearchChunkPayload, SearchErrorPayload, SearchIconAsset, SearchMetadata, SearchResult } from "../types/search";
 import type { ActionRef } from "../types/search";
 import type { BuiltinCommandResult } from "../hooks/useCommands";
 import type { WorkspaceState } from "../hooks/useWorkspace";
@@ -89,6 +89,34 @@ function searchResultKey(result: SearchResult) {
   return `${result.source ?? result.kind}:${result.path}`;
 }
 
+function hasEncodingError(s: string | undefined | null): boolean {
+  return typeof s === "string" && s.includes("�");
+}
+
+// Per-source caps mirror the backend sort_balanced_truncate constants.
+const SOURCE_QUOTAS: Partial<Record<string, number>> = {
+  app: 8,
+  command: 8,
+  note: 8,
+  history: 12,
+  model: 6,
+};
+
+function applySourceQuotas(sorted: SearchResult[], limit: number): SearchResult[] {
+  const counts: Record<string, number> = {};
+  const out: SearchResult[] = [];
+  for (const item of sorted) {
+    const key = item.source ?? item.kind;
+    const quota = SOURCE_QUOTAS[key];
+    const n = counts[key] ?? 0;
+    if (quota !== undefined && n >= quota) continue;
+    counts[key] = n + 1;
+    out.push(item);
+    if (out.length >= limit) break;
+  }
+  return out;
+}
+
 function mergeSearchResults(existing: SearchResult[], incoming: SearchResult[], limit: number) {
   const seen = new Set(existing.map(searchResultKey));
   const merged = [...existing];
@@ -98,7 +126,7 @@ function mergeSearchResults(existing: SearchResult[], incoming: SearchResult[], 
     seen.add(key);
     merged.push(item);
   }
-  return sortSearchResults(merged).slice(0, limit);
+  return applySourceQuotas(sortSearchResults(merged), limit);
 }
 
 function sortSearchResults(results: SearchResult[]) {
@@ -161,6 +189,7 @@ export function CommandPalette() {
   const [metadataByPath, setMetadataByPath] = useState<Record<string, SearchMetadata>>({});
   const [iconsByKey, setIconsByKey] = useState<Record<string, SearchIconAsset>>({});
   const [timedOutProviders, setTimedOutProviders] = useState<string[]>([]);
+  const [fileDiagnostics, setFileDiagnostics] = useState<SearchChunkDiagnostics | null>(null);
   const [copiedPath, setCopiedPath] = useState<string | null>(null);
 
   const inputRef = useRef<HTMLInputElement>(null);
@@ -298,7 +327,13 @@ export function CommandPalette() {
       if (payload.timed_out_providers?.length) {
         setTimedOutProviders(payload.timed_out_providers);
       }
-      if (payload.items.length > 0) {
+      if (payload.diagnostics) {
+        setFileDiagnostics(payload.diagnostics);
+      }
+      if (payload.replace) {
+        // Final balanced batch from backend — replace results entirely.
+        setResults(applySourceQuotas(sortSearchResults(payload.items), searchLimitRef.current));
+      } else if (payload.items.length > 0) {
         setResults((current) =>
           mergeSearchResults(current, payload.items, searchLimitRef.current),
         );
@@ -532,6 +567,7 @@ export function CommandPalette() {
       setResults([]);
       setSelected(0);
       setTimedOutProviders([]);
+      setFileDiagnostics(null);
       activeSearchRequestRef.current = "";
       if (debounceRef.current) clearTimeout(debounceRef.current);
       void dispatch("search.cancel").catch(() => {});
@@ -544,6 +580,7 @@ export function CommandPalette() {
       activeSearchRequestRef.current = requestId;
       setLoading(true);
       setTimedOutProviders([]);
+      setFileDiagnostics(null);
       try {
         const data = await dispatch<SearchResult[]>("search.query", {
           query: ri,
@@ -716,15 +753,27 @@ export function CommandPalette() {
   const panelKey = `${cmdResult ? "command" : "live"}:${activePanelName}:${panelInitialArgs}`;
   const selectedResult = results[selected] ?? null;
   const selectedMetadata = selectedResult ? metadataByPath[selectedResult.path] : null;
+  const fileSearchDiagHint = (() => {
+    if (!fileDiagnostics) return null;
+    const d = fileDiagnostics;
+    if (d.timed_out) return `File search: provider timed out after 800ms`;
+    if (d.fallback_reason) return `File search: ${d.fallback_reason}`;
+    const hidden = d.pre_balance_count - d.returned_count;
+    if (hidden > 0) return `File search: ${d.returned_count} shown, ${hidden} hidden by display limit`;
+    return null;
+  })();
+
   const searchFooterHint = copiedPath
     ? `Copied path: ${copiedPath}`
-    : timedOutProviders.length > 0
+    : timedOutProviders.length > 0 && !fileDiagnostics
       ? `Timed out: ${timedOutProviders.join(", ")}`
-      : selectedMetadata?.preview
-        ? selectedMetadata.preview
-        : selectedMetadata?.size_bytes !== undefined
-          ? `${selectedMetadata.size_bytes.toLocaleString()} bytes`
-          : "↑↓ 選擇";
+      : fileSearchDiagHint ?? (
+          selectedMetadata?.preview
+            ? selectedMetadata.preview
+            : selectedMetadata?.size_bytes !== undefined
+              ? `${selectedMetadata.size_bytes.toLocaleString()} bytes`
+              : "↑↓ 選擇"
+        );
 
   const terminalOnExit = () => {
     // Move focus to container first so terminal becoming display:none
@@ -845,13 +894,15 @@ export function CommandPalette() {
                           {badge.label}
                         </span>
                       )}
-                      <span className="truncate font-medium">{r.title ?? r.name}</span>
+                      <span className={`truncate font-medium${hasEncodingError(r.title ?? r.name) ? " text-gray-500 italic" : ""}`}>
+                        {hasEncodingError(r.title ?? r.name) ? "(無法解碼的名稱)" : (r.title ?? r.name)}
+                      </span>
                       {Boolean(r.secondary_action_count) && (
                         <span className="shrink-0 text-[10px] text-gray-500">+{r.secondary_action_count}</span>
                       )}
                       {r.kind !== "app" && (
                         <span className="ml-auto shrink-0 max-w-[220px] truncate text-xs text-gray-500">
-                          {r.subtitle ?? r.path}
+                          {hasEncodingError(r.subtitle ?? r.path) ? "(無法解碼的路徑)" : (r.subtitle ?? r.path)}
                         </span>
                       )}
                     </li>
