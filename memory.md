@@ -64,8 +64,8 @@
 ## 當前狀態
 
 - **進度**：Phase 5 進行中；5.1.A、5.1.B、5.8、5.2.A、5.2.B、5.3.A~C、5.4、5.5.A1+A2+B1+A3+A4+B2+B3+C+E、5.11.A~D 均已實作並 commit（Phase-5 branch）。Phase 6 架構設計完成（7 個新功能需求）。
-- **上次完成**：Phase 6.1 — ModelRemoveCommand（builtin_cmd.rs）+ ModelRemovePanel.tsx + PanelRegistry 登記；157 tests，0 lint errors。
-- **下一步**：5.5.H manual validations（需真實 app）；Phase 6.4 /tr 全語言支援；6.7 WorkingSet 量測（需真實 app）。
+- **上次完成**：Phase 6.5 搜尋結果編碼修復 — `windows.rs` collect_lnk_files/collect_all/Everything API 加 `\u{FFFD}` skip+warn；`tantivy_index.rs rebuild()` 加同樣過濾；`CommandPalette.tsx` 加 `hasEncodingError()` 顯示灰色 fallback；157 tests + lint 通過。
+- **下一步**：Phase 6.3 /setting 功能開關（features.ai/agent backend guards + SettingPanel toggle rows）。
 
 ## 已確認的技術選擇
 
@@ -107,12 +107,11 @@
 
 | 日期 | 完成事項 | 遺留問題 |
 |------|----------|----------|
-| 2026-05-09 | Phase 6.1：ModelRemoveCommand（builtin_cmd + state）+ ModelRemovePanel.tsx + PanelRegistry；157 tests，0 lint errors，commit f1e8fb4 | 手動驗收仍需真實 app（list 顯示、刪除 loading、不存在 model 錯誤）；6.7 WorkingSet 量測待辦 |
-| 2026-05-09 | 6.7 A+B：tantivy writer 50MB→15MB + explicit drop；AppManager::list_all() → &[AppInfo] 消除 clone；157 tests，clippy clean | 6.7 WorkingSet 量測需真實 app；6.7 C/D 待 Phase 6.2/6.6 實作時遵守 |
-| 2026-05-09 | 5.5.G：3 個新 ReAct regression tests（provider error→fail；unknown tool→error obs；50KB obs 不崩潰）；157 tests passing，clippy clean | 5.5.H manual validations 待辦；5.2.A/B / 5.4 仍需真實 app 手動驗收 |
-| 2026-05-09 | 5.5.F：useAgent.ts ReactStep interface + agent-step listener + reactSteps state；AiPanel ReactStepTimeline（色碼、obs count）、pending approval header、ReAct gate 標示、final answer 突顯框；lint 通過 | 5.5.G regression tests（已在本 session 完成） |
-| 2026-05-09 | 驗證通過：5.1.B rposition 3 tests；5.3.B platform_dirs 5 tests + 修 history/workspace APPDATA 殘留；5.4 check_setup 6 tests + README 更新；5.2.A/B 靜態審查；154 tests，clippy 乾淨 | 5.2.A/B / 5.4 Ollama setup card 仍需真實 app 手動驗收 |
-| 2026-05-09 | 5.5.D + Phase 6 架構：sandbox_manager.rs（Job Object/bwrap/sandbox-exec）；7 項新需求設計寫入 tasks.md 6.1–6.7 | ADR-027 product 解封前提：AppContainer/seccomp/App Sandbox 評估 |
+| 2026-05-10 | Phase 6.5 搜尋編碼修復：windows.rs 3 處 + tantivy_index.rs + CommandPalette.tsx hasEncodingError()；157 tests + lint 通過 | 需真實 app 驗收中文/日文路徑不出現方塊字 |
+| 2026-05-10 | 翻譯自動觸發 bug：React Strict Mode 雙重 effect 導致 lastAppliedInitialArgsRef 提前 return → 移除 ref guard，讓 deps array 管理去重；lint 通過 | 需在真實 app 驗證 /tr hello 自動翻譯 |
+| 2026-05-09 | 翻譯 crash fix：tokio::spawn→std::thread::spawn+per-thread rt；async reqwest；前端 35s timeout；STATUS_STACK_BUFFER_OVERRUN 修復 | 需在真實 app 驗證翻譯回傳正常 |
+| 2026-05-09 | Phase 6.4：SUPPORTED_LANGS 108 語言 + list_langs；LangPicker dropdown；CJK font；command line 保留；Phase 6.1 ModelRemove panel | 需真實 app 驗收 |
+| 2026-05-09 | 6.7A/B tantivy 50MB→15MB + &[AppInfo]；搜尋深度 6 + visited HashSet；5.5.F~G ReactStep UI + ReAct tests；5.5.E audit log；5.11.A~D agent 拆模組 + AgentError + ToolPermission + WebSearchProvider；Phase 6 架構設計 | 5.5.H / ADR-027 解封評估待辦 |
 
 ## 2026-05-06 架構邊界與修正定位索引
 
