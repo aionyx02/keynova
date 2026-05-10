@@ -203,34 +203,37 @@ docs/
 
 ### DOCS.9 — 遷移 `tasks.md` → `docs/tasks.md`
 
-- [x] 將本檔（tasks.md）複製至 `docs/tasks.md`
-- [x] 更新 `CLAUDE.md` 中所有 `tasks.md` 路徑引用改為 `docs/tasks.md`
-- 根目錄 `tasks.md` 保留（兩個檔案同步維護）
+- [ ] 將本檔（tasks.md）複製至 `docs/tasks.md`
+- [ ] 更新 `CLAUDE.md` 中所有 `tasks.md` 路徑引用改為 `docs/tasks.md`
+- [ ] 根目錄 `tasks.md` 改為 1 行引用：`# 請見 docs/tasks.md`（保留供工具相容）
 
 ### DOCS.10 — 遷移 `memory.md` → `docs/memory.md`
 
-- [x] 將 `memory.md` 複製至 `docs/memory.md`
-- [x] 更新 `CLAUDE.md` 中所有 `memory.md` 路徑引用改為 `docs/memory.md`
-- 根目錄 `memory.md` 保留（兩個檔案同步維護）
+- [ ] 將 `memory.md` 複製至 `docs/memory.md`
+- [ ] 更新 `CLAUDE.md` 中所有 `memory.md` 路徑引用改為 `docs/memory.md`
+- [ ] 根目錄 `memory.md` 改為 1 行引用
 
 ### DOCS.11 — 更新 `CLAUDE.md` 引用路徑
 
-- [x] Session 開場：`memory.md` → `docs/memory.md`、`tasks.md` → `docs/tasks.md`、`skill.md` → `docs/CLAUDE.md`
-- [x] Session 收尾：更新 `tasks.md`、`memory.md`、`decisions.md` 路徑說明
-- [x] Documentation 段落：補充 `docs/` 子目錄結構說明（含 ADR 索引）
-- [x] 新 ADR 應建立於 `docs/adr/NNNN-title.md`，`decisions.md` 為 index
+更新 CLAUDE.md 中的 Session 開場 / 收尾協議路徑，以及所有文件描述段落，改為 `docs/` 子路徑。
+
+- [ ] Session 開場：`memory.md` → `docs/memory.md`、`tasks.md` → `docs/tasks.md`、`skill.md` → `docs/claude.md`
+- [ ] Session 收尾：更新 `tasks.md`、`memory.md`、`decisions.md` 路徑
+- [ ] Documentation 段落：補充 `docs/` 子目錄結構說明
+- [ ] 加入說明：新 ADR 應建立於 `docs/adr/NNNN-title.md`，`decisions.md` 為 index
 
 ### DOCS.12 — 驗收清單
 
-- [x] `docs/adr/` 目錄存在且含 0000-template + 0001~0027 共 28 個檔案
-- [x] `docs/architecture.md` 存在且含 6 層架構說明
-- [x] `docs/CLAUDE.md` 存在且含完整 23 節
-- [x] `docs/testing.md` 存在且含測試指令與覆蓋要求
-- [x] `docs/security.md` 存在且含安全邊界與敏感資料規則
-- [x] `docs/tasks.md` 存在且與根目錄 `tasks.md` 一致
-- [x] `docs/memory.md` 存在且與根目錄 `memory.md` 一致
-- [x] `decisions.md` 改為精簡 index（64 行 < 100 行）
-- [x] `CLAUDE.md` 路徑引用全部更新
+- [ ] `docs/adr/` 目錄存在且含 0000-template + 0001~0027 共 28 個檔案
+- [ ] `docs/architecture.md` 存在且含 6 層架構說明
+- [ ] `docs/claude.md` 存在且含完整 23 節
+- [ ] `docs/testing.md` 存在且含測試指令與覆蓋要求
+- [ ] `docs/security.md` 存在且含安全邊界與敏感資料規則
+- [ ] `docs/tasks.md` 存在且與根目錄 `tasks.md` 一致
+- [ ] `docs/memory.md` 存在且與根目錄 `memory.md` 一致
+- [ ] `decisions.md` 改為精簡 index（< 100 行）
+- [ ] `CLAUDE.md` 路徑引用全部更新
+- [ ] `cargo test` + `npm run lint` + `npm run build` 通過（純文件改動，應全部通過）
 
 ---
 

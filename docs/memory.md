@@ -64,8 +64,8 @@
 ## 當前狀態
 
 - **進度**：Phase 5 & 6 全部完成並 merge 至 main。開始技術債重構階段（TD.1~TD.5），依據 `keynova_technical_debt_report.docx` v1.0。
-- **上次完成**：DOCS.1~DOCS.12 全部完成——docs/ 完整重組，含 28 個 ADR 檔案、architecture/testing/security/claude.md、docs/tasks.md、docs/memory.md；CLAUDE.md 路徑引用全部更新。
-- **下一步**：TD.5.A（npm run verify script）→ TD.1.A（src/ipc/client.ts 統一 IPC）→ TD.1.B（ESLint no-restricted-imports）。
+- **上次完成**：DOCS.1~DOCS.8 全部完成——docs/ 骨架、0000-template、docs/claude.md(23節)、docs/architecture.md、docs/testing.md、docs/security.md、27個ADR獨立檔案(0001~0027)、decisions.md精簡index。
+- **下一步**：DOCS.9（docs/tasks.md 遷移）→ DOCS.10（docs/memory.md 遷移）→ DOCS.11（CLAUDE.md 路徑更新）→ DOCS.12（驗收）。
 
 ## 已確認的技術選擇
 
@@ -107,7 +107,7 @@
 
 | 日期 | 完成事項 | 遺留問題 |
 |------|----------|----------|
-| 2026-05-10 | DOCS.1~DOCS.12 全部完成：docs/完整重組，28個ADR(0000-template+0001~0027)、architecture/testing/security/CLAUDE.md、docs/tasks.md、docs/memory.md遷移；CLAUDE.md路徑全更新 | 下一步：TD.5.A verify script → TD.1.A ipc/client.ts |
+| 2026-05-10 | DOCS.1~DOCS.8 完成：docs/ 骨架、0000-template、docs/claude.md(23節)、docs/architecture.md、docs/testing.md、docs/security.md、27個ADR獨立檔案(0001~0027)、decisions.md改為精簡index | 下一步：DOCS.9~DOCS.12（docs/tasks.md、docs/memory.md遷移、CLAUDE.md路徑更新、驗收）|
 | 2026-05-10 | tasks.md 依 keynova_technical_debt_report 重寫：「功能不變」守則、已完成基線、TD.1~TD.5 共 14 子任務；Phase-5 branch merge dev→main | 開始 TD 階段，下一步 TD.5.A verify script |
 | 2026-05-10 | Phase 6.6 LazyVim portable Neovim：portable_nvim_manager(detect/download/reqwest-progress)、handlers/nvim(detect/download)、NvimDownloadPanel.tsx(progress/retry/done)、builtin_cmd Panel("nvim_download")、PanelRegistry；cargo+tsc clean | config 覆蓋路徑（notes.nvim_bin）未實作 |
 | 2026-05-10 | Phase 6.2 /system_monitoring + 6.3 feature toggles + 6.5 編碼修復 + 6.4 /tr 108語言 + 6.1 ModelRemove + 翻譯 bug 修復（Strict Mode/tokio） | 各功能需真實 app 驗收 |
