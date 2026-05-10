@@ -15,8 +15,8 @@ use crate::handlers::{
     builtin_cmd::{
         AiCommand, BuiltinCmdHandler, CalCommand, DownCommand, HelpCommand, HistoryCommand,
         ModelDownloadCommand, ModelListCommand, ModelRemoveCommand, NoteCommand,
-        RebuildSearchIndexCommand,
-        ReloadCommand, SettingCommand, SysCtlCommand, TrCommand,
+        RebuildSearchIndexCommand, ReloadCommand, SettingCommand, SysCtlCommand,
+        SysMonitorCommand, TrCommand,
     },
     calculator::CalculatorHandler,
     history::HistoryHandler,
@@ -29,6 +29,7 @@ use crate::handlers::{
     search::{SearchHandler, SearchHandlerDeps},
     setting::SettingHandler,
     system_control::SystemControlHandler,
+    system_monitoring::SystemMonitoringHandler,
     terminal::TerminalHandler,
     translation::TranslationHandler,
     workspace::WorkspaceHandler,
@@ -153,6 +154,7 @@ impl AppState {
             reg.register(Box::new(CalCommand));
             reg.register(Box::new(HistoryCommand));
             reg.register(Box::new(SysCtlCommand));
+            reg.register(Box::new(SysMonitorCommand));
             reg.register(Box::new(RebuildSearchIndexCommand));
         }
 
@@ -222,6 +224,9 @@ impl AppState {
             model_manager: Arc::clone(&model_manager),
             knowledge_store: knowledge_store.clone(),
         })));
+        command_router.register(Arc::new(SystemMonitoringHandler::new(Arc::new(
+            event_bus.clone(),
+        ))));
         command_router.register(Arc::new(AutomationHandler));
         command_router.register(Arc::new(PluginHandler));
 

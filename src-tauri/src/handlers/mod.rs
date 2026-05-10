@@ -13,6 +13,7 @@ pub mod plugin;
 pub mod search;
 pub mod setting;
 pub mod system_control;
+pub mod system_monitoring;
 pub mod terminal;
 pub mod translation;
 pub mod workspace;
