@@ -152,7 +152,7 @@ pub(super) fn visibility_filtered_source(
     if contains_any(
         &combined,
         &[
-            "claude.md",
+            "CLAUDE.md",
             "tasks.md",
             "memory.md",
             "decisions.md",

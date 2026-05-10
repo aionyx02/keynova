@@ -15,7 +15,8 @@ docs/
     0001-frontend-framework.md
     ...（各 ADR 獨立檔案）
   architecture.md
-  claude.md
+  CLAUDE.md
+  decisions.md
   memory.md
   security.md
   tasks.md
@@ -26,12 +27,13 @@ docs/
 |------|------|
 | `docs/adr/` | 存放 Architecture Decision Record，每一個重大技術決策都應有獨立 Markdown 檔案 |
 | `docs/adr/0000-template.md` | ADR 模板，所有 ADR 必須遵守此格式 |
+| `docs/decisions.md` | ADR 索引（指向 docs/adr/），快速查閱所有決策狀態 |
 | `docs/architecture.md` | 系統整體架構、模組邊界、資料流、IPC、I/O、儲存設計 |
 | `docs/tasks.md` | 任務拆解、目前進度、待辦事項與阻塞狀態 |
 | `docs/memory.md` | 長期上下文、已知限制、歷史決策摘要，不得記錄未確認假設為事實 |
 | `docs/testing.md` | 測試策略、測試指令、測試覆蓋要求 |
 | `docs/security.md` | 安全邊界、權限模型、敏感資料處理原則 |
-| `docs/claude.md` | AI agent 的專案操作守則與流程規範（本文件） |
+| `docs/CLAUDE.md` | AI agent 的專案操作守則與流程規範（本文件） |
 
 ---
 
