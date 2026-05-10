@@ -1,8 +1,263 @@
 # Keynova Tasks
 
-> 根據 `keynova_technical_debt_report.docx`（v1.0, 2026-05-10）重構版本。
-> 所有 TD 階段的最高原則：**功能不變**。重構過程中任何現有功能都不得 regression。
-> 完成任何批次後須更新 `memory.md` 與 `decisions.md`。
+> 完成任何批次後須更新 `docs/memory.md` 與對應 ADR。
+
+---
+
+## DOCS — 文件架構重組（依 ai_agent_adr_development_rules_v2.docx）
+
+> **目標**：將目前散落在根目錄的 .md 文件，重組為 docx 規範的 `docs/` 結構，並將 `decisions.md` 拆分為獨立 ADR 檔案。
+> **原則**：純文件改動，不修改任何程式碼，不影響任何功能。
+> **批次順序**：每批完成後 commit，再進行下一批。
+
+### 目標目錄結構
+
+```
+docs/
+├── adr/
+│   ├── 0000-template.md              ← ADR 標準模板（9 節）
+│   ├── 0001-frontend-framework.md    ← ADR-001
+│   ├── 0002-state-management.md      ← ADR-002
+│   ├── 0003-styling.md               ← ADR-003
+│   ├── 0004-backend-framework.md     ← ADR-004
+│   ├── 0005-terminal.md              ← ADR-005
+│   ├── 0006-dual-search-backend.md   ← ADR-006
+│   ├── 0007-development-ide.md       ← ADR-007
+│   ├── 0008-terminal-prewarm.md      ← ADR-008
+│   ├── 0009-builtin-command-registry.md ← ADR-009
+│   ├── 0010-config-manager-toml.md   ← ADR-010
+│   ├── 0011-ai-provider-abstraction.md ← ADR-011
+│   ├── 0012-note-sync-strategy.md    ← ADR-012
+│   ├── 0013-system-control-permissions.md ← ADR-013
+│   ├── 0014-action-knowledge-plugin-boundary.md ← ADR-014
+│   ├── 0015-search-backend-preference.md ← ADR-015
+│   ├── 0016-agent-read-only-tools.md ← ADR-016
+│   ├── 0017-automation-executor.md   ← ADR-017
+│   ├── 0018-app-module-split.md      ← ADR-018
+│   ├── 0019-progressive-search-runtime.md ← ADR-019
+│   ├── 0020-terminal-launch-specs.md ← ADR-020
+│   ├── 0021-persisted-search-index.md ← ADR-021
+│   ├── 0022-agent-approval-boundary.md ← ADR-022
+│   ├── 0023-react-tool-schema-foundation.md ← ADR-023
+│   ├── 0024-agent-system-indexer.md  ← ADR-024
+│   ├── 0025-web-search-providers.md  ← ADR-025
+│   ├── 0026-provider-driven-react-loop.md ← ADR-026
+│   └── 0027-generic-shell-sandbox.md ← ADR-027
+├── architecture.md                   ← 系統架構（新建）
+├── CLAUDE.md                         ← AI agent 守則（從 docx 完整移入）
+├── memory.md                         ← 從根目錄 memory.md 遷移
+├── security.md                       ← 安全邊界（新建）
+├── tasks.md                          ← 從根目錄 tasks.md 遷移
+└── testing.md                        ← 測試策略（新建）
+根目錄保留：
+├── CLAUDE.md                         ← 更新路徑引用至 docs/
+├── decisions.md                      ← 保留（作為 ADR index，內容精簡為 index）
+├── memory.md                         ← 保留捷徑（或更新 CLAUDE.md 路徑後刪除）
+└── tasks.md                          ← 保留捷徑（同上）
+```
+
+---
+
+### DOCS.1 — 建立 docs/ 骨架
+
+- [ ] 建立 `docs/` 目錄（新建一個空的 `.gitkeep` 或直接建子目錄）
+- [ ] 建立 `docs/adr/` 目錄
+- [ ] 驗收：`docs/` 與 `docs/adr/` 目錄存在
+
+### DOCS.2 — 新建 `docs/adr/0000-template.md`
+
+內容：docx §12「ADR 標準模板」的完整 9 節格式，含所有說明文字與欄位定義。
+
+- [ ] 建立 `docs/adr/0000-template.md`，包含：
+  - 標題格式、狀態、日期、決策者、相關文件欄位
+  - § 1 Context（技術背景）— 需回答現在問題、資料規模、不處理的風險
+  - § 2 Constraints（系統限制與邊界）— 平台、runtime、記憶體、安全、網路限制
+  - § 3 Alternatives Considered（替代方案）— 至少兩方案、優缺點、效能分析（時間/空間/I/O/啟動/維護成本）、風險
+  - § 4 Decision（最終決策）— 選擇、原因、犧牲、feature flag、migration、rollback
+  - § 5 Consequences（系統影響）— 正面影響、負面影響/技術債、使用者/開發者/測試/安全影響
+  - § 6 Implementation Plan（實作計畫）— 步驟列表，ADR 接受前不得修改正式程式碼
+  - § 7 Rollback Plan（回滾策略）— feature flag、資料格式、migration rollback、殘留檔案
+  - § 8 Validation Plan（驗證方式）— unit/integration/performance/security test、量測指標
+  - § 9 Open Questions（未解問題）— 需要開發者決策的項目
+
+### DOCS.3 — 新建 `docs/claude.md`（AI agent 守則）
+
+內容：`ai_agent_adr_development_rules_v2.docx` **全文**，轉為 Markdown 格式，保留所有 23 節。
+
+- [ ] 建立 `docs/claude.md`，包含：
+  - § 0 專案文檔結構（docs/ 目錄表）
+  - § 1 核心原則（安全性 > 資料正確性 > ... > 程式碼簡潔）
+  - § 2 正式程式碼的定義（表格：通常視為正式 vs 通常不視為正式）
+  - § 3 ADR 狀態與權限（5 種狀態表 + AI agent 權限說明）
+  - § 4 ADR 判斷邊界與例外（2 欄對照表：不需要 ADR vs 必須建立 ADR）
+  - § 5 ADR 強制觸發條件（5.1 核心依賴 / 5.2 模組通訊 / 5.3 演算法 / 5.4 安全邊界 / 5.5 資料模型）
+  - § 6 ADR 阻塞範圍與任務拆分
+  - § 7「停止實作」的定義
+  - § 8 使用者要求跳過 ADR 時的處理
+  - § 9 文件衝突解決順序
+  - § 10 AI Agent 標準工作流程（7 步驟）
+  - § 11 ADR 檔案命名規則
+  - § 12 ADR 標準模板（9 節完整格式）
+  - § 13 程式碼修改規則
+  - § 14 測試規則（含測試類型表）
+  - § 15 安全規則（15.1 檔案路徑 / 15.2 敏感資料 / 15.3 網路存取）
+  - § 16 效能規則
+  - § 17 文件同步規則（表格）
+  - § 18 docs/tasks.md 建議格式
+  - § 19 docs/memory.md 記憶規則
+  - § 20 完成修改後的回報格式
+  - § 21 禁止行為（清單）
+  - § 22 ADR 建立後的標準回覆
+  - § 23 ADR 被拒絕或取代時的處理
+
+### DOCS.4 — 新建 `docs/architecture.md`
+
+內容：從現有文件萃取系統整體架構、模組邊界、資料流、IPC、I/O、儲存設計。
+
+- [ ] 建立 `docs/architecture.md`，包含：
+  - **系統概覽**：6 層架構（Presentation / IPC Bridge / Core Framework / Business Logic / Indexer / Platform）
+  - **模組邊界**：前端 src/ 結構、後端 src-tauri/src/ 結構
+  - **資料流**：User Input → CommandPalette → IPC（cmd_dispatch）→ CommandRouter → Handler → Manager → EventBus → Frontend
+  - **IPC 契約**：`cmd_dispatch(route: string, payload: JSON)` 統一入口、EventBus 事件 topic 列表
+  - **儲存設計**：config.toml（ConfigManager）、knowledge.db（SQLite WAL）、notes/（Markdown files）、search/tantivy/（Tantivy index）、nvim/（portable）
+  - **EventBus topics**：`terminal.output`、`search-results-chunk`、`agent-step`、`system-monitoring-tick`、`nvim-download-progress`、`ai-response`、`translation-result`
+  - **搜尋架構**：Everything IPC（Windows）→ Tantivy → app-cache fallback；SystemIndexer（mdfind/plocate/ignore）
+  - **Agent 架構**：ReAct loop（ToolCallProvider → tool dispatch → observation redaction → EventBus）、approval gate、audit log
+  - **擴展模式**：CommandRouter（trait-based）、EventBus（broadcast）、ConfigManager（layered TOML）、BuiltinCommandRegistry、PanelRegistry
+
+### DOCS.5 — 新建 `docs/testing.md`
+
+內容：測試策略、指令、覆蓋要求。
+
+- [ ] 建立 `docs/testing.md`，包含：
+  - **測試指令**：`cargo test`、`cargo clippy -- -D warnings`、`npm run lint`、`npm run build`、`npm run test`（Vitest，計畫中）、`npm run verify`（計畫中）
+  - **現有測試概況**：157+ Rust unit/integration tests；0 前端 Vitest（TD.1.D 計畫補）
+  - **測試類型與使用時機**（表格）：unit / integration / regression / security / performance / migration
+  - **優先覆蓋範圍**：核心行為、regression case、錯誤處理、安全邊界、資料格式相容性
+  - **低價值測試禁止清單**：只測函式存在、只測 mock 被呼叫、只測 happy path、複製實作邏輯到測試
+  - **平台限制**：sandbox tests（Windows Job Object 需真實 OS）、system_monitoring snapshot（需真實 sysinfo）
+  - **慢速測試**：Tantivy index build、PTY spawn、reqwest blocking download
+  - **計畫補測試範圍**（TD.1.D / TD.5.C+D）：前端 Vitest（searchRanking、inputMode、keyboard navigation、chunk merge）
+
+### DOCS.6 — 新建 `docs/security.md`
+
+內容：安全邊界、權限模型、敏感資料處理原則。
+
+- [ ] 建立 `docs/security.md`，包含：
+  - **安全優先順序**：安全性 > 資料正確性 > 可回滾性 > 可測試性 > 效能
+  - **能力邊界（Agent）**：讀取 OK（keynova.search、filesystem.read 在 workspace root 內）；寫入 / shell 需 approval；generic shell 需 sandbox（ADR-027 blocked）
+  - **檔案路徑處理規則**：不信任使用者 path、必須處理 `..`/symlink/absolute path/Windows drive prefix/Unicode normalization、避免 path traversal
+  - **敏感資料規則**：API key、token、password、OAuth token 不得寫入 log/cache/test fixture；顯示時必須遮蔽（`sk-****`）
+  - **網路存取規則**：涉及網路必須先建立 ADR，分析連線目標、離線運作、TLS、proxy、telemetry
+  - **Sandbox 狀態**（ADR-027）：Windows Job Object OK（AppContainer 待辦）；Linux bwrap OK（seccomp 待辦）；macOS sandbox-exec OK（deprecated，App Sandbox 評估中）
+  - **sensitive path 清單**：`/.ssh`、`/.gnupg`、`.env`、`id_rsa`、`id_ed25519`、`credentials`
+  - **config 安全**：API key 存 ConfigManager，不暴露前端 bundle；SettingPanel 敏感設定遮蔽顯示
+  - **IPC 邊界**：`cmd_dispatch` 為唯一前後端邊界；不允許前端直接呼叫 Tauri 底層 API（TD.1.A ESLint 限制）
+
+### DOCS.7 — 拆分 `decisions.md` → `docs/adr/NNNN-*.md`（27 個檔案）
+
+每個 ADR 獨立檔案，完整 9 節格式。以下為每個 ADR 的檔案名稱與內容來源：
+
+| 檔案 | 來源 | 內容重點 |
+|------|------|----------|
+| `0001-frontend-framework.md` | ADR-001 | React 18 + TypeScript vs Vue/Svelte |
+| `0002-state-management.md` | ADR-002 | Zustand vs Redux/Jotai |
+| `0003-styling.md` | ADR-003 | Tailwind CSS vs CSS Modules/styled-components |
+| `0004-backend-framework.md` | ADR-004 | Rust + Tauri 2.x vs Electron |
+| `0005-terminal.md` | ADR-005 | xterm.js + PTY vs 自行實作 |
+| `0006-dual-search-backend.md` | ADR-006 | Tantivy + Everything IPC 雙後端 |
+| `0007-development-ide.md` | ADR-007 | JetBrains RustRover |
+| `0008-terminal-prewarm.md` | ADR-008 | Pre-warm shell vs 按需 spawn |
+| `0009-builtin-command-registry.md` | ADR-009 | BuiltinCommand trait + Registry |
+| `0010-config-manager-toml.md` | ADR-010 | flat HashMap TOML vs typed struct（TD.3.C 計畫）|
+| `0011-ai-provider-abstraction.md` | ADR-011 | AiProvider trait + EventBus 推送 |
+| `0012-note-sync-strategy.md` | ADR-012 | Markdown file I/O vs SQLite vs CRDT |
+| `0013-system-control-permissions.md` | ADR-013 | COM API / WMI / netsh 分工 |
+| `0014-action-knowledge-plugin-boundary.md` | ADR-014 | ActionArena + KnowledgeStore + Plugin deny-by-default |
+| `0015-search-backend-preference.md` | ADR-015 | `[search].backend` auto 選擇邏輯 |
+| `0016-agent-read-only-tools.md` | ADR-016 | Agent 第一階段僅 read-only tools |
+| `0017-automation-executor.md` | ADR-017 | `automation.execute` 走 cmd_dispatch 邊界 |
+| `0018-app-module-split.md` | ADR-018 | lib.rs thin + app/ 子模組（TD.2 進一步拆 AppContainer）|
+| `0019-progressive-search-runtime.md` | ADR-019 | stream=true + EventBus chunk（TD.4.B 計畫 actor）|
+| `0020-terminal-launch-specs.md` | ADR-020 | `CommandUiType::Terminal(TerminalLaunchSpec)` |
+| `0021-persisted-search-index.md` | ADR-021 | Tantivy on-disk index + Knowledge Store schema v2 |
+| `0022-agent-approval-boundary.md` | ADR-022 | Approval state machine + prompt audit（TD.4.A 計畫 async channel）|
+| `0023-react-tool-schema-foundation.md` | ADR-023 | schemars + AgentToolSpec + observation redaction |
+| `0024-agent-system-indexer.md` | ADR-024 | SystemIndexer 抽象層（Everything/mdfind/plocate/ignore）|
+| `0025-web-search-providers.md` | ADR-025 | SearXNG/Tavily/DuckDuckGo 分級 |
+| `0026-provider-driven-react-loop.md` | ADR-026 | Provider-driven ReAct vs local heuristics |
+| `0027-generic-shell-sandbox.md` | ADR-027 | Job Object/bwrap/sandbox-exec + 解封條件 |
+
+- [ ] 建立所有 27 個 ADR 檔案（可分批：0001-0010、0011-0020、0021-0027）
+- [ ] 每個檔案使用 9 節完整格式，填入現有 `decisions.md` 已有的資訊
+- [ ] 缺少的節（如 Implementation Plan、Rollback Plan、Validation Plan）對已實作的 ADR 標記「已實作，無需回滾」或填寫實際驗收紀錄
+
+### DOCS.8 — 將 `decisions.md` 改為 ADR Index
+
+`decisions.md` 保留，但內容改為指向 `docs/adr/` 的索引頁，包含：
+- 流程規則摘要（5 種狀態、ADR 觸發條件、禁止行為）
+- 各 ADR 的一行摘要與連結
+- 新建 ADR 的命名規則與標準回覆格式
+
+- [ ] 改寫 `decisions.md` 為精簡 index（< 100 行）
+
+### DOCS.9 — 遷移 `tasks.md` → `docs/tasks.md`
+
+- [ ] 將本檔（tasks.md）複製至 `docs/tasks.md`
+- [ ] 更新 `CLAUDE.md` 中所有 `tasks.md` 路徑引用改為 `docs/tasks.md`
+- [ ] 根目錄 `tasks.md` 改為 1 行引用：`# 請見 docs/tasks.md`（保留供工具相容）
+
+### DOCS.10 — 遷移 `memory.md` → `docs/memory.md`
+
+- [ ] 將 `memory.md` 複製至 `docs/memory.md`
+- [ ] 更新 `CLAUDE.md` 中所有 `memory.md` 路徑引用改為 `docs/memory.md`
+- [ ] 根目錄 `memory.md` 改為 1 行引用
+
+### DOCS.11 — 更新 `CLAUDE.md` 引用路徑
+
+更新 CLAUDE.md 中的 Session 開場 / 收尾協議路徑，以及所有文件描述段落，改為 `docs/` 子路徑。
+
+- [ ] Session 開場：`memory.md` → `docs/memory.md`、`tasks.md` → `docs/tasks.md`、`skill.md` → `docs/claude.md`
+- [ ] Session 收尾：更新 `tasks.md`、`memory.md`、`decisions.md` 路徑
+- [ ] Documentation 段落：補充 `docs/` 子目錄結構說明
+- [ ] 加入說明：新 ADR 應建立於 `docs/adr/NNNN-title.md`，`decisions.md` 為 index
+
+### DOCS.12 — 驗收清單
+
+- [ ] `docs/adr/` 目錄存在且含 0000-template + 0001~0027 共 28 個檔案
+- [ ] `docs/architecture.md` 存在且含 6 層架構說明
+- [ ] `docs/claude.md` 存在且含完整 23 節
+- [ ] `docs/testing.md` 存在且含測試指令與覆蓋要求
+- [ ] `docs/security.md` 存在且含安全邊界與敏感資料規則
+- [ ] `docs/tasks.md` 存在且與根目錄 `tasks.md` 一致
+- [ ] `docs/memory.md` 存在且與根目錄 `memory.md` 一致
+- [ ] `decisions.md` 改為精簡 index（< 100 行）
+- [ ] `CLAUDE.md` 路徑引用全部更新
+- [ ] `cargo test` + `npm run lint` + `npm run build` 通過（純文件改動，應全部通過）
+
+---
+
+### 建議執行順序
+
+```
+DOCS.1（建 docs/ 骨架）
+  → DOCS.2（0000-template.md）
+  → DOCS.3（docs/claude.md）
+  → DOCS.4（docs/architecture.md）
+  → DOCS.5（docs/testing.md）
+  → DOCS.6（docs/security.md）
+  → DOCS.7（docs/adr/ 27 個 ADR，分三批）
+    → 批 A：0001~0010
+    → 批 B：0011~0020
+    → 批 C：0021~0027
+  → DOCS.8（decisions.md → index）
+  → DOCS.9（docs/tasks.md 遷移）
+  → DOCS.10（docs/memory.md 遷移）
+  → DOCS.11（CLAUDE.md 路徑更新）
+  → DOCS.12（驗收）
+```
+
+---
 
 ---
 
