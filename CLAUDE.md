@@ -1,184 +1,72 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+> Auto-loaded by Claude Code at session start. Detailed AI governance rules → `docs/CLAUDE.md`.
 
 ## Session 開場協議（每次新對話必須執行）
 
-每次開啟新 session，**必須先執行以下三步，再做任何事**：
-
 1. 讀取 `docs/memory.md` — 確認目前進度、上次完成事項、下一步
 2. 讀取 `docs/tasks.md` — 確認當前未完成任務與阻塞項目
-3. 用一句話告訴使用者：「目前進度：[進度]，上次完成：[事項]，今天預計繼續：[下一步]，是否確認？」
-4. 請讀取 `docs/CLAUDE.md` 以了解 AI agent 開發守則與 ADR 流程。
+3. 告知使用者：「目前進度：[進度]，上次完成：[事項]，今天預計繼續：[下一步]，是否確認？」
+4. 讀取 `docs/CLAUDE.md` — AI agent 開發守則與 ADR 流程（23 節）
 
 取得使用者確認後才開始工作。
 
 ## Session 收尾協議（每次完成工作後必須執行）
 
-完成任何任務後，**在回覆使用者之前**，必須自動更新以下文件：
+在回覆使用者之前，**依序更新**：
 
-### `docs/tasks.md`
-- 將剛完成的項目打 `[x]`
-- 若產生新的子任務，補充至對應 Phase
-- 同步更新根目錄 `tasks.md`（兩個檔案內容保持一致）
-
-### `docs/memory.md`
-- 更新「上次完成」為剛完成的事項
-- 更新「下一步」為下一個待辦
-- 在「Session 交接紀錄（最近 5 筆）」表格新增一行（格式：`| 今日日期 | 完成事項 | 遺留問題或注意事項 |`）
-- **壓縮檢查**：若「Session 交接紀錄」筆數 ≥ 6，將最舊的若干筆合併摘要至「歷史摘要（已壓縮）」區塊，交接紀錄只保留最新 5 筆
-- 同步更新根目錄 `memory.md`（兩個檔案內容保持一致）
-
-### `decisions.md` / `docs/adr/`（有新決策時才更新）
-- 若本次工作中確認了新的技術選擇或架構決策，建立 `docs/adr/NNNN-title.md`（9 節格式）
-- 在 `decisions.md` index 中新增一行
-- 若既有 ADR 內容有變動（superseded / rejected），更新其狀態與對應 ADR 檔案
-
-### `docs/CLAUDE.md`（有新 AI 行為規則或限制時才更新）
-- 若本次工作中確認了新的 AI 操作守則，補充至 `docs/CLAUDE.md` 對應章節
-
-> 文件更新完畢後，才向使用者報告結果。
+1. `docs/tasks.md` — 完成項打 `[x]`，新子任務補充至對應 Phase
+2. `docs/memory.md` — 更新「上次完成」與「下一步」，Session 交接紀錄新增一行；筆數 ≥ 6 時壓縮舊紀錄
+3. `docs/adr/` — 有新架構決策時建立 `NNNN-title.md`，更新 `docs/decisions.md` index
+4. 詳細文件同步規則見 `docs/CLAUDE.md` §17
 
 ## Project Overview
 
-**Keynova**（全鍵控制系統）is a keyboard-centric productivity launcher for developers built with Tauri 2.x + React 18 + Rust. It enables 90%+ of workflow operations without a mouse. The project is currently in the planning/documentation phase — the `files/` directory contains complete architecture specs and design documents, but source code has not been implemented yet.
-
-Target platforms: Windows 10+, Linux (X11/Wayland), macOS 11+. Package size target: ~50MB.
+**Keynova**（全鍵控制系統）是以鍵盤為核心的生產力啟動器，採用 Tauri 2.x + React 18 + Rust。目標是讓開發者 90%+ 的工作流程操作不需要滑鼠。平台：Windows 10+ / Linux (X11/Wayland) / macOS 11+。包體積目標：~50MB。
 
 ## Git 工作流程（強制遵守）
 
-### 分支策略
-
 ```
-main       ← 永遠是可發布的穩定版本
-  └─ dev   ← 整合分支，功能在此驗證
+main  ← 永遠是可發布的穩定版本
+  └─ dev   ← 整合分支
        └─ feature/<name>   ← 每個功能的獨立分支
-```
-
-### 開發新功能的步驟
-
-```bash
-# 1. 從 dev 建立 feature 分支
-git checkout dev
-git pull origin dev
-git checkout -b feature/<功能名稱>
-
-# 2. 開發完成後，推送 feature 分支
-git push origin feature/<功能名稱>
-
-# 3. 合併到 dev（等待使用者審查後才執行）
-git checkout dev
-git merge --no-ff feature/<功能名稱>
-
-# 4. 在 dev 上再次確認無誤後，合併到 main（等待使用者審查後才執行）
-git checkout main
-git merge --no-ff dev
 ```
 
 ### AI 行為規則（不得違反）
 
-1. **絕不自行執行合併**：merge 到 `dev` 或 `main` 之前，必須停下來，列出所有變更，等待使用者明確說「確認合併」
-2. **逐行展示**：每次寫完程式碼，必須用 diff 格式列出全部變更，讓使用者逐行審查
-3. **分支來源**：所有 feature 分支必須從 `dev` 建立，禁止從 `main` 直接開分支
-4. **不跳過審查**：即使程式碼看起來沒問題，也不能省略審查步驟，必須等使用者親眼確認每一行
-5. **合併前檢查清單**：合併前必須確認 lint 通過、tests 通過、使用者已審查 diff
-6. **階段性 commit**：每完成一個可運作的里程碑（例如一個功能的骨架、一個驗收標準通過），必須立即執行 commit，不等到所有功能都完成才一次提交
-7. **禁止 merge main 回 dev**：私人文件（tasks.md/memory.md/CLAUDE.md 等）在 main 上已被 .gitignore 排除，將 main merge 進 dev 會刪除本地工作檔案。
+1. **絕不自行 merge**：merge 到 `dev` 或 `main` 前，必須列出所有變更，等待使用者明確說「確認合併」
+2. **分支來源**：所有 feature 分支必須從 `dev` 建立，禁止直接從 `main` 開分支
+3. **逐行審查**：寫完程式碼後必須用 diff 格式列出全部變更讓使用者確認
+4. **合併前檢查**：lint 通過、tests 通過、使用者已審查 diff
+5. **階段性 commit**：每完成一個可運作里程碑立即 commit
+6. **禁止 merge main 回 dev**：私人文件在 main 已被 `.gitignore` 排除，merge 回 dev 會刪除本地工作檔案
 
-## Development Environment
+### 開發步驟
 
-- **IDE**：JetBrains RustRover（主要）
-- **OS**：Windows 11
-- **Rust toolchain**：stable（透過 `rustup`）
-- **Node**：透過 `nvm` 或系統安裝
-
-RustRover 的 `.idea/` 目錄已列入 `.gitignore`，不提交任何 IDE 設定。
+```bash
+git checkout dev && git pull origin dev
+git checkout -b feature/<名稱>
+# 開發 → commit → 等使用者確認後才 merge
+```
 
 ## Build Commands
 
 ```bash
-npm install           # Install Node dependencies
-npm run tauri dev     # Dev mode with hot reload
-npm run tauri build   # Production build
-npm run test          # React unit tests
-npm run lint          # ESLint
-
-cargo build           # Rust backend
-cargo test            # Rust unit tests
-cargo clippy          # Rust linting
-```
-
-## Architecture
-
-The system follows a 6-layer architecture:
-
-1. **Presentation** — React + Tauri frontend (command palette, terminal, floating windows)
-2. **IPC Bridge** — Tauri + EventBus (RPC routing, real-time event push)
-3. **Core Framework** — `CommandRouter` / `EventBus` / `ConfigManager` / `SearchRegistry`
-4. **Business Logic** — Handlers → Managers (launcher, hotkey, terminal, mouse, search, system)
-5. **Indexer** — Pluggable search (FileIndexer via tantivy/Everything, AppIndexer, HistoryIndexer)
-6. **Platform** — Conditional compilation for Windows/Linux/macOS
-
-### Extensibility Pattern
-
-New features are added by implementing Handler traits and registering with `CommandRouter` — the core is not modified. Four extensibility mechanisms:
-- `CommandRouter` — all features are commands (trait-based)
-- `EventBus` — backend-to-frontend push via broadcast channel
-- `ConfigManager` — layered TOML config with runtime reload
-- `SearchRegistry` — pluggable indexers for unified search
-
-### Planned Source Layout
-
-```
-src-tauri/src/
-├── core/        # CommandRouter, EventBus, ConfigManager, SearchRegistry
-├── handlers/    # Feature implementations (launcher, terminal, hotkey, etc.)
-├── managers/    # Internal business logic
-├── models/      # Data structures
-├── platform/    # Platform-specific code
-└── utils/
-
-src/
-├── components/  # React UI components
-├── hooks/       # Custom React hooks
-├── stores/      # Zustand state management
-├── services/    # IPC/backend API clients
-└── types/       # TypeScript definitions
+npm install && npm run tauri dev    # Dev（hot reload）
+npm run tauri build                 # Production build
+npm run lint                        # ESLint
+cargo test && cargo clippy          # Rust 測試 + lint
 ```
 
 ## Documentation
 
-Engineering documents live in `docs/`:
-
 | 文件 | 用途 |
 |------|------|
-| `docs/CLAUDE.md` | AI agent 開發守則與 ADR 流程（完整 23 節） |
-| `docs/architecture.md` | 系統架構、模組邊界、資料流、IPC、儲存設計 |
-| `docs/tasks.md` | 任務拆解、目前進度、待辦事項（鏡像根目錄 tasks.md） |
-| `docs/memory.md` | 長期上下文、歷史決策摘要（鏡像根目錄 memory.md） |
-| `docs/testing.md` | 測試策略、指令、覆蓋要求 |
-| `docs/security.md` | 安全邊界、權限模型、敏感資料規則 |
-| `docs/adr/0000-template.md` | ADR 標準模板（9 節格式） |
-| `docs/adr/0001-0027.md` | 各 ADR 決策（27 個已接受的架構決策） |
-| `decisions.md` | ADR 索引（精簡版，指向 docs/adr/） |
-
-## User Configuration (runtime)
-
-```toml
-# Windows: C:\Users\<User>\AppData\Roaming\Keynova\config.toml
-# Linux/macOS: ~/.config/keynova/config.toml
-
-[hotkeys]
-app_launcher = "Ctrl+K"
-mouse_control = "Ctrl+Alt+M"
-
-[terminal]
-font_size = 13
-scrollback_lines = 1000
-
-[launcher]
-max_results = 10
-
-[mouse_control]
-step_size = 15
-```
+| `docs/CLAUDE.md` | AI agent 開發守則（23 節，含 ADR 流程）|
+| `docs/architecture.md` | 系統架構、IPC、EventBus、儲存設計 |
+| `docs/decisions.md` | ADR 索引（指向 docs/adr/）|
+| `docs/tasks.md` | 任務進度（唯一版本）|
+| `docs/memory.md` | Session 記憶與歷史（唯一版本）|
+| `docs/testing.md` | 測試策略與指令 |
+| `docs/security.md` | 安全邊界與敏感資料規則 |
+| `docs/adr/0001-0027.md` | 各 ADR 獨立決策文件（27 個）|

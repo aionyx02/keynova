@@ -45,15 +45,13 @@ docs/
 │   └── 0027-generic-shell-sandbox.md ← ADR-027
 ├── architecture.md                   ← 系統架構（新建）
 ├── CLAUDE.md                         ← AI agent 守則（從 docx 完整移入）
+├── decisions.md                      ← ADR 索引（從根目錄 decisions.md 遷移）
 ├── memory.md                         ← 從根目錄 memory.md 遷移
 ├── security.md                       ← 安全邊界（新建）
 ├── tasks.md                          ← 從根目錄 tasks.md 遷移
 └── testing.md                        ← 測試策略（新建）
 根目錄保留：
-├── CLAUDE.md                         ← 更新路徑引用至 docs/
-├── decisions.md                      ← 保留（作為 ADR index，內容精簡為 index）
-├── memory.md                         ← 保留捷徑（或更新 CLAUDE.md 路徑後刪除）
-└── tasks.md                          ← 保留捷徑（同上）
+└── CLAUDE.md                         ← 化簡為 ~67 行，session 協議 + git + build
 ```
 
 ---
@@ -203,37 +201,43 @@ docs/
 
 ### DOCS.9 — 遷移 `tasks.md` → `docs/tasks.md`
 
-- [ ] 將本檔（tasks.md）複製至 `docs/tasks.md`
-- [ ] 更新 `CLAUDE.md` 中所有 `tasks.md` 路徑引用改為 `docs/tasks.md`
-- [ ] 根目錄 `tasks.md` 改為 1 行引用：`# 請見 docs/tasks.md`（保留供工具相容）
+- [x] 將本檔（tasks.md）複製至 `docs/tasks.md`
+- [x] 更新 `CLAUDE.md` 中所有 `tasks.md` 路徑引用改為 `docs/tasks.md`
+- 根目錄 `tasks.md` 保留（兩個檔案同步維護）
 
 ### DOCS.10 — 遷移 `memory.md` → `docs/memory.md`
 
-- [ ] 將 `memory.md` 複製至 `docs/memory.md`
-- [ ] 更新 `CLAUDE.md` 中所有 `memory.md` 路徑引用改為 `docs/memory.md`
-- [ ] 根目錄 `memory.md` 改為 1 行引用
+- [x] 將 `memory.md` 複製至 `docs/memory.md`
+- [x] 更新 `CLAUDE.md` 中所有 `memory.md` 路徑引用改為 `docs/memory.md`
+- 根目錄 `memory.md` 保留（兩個檔案同步維護）
 
 ### DOCS.11 — 更新 `CLAUDE.md` 引用路徑
 
-更新 CLAUDE.md 中的 Session 開場 / 收尾協議路徑，以及所有文件描述段落，改為 `docs/` 子路徑。
-
-- [ ] Session 開場：`memory.md` → `docs/memory.md`、`tasks.md` → `docs/tasks.md`、`skill.md` → `docs/claude.md`
-- [ ] Session 收尾：更新 `tasks.md`、`memory.md`、`decisions.md` 路徑
-- [ ] Documentation 段落：補充 `docs/` 子目錄結構說明
-- [ ] 加入說明：新 ADR 應建立於 `docs/adr/NNNN-title.md`，`decisions.md` 為 index
+- [x] Session 開場：`memory.md` → `docs/memory.md`、`tasks.md` → `docs/tasks.md`、`skill.md` → `docs/CLAUDE.md`
+- [x] Session 收尾：更新 `tasks.md`、`memory.md`、`decisions.md` 路徑說明
+- [x] Documentation 段落：補充 `docs/` 子目錄結構說明（含 ADR 索引）
+- [x] 新 ADR 應建立於 `docs/adr/NNNN-title.md`，`decisions.md` 為 index
 
 ### DOCS.12 — 驗收清單
 
-- [ ] `docs/adr/` 目錄存在且含 0000-template + 0001~0027 共 28 個檔案
-- [ ] `docs/architecture.md` 存在且含 6 層架構說明
-- [ ] `docs/claude.md` 存在且含完整 23 節
-- [ ] `docs/testing.md` 存在且含測試指令與覆蓋要求
-- [ ] `docs/security.md` 存在且含安全邊界與敏感資料規則
-- [ ] `docs/tasks.md` 存在且與根目錄 `tasks.md` 一致
-- [ ] `docs/memory.md` 存在且與根目錄 `memory.md` 一致
-- [ ] `decisions.md` 改為精簡 index（< 100 行）
-- [ ] `CLAUDE.md` 路徑引用全部更新
-- [ ] `cargo test` + `npm run lint` + `npm run build` 通過（純文件改動，應全部通過）
+- [x] `docs/adr/` 目錄存在且含 0000-template + 0001~0027 共 28 個檔案
+- [x] `docs/architecture.md` 存在且含 6 層架構說明
+- [x] `docs/CLAUDE.md` 存在且含完整 23 節
+- [x] `docs/testing.md` 存在且含測試指令與覆蓋要求
+- [x] `docs/security.md` 存在且含安全邊界與敏感資料規則
+- [x] `docs/tasks.md` 存在且與根目錄 `tasks.md` 一致
+- [x] `docs/memory.md` 存在且與根目錄 `memory.md` 一致
+- [x] `decisions.md` 改為精簡 index（64 行 < 100 行）
+- [x] `CLAUDE.md` 路徑引用全部更新
+
+### Plan A — 治理整合（根目錄清理）
+
+- [x] `CLAUDE.md` 化簡為 ~67 行（session 協議 + git + build + doc 索引）
+- [x] `skill.md` 移除（內容已全量移入 `docs/CLAUDE.md`）
+- [x] 根目錄 `tasks.md` 移除（`docs/tasks.md` 為唯一版本）
+- [x] 根目錄 `memory.md` 移除（`docs/memory.md` 為唯一版本）
+- [x] 根目錄 `decisions.md` 移除，`docs/decisions.md` 新建（ADR 索引）
+- [x] `docs/CLAUDE.md` §0 補充 `decisions.md` 條目
 
 ---
 
@@ -255,6 +259,7 @@ DOCS.1（建 docs/ 骨架）
   → DOCS.10（docs/memory.md 遷移）
   → DOCS.11（CLAUDE.md 路徑更新）
   → DOCS.12（驗收）
+  → Plan A（根目錄清理）
 ```
 
 ---
@@ -311,6 +316,7 @@ cargo clippy -- -D warnings
 - [x] **Phase 6.5**：搜尋結果編碼修復（非 UTF-8 路徑過濾、前端 `hasEncodingError()`）。
 - [x] **Phase 6.6**：LazyVim portable Neovim（`portable_nvim_manager`、`handlers/nvim`、`NvimDownloadPanel.tsx`）。
 - [x] **Phase 6.7.A+B**：記憶體優化（Tantivy writer buffer 15MB + explicit drop、AppManager 回傳 `&[AppInfo]`）。
+- [x] **DOCS.1~12 + Plan A**：docs/ 完整重組、27 個 ADR、CLAUDE.md 化簡、根目錄清理；docs/ 為唯一事實來源。
 
 ---
 
