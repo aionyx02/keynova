@@ -255,7 +255,6 @@ export function TranslationPanel({ onClose, initialArgs }: PanelProps) {
   const outputRef = useRef<HTMLTextAreaElement>(null);
   const pendingIdRef = useRef<string | null>(null);
   const lastSentKeyRef = useRef("");
-  const lastAppliedInitialArgsRef = useRef<string | null>(null);
   const clientTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Load language list once on mount
@@ -411,11 +410,7 @@ export function TranslationPanel({ onClose, initialArgs }: PanelProps) {
   );
 
   useEffect(() => {
-    const nextInitialArgs = initialArgs ?? "";
-    if (lastAppliedInitialArgsRef.current === nextInitialArgs) return;
-    lastAppliedInitialArgsRef.current = nextInitialArgs;
-
-    const parsed = parseTranslationArgs(nextInitialArgs);
+    const parsed = parseTranslationArgs(initialArgs ?? "");
     const timer = window.setTimeout(() => {
       if (!parsed) {
         setSrc(DEFAULT_SRC);
