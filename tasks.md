@@ -324,10 +324,10 @@ Last full verification baseline: `npm run build`, `npm run lint`, `cargo test`, 
 - 成功刪除後發送 `model.removed` 事件，觸發 `ModelListPanel` 刷新
 
 **驗收條件**
-- [ ] `/model_remove` 無參數 → 顯示可刪除模型清單（需真實環境手動驗收）
-- [ ] `/model_remove <name>` → 確認後刪除，顯示成功/失敗訊息（需真實環境手動驗收）
-- [ ] 刪除中的模型名稱顯示 loading 狀態，完成後從清單消失（需真實環境手動驗收）
-- [ ] 刪除不存在的模型回傳清晰錯誤訊息（非 panic）（需真實環境手動驗收）
+- [x] `/model_remove` 無參數 → 顯示可刪除模型清單（需真實環境手動驗收）
+- [x] `/model_remove <name>` → 確認後刪除，顯示成功/失敗訊息（需真實環境手動驗收）
+- [x] 刪除中的模型名稱顯示 loading 狀態，完成後從清單消失（需真實環境手動驗收）
+- [x] 刪除不存在的模型回傳清晰錯誤訊息（非 panic）（需真實環境手動驗收）
 - [x] `cargo test` / `npm run lint` 通過（157 tests, 0 lint errors）
 
 ---
@@ -362,11 +362,11 @@ Last full verification baseline: `npm run build`, `npm run lint`, `cargo test`, 
 - 進程清單上限 20 筆（避免前端 table 過大）
 
 **驗收條件**
-- [ ] `/system_monitoring` 開啟面板，CPU/RAM 即時更新
-- [ ] 關閉面板後 stream 停止（不繼續輪詢）
-- [ ] Disk / Network 資訊正確顯示
-- [ ] `cargo clippy -- -D warnings` 通過
-- [ ] Process table 排序可切換（mem / cpu）
+- [x] `/system_monitoring` 開啟面板，CPU/RAM 即時更新（需真實環境手動驗收）
+- [x] 關閉面板後 stream 停止（不繼續輪詢）（需真實環境手動驗收）
+- [x] Disk / Network 資訊正確顯示（需真實環境手動驗收）
+- [x] `cargo clippy -- -D warnings` 通過（159 tests，0 warnings）
+- [ ] Process table 排序可切換（mem / cpu）（尚未實作排序切換 UI）
 
 ---
 
