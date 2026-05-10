@@ -89,6 +89,10 @@ function searchResultKey(result: SearchResult) {
   return `${result.source ?? result.kind}:${result.path}`;
 }
 
+function hasEncodingError(s: string | undefined | null): boolean {
+  return typeof s === "string" && s.includes("�");
+}
+
 // Per-source caps mirror the backend sort_balanced_truncate constants.
 const SOURCE_QUOTAS: Partial<Record<string, number>> = {
   app: 8,
@@ -890,13 +894,15 @@ export function CommandPalette() {
                           {badge.label}
                         </span>
                       )}
-                      <span className="truncate font-medium">{r.title ?? r.name}</span>
+                      <span className={`truncate font-medium${hasEncodingError(r.title ?? r.name) ? " text-gray-500 italic" : ""}`}>
+                        {hasEncodingError(r.title ?? r.name) ? "(無法解碼的名稱)" : (r.title ?? r.name)}
+                      </span>
                       {Boolean(r.secondary_action_count) && (
                         <span className="shrink-0 text-[10px] text-gray-500">+{r.secondary_action_count}</span>
                       )}
                       {r.kind !== "app" && (
                         <span className="ml-auto shrink-0 max-w-[220px] truncate text-xs text-gray-500">
-                          {r.subtitle ?? r.path}
+                          {hasEncodingError(r.subtitle ?? r.path) ? "(無法解碼的路徑)" : (r.subtitle ?? r.path)}
                         </span>
                       )}
                     </li>

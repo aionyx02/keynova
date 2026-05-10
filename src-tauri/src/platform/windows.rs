@@ -60,9 +60,14 @@ fn collect_lnk_files(dir: &Path, out: &mut Vec<AppInfo>) {
             if name.is_empty() {
                 continue;
             }
+            let path_str = path.to_string_lossy();
+            if path_str.contains('\u{FFFD}') {
+                eprintln!("[keynova] skipping non-UTF-8 app path: {:?}", path);
+                continue;
+            }
             out.push(AppInfo {
                 name,
-                path: path.to_string_lossy().into_owned(),
+                path: path_str.into_owned(),
                 icon_data: None,
                 launch_count: 0,
             });
@@ -370,11 +375,12 @@ fn collect_all(
         if is_dir && SKIP_DIRS.iter().any(|s| name.eq_ignore_ascii_case(s)) {
             continue;
         }
-        out.push((
-            name.to_string(),
-            path.to_string_lossy().into_owned(),
-            is_dir,
-        ));
+        let path_str = path.to_string_lossy();
+        if path_str.contains('\u{FFFD}') {
+            eprintln!("[keynova] skipping non-UTF-8 file path: {:?}", path);
+            continue;
+        }
+        out.push((name.to_string(), path_str.into_owned(), is_dir));
         // visited.insert returns true only if the path is newly inserted,
         // preventing re-traversal of directories already covered by another root.
         if is_dir && visited.insert(path.clone()) {
@@ -728,12 +734,20 @@ pub fn everything_search(query: &str, max_results: u32) -> Vec<(String, String, 
                 continue;
             }
             let full_path = String::from_utf16_lossy(&buf[..len as usize]).to_string();
+            if full_path.contains('\u{FFFD}') {
+                eprintln!("[keynova] skipping Everything result with invalid UTF-16 path at index {i}");
+                continue;
+            }
 
             let name_ptr = (fns.get_file_name_w)(i);
             if name_ptr.is_null() {
                 continue;
             }
             let name = read_wstr(name_ptr);
+            if name.contains('\u{FFFD}') {
+                eprintln!("[keynova] skipping Everything result with invalid UTF-16 name at index {i}");
+                continue;
+            }
             let is_folder = (fns.is_folder_result)(i) != 0;
             results.push((name, full_path, is_folder));
         }

@@ -60,6 +60,10 @@ pub fn rebuild(index_dir: &Path, entries: &[TantivyFileEntry]) -> Result<usize, 
     // 15 MB is sufficient for indexing; 50 MB was wasting address space during rebuild.
     let mut writer = index.writer(30_000_000).map_err(|e| e.to_string())?;
     for entry in entries {
+        if entry.name.contains('\u{FFFD}') || entry.path.contains('\u{FFFD}') {
+            eprintln!("[keynova] tantivy: skipping entry with non-UTF-8 path: {:?}", entry.path);
+            continue;
+        }
         let kind = if entry.is_folder { "folder" } else { "file" };
         writer
             .add_document(doc!(
