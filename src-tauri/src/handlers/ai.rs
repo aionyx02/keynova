@@ -154,6 +154,19 @@ impl CommandHandler for AiHandler {
         match command {
             "check_setup" => Ok(self.check_setup_impl()),
             "chat" => {
+                {
+                    let cfg = self.config.lock().map_err(|e| e.to_string())?;
+                    let enabled = cfg
+                        .get("features.ai")
+                        .as_deref()
+                        .map(|v| !v.eq_ignore_ascii_case("false"))
+                        .unwrap_or(true);
+                    if !enabled {
+                        return Err(
+                            "AI 功能已停用。請前往 /setting → Features 開啟。".into()
+                        );
+                    }
+                }
                 let request_id = payload
                     .get("request_id")
                     .and_then(Value::as_str)

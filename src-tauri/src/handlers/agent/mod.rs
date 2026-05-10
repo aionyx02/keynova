@@ -110,6 +110,19 @@ impl CommandHandler for AgentHandler {
     fn execute(&self, command: &str, payload: Value) -> CommandResult {
         match command {
             "start" => {
+                {
+                    let cfg = self.config.lock().map_err(|e| e.to_string())?;
+                    let enabled = cfg
+                        .get("features.agent")
+                        .as_deref()
+                        .map(|v| !v.eq_ignore_ascii_case("false"))
+                        .unwrap_or(true);
+                    if !enabled {
+                        return Err(
+                            "Agent 功能已停用。請前往 /setting → Features 開啟。".into()
+                        );
+                    }
+                }
                 let prompt = payload
                     .get("prompt")
                     .and_then(Value::as_str)

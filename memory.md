@@ -64,8 +64,8 @@
 ## 當前狀態
 
 - **進度**：Phase 5 進行中；5.1.A、5.1.B、5.8、5.2.A、5.2.B、5.3.A~C、5.4、5.5.A1+A2+B1+A3+A4+B2+B3+C+E、5.11.A~D 均已實作並 commit（Phase-5 branch）。Phase 6 架構設計完成（7 個新功能需求）。
-- **上次完成**：Phase 6.5 搜尋結果編碼修復 — `windows.rs` collect_lnk_files/collect_all/Everything API 加 `\u{FFFD}` skip+warn；`tantivy_index.rs rebuild()` 加同樣過濾；`CommandPalette.tsx` 加 `hasEncodingError()` 顯示灰色 fallback；157 tests + lint 通過。
-- **下一步**：Phase 6.3 /setting 功能開關（features.ai/agent backend guards + SettingPanel toggle rows）。
+- **上次完成**：Phase 6.3 /setting 功能開關 — `features.ai/agent` 預設改為 false；`builtin_cmd.rs` FEATURE_GUARDS 在 cmd.run 層攔截；`ai.chat` / `agent.start` 個別 feature check；SettingPanel boolean 改為 toggle switch UI + FEATURE_DESCRIPTIONS；157 tests + clippy + lint 通過。
+- **下一步**：Phase 6.2 /system_monitoring 面板；或 Phase 6.6 LazyVim portable Neovim。
 
 ## 已確認的技術選擇
 
@@ -107,11 +107,11 @@
 
 | 日期 | 完成事項 | 遺留問題 |
 |------|----------|----------|
+| 2026-05-10 | Phase 6.3 功能開關：features.ai/agent 預設 false；FEATURE_GUARDS in cmd.run；ai.chat/agent.start guards；SettingPanel toggle UI；157 tests + clippy + lint 通過 | 需真實 app 驗收 /ai disable 提示 |
 | 2026-05-10 | Phase 6.5 搜尋編碼修復：windows.rs 3 處 + tantivy_index.rs + CommandPalette.tsx hasEncodingError()；157 tests + lint 通過 | 需真實 app 驗收中文/日文路徑不出現方塊字 |
-| 2026-05-10 | 翻譯自動觸發 bug：React Strict Mode 雙重 effect 導致 lastAppliedInitialArgsRef 提前 return → 移除 ref guard，讓 deps array 管理去重；lint 通過 | 需在真實 app 驗證 /tr hello 自動翻譯 |
-| 2026-05-09 | 翻譯 crash fix：tokio::spawn→std::thread::spawn+per-thread rt；async reqwest；前端 35s timeout；STATUS_STACK_BUFFER_OVERRUN 修復 | 需在真實 app 驗證翻譯回傳正常 |
-| 2026-05-09 | Phase 6.4：SUPPORTED_LANGS 108 語言 + list_langs；LangPicker dropdown；CJK font；command line 保留；Phase 6.1 ModelRemove panel | 需真實 app 驗收 |
-| 2026-05-09 | 6.7A/B tantivy 50MB→15MB + &[AppInfo]；搜尋深度 6 + visited HashSet；5.5.F~G ReactStep UI + ReAct tests；5.5.E audit log；5.11.A~D agent 拆模組 + AgentError + ToolPermission + WebSearchProvider；Phase 6 架構設計 | 5.5.H / ADR-027 解封評估待辦 |
+| 2026-05-10 | 翻譯自動觸發 bug（React Strict Mode ref guard）+ crash fix（tokio::spawn→std::thread+per-thread rt）+ 35s timeout；6.4 SUPPORTED_LANGS 108 語言+LangPicker；6.1 ModelRemove panel | 需真實 app 驗收翻譯/ai 各功能 |
+| 2026-05-09 | 6.7A/B tantivy 50MB→15MB；搜尋深度 6+visited；5.5.F~G ReactStep UI+tests；5.11.A~D agent拆模組+AgentError+ToolPermission+WebSearchProvider；Phase 6 架構設計 | 5.5.H / ADR-027 解封評估待辦 |
+| 2026-05-09 | Phase 5 主線（5.1~5.8/5.2~5.4/5.5.A~E/5.11.A~D）全部完成，merge Phase-5 branch；搜尋串流/Tantivy/Plugin/Automation/Agent runtime/Knowledge Store 已完成 | Phase 6 功能群待續 |
 
 ## 2026-05-06 架構邊界與修正定位索引
 

@@ -67,6 +67,16 @@ const SECTION_LABELS: Record<string, string> = {
   system: "System",
 };
 
+const FEATURE_DESCRIPTIONS: Record<string, string> = {
+  "features.ai": "需要 Ollama 或 API Key",
+  "features.agent": "需要 Ollama 或支援工具呼叫的模型",
+  "features.translation": "Google Translate 免費 API",
+  "features.notes": "內建筆記與 LazyVim 整合",
+  "features.history": "剪貼簿歷史記錄",
+  "features.calculator": "即時運算機",
+  "features.system": "系統資訊與控制",
+};
+
 const SECTION_EFFECT_HINT: Record<string, string> = {
   hotkeys: "Applies after shortcut reload.",
   launcher: "Used by the command palette immediately.",
@@ -114,7 +124,7 @@ export function SettingPanel({ initialArgs }: PanelProps) {
   const [reloadNotice, setReloadNotice] = useState<string | null>(null);
   const originalRef = useRef<Record<string, string>>({});
   const savedFlashRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const inputRefs = useRef<Array<HTMLInputElement | null>>([]);
+  const inputRefs = useRef<Array<HTMLElement | null>>([]);
 
   const loadSettings = useCallback(async () => {
     if (!window.__TAURI_INTERNALS__) return;
@@ -182,7 +192,7 @@ export function SettingPanel({ initialArgs }: PanelProps) {
   }
 
   function handleInputKeyDown(
-    e: React.KeyboardEvent<HTMLInputElement>,
+    e: React.KeyboardEvent<HTMLElement>,
     key: string,
     rowIdx: number,
     displayValue: string,
@@ -261,7 +271,7 @@ export function SettingPanel({ initialArgs }: PanelProps) {
     await saveValue(key, edited);
   }
 
-  function captureHotkey(e: React.KeyboardEvent<HTMLInputElement>, key: string) {
+  function captureHotkey(e: React.KeyboardEvent<HTMLElement>, key: string) {
     e.preventDefault();
     if (["Control", "Alt", "Shift", "Meta"].includes(e.key)) return;
     const parts: string[] = [];
@@ -310,6 +320,49 @@ export function SettingPanel({ initialArgs }: PanelProps) {
           const isHotkey =
             fieldSchema?.value_type === "hotkey" || key.startsWith("hotkeys.");
           const isSecret = Boolean(sensitive || fieldSchema?.sensitive);
+          const isBoolean = fieldSchema?.value_type === "boolean";
+          const description = FEATURE_DESCRIPTIONS[key];
+
+          if (isBoolean) {
+            const isOn = displayValue === "true";
+            return (
+              <div key={key} className="flex items-center gap-3 py-0.5">
+                <div className="flex-1 min-w-0">
+                  <div className="text-xs text-gray-300 truncate">{label}</div>
+                  {description && (
+                    <div className="text-[10px] text-gray-600 truncate">{description}</div>
+                  )}
+                </div>
+                <button
+                  ref={(el) => { inputRefs.current[rowIdx] = el; }}
+                  role="switch"
+                  aria-checked={isOn}
+                  onClick={() => void saveValue(key, isOn ? "false" : "true")}
+                  onKeyDown={(e) => {
+                    if (e.key === "ArrowDown") { e.preventDefault(); inputRefs.current[rowIdx + 1]?.focus(); }
+                    if (e.key === "ArrowUp") { e.preventDefault(); inputRefs.current[rowIdx - 1]?.focus(); }
+                    if (e.key === " " || e.key === "Enter") { e.preventDefault(); void saveValue(key, isOn ? "false" : "true"); }
+                  }}
+                  className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer items-center rounded-full transition-colors focus:outline-none focus:ring-1 focus:ring-blue-500 ${
+                    isOn ? "bg-blue-500" : "bg-gray-600"
+                  } ${saving === key ? "opacity-60" : ""}`}
+                >
+                  <span
+                    className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white shadow transition-transform ${
+                      isOn ? "translate-x-[18px]" : "translate-x-[2px]"
+                    }`}
+                  />
+                </button>
+                {saving === key && (
+                  <span className="text-[10px] text-gray-500 shrink-0">Saving</span>
+                )}
+                {savedKey === key && saving !== key && (
+                  <span className="text-[10px] text-emerald-400 shrink-0">Saved</span>
+                )}
+              </div>
+            );
+          }
+
           return (
             <div key={key} className="flex items-center gap-3">
               <label className="w-44 shrink-0 text-xs text-gray-400 truncate">{label}</label>
