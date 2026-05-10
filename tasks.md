@@ -239,17 +239,16 @@ Last full verification baseline: `npm run build`, `npm run lint`, `cargo test`, 
 
 ## Phase 5.7 — P1/P2 Search & Index Alignment
 
-### 5.7.A — Agent/Launcher Tantivy Index Unification（可提前至 5.3 後）
+### 5.7.A — Agent/Launcher Tantivy Index Unification（可提前至 5.3 後）✓
 
-- [ ] 修 `system_indexer.rs` `search_system_index()`：接收來自 config 的 `tantivy_index_dir`，不再呼叫 `resolve_index_dir(None)`。
-- [ ] 引入 `SystemIndexerConfig { tantivy_index_dir, roots, timeout, max_visited }`，從 `SearchManager` config 傳入，確保 Agent 和 launcher 使用同一個 index。
-- [ ] 提前原因：Agent 和 launcher index 不同會讓搜尋診斷結果混亂，建議在 5.3 路徑統一後即執行。
+- [x] 修 `system_indexer.rs` `search_system_index()`：加 `tantivy_index_dir: Option<&Path>` 參數，不再呼叫 `resolve_index_dir(None)`。
+- [x] `AgentHandler`/`ReactDispatchState` 加 `tantivy_index_dir: PathBuf` 欄位，從 `SearchManager::tantivy_index_dir()` 取得並傳入。
+- [x] 所有呼叫點更新（agent/mod.rs 3 處 + agent_runtime.rs 測試）；159 tests + clippy 通過。
 
-### 5.7.B — Non-Windows Launcher File Search（建議升至 P1）
+### 5.7.B — Non-Windows Launcher File Search ✓
 
-- [ ] 修 `SearchManager::file_results_for_backend()` 在非 Windows 上改用 `SystemIndexer`（macOS `mdfind`、Linux `plocate`/`locate`、`ignore` fallback），不再回傳 `Vec::new()`。
-- [ ] Launcher 和 Agent 在 Linux/macOS 上產生一致的 file results。
-- [ ] 注意：維持跨平台承諾需要此項；若主要開發環境仍為 Windows，可暫保持 P2。
+- [x] 修 `SearchManager::file_results_for_backend()` 在非 Windows 上改用 `search_system_index()`（macOS `mdfind`、Linux `plocate`/`locate`、`ignore_walk` fallback），不再回傳 `Vec::new()`。
+- [x] Tantivy 先嘗試（若非空），再 fallback 到 native indexer；159 tests + clippy 通過。
 
 ---
 
@@ -468,10 +467,10 @@ Last full verification baseline: `npm run build`, `npm run lint`, `cargo test`, 
 - 不影響 Keynova 主程序啟動時間（下載 / 解壓在獨立 tokio task）
 
 **驗收條件**
-- [ ] 未安裝 nvim 的機器：`/note lazyvim` → 顯示下載進度 → 下載完成後開啟編輯器
-- [ ] 已安裝 nvim 的機器：行為與現有相同，不重複下載
-- [ ] 可攜式 nvim 路徑寫入 config（`notes.nvim_bin`），使用者可覆蓋
-- [ ] 下載失敗時顯示清晰錯誤，並 fallback 到內建 note 面板
+- [x] 未安裝 nvim 的機器：`/note lazyvim` → 顯示下載進度 → 下載完成後開啟編輯器
+- [x] 已安裝 nvim 的機器：行為與現有相同，不重複下載（detect_nvim 優先 PATH）
+- [ ] 可攜式 nvim 路徑寫入 config（`notes.nvim_bin`），使用者可覆蓋（未實作，可後續加）
+- [x] 下載失敗時顯示清晰錯誤，並 fallback 到內建 note 面板（error stage in NvimDownloadPanel）
 
 ---
 
