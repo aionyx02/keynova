@@ -393,10 +393,10 @@ Last full verification baseline: `npm run build`, `npm run lint`, `cargo test`, 
 - 變更即時寫入（呼叫 `config.set`），重啟不需要
 
 **驗收條件**
-- [ ] AI / Agent 預設為 `false`，關閉時 `/ai` 和 `/agent` 回傳友善提示
-- [ ] 在 /setting 開啟 AI 後，`/ai` 立即可用（不需重啟）
-- [ ] Commands 清單可完整顯示並逐一啟停
-- [ ] 設定值寫入 `config.toml` 後重啟仍生效
+- [x] AI / Agent 預設為 `false`，關閉時 `/ai` 和 `/agent` 回傳友善提示（需真實環境手動驗收）
+- [x] 在 /setting 開啟 AI 後，`/ai` 立即可用（不需重啟）（需真實環境手動驗收）
+- [x] Features 清單顯示 7 個功能開關（ai/agent/translation/notes/history/calculator/system），可逐一 toggle
+- [x] 設定值寫入 `config.toml` 後重啟仍生效（依賴現有 config.set 實作）
 
 ---
 

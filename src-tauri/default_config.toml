@@ -26,7 +26,8 @@ step_size = 10           # 每次方向鍵移動的像素距離
 fast_step_size = 50      # 按住 Shift 時的移動距離
 
 [features]
-ai = true
+ai = false
+agent = false
 translation = true
 notes = true
 history = true

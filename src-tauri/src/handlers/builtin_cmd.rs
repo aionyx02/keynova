@@ -854,6 +854,34 @@ impl CommandHandler for BuiltinCmdHandler {
                     .unwrap_or("")
                     .trim();
 
+                // Feature guard: disabled features return a friendly message instead of executing.
+                const FEATURE_GUARDS: &[(&str, &str)] = &[
+                    ("ai", "features.ai"),
+                    ("tr", "features.translation"),
+                    ("note", "features.notes"),
+                    ("history", "features.history"),
+                    ("cal", "features.calculator"),
+                ];
+                for &(cmd_name, feature_key) in FEATURE_GUARDS {
+                    if name == cmd_name {
+                        let cfg = self.config.lock().map_err(|e| e.to_string())?;
+                        let enabled = cfg
+                            .get(feature_key)
+                            .as_deref()
+                            .map(|v| !v.eq_ignore_ascii_case("false"))
+                            .unwrap_or(true);
+                        if !enabled {
+                            return Ok(json!(BuiltinCommandResult {
+                                text: format!(
+                                    "/{name} 功能已停用。請前往 /setting → Features 開啟。"
+                                ),
+                                ui_type: CommandUiType::Inline,
+                            }));
+                        }
+                        break;
+                    }
+                }
+
                 if name == "setting" && !args.is_empty() {
                     let mut parts = args.splitn(2, ' ');
                     let key = parts.next().unwrap_or("").trim();
