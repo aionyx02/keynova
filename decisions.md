@@ -40,8 +40,18 @@
 
 ## ADR-027 Generic Shell Tool Sandbox Requirement
 
-- Status: Accepted
+- Status: Accepted (research phase complete — not yet unblocked for product)
 - Decision: Keynova will not expose a generic `execute_shell_command` / `execute_bash_command` Agent tool until a real platform sandbox exists. Approval and regex/string deny lists are insufficient. The first ReAct tools must be narrow typed tools with fixed binaries and structured arguments.
+- Research findings (2026-05-09, `managers/sandbox_manager.rs`):
+  - **Windows**: Job Object (`CreateJobObjectW` + `SetInformationJobObject`) satisfies the constraint. `JOB_OBJECT_LIMIT_JOB_MEMORY` + `JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE` enforce memory ceiling and automatic cleanup. `WaitForSingleObject` with timeout avoids 50 ms polling. Process assigned to job immediately after `spawn()`. Network isolation requires AppContainer (not yet implemented). 5/5 tests pass including real echo execution and timeout enforcement.
+  - **Linux**: `bwrap` (bubblewrap) satisfies the constraint with `--unshare-net --unshare-pid --unshare-ipc`. If `bwrap` is absent the sandbox refuses to run (no silent fallback to unsandboxed). seccomp layer via `--seccomp` is the next step but requires a compiled filter binary.
+  - **macOS**: `sandbox-exec` with deny-by-default profile satisfies the constraint for file/network isolation. Profile is written to a temp `.sb` file per invocation and deleted after. `sandbox-exec` is marked "deprecated" by Apple but remains functional; App Sandbox via entitlements is the long-term replacement.
+  - **Output safety**: `output_cap_bytes` caps stdout/stderr before returning to caller. Callers must pipe through `core::agent_observation` redaction before exposing to LLM.
+- Remaining before unblocking product path:
+  - Windows: AppContainer or network job restriction (network deny currently advisory only)
+  - Linux: seccomp filter compilation and bwrap availability check in CI
+  - macOS: Evaluate App Sandbox entitlement path as `sandbox-exec` replacement
+  - All platforms: integration test under real ReAct loop in a sandboxed subprocess
 - Consequences:
   - No `sh -c`, `cmd /c`, or shell-string execution is allowed for generic Agent tool use.
   - Linux must require a namespace/seccomp-style sandbox path such as `bwrap` plus syscall and filesystem restrictions before generic shell is considered.

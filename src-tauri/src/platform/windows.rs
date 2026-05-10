@@ -60,9 +60,14 @@ fn collect_lnk_files(dir: &Path, out: &mut Vec<AppInfo>) {
             if name.is_empty() {
                 continue;
             }
+            let path_str = path.to_string_lossy();
+            if path_str.contains('\u{FFFD}') {
+                eprintln!("[keynova] skipping non-UTF-8 app path: {:?}", path);
+                continue;
+            }
             out.push(AppInfo {
                 name,
-                path: path.to_string_lossy().into_owned(),
+                path: path_str.into_owned(),
                 icon_data: None,
                 launch_count: 0,
             });
@@ -301,8 +306,13 @@ fn file_cache() -> Arc<Mutex<Vec<FileEntry>>> {
 /// 背景啟動後呼叫一次，將所有搜尋路徑的檔案條目寫入記憶體快取。
 pub fn build_file_index() -> usize {
     let mut entries: Vec<FileEntry> = Vec::new();
+    // Shared visited set across all root scans prevents re-traversing directories
+    // that were already covered by a higher-priority (deeper) root entry.
+    let mut visited = std::collections::HashSet::<std::path::PathBuf>::new();
     for (dir, depth) in user_search_dirs() {
-        collect_all(&dir, &mut entries, depth);
+        if visited.insert(dir.clone()) {
+            collect_all(&dir, &mut entries, depth, &mut visited);
+        }
     }
     let len = entries.len();
     let cache = file_cache();
@@ -339,7 +349,14 @@ pub fn file_index_len() -> usize {
 }
 
 /// 掃描目錄樹，不做 query 過濾，只收集全部條目（供 build_file_index 使用）。
-fn collect_all(dir: &Path, out: &mut Vec<FileEntry>, depth: usize) {
+/// `visited` 跨所有根目錄共享，防止已被其他根目錄掃描過的子目錄被重複遞迴，
+/// 從而避免快取中出現重複條目。
+fn collect_all(
+    dir: &Path,
+    out: &mut Vec<FileEntry>,
+    depth: usize,
+    visited: &mut std::collections::HashSet<std::path::PathBuf>,
+) {
     if depth == 0 {
         return;
     }
@@ -358,13 +375,16 @@ fn collect_all(dir: &Path, out: &mut Vec<FileEntry>, depth: usize) {
         if is_dir && SKIP_DIRS.iter().any(|s| name.eq_ignore_ascii_case(s)) {
             continue;
         }
-        out.push((
-            name.to_string(),
-            path.to_string_lossy().into_owned(),
-            is_dir,
-        ));
-        if is_dir {
-            collect_all(&path, out, depth - 1);
+        let path_str = path.to_string_lossy();
+        if path_str.contains('\u{FFFD}') {
+            eprintln!("[keynova] skipping non-UTF-8 file path: {:?}", path);
+            continue;
+        }
+        out.push((name.to_string(), path_str.into_owned(), is_dir));
+        // visited.insert returns true only if the path is newly inserted,
+        // preventing re-traversal of directories already covered by another root.
+        if is_dir && visited.insert(path.clone()) {
+            collect_all(&path, out, depth - 1, visited);
         }
     }
 }
@@ -392,25 +412,26 @@ fn user_search_dirs() -> Vec<(std::path::PathBuf, usize)> {
 
         // OS-standardised user dirs: names are fixed by Windows shell APIs.
         for sub in &["Desktop", "Downloads", "Documents", "Pictures", "Music", "Videos"] {
-            add(home.join(sub), 4);
+            add(home.join(sub), 6);
         }
 
         // OneDrive: read the path that the sync client writes to env vars.
         // Works regardless of the folder's display name or relocated root.
         for key in &["OneDrive", "OneDriveConsumer", "OneDriveCommercial"] {
             if let Ok(value) = std::env::var(key) {
-                add(std::path::PathBuf::from(value), 4);
+                add(std::path::PathBuf::from(value), 6);
             }
         }
 
         // Dropbox: read the canonical path from its own config file.
         // info.json is the authoritative source; the folder name is irrelevant.
         for p in dropbox_paths() {
-            add(std::path::PathBuf::from(p), 4);
+            add(std::path::PathBuf::from(p), 6);
         }
 
-        // Home at shallow depth as a catch-all for anything not covered above.
-        add(home, 2);
+        // Home at same depth as a catch-all for non-standard subdirectories
+        // (e.g. ~/Projects, ~/code) not listed above.
+        add(home, 6);
     }
 
     dirs.extend(global_drive_dirs());
@@ -479,7 +500,7 @@ fn global_drive_dirs() -> Vec<(std::path::PathBuf, usize)> {
     for letter in b'C'..=b'Z' {
         let path = std::path::PathBuf::from(format!("{}:\\", letter as char));
         if path.exists() {
-            dirs.push((path, 3));
+            dirs.push((path, 4));
         }
     }
     dirs
@@ -713,12 +734,20 @@ pub fn everything_search(query: &str, max_results: u32) -> Vec<(String, String, 
                 continue;
             }
             let full_path = String::from_utf16_lossy(&buf[..len as usize]).to_string();
+            if full_path.contains('\u{FFFD}') {
+                eprintln!("[keynova] skipping Everything result with invalid UTF-16 path at index {i}");
+                continue;
+            }
 
             let name_ptr = (fns.get_file_name_w)(i);
             if name_ptr.is_null() {
                 continue;
             }
             let name = read_wstr(name_ptr);
+            if name.contains('\u{FFFD}') {
+                eprintln!("[keynova] skipping Everything result with invalid UTF-16 name at index {i}");
+                continue;
+            }
             let is_folder = (fns.is_folder_result)(i) != 0;
             results.push((name, full_path, is_folder));
         }

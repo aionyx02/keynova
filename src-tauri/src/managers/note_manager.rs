@@ -20,10 +20,7 @@ impl NoteManager {
     pub fn new(storage_dir: Option<String>) -> Self {
         let dir = match storage_dir.filter(|s| !s.is_empty()) {
             Some(p) => PathBuf::from(p),
-            None => {
-                let base = std::env::var("APPDATA").unwrap_or_else(|_| ".".into());
-                PathBuf::from(base).join("Keynova").join("notes")
-            }
+            None => crate::platform_dirs::keynova_data_dir().join("notes"),
         };
         let _ = std::fs::create_dir_all(&dir);
         Self {
@@ -90,12 +87,14 @@ impl NoteManager {
 
     /// 讀取筆記內容。
     pub fn get(&self, name: &str) -> Result<String, String> {
+        validate_note_name(name)?;
         let path = self.note_path(name);
         std::fs::read_to_string(&path).map_err(|e| format!("{}: {e}", path.display()))
     }
 
     /// 建立新筆記（名稱已存在時回傳錯誤）。
     pub fn create(&self, name: &str) -> Result<(), String> {
+        validate_note_name(name)?;
         let path = self.note_path(name);
         if path.exists() {
             return Err(format!("note '{}' already exists", name));
@@ -105,6 +104,7 @@ impl NoteManager {
 
     /// 儲存筆記內容（自動建立）。
     pub fn save(&self, name: &str, content: &str) -> Result<(), String> {
+        validate_note_name(name)?;
         let path = self.note_path(name);
         self.create_parent_dirs_for_file(&path)?;
         std::fs::write(&path, content).map_err(|e| e.to_string())
@@ -112,6 +112,7 @@ impl NoteManager {
 
     /// 刪除筆記。
     pub fn delete(&self, name: &str) -> Result<(), String> {
+        validate_note_name(name)?;
         let path = self.note_path(name);
         if !path.exists() {
             return Err(format!("note '{}' not found", name));
@@ -121,6 +122,8 @@ impl NoteManager {
 
     /// 重新命名筆記。
     pub fn rename(&self, old_name: &str, new_name: &str) -> Result<(), String> {
+        validate_note_name(old_name)?;
+        validate_note_name(new_name)?;
         let old = self.note_path(old_name);
         let new = self.note_path(new_name);
         if !old.exists() {
@@ -147,6 +150,24 @@ fn sanitize_name(name: &str) -> String {
         .replace(' ', "_")
 }
 
+fn validate_note_name(name: &str) -> Result<(), String> {
+    let safe = sanitize_name(name);
+    if safe.is_empty() {
+        return Err("note name cannot be empty".into());
+    }
+    let upper = safe.to_ascii_uppercase();
+    const RESERVED: &[&str] = &["CON", "PRN", "AUX", "NUL"];
+    if RESERVED.contains(&upper.as_str()) {
+        return Err(format!("'{safe}' is a reserved name"));
+    }
+    for prefix in ["COM", "LPT"] {
+        if upper.len() == 4 && upper.starts_with(prefix) && upper.as_bytes()[3].is_ascii_digit() {
+            return Err(format!("'{safe}' is a reserved name"));
+        }
+    }
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -156,5 +177,33 @@ mod tests {
         assert_eq!(sanitize_name("my note"), "my_note");
         assert_eq!(sanitize_name("a/b\\c"), "a_b_c");
         assert_eq!(sanitize_name("hello-world_123"), "hello-world_123");
+    }
+
+    #[test]
+    fn validate_empty_names_rejected() {
+        // These sanitize to "" (empty string → Err)
+        assert!(validate_note_name("").is_err());
+        assert!(validate_note_name("   ").is_err());
+        // Symbols sanitize to underscores ("___"), which is non-empty and accepted
+        assert!(validate_note_name("!!!").is_ok());
+    }
+
+    #[test]
+    fn validate_reserved_names_rejected() {
+        for name in &["CON", "con", "Con", "PRN", "AUX", "NUL"] {
+            assert!(validate_note_name(name).is_err(), "{name} should be rejected");
+        }
+        for name in &["COM1", "com9", "LPT1", "lpt3"] {
+            assert!(validate_note_name(name).is_err(), "{name} should be rejected");
+        }
+    }
+
+    #[test]
+    fn validate_valid_names_accepted() {
+        assert!(validate_note_name("my note").is_ok());
+        assert!(validate_note_name("hello-world_123").is_ok());
+        assert!(validate_note_name("CONSOLE").is_ok());
+        assert!(validate_note_name("COM10").is_ok());
+        assert!(validate_note_name("lpt").is_ok());
     }
 }
