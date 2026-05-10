@@ -74,6 +74,7 @@ pub struct AgentHandler {
     builtin_registry: Arc<Mutex<BuiltinCommandRegistry>>,
     model_manager: Arc<ModelManager>,
     knowledge_store: KnowledgeStoreHandle,
+    tantivy_index_dir: PathBuf,
 }
 
 pub struct AgentHandlerDeps {
@@ -85,6 +86,7 @@ pub struct AgentHandlerDeps {
     pub builtin_registry: Arc<Mutex<BuiltinCommandRegistry>>,
     pub model_manager: Arc<ModelManager>,
     pub knowledge_store: KnowledgeStoreHandle,
+    pub tantivy_index_dir: PathBuf,
 }
 
 impl AgentHandler {
@@ -98,6 +100,7 @@ impl AgentHandler {
             builtin_registry: deps.builtin_registry,
             model_manager: deps.model_manager,
             knowledge_store: deps.knowledge_store,
+            tantivy_index_dir: deps.tantivy_index_dir,
         }
     }
 }
@@ -906,7 +909,7 @@ impl AgentHandler {
 
     fn answer_filesystem_search(&self, prompt: &str, roots: &[PathBuf]) -> Option<String> {
         let query = extract_filesystem_search_query(prompt)?;
-        let outcome = search_system_index(&query, roots, 20);
+        let outcome = search_system_index(&query, roots, 20, Some(&self.tantivy_index_dir));
         Some(format_system_index_search_answer(&query, &outcome))
     }
 
@@ -953,6 +956,7 @@ impl AgentHandler {
             query,
             &self.filesystem_search_roots_for_prompt(query),
             limit,
+            Some(&self.tantivy_index_dir),
         )
         .hits
         .into_iter()
@@ -1234,6 +1238,7 @@ struct ReactDispatchState {
     model_manager: Arc<ModelManager>,
     #[allow(dead_code)]
     knowledge_store: KnowledgeStoreHandle,
+    tantivy_index_dir: PathBuf,
 }
 
 impl ReactDispatchState {
@@ -1277,7 +1282,7 @@ impl ReactDispatchState {
             })
             .unwrap_or_else(|| self.default_search_roots());
 
-        let outcome = search_system_index(&query, &roots, limit.max(1));
+        let outcome = search_system_index(&query, &roots, limit.max(1), Some(&self.tantivy_index_dir));
         let sources: Vec<Value> = outcome
             .hits
             .into_iter()
@@ -1457,6 +1462,7 @@ impl AgentHandler {
             builtin_registry: Arc::clone(&self.builtin_registry),
             model_manager: Arc::clone(&self.model_manager),
             knowledge_store: self.knowledge_store.clone(),
+            tantivy_index_dir: self.tantivy_index_dir.clone(),
         });
         Arc::new(move |name: &str, args: &Value| state.dispatch(name, args))
     }

@@ -214,6 +214,13 @@ impl AppState {
             Arc::clone(&translation_manager),
             Arc::clone(&config_manager),
         )));
+        let agent_tantivy_dir = search_manager
+            .lock()
+            .ok()
+            .map(|m| m.tantivy_index_dir().to_path_buf())
+            .unwrap_or_else(|| {
+                crate::managers::tantivy_index::resolve_index_dir(None)
+            });
         command_router.register(Arc::new(AgentHandler::new(AgentHandlerDeps {
             runtime: Arc::clone(&agent_runtime),
             config: Arc::clone(&config_manager),
@@ -223,6 +230,7 @@ impl AppState {
             builtin_registry: Arc::clone(&builtin_registry),
             model_manager: Arc::clone(&model_manager),
             knowledge_store: knowledge_store.clone(),
+            tantivy_index_dir: agent_tantivy_dir,
         })));
         command_router.register(Arc::new(SystemMonitoringHandler::new(Arc::new(
             event_bus.clone(),
