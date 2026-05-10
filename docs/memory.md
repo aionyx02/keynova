@@ -63,9 +63,9 @@
 
 ## 當前狀態
 
-- **進度**：Phase 5 進行中；5.1.A、5.1.B、5.8、5.2.A、5.2.B、5.3.A~C、5.4、5.5.A1+A2+B1+A3+A4+B2+B3+C+E、5.11.A~D 均已實作並 commit（Phase-5 branch）。Phase 6 架構設計完成（7 個新功能需求）。
-- **上次完成**：Phase 6.6 LazyVim portable Neovim — `portable_nvim_manager.rs`（detect_nvim/download_nvim/reqwest blocking progress）；`handlers/nvim.rs`（nvim.detect/nvim.download）；`NvimDownloadPanel.tsx`（progress bar、error/retry、done → close）；`builtin_cmd.rs` nvim 未找到改回傳 `Panel("nvim_download")`；PanelRegistry 註冊；cargo check + tsc --noEmit 通過。
-- **下一步**：Phase 5.5.H ReAct 手動驗收；或 Phase 6.7.C Manager lazy init；或 Phase 5.6 Agent quality tests。
+- **進度**：Phase 5 & 6 全部完成並 merge 至 main。開始技術債重構階段（TD.1~TD.5），依據 `keynova_technical_debt_report.docx` v1.0。
+- **上次完成**：docs/tasks.md 壓縮 750→250 行（67%）；已完成基線摺疊為摘要，TD.1~TD.5 待辦細節完整保留。
+- **下一步**：TD.5.A（npm run verify script）→ TD.1.A（src/ipc/client.ts 統一 IPC）→ TD.1.B（ESLint no-restricted-imports）。
 
 ## 已確認的技術選擇
 
@@ -102,18 +102,17 @@
 - Phase 4 foundation + Agent runtime + 搜尋串流/Tantivy/Plugin/Automation 全完成後 merge 進 main（2026-05-06 ~ 05-08）
 - Phase 5 開始：tasks 整理→5.1~5.8→5.2.A/B→5.3.A~C→5.4→5.5.A1~C（2026-05-08）：search diagnostics、config paths、SetupCard、ReAct loop 骨架到 offline fallback 分支；128 tests on Phase-5
 - 5.5.E + 5.11.A~D（2026-05-09）：ReactLoopConfig.audit_log；maybe_audit()；10 audit events；extract_quoted fix；TOOL_* 常數；resolve_readable_path + looks_sensitive_path；agent.rs→6 子模組；AgentError enum；ToolPermission gate；WebSearchProvider trait；135 tests
+- Phase 6.7A+B + 5.5.F~G（2026-05-10）：Tantivy writer buffer 15MB + explicit drop；AppManager 回傳 &[AppInfo]；ReactStep timeline UI + regression tests
 
 ## Session 交接紀錄（最近 5 筆）
 
-| 日期 | 完成事項 | 遺留問題 |
+| 日期 | 完成事項 | 遺留問題或注意事項 |
 |------|----------|----------|
-| 2026-05-10 | Phase 6.2 /system_monitoring：SystemMonitoringHandler(snapshot/stream_start/stream_stop)、SysMonitorCommand、SystemMonitoringPanel.tsx(CPU/RAM/Disk/Network/Process)、PanelRegistry；159 tests + clippy + lint 通過 | 需真實 app 驗收；Process table 排序切換尚未實作 |
-| 2026-05-10 | Phase 6.3 功能開關：features.ai/agent 預設 false；FEATURE_GUARDS in cmd.run；ai.chat/agent.start guards；SettingPanel toggle UI；157 tests + clippy + lint 通過 | 需真實 app 驗收 /ai disable 提示 |
-| 2026-05-10 | Phase 6.5 搜尋編碼修復：windows.rs 3 處 + tantivy_index.rs + CommandPalette.tsx hasEncodingError()；157 tests + lint 通過 | 需真實 app 驗收中文/日文路徑不出現方塊字 |
-| 2026-05-10 | 翻譯自動觸發 bug（React Strict Mode ref guard）+ crash fix（tokio::spawn→std::thread+per-thread rt）+ 35s timeout；6.4 SUPPORTED_LANGS 108 語言+LangPicker；6.1 ModelRemove panel | 需真實 app 驗收翻譯/ai 各功能 |
-| 2026-05-09 | 6.7A/B tantivy 50MB→15MB；搜尋深度 6+visited；5.5.F~G ReactStep UI+tests；5.11.A~D agent拆模組+AgentError+ToolPermission+WebSearchProvider；Phase 6 架構設計 | 5.5.H / ADR-027 解封評估待辦 |
+| 2026-05-10 | docs/tasks.md 壓縮 750→250行；Plan A：CLAUDE.md 化簡、docs/decisions.md 新建、根重複文件移除；docs/ 成為唯一事實來源 | 下一步：TD.5.A verify script → TD.1.A ipc/client.ts |
+| 2026-05-10 | DOCS.1~DOCS.12 全部完成：docs/完整重組，28個ADR(0000-template+0001~0027)、architecture/testing/security/CLAUDE.md、docs/tasks.md、docs/memory.md遷移；CLAUDE.md路徑全更新 | 下一步：TD.5.A verify script → TD.1.A ipc/client.ts |
+| 2026-05-10 | tasks.md 依 keynova_technical_debt_report 重寫：「功能不變」守則、已完成基線、TD.1~TD.5 共 14 子任務；Phase-5 branch merge dev→main | 開始 TD 階段，下一步 TD.5.A verify script |
 | 2026-05-10 | Phase 6.6 LazyVim portable Neovim：portable_nvim_manager(detect/download/reqwest-progress)、handlers/nvim(detect/download)、NvimDownloadPanel.tsx(progress/retry/done)、builtin_cmd Panel("nvim_download")、PanelRegistry；cargo+tsc clean | config 覆蓋路徑（notes.nvim_bin）未實作 |
-| 2026-05-09 | Phase 5 主線（5.1~5.8/5.2~5.4/5.5.A~E/5.11.A~D）全部完成，merge Phase-5 branch；搜尋串流/Tantivy/Plugin/Automation/Agent runtime/Knowledge Store 已完成 | Phase 6 功能群待續 |
+| 2026-05-10 | Phase 6.2 /system_monitoring + 6.3 feature toggles + 6.5 編碼修復 + 6.4 /tr 108語言 + 6.1 ModelRemove + 翻譯 bug 修復（Strict Mode/tokio） | 各功能需真實 app 驗收 |
 
 ## 2026-05-06 架構邊界與修正定位索引
 
