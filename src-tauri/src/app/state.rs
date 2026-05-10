@@ -14,8 +14,9 @@ use crate::handlers::{
     automation::AutomationHandler,
     builtin_cmd::{
         AiCommand, BuiltinCmdHandler, CalCommand, DownCommand, HelpCommand, HistoryCommand,
-        ModelDownloadCommand, ModelListCommand, NoteCommand, RebuildSearchIndexCommand,
-        ReloadCommand, SettingCommand, SysCtlCommand, TrCommand,
+        ModelDownloadCommand, ModelListCommand, ModelRemoveCommand, NoteCommand,
+        RebuildSearchIndexCommand, ReloadCommand, SettingCommand, SysCtlCommand,
+        SysMonitorCommand, TrCommand,
     },
     calculator::CalculatorHandler,
     history::HistoryHandler,
@@ -28,6 +29,8 @@ use crate::handlers::{
     search::{SearchHandler, SearchHandlerDeps},
     setting::SettingHandler,
     system_control::SystemControlHandler,
+    nvim::NvimHandler,
+    system_monitoring::SystemMonitoringHandler,
     terminal::TerminalHandler,
     translation::TranslationHandler,
     workspace::WorkspaceHandler,
@@ -141,6 +144,10 @@ impl AppState {
             reg.register(Box::new(AiCommand));
             reg.register(Box::new(ModelDownloadCommand));
             reg.register(Box::new(ModelListCommand));
+            reg.register(Box::new(ModelRemoveCommand::new(
+                Arc::clone(&model_manager),
+                Arc::clone(&config_manager),
+            )));
             reg.register(Box::new(NoteCommand::new(
                 Arc::clone(&note_manager),
                 Arc::clone(&config_manager),
@@ -148,6 +155,7 @@ impl AppState {
             reg.register(Box::new(CalCommand));
             reg.register(Box::new(HistoryCommand));
             reg.register(Box::new(SysCtlCommand));
+            reg.register(Box::new(SysMonitorCommand));
             reg.register(Box::new(RebuildSearchIndexCommand));
         }
 
@@ -201,11 +209,19 @@ impl AppState {
             Arc::clone(&ai_manager),
             Arc::clone(&config_manager),
             Arc::clone(&workspace_manager),
+            Arc::clone(&model_manager),
         )));
         command_router.register(Arc::new(TranslationHandler::new(
             Arc::clone(&translation_manager),
             Arc::clone(&config_manager),
         )));
+        let agent_tantivy_dir = search_manager
+            .lock()
+            .ok()
+            .map(|m| m.tantivy_index_dir().to_path_buf())
+            .unwrap_or_else(|| {
+                crate::managers::tantivy_index::resolve_index_dir(None)
+            });
         command_router.register(Arc::new(AgentHandler::new(AgentHandlerDeps {
             runtime: Arc::clone(&agent_runtime),
             config: Arc::clone(&config_manager),
@@ -215,7 +231,12 @@ impl AppState {
             builtin_registry: Arc::clone(&builtin_registry),
             model_manager: Arc::clone(&model_manager),
             knowledge_store: knowledge_store.clone(),
+            tantivy_index_dir: agent_tantivy_dir,
         })));
+        command_router.register(Arc::new(SystemMonitoringHandler::new(Arc::new(
+            event_bus.clone(),
+        ))));
+        command_router.register(Arc::new(NvimHandler::new(Arc::new(event_bus.clone()))));
         command_router.register(Arc::new(AutomationHandler));
         command_router.register(Arc::new(PluginHandler));
 

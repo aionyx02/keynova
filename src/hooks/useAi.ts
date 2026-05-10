@@ -2,6 +2,16 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { listen } from "@tauri-apps/api/event";
 import { invoke } from "@tauri-apps/api/core";
 
+export interface AiSetupStatus {
+  needs_setup: boolean;
+  provider: string;
+  target_model: string;
+  ollama_reachable: boolean;
+  model_available: boolean;
+  recommended_model: string;
+  reason: string;
+}
+
 export interface AiMessage {
   role: "user" | "assistant";
   content: string;
@@ -80,5 +90,14 @@ export function useAi() {
     setMessages([]);
   }, []);
 
-  return { messages, loading, send, clearHistory };
+  const checkSetup = useCallback(async (): Promise<AiSetupStatus | null> => {
+    if (!window.__TAURI_INTERNALS__) return null;
+    try {
+      return await ipcDispatch<AiSetupStatus>("ai.check_setup");
+    } catch {
+      return null;
+    }
+  }, []);
+
+  return { messages, loading, send, clearHistory, checkSetup };
 }

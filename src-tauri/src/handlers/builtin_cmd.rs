@@ -7,7 +7,9 @@ use uuid::Uuid;
 use crate::core::builtin_command_registry::BuiltinCommand;
 use crate::core::config_manager::ConfigManager;
 use crate::core::{BuiltinCommandRegistry, CommandHandler, CommandResult};
-use crate::managers::{note_manager::NoteManager, search_manager::SearchManager};
+use crate::managers::{
+    model_manager::ModelManager, note_manager::NoteManager, search_manager::SearchManager,
+};
 use crate::models::builtin_command::{BuiltinCommandResult, CommandUiType};
 use crate::models::terminal::{TerminalEnvVar, TerminalLaunchSpec};
 
@@ -148,6 +150,54 @@ impl BuiltinCommand for ModelListCommand {
     }
 }
 
+pub struct ModelRemoveCommand {
+    manager: Arc<ModelManager>,
+    config: Arc<Mutex<ConfigManager>>,
+}
+
+impl ModelRemoveCommand {
+    pub fn new(manager: Arc<ModelManager>, config: Arc<Mutex<ConfigManager>>) -> Self {
+        Self { manager, config }
+    }
+
+    fn ollama_url(&self) -> String {
+        self.config
+            .lock()
+            .ok()
+            .and_then(|c| c.get("ollama.base_url"))
+            .unwrap_or_else(|| "http://localhost:11434".into())
+    }
+}
+
+impl BuiltinCommand for ModelRemoveCommand {
+    fn name(&self) -> &'static str {
+        "model_remove"
+    }
+    fn description(&self) -> &'static str {
+        "Remove a local Ollama model"
+    }
+    fn execute(&self, args: &str) -> BuiltinCommandResult {
+        let name = args.trim();
+        if name.is_empty() {
+            return BuiltinCommandResult {
+                text: String::new(),
+                ui_type: CommandUiType::Panel("model_remove".into()),
+            };
+        }
+        let base_url = self.ollama_url();
+        match self.manager.delete(&base_url, name) {
+            Ok(()) => BuiltinCommandResult {
+                text: format!("已刪除模型 {name}"),
+                ui_type: CommandUiType::Inline,
+            },
+            Err(e) => BuiltinCommandResult {
+                text: format!("刪除失敗: {e}"),
+                ui_type: CommandUiType::Inline,
+            },
+        }
+    }
+}
+
 pub struct NoteCommand {
     manager: Arc<Mutex<NoteManager>>,
     config: Arc<Mutex<ConfigManager>>,
@@ -227,10 +277,10 @@ fn run_note_command(
     };
 
     let Some(program) = resolve_editor_command(configured_command, command_finder) else {
-        return inline_result(
-            "Neovim was not found. Install nvim, set notes.lazyvim_command, or use /note for the built-in note editor."
-                .to_string(),
-        );
+        return BuiltinCommandResult {
+            text: String::new(),
+            ui_type: CommandUiType::Panel("nvim_download".into()),
+        };
     };
 
     let lazyvim_config = match resolve_lazyvim_config(configured_config_dir) {
@@ -724,6 +774,23 @@ impl BuiltinCommand for SysCtlCommand {
     }
 }
 
+pub struct SysMonitorCommand;
+
+impl BuiltinCommand for SysMonitorCommand {
+    fn name(&self) -> &'static str {
+        "system_monitoring"
+    }
+    fn description(&self) -> &'static str {
+        "CPU, RAM, Disk, Network & Process monitor"
+    }
+    fn execute(&self, _args: &str) -> BuiltinCommandResult {
+        BuiltinCommandResult {
+            text: String::new(),
+            ui_type: CommandUiType::Panel("system_monitoring".into()),
+        }
+    }
+}
+
 pub struct DownCommand;
 
 impl BuiltinCommand for DownCommand {
@@ -803,6 +870,34 @@ impl CommandHandler for BuiltinCmdHandler {
                     .and_then(Value::as_str)
                     .unwrap_or("")
                     .trim();
+
+                // Feature guard: disabled features return a friendly message instead of executing.
+                const FEATURE_GUARDS: &[(&str, &str)] = &[
+                    ("ai", "features.ai"),
+                    ("tr", "features.translation"),
+                    ("note", "features.notes"),
+                    ("history", "features.history"),
+                    ("cal", "features.calculator"),
+                ];
+                for &(cmd_name, feature_key) in FEATURE_GUARDS {
+                    if name == cmd_name {
+                        let cfg = self.config.lock().map_err(|e| e.to_string())?;
+                        let enabled = cfg
+                            .get(feature_key)
+                            .as_deref()
+                            .map(|v| !v.eq_ignore_ascii_case("false"))
+                            .unwrap_or(true);
+                        if !enabled {
+                            return Ok(json!(BuiltinCommandResult {
+                                text: format!(
+                                    "/{name} 功能已停用。請前往 /setting → Features 開啟。"
+                                ),
+                                ui_type: CommandUiType::Inline,
+                            }));
+                        }
+                        break;
+                    }
+                }
 
                 if name == "setting" && !args.is_empty() {
                     let mut parts = args.splitn(2, ' ');

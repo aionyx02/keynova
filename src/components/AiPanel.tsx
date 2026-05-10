@@ -5,8 +5,10 @@ import type {
   AgentFilteredSource,
   AgentRun,
   GroundingSource,
+  ReactStep,
 } from "../hooks/useAgent";
 import { useAi } from "../hooks/useAi";
+import type { AiSetupStatus } from "../hooks/useAi";
 import { useI18n } from "../i18n/useI18n";
 import type { PanelProps } from "../types/panel";
 
@@ -80,12 +82,160 @@ function FilteredSourceList({ sources }: { sources: AgentFilteredSource[] }) {
   );
 }
 
+function stepStatusBadge(status: string) {
+  switch (status) {
+    case "executing":
+      return "animate-pulse bg-blue-500/30 text-blue-200";
+    case "waiting_approval":
+      return "animate-pulse bg-amber-500/30 text-amber-200";
+    case "approved_executed":
+    case "executed":
+      return "bg-emerald-500/20 text-emerald-300";
+    case "approval_rejected":
+    case "approval_timeout":
+      return "bg-red-500/20 text-red-300";
+    case "final":
+      return "bg-emerald-600/30 text-emerald-200 font-semibold";
+    default:
+      return "bg-gray-700/30 text-gray-400";
+  }
+}
+
+function ReactStepTimeline({ steps }: { steps: ReactStep[] }) {
+  if (steps.length === 0) return null;
+  const obsCount = steps.filter((s) => s.observation_preview).length;
+  return (
+    <div className="mt-3 space-y-1 rounded bg-gray-900/40 px-2 py-2">
+      <div className="mb-1 flex items-center gap-2">
+        <span className="text-[10px] uppercase text-gray-500">ReAct steps</span>
+        {obsCount > 0 && (
+          <span className="rounded bg-gray-800 px-1.5 py-0.5 text-[10px] text-gray-400">
+            {obsCount} obs
+          </span>
+        )}
+      </div>
+      {steps.map((s, i) => (
+        <div key={i} className="flex items-center gap-2 text-[11px]">
+          <span className="w-4 shrink-0 text-right text-[10px] text-gray-600">{s.step + 1}</span>
+          <span
+            className={`shrink-0 rounded px-1.5 py-0.5 text-[10px] uppercase ${stepStatusBadge(s.status)}`}
+          >
+            {s.status.replace(/_/g, " ")}
+          </span>
+          <span className="min-w-0 flex-1 truncate text-gray-400">
+            {s.tool_name ?? "(thinking)"}
+          </span>
+          {s.observation_preview && (
+            <span className="ml-1 shrink-0 max-w-[38%] truncate text-right text-[10px] text-gray-600">
+              {s.observation_preview}
+            </span>
+          )}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function SetupCard({
+  status,
+  onDismiss,
+  onRecheck,
+}: {
+  status: AiSetupStatus;
+  onDismiss: () => void;
+  onRecheck: () => void;
+}) {
+  const isOllama = status.provider === "ollama";
+  const needsInstall = isOllama && !status.ollama_reachable;
+  const needsPull = isOllama && status.ollama_reachable && !status.model_available;
+  const recommended = status.recommended_model || "qwen2.5:7b";
+
+  return (
+    <div className="mx-auto mt-4 max-w-md rounded-lg border border-amber-500/30 bg-amber-500/5 p-4 text-sm">
+      <p className="mb-3 font-semibold text-amber-300">AI Setup Required</p>
+      {status.reason && (
+        <p className="mb-3 text-xs text-amber-200/70">{status.reason}</p>
+      )}
+
+      <ol className="space-y-3 text-gray-300">
+        {isOllama && (
+          <li className={`flex gap-2 ${!needsInstall ? "opacity-40" : ""}`}>
+            <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full border border-amber-500/50 text-[10px] font-bold text-amber-300">
+              1
+            </span>
+            <div>
+              <p className="text-xs font-medium">Install Ollama</p>
+              <a
+                href="https://ollama.com/download"
+                target="_blank"
+                rel="noreferrer"
+                className="text-[11px] text-blue-400 underline hover:text-blue-300"
+              >
+                ollama.com/download
+              </a>
+            </div>
+          </li>
+        )}
+
+        {isOllama && (
+          <li className={`flex gap-2 ${!needsPull && !needsInstall ? "opacity-40" : ""}`}>
+            <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full border border-amber-500/50 text-[10px] font-bold text-amber-300">
+              2
+            </span>
+            <div>
+              <p className="text-xs font-medium">Pull a model</p>
+              <code className="mt-0.5 block rounded bg-gray-800 px-2 py-1 text-[11px] text-green-300">
+                ollama pull {recommended}
+              </code>
+              <p className="mt-1 text-[10px] text-gray-500">
+                Recommended for your system. Smaller options: qwen2.5:1.5b, llama3.2:1b
+              </p>
+            </div>
+          </li>
+        )}
+
+        <li className="flex gap-2">
+          <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full border border-gray-600 text-[10px] font-bold text-gray-400">
+            {isOllama ? "3" : "1"}
+          </span>
+          <div>
+            <p className="text-xs font-medium text-gray-400">
+              Or switch to OpenAI / Claude
+            </p>
+            <p className="text-[11px] text-gray-500">
+              Open <span className="text-gray-300">/setting</span> and set{" "}
+              <span className="text-gray-300">ai.provider</span> and your API key.
+            </p>
+          </div>
+        </li>
+      </ol>
+
+      <div className="mt-4 flex gap-2">
+        <button
+          onClick={onRecheck}
+          className="rounded bg-amber-600/40 px-3 py-1 text-xs text-amber-200 hover:bg-amber-600/60"
+        >
+          Re-check
+        </button>
+        <button
+          onClick={onDismiss}
+          className="rounded bg-gray-700/60 px-3 py-1 text-xs text-gray-400 hover:text-gray-200"
+        >
+          Use anyway
+        </button>
+      </div>
+    </div>
+  );
+}
+
 export function AiPanel({ onClose, onRunCommandResult }: PanelProps) {
   const t = useI18n();
-  const { messages, loading, send, clearHistory } = useAi();
+  const { messages, loading, send, clearHistory, checkSetup } = useAi();
   const agent = useAgent();
   const [input, setInput] = useState("");
   const [mode, setMode] = useState<"chat" | "agent">("chat");
+  const [setupStatus, setSetupStatus] = useState<AiSetupStatus | null>(null);
+  const [setupDismissed, setSetupDismissed] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const deliveredResultRef = useRef<string | null>(null);
@@ -97,6 +247,12 @@ export function AiPanel({ onClose, onRunCommandResult }: PanelProps) {
   useEffect(() => {
     inputRef.current?.focus();
   }, []);
+
+  useEffect(() => {
+    void checkSetup().then((s) => {
+      if (s?.needs_setup) setSetupStatus(s);
+    });
+  }, [checkSetup]);
 
   useEffect(() => {
     const latestRun = agent.runs[0];
@@ -117,6 +273,16 @@ export function AiPanel({ onClose, onRunCommandResult }: PanelProps) {
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
       void handleSend();
+    }
+  }
+
+  async function handleRecheck() {
+    const s = await checkSetup();
+    if (s?.needs_setup) {
+      setSetupStatus(s);
+      setSetupDismissed(false);
+    } else {
+      setSetupStatus(null);
     }
   }
 
@@ -167,7 +333,15 @@ export function AiPanel({ onClose, onRunCommandResult }: PanelProps) {
         className="flex-1 overflow-y-auto px-4 py-2 space-y-3"
         style={{ minHeight: 560, maxHeight: 560 }}
       >
-        {mode === "chat" && messages.length === 0 && (
+        {setupStatus?.needs_setup && !setupDismissed && (
+          <SetupCard
+            status={setupStatus}
+            onDismiss={() => setSetupDismissed(true)}
+            onRecheck={() => void handleRecheck()}
+          />
+        )}
+
+        {mode === "chat" && messages.length === 0 && !setupStatus?.needs_setup && (
           <p className="text-xs text-gray-600 text-center mt-4">{t.ai.placeholder}</p>
         )}
         {mode === "chat" &&
@@ -210,6 +384,7 @@ export function AiPanel({ onClose, onRunCommandResult }: PanelProps) {
             const pendingApprovals = run.approvals.filter(
               (approval) => approval.status === "pending",
             );
+            const runReactSteps = agent.reactSteps[run.id] ?? [];
             const audit = run.prompt_audit;
             const toolCalls = run.steps.flatMap((step) =>
               step.tool_calls.map((tool) => ({ ...tool, stepTitle: step.title })),
@@ -264,8 +439,13 @@ export function AiPanel({ onClose, onRunCommandResult }: PanelProps) {
                   ))}
                 </ul>
 
+                <ReactStepTimeline steps={runReactSteps} />
+
                 {pendingApprovals.length > 0 && (
                   <div className="mt-3 space-y-2">
+                    <p className="text-[10px] uppercase text-amber-400/80">
+                      Pending approval ({pendingApprovals.length})
+                    </p>
                     {pendingApprovals.map((approval) => (
                       <div
                         key={approval.id}
@@ -275,7 +455,10 @@ export function AiPanel({ onClose, onRunCommandResult }: PanelProps) {
                           <div>
                             <p className="text-xs font-medium text-current">{approval.summary}</p>
                             <p className="text-[10px] uppercase text-current opacity-80">
-                              {approval.planned_action?.kind ?? "planned_action"} · {approval.risk}
+                              {approval.planned_action === null
+                                ? "react tool gate"
+                                : (approval.planned_action?.kind ?? "planned_action")}{" "}
+                              · {approval.risk}
                             </p>
                           </div>
                           <div className="flex gap-2">
@@ -379,7 +562,15 @@ export function AiPanel({ onClose, onRunCommandResult }: PanelProps) {
                   </details>
                 )}
 
-                {run.output && (
+                {run.status === "completed" && run.output && (
+                  <div className="mt-3 rounded border border-emerald-500/25 bg-emerald-500/5 px-3 py-2">
+                    <p className="mb-1 text-[10px] uppercase tracking-wide text-emerald-400/70">
+                      Final Answer
+                    </p>
+                    <pre className="whitespace-pre-wrap text-xs text-gray-200">{run.output}</pre>
+                  </div>
+                )}
+                {run.status !== "completed" && run.output && (
                   <pre className="mt-2 whitespace-pre-wrap text-xs text-gray-400">{run.output}</pre>
                 )}
 

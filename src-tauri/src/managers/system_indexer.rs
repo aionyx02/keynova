@@ -71,12 +71,17 @@ pub trait SystemIndexer {
     fn search(&self, query: &str, limit: usize) -> SystemSearchOutcome;
 }
 
-pub fn search_system_index(query: &str, roots: &[PathBuf], limit: usize) -> SystemSearchOutcome {
+pub fn search_system_index(
+    query: &str,
+    roots: &[PathBuf],
+    limit: usize,
+    tantivy_index_dir: Option<&std::path::Path>,
+) -> SystemSearchOutcome {
     if query.trim().is_empty() || limit == 0 {
         return unavailable("empty query");
     }
 
-    let native = native_index_search(query, limit);
+    let native = native_index_search(query, limit, tantivy_index_dir);
     if native.diagnostics.available && (!native.hits.is_empty() || roots.is_empty()) {
         return native;
     }
@@ -255,7 +260,11 @@ impl SystemIndexer for IgnoreWalkIndexer {
     }
 }
 
-fn native_index_search(query: &str, limit: usize) -> SystemSearchOutcome {
+fn native_index_search(
+    query: &str,
+    limit: usize,
+    tantivy_index_dir: Option<&std::path::Path>,
+) -> SystemSearchOutcome {
     #[cfg(target_os = "windows")]
     {
         if crate::platform::windows::check_everything() {
@@ -271,7 +280,9 @@ fn native_index_search(query: &str, limit: usize) -> SystemSearchOutcome {
             return native_outcome(SystemIndexerProvider::Everything, hits, None, None);
         }
 
-        let index_dir = crate::managers::tantivy_index::resolve_index_dir(None);
+        let index_dir = tantivy_index_dir
+            .map(PathBuf::from)
+            .unwrap_or_else(|| crate::managers::tantivy_index::resolve_index_dir(None));
         let index_count = crate::managers::tantivy_index::indexed_entries(&index_dir);
         if index_count > 0 {
             match crate::managers::tantivy_index::search(&index_dir, query, limit) {
@@ -544,7 +555,7 @@ mod tests {
 
     #[test]
     fn empty_query_returns_unavailable() {
-        let outcome = search_system_index("", &[], 10);
+        let outcome = search_system_index("", &[], 10, None);
         assert!(!outcome.diagnostics.available);
         assert!(outcome.hits.is_empty());
     }
