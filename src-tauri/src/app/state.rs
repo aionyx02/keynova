@@ -29,6 +29,7 @@ use crate::handlers::{
     search::{SearchHandler, SearchHandlerDeps},
     setting::SettingHandler,
     system_control::SystemControlHandler,
+    nvim::NvimHandler,
     system_monitoring::SystemMonitoringHandler,
     terminal::TerminalHandler,
     translation::TranslationHandler,
@@ -235,6 +236,7 @@ impl AppState {
         command_router.register(Arc::new(SystemMonitoringHandler::new(Arc::new(
             event_bus.clone(),
         ))));
+        command_router.register(Arc::new(NvimHandler::new(Arc::new(event_bus.clone()))));
         command_router.register(Arc::new(AutomationHandler));
         command_router.register(Arc::new(PluginHandler));
 

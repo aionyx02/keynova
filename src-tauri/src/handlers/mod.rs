@@ -9,6 +9,7 @@ pub mod launcher;
 pub mod model;
 pub mod mouse;
 pub mod note;
+pub mod nvim;
 pub mod plugin;
 pub mod search;
 pub mod setting;

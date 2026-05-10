@@ -277,10 +277,10 @@ fn run_note_command(
     };
 
     let Some(program) = resolve_editor_command(configured_command, command_finder) else {
-        return inline_result(
-            "Neovim was not found. Install nvim, set notes.lazyvim_command, or use /note for the built-in note editor."
-                .to_string(),
-        );
+        return BuiltinCommandResult {
+            text: String::new(),
+            ui_type: CommandUiType::Panel("nvim_download".into()),
+        };
     };
 
     let lazyvim_config = match resolve_lazyvim_config(configured_config_dir) {
