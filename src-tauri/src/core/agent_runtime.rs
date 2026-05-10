@@ -1038,7 +1038,7 @@ mod tests {
             match name {
                 "filesystem_search" => {
                     let query = args.get("query").and_then(Value::as_str).unwrap_or("");
-                    let outcome = search_system_index(query, &[root.clone()], 10);
+                    let outcome = search_system_index(query, &[root.clone()], 10, None);
                     let sources: Vec<Value> = outcome
                         .hits
                         .iter()
