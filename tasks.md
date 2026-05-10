@@ -60,15 +60,15 @@ docs/
 
 ### DOCS.1 — 建立 docs/ 骨架
 
-- [ ] 建立 `docs/` 目錄（新建一個空的 `.gitkeep` 或直接建子目錄）
-- [ ] 建立 `docs/adr/` 目錄
-- [ ] 驗收：`docs/` 與 `docs/adr/` 目錄存在
+- [x] 建立 `docs/` 目錄（新建一個空的 `.gitkeep` 或直接建子目錄）
+- [x] 建立 `docs/adr/` 目錄
+- [x] 驗收：`docs/` 與 `docs/adr/` 目錄存在
 
 ### DOCS.2 — 新建 `docs/adr/0000-template.md`
 
 內容：docx §12「ADR 標準模板」的完整 9 節格式，含所有說明文字與欄位定義。
 
-- [ ] 建立 `docs/adr/0000-template.md`，包含：
+- [x] 建立 `docs/adr/0000-template.md`，包含：
   - 標題格式、狀態、日期、決策者、相關文件欄位
   - § 1 Context（技術背景）— 需回答現在問題、資料規模、不處理的風險
   - § 2 Constraints（系統限制與邊界）— 平台、runtime、記憶體、安全、網路限制
@@ -84,7 +84,7 @@ docs/
 
 內容：`ai_agent_adr_development_rules_v2.docx` **全文**，轉為 Markdown 格式，保留所有 23 節。
 
-- [ ] 建立 `docs/claude.md`，包含：
+- [x] 建立 `docs/claude.md`，包含：
   - § 0 專案文檔結構（docs/ 目錄表）
   - § 1 核心原則（安全性 > 資料正確性 > ... > 程式碼簡潔）
   - § 2 正式程式碼的定義（表格：通常視為正式 vs 通常不視為正式）
@@ -114,7 +114,7 @@ docs/
 
 內容：從現有文件萃取系統整體架構、模組邊界、資料流、IPC、I/O、儲存設計。
 
-- [ ] 建立 `docs/architecture.md`，包含：
+- [x] 建立 `docs/architecture.md`，包含：
   - **系統概覽**：6 層架構（Presentation / IPC Bridge / Core Framework / Business Logic / Indexer / Platform）
   - **模組邊界**：前端 src/ 結構、後端 src-tauri/src/ 結構
   - **資料流**：User Input → CommandPalette → IPC（cmd_dispatch）→ CommandRouter → Handler → Manager → EventBus → Frontend
@@ -129,7 +129,7 @@ docs/
 
 內容：測試策略、指令、覆蓋要求。
 
-- [ ] 建立 `docs/testing.md`，包含：
+- [x] 建立 `docs/testing.md`，包含：
   - **測試指令**：`cargo test`、`cargo clippy -- -D warnings`、`npm run lint`、`npm run build`、`npm run test`（Vitest，計畫中）、`npm run verify`（計畫中）
   - **現有測試概況**：157+ Rust unit/integration tests；0 前端 Vitest（TD.1.D 計畫補）
   - **測試類型與使用時機**（表格）：unit / integration / regression / security / performance / migration
@@ -143,7 +143,7 @@ docs/
 
 內容：安全邊界、權限模型、敏感資料處理原則。
 
-- [ ] 建立 `docs/security.md`，包含：
+- [x] 建立 `docs/security.md`，包含：
   - **安全優先順序**：安全性 > 資料正確性 > 可回滾性 > 可測試性 > 效能
   - **能力邊界（Agent）**：讀取 OK（keynova.search、filesystem.read 在 workspace root 內）；寫入 / shell 需 approval；generic shell 需 sandbox（ADR-027 blocked）
   - **檔案路徑處理規則**：不信任使用者 path、必須處理 `..`/symlink/absolute path/Windows drive prefix/Unicode normalization、避免 path traversal
@@ -188,9 +188,9 @@ docs/
 | `0026-provider-driven-react-loop.md` | ADR-026 | Provider-driven ReAct vs local heuristics |
 | `0027-generic-shell-sandbox.md` | ADR-027 | Job Object/bwrap/sandbox-exec + 解封條件 |
 
-- [ ] 建立所有 27 個 ADR 檔案（可分批：0001-0010、0011-0020、0021-0027）
-- [ ] 每個檔案使用 9 節完整格式，填入現有 `decisions.md` 已有的資訊
-- [ ] 缺少的節（如 Implementation Plan、Rollback Plan、Validation Plan）對已實作的 ADR 標記「已實作，無需回滾」或填寫實際驗收紀錄
+- [x] 建立所有 27 個 ADR 檔案（0001-0010、0011-0020、0021-0027）
+- [x] 每個檔案使用 9 節完整格式，填入現有 `decisions.md` 已有的資訊
+- [x] 缺少的節（Implementation Plan、Rollback Plan、Validation Plan）對已實作的 ADR 填寫驗收紀錄
 
 ### DOCS.8 — 將 `decisions.md` 改為 ADR Index
 
@@ -199,7 +199,7 @@ docs/
 - 各 ADR 的一行摘要與連結
 - 新建 ADR 的命名規則與標準回覆格式
 
-- [ ] 改寫 `decisions.md` 為精簡 index（< 100 行）
+- [x] 改寫 `decisions.md` 為精簡 index（< 100 行）
 
 ### DOCS.9 — 遷移 `tasks.md` → `docs/tasks.md`
 
