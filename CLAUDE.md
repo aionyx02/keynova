@@ -6,10 +6,10 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 每次開啟新 session，**必須先執行以下三步，再做任何事**：
 
-1. 讀取 `memory.md` — 確認目前進度、上次完成事項、下一步
-2. 讀取 `tasks.md` — 確認當前未完成任務與阻塞項目
+1. 讀取 `docs/memory.md` — 確認目前進度、上次完成事項、下一步
+2. 讀取 `docs/tasks.md` — 確認當前未完成任務與阻塞項目
 3. 用一句話告訴使用者：「目前進度：[進度]，上次完成：[事項]，今天預計繼續：[下一步]，是否確認？」
-4. 請讀取 'skill.md' 以了解你的能力範圍和限制。
+4. 請讀取 `docs/CLAUDE.md` 以了解 AI agent 開發守則與 ADR 流程。
 
 取得使用者確認後才開始工作。
 
@@ -17,24 +17,27 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 完成任何任務後，**在回覆使用者之前**，必須自動更新以下文件：
 
-### `tasks.md`
+### `docs/tasks.md`
 - 將剛完成的項目打 `[x]`
 - 若產生新的子任務，補充至對應 Phase
+- 同步更新根目錄 `tasks.md`（兩個檔案內容保持一致）
 
-### `memory.md`
+### `docs/memory.md`
 - 更新「上次完成」為剛完成的事項
 - 更新「下一步」為下一個待辦
 - 在「Session 交接紀錄（最近 5 筆）」表格新增一行（格式：`| 今日日期 | 完成事項 | 遺留問題或注意事項 |`）
 - **壓縮檢查**：若「Session 交接紀錄」筆數 ≥ 6，將最舊的若干筆合併摘要至「歷史摘要（已壓縮）」區塊，交接紀錄只保留最新 5 筆
+- 同步更新根目錄 `memory.md`（兩個檔案內容保持一致）
 
-### `decisions.md`（有新決策時才更新）
-- 若本次工作中確認了新的技術選擇或架構決策，補充對應 ADR
-- 若既有 ADR 內容有變動（superseded / rejected），更新其狀態
+### `decisions.md` / `docs/adr/`（有新決策時才更新）
+- 若本次工作中確認了新的技術選擇或架構決策，建立 `docs/adr/NNNN-title.md`（9 節格式）
+- 在 `decisions.md` index 中新增一行
+- 若既有 ADR 內容有變動（superseded / rejected），更新其狀態與對應 ADR 檔案
 
-### 'skill.md'（有新技能或限制時才更新）
-- 若本次工作中確認了新的技能或限制，補充對應說明
+### `docs/CLAUDE.md`（有新 AI 行為規則或限制時才更新）
+- 若本次工作中確認了新的 AI 操作守則，補充至 `docs/CLAUDE.md` 對應章節
 
-> 四個文件更新完畢後，才向使用者報告結果。
+> 文件更新完畢後，才向使用者報告結果。
 
 ## Project Overview
 
@@ -145,12 +148,19 @@ src/
 
 ## Documentation
 
-All design specifications live in `files/`:
-- `全鍵控制系統_程序代碼架構_v2.md` — complete code architecture, 40+ RPC interfaces, directory structure
-- `Keynova_項目計劃書_v2.0.md` — development timeline, KPIs, risk assessment
-- `README.md` — features, hotkeys, architecture overview
-- `QUICKSTART.md` — installation and usage
-- `文檔索引.md` — documentation index with role-based navigation
+Engineering documents live in `docs/`:
+
+| 文件 | 用途 |
+|------|------|
+| `docs/CLAUDE.md` | AI agent 開發守則與 ADR 流程（完整 23 節） |
+| `docs/architecture.md` | 系統架構、模組邊界、資料流、IPC、儲存設計 |
+| `docs/tasks.md` | 任務拆解、目前進度、待辦事項（鏡像根目錄 tasks.md） |
+| `docs/memory.md` | 長期上下文、歷史決策摘要（鏡像根目錄 memory.md） |
+| `docs/testing.md` | 測試策略、指令、覆蓋要求 |
+| `docs/security.md` | 安全邊界、權限模型、敏感資料規則 |
+| `docs/adr/0000-template.md` | ADR 標準模板（9 節格式） |
+| `docs/adr/0001-0027.md` | 各 ADR 決策（27 個已接受的架構決策） |
+| `decisions.md` | ADR 索引（精簡版，指向 docs/adr/） |
 
 ## User Configuration (runtime)
 
