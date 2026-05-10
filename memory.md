@@ -64,8 +64,8 @@
 ## 當前狀態
 
 - **進度**：Phase 5 進行中；5.1.A、5.1.B、5.8、5.2.A、5.2.B、5.3.A~C、5.4、5.5.A1+A2+B1+A3+A4+B2+B3+C+E、5.11.A~D 均已實作並 commit（Phase-5 branch）。Phase 6 架構設計完成（7 個新功能需求）。
-- **上次完成**：Phase 6.3 /setting 功能開關 — `features.ai/agent` 預設改為 false；`builtin_cmd.rs` FEATURE_GUARDS 在 cmd.run 層攔截；`ai.chat` / `agent.start` 個別 feature check；SettingPanel boolean 改為 toggle switch UI + FEATURE_DESCRIPTIONS；157 tests + clippy + lint 通過。
-- **下一步**：Phase 6.2 /system_monitoring 面板；或 Phase 6.6 LazyVim portable Neovim。
+- **上次完成**：Phase 6.2 /system_monitoring 面板 — `sysinfo = "0.30"`；`SystemMonitoringHandler`（snapshot/stream_start/stream_stop + AtomicBool stop flag）；`SysMonitorCommand` builtin；`SystemMonitoringPanel.tsx`（CPU/RAM bar、Disk、Network、Process table top-15）；PanelRegistry 註冊；159 tests + clippy + lint 通過。
+- **下一步**：Phase 6.6 LazyVim portable Neovim；或 Phase 5.7.A Agent/Launcher Tantivy 統一；或 Phase 5.5.H ReAct 手動驗收。
 
 ## 已確認的技術選擇
 
@@ -107,6 +107,7 @@
 
 | 日期 | 完成事項 | 遺留問題 |
 |------|----------|----------|
+| 2026-05-10 | Phase 6.2 /system_monitoring：SystemMonitoringHandler(snapshot/stream_start/stream_stop)、SysMonitorCommand、SystemMonitoringPanel.tsx(CPU/RAM/Disk/Network/Process)、PanelRegistry；159 tests + clippy + lint 通過 | 需真實 app 驗收；Process table 排序切換尚未實作 |
 | 2026-05-10 | Phase 6.3 功能開關：features.ai/agent 預設 false；FEATURE_GUARDS in cmd.run；ai.chat/agent.start guards；SettingPanel toggle UI；157 tests + clippy + lint 通過 | 需真實 app 驗收 /ai disable 提示 |
 | 2026-05-10 | Phase 6.5 搜尋編碼修復：windows.rs 3 處 + tantivy_index.rs + CommandPalette.tsx hasEncodingError()；157 tests + lint 通過 | 需真實 app 驗收中文/日文路徑不出現方塊字 |
 | 2026-05-10 | 翻譯自動觸發 bug（React Strict Mode ref guard）+ crash fix（tokio::spawn→std::thread+per-thread rt）+ 35s timeout；6.4 SUPPORTED_LANGS 108 語言+LangPicker；6.1 ModelRemove panel | 需真實 app 驗收翻譯/ai 各功能 |
