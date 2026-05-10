@@ -774,6 +774,23 @@ impl BuiltinCommand for SysCtlCommand {
     }
 }
 
+pub struct SysMonitorCommand;
+
+impl BuiltinCommand for SysMonitorCommand {
+    fn name(&self) -> &'static str {
+        "system_monitoring"
+    }
+    fn description(&self) -> &'static str {
+        "CPU, RAM, Disk, Network & Process monitor"
+    }
+    fn execute(&self, _args: &str) -> BuiltinCommandResult {
+        BuiltinCommandResult {
+            text: String::new(),
+            ui_type: CommandUiType::Panel("system_monitoring".into()),
+        }
+    }
+}
+
 pub struct DownCommand;
 
 impl BuiltinCommand for DownCommand {
