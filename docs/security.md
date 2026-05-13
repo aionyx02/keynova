@@ -1,8 +1,19 @@
+---
+type: security_policy
+status: active
+priority: p0
+updated: 2026-05-13
+context_policy: retrieve_when_planning
+owner: project
+---
+
 # Keynova 安全模型
 
+> Retrieval policy: 在涉及權限、路徑、網路、Agent 工具風險時優先讀取，平時不需整份注入。
+
 **版本：** 1.0  
-**最後更新：** 2026-05-10  
-**相關文件：** `docs/architecture.md`, `docs/claude.md`
+**最後更新：** 2026-05-13  
+**相關文件：** `docs/architecture.md`, `docs/CLAUDE.md`
 
 ---
 
@@ -169,3 +180,4 @@ Agent 執行工具前，`safety.rs` 中的 `ToolPermissionGate` 必須評估：
 | Agent shell 命令執行 | 目前高風險工具需人工審查 | 計劃加入細粒度 allowlist |
 | 翻譯 API key 儲存 | 存在 config.toml（明文） | 計劃支援 OS keychain |
 | CSP 設定 | 尚未完整設定 | TD.5 安全強化計劃中 |
+
