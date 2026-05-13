@@ -1,4 +1,15 @@
+---
+type: decision_index
+status: active
+priority: p1
+updated: 2026-05-13
+context_policy: retrieve_only
+owner: project
+---
+
 # docs/decisions.md — ADR Index
+
+> Retrieval policy: 先由 `docs/index.md` 判斷是否需要 ADR，再精準讀取對應單一 ADR 檔案。
 
 > 所有 ADR 已拆分為獨立檔案，存放於 `adr/`。
 > 本文件僅作為快速索引。完整內容請閱讀對應的 ADR 檔案。

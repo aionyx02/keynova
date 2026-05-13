@@ -1,7 +1,18 @@
+---
+type: architecture_spec
+status: active
+priority: p1
+updated: 2026-05-13
+context_policy: retrieve_only
+owner: project
+---
+
 # Keynova 系統架構
 
+> Retrieval policy: 只在實作、除錯、架構決策相關需求時擷取「最小必要段落」，不要整份注入 prompt。
+
 **版本：** 1.0  
-**最後更新：** 2026-05-10  
+**最後更新：** 2026-05-13  
 **相關 ADR：** `docs/adr/`
 
 ---
@@ -432,3 +443,4 @@ KnowledgeStore: agent_audit 寫入 SQLite
 | Neovim portable | nvim-win64.zip | nvim-linux64.tar.gz | nvim-macos.tar.gz |
 
 平台特定程式碼透過 `#[cfg(target_os = "...")]` 隔離在 `platform/` 模組。
+

@@ -12,7 +12,16 @@
     "lint": "eslint . --ext .ts,.tsx --max-warnings 0",
     "lint:fix": "npm run lint -- --fix",
     "format": "prettier --write .",
-    "format:check": "prettier --check ."
+    "format:check": "prettier --check .",
+    "check": "npm run lint && npm run build",
+    "rust:test": "cargo test --manifest-path src-tauri/Cargo.toml",
+    "rust:clippy": "cargo clippy --manifest-path src-tauri/Cargo.toml -- -D warnings",
+    "verify": "npm run docs:refresh && npm run check && npm run rust:test && npm run rust:clippy",
+    "docs:sync": "node scripts/docs-sync.mjs",
+    "docs:guard": "node scripts/docs-guard.mjs",
+    "docs:refresh": "npm run docs:sync && npm run docs:guard",
+    "hooks:install": "node scripts/install-githooks.mjs",
+    "prepare": "npm run hooks:install"
   },
   "dependencies": {
     "@tauri-apps/api": "^2",

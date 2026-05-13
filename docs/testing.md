@@ -1,7 +1,18 @@
+---
+type: testing_policy
+status: active
+priority: p1
+updated: 2026-05-13
+context_policy: retrieve_when_debugging
+owner: project
+---
+
 # Keynova 測試策略
 
+> Retrieval policy: 寫測試、查失敗、驗證 regression 時讀取對應章節，不需每次全讀。
+
 **版本：** 1.0  
-**最後更新：** 2026-05-10  
+**最後更新：** 2026-05-13  
 **相關文件：** `docs/architecture.md`, `docs/security.md`
 
 ---
@@ -201,3 +212,4 @@ npm run test
 ```
 
 所有指令必須以 exit code 0 完成才能合併。
+
