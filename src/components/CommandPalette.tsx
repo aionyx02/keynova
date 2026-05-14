@@ -47,6 +47,24 @@ interface SecondaryAction {
   risk: "low" | "medium" | "high";
 }
 
+interface PipelineStageResult {
+  index: number;
+  route: string;
+  status: string;
+  output?: unknown;
+  error?: string;
+}
+
+interface PipelineReport {
+  log: {
+    workflow_name: string;
+    status: string;
+    action_count: number;
+    error?: string;
+  };
+  actions: PipelineStageResult[];
+}
+
 function isEditorTerminalResult(result: BuiltinCommandResult | null) {
   return result?.ui_type.type === "Terminal" && result.ui_type.value.editor;
 }
@@ -191,6 +209,8 @@ export function CommandPalette() {
   const [timedOutProviders, setTimedOutProviders] = useState<string[]>([]);
   const [fileDiagnostics, setFileDiagnostics] = useState<SearchChunkDiagnostics | null>(null);
   const [copiedPath, setCopiedPath] = useState<string | null>(null);
+  const [pipelineResult, setPipelineResult] = useState<PipelineReport | null>(null);
+  const [pipelineRunning, setPipelineRunning] = useState(false);
 
   const inputRef = useRef<HTMLInputElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -492,6 +512,8 @@ export function CommandPalette() {
       if (cmdResultRef.current !== null) {
         activeSearchRequestRef.current = "";
         setCmdResult(null);
+        setPipelineResult(null);
+        setPipelineRunning(false);
         setQuery("");
         setResults([]);
         setTimedOutProviders([]);
@@ -502,6 +524,8 @@ export function CommandPalette() {
         setQuery("");
         setResults([]);
         setTimedOutProviders([]);
+        setPipelineResult(null);
+        setPipelineRunning(false);
         void dispatch("search.cancel").catch(() => {});
         inputRef.current?.focus();
       } else {
@@ -553,10 +577,27 @@ export function CommandPalette() {
     };
   }, [scheduleWindowResize]);
 
+  async function runPipeline(text: string) {
+    setPipelineRunning(true);
+    setPipelineResult(null);
+    try {
+      const report = await dispatch<PipelineReport>("automation.execute_pipeline", { text });
+      setPipelineResult(report);
+    } catch (err) {
+      setPipelineResult({
+        log: { workflow_name: "pipeline", status: "failed", action_count: 0, error: String(err) },
+        actions: [],
+      });
+    } finally {
+      setPipelineRunning(false);
+    }
+  }
+
   function handleQueryChange(value: string) {
     setQuery(value);
     setCmdResult(null);
     setCopiedPath(null);
+    setPipelineResult(null);
     setSelectedCmd(0);
     setSelectedArg(0);
     setArgSuggestions([]);
@@ -684,6 +725,10 @@ export function CommandPalette() {
       else if (e.key === "ArrowUp") { e.preventDefault(); setSelected((i) => Math.max(i - 1, 0)); }
       else if (e.key === "Enter") {
         e.preventDefault();
+        if (query.includes("|")) {
+          void runPipeline(query);
+          return;
+        }
         const r = results[selected];
         if (r) {
           if (e.shiftKey) void runFirstSecondary(r);
@@ -826,7 +871,7 @@ export function CommandPalette() {
           <div
             className={`flex items-center bg-gray-900/95 backdrop-blur-md shadow-2xl ${
               hasResults || hasCmdSuggestions || cmdResult || isArgsPhase
-              || liveTranslationPanel
+              || liveTranslationPanel || pipelineRunning || pipelineResult
                 ? "rounded-t-xl border-b border-gray-700/50"
                 : "rounded-xl"
             }`}
@@ -987,6 +1032,44 @@ export function CommandPalette() {
                 onRunCommandResult={handlePanelCommandResult}
               />
             </Suspense>
+          )}
+
+          {/* Pipeline running indicator */}
+          {pipelineRunning && (
+            <div className="bg-gray-900/95 backdrop-blur-md rounded-b-xl shadow-2xl px-4 py-3">
+              <span className="text-sm text-blue-400 animate-pulse">Pipeline running…</span>
+            </div>
+          )}
+
+          {/* Pipeline execution result */}
+          {!pipelineRunning && pipelineResult && (
+            <div className="bg-gray-900/95 backdrop-blur-md rounded-b-xl shadow-2xl overflow-hidden">
+              <ul className="py-1">
+                {pipelineResult.actions.map((stage) => (
+                  <li key={stage.index} className="flex items-start gap-2 px-4 py-1.5 text-sm">
+                    <span className={`shrink-0 font-mono text-xs mt-0.5 ${
+                      stage.status === "completed" ? "text-emerald-400" : "text-red-400"
+                    }`}>
+                      {stage.status === "completed" ? "✓" : "✗"}
+                    </span>
+                    <span className="font-mono text-gray-400 shrink-0">{stage.route}</span>
+                    {stage.error && (
+                      <span className="text-red-400 truncate">{stage.error}</span>
+                    )}
+                  </li>
+                ))}
+                {pipelineResult.log.status === "failed" && pipelineResult.log.error && pipelineResult.actions.length === 0 && (
+                  <li className="px-4 py-1.5 text-sm text-red-400">{pipelineResult.log.error}</li>
+                )}
+              </ul>
+              <div className="border-t border-gray-700/50 px-4 py-1.5 text-[11px] text-gray-600 flex justify-between">
+                <span className={pipelineResult.log.status === "completed" ? "text-emerald-600" : "text-red-600"}>
+                  {pipelineResult.log.status}
+                </span>
+                <span>{pipelineResult.log.action_count} stages</span>
+                <span>Esc 清除</span>
+              </div>
+            </div>
           )}
         </div>
       </div>
