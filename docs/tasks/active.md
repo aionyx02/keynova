@@ -5,24 +5,33 @@ priority: p0
 updated: 2026-05-14
 context_policy: always_retrievable
 owner: project
-tags: [feature-first, p3]
-last_change: P0/P1/P2 moved to completed.md — P3 is next mainline
+tags: [feature-first, safety-first, performance]
+last_change: feasibility review integrated from Keynova_Agent_Architecture_Tasks_Review.docx
 ---
 
 # Active Tasks
 
+## Feasibility Verdict (2026-05-14)
+
+- Feasibility is high for low-memory runtime plus safe local review if rollout is staged.
+- FEAT.11 runtime work remains blocked until ADR, security policy, and typed DTO prerequisites are complete.
+- RAM goal is scoped to Background Core only (exclude active WebView, loaded LLM model, PTY terminal session, and monitoring streams).
+
 ## Strategy
 
-Feature First, Refactor Second.
-
-Current mainline is:
-P3 Context Compiler Lite.
-
-TD tasks are important but are not the current mainline unless they block P3 execution.
+Safety first for runtime lifecycle; feature-first delivery after guardrails are in place.
 
 ## Current Execution Order
 
-P0 ✓ -> P1 ✓ -> P2 ✓ -> **P3 Context Compiler Lite** (next)
+1. TD.5.A minimal verify baseline as execution gate.
+2. PERF.1 Low Memory Background Mode.
+3. TD.1 + TD.2 + TD.3 prerequisite slices required by PERF and FEAT tracks.
+4. PERF.2 Search Execution Bound.
+5. PERF.3 Heavy Feature Lazy Runtime.
+6. TD.4 actor-like services and remaining TD.5 hardening.
+7. P3 Context Compiler Lite.
+8. FEAT.11 Learning Material Review (blocked until prerequisites clear).
 
-See `docs/tasks/backlog.md` for P3 task breakdown.
+See `docs/tasks/backlog.md` for detailed breakdown.
+See `docs/tasks/blocked.md` for gating constraints.
 See `docs/tasks/completed.md` for P0/P1/P2 history.
