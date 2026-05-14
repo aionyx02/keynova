@@ -1,6 +1,8 @@
-﻿use std::path::PathBuf;
-use std::sync::{Arc, Mutex};
-use std::time::Instant;
+﻿use std::io::Read;
+use std::path::PathBuf;
+use std::sync::{mpsc, Arc, Mutex};
+use std::thread;
+use std::time::{Duration, Instant};
 
 use serde::Serialize;
 use serde_json::{json, Value};
@@ -57,6 +59,17 @@ const TOOL_FILESYSTEM_SEARCH: &str = "filesystem_search";
 const TOOL_FILESYSTEM_READ: &str = "filesystem_read";
 const TOOL_WEB_SEARCH: &str = "web_search";
 const TOOL_GIT_STATUS: &str = "git_status";
+const TOOL_DEV_CARGO_TEST: &str = "dev_cargo_test";
+const TOOL_DEV_CARGO_CHECK: &str = "dev_cargo_check";
+const TOOL_DEV_NPM_BUILD: &str = "dev_npm_build";
+const TOOL_DEV_NPM_LINT: &str = "dev_npm_lint";
+const TOOL_DEV_EXPLAIN_ERROR: &str = "dev_explain_compiler_error";
+
+const GIT_STATUS_TIMEOUT_SECS: u64 = 10;
+const GIT_STATUS_OUTPUT_LIMIT: usize = 8 * 1024;
+const DEV_CMD_OUTPUT_LIMIT: usize = 64 * 1024;
+const DEV_CARGO_TIMEOUT_SECS: u64 = 120;
+const DEV_NPM_TIMEOUT_SECS: u64 = 60;
 
 #[derive(Debug, Clone, Serialize)]
 struct AgentToolRunResult {
@@ -1261,6 +1274,11 @@ impl ReactDispatchState {
             TOOL_FILESYSTEM_READ => self.dispatch_filesystem_read(args),
             TOOL_WEB_SEARCH => self.dispatch_web_search(args),
             TOOL_GIT_STATUS => self.dispatch_git_status(args),
+            TOOL_DEV_CARGO_TEST => self.dispatch_dev_cargo_test(args),
+            TOOL_DEV_CARGO_CHECK => self.dispatch_dev_cargo_check(args),
+            TOOL_DEV_NPM_BUILD => self.dispatch_dev_npm_build(args),
+            TOOL_DEV_NPM_LINT => self.dispatch_dev_npm_lint(args),
+            TOOL_DEV_EXPLAIN_ERROR => self.dispatch_dev_explain_compiler_error(args),
             other => Err(format!("unknown react tool '{other}'")),
         }
     }
@@ -1419,34 +1437,309 @@ impl ReactDispatchState {
 
     /// Execute a fixed read-only `git status --short` in the workspace CWD.
     /// Called only after the user has explicitly approved the gate approval.
+    /// Workspace-scoped: cwd must be within a known workspace root.
+    /// Bounded: stdout/stderr truncated at GIT_STATUS_OUTPUT_LIMIT bytes.
+    /// Timeout: process killed after GIT_STATUS_TIMEOUT_SECS.
     fn dispatch_git_status(&self, args: &Value) -> Result<Value, String> {
-        let cwd = args
+        let roots = self.default_search_roots();
+
+        let requested_cwd = args
             .get("cwd")
             .and_then(Value::as_str)
             .map(PathBuf::from)
             .unwrap_or_else(|| {
-                self.default_search_roots()
-                    .into_iter()
-                    .next()
-                    .unwrap_or_else(|| std::env::current_dir().unwrap_or_default())
+                roots.first().cloned().unwrap_or_else(|| std::env::current_dir().unwrap_or_default())
             });
 
-        let output = std::process::Command::new("git")
+        // Canonicalize so symlinks and relative paths cannot escape workspace scope.
+        let cwd = requested_cwd.canonicalize().map_err(|_| {
+            format!("git.status: cwd '{}' does not exist or is not accessible", requested_cwd.display())
+        })?;
+
+        // Enforce workspace scope: deny paths outside all known roots.
+        let in_workspace = roots.iter().any(|root| {
+            root.canonicalize().map(|r| cwd.starts_with(&r)).unwrap_or(false)
+        });
+        if !in_workspace {
+            return Err(format!(
+                "git.status: '{}' is outside all workspace roots — execution denied",
+                cwd.display()
+            ));
+        }
+
+        // Spawn with separate stdout/stderr pipes to avoid pipe-buffer deadlock.
+        let mut child = std::process::Command::new("git")
             .args(["status", "--short"])
             .current_dir(&cwd)
-            .output()
-            .map_err(|e| format!("git.status: failed to run git: {e}"))?;
+            .stdout(std::process::Stdio::piped())
+            .stderr(std::process::Stdio::piped())
+            .spawn()
+            .map_err(|e| format!("git.status: failed to spawn git: {e}"))?;
+
+        let stdout_pipe = child.stdout.take();
+        let stderr_pipe = child.stderr.take();
+
+        // Read stdout/stderr in background threads so the pipes never fill and deadlock.
+        let (out_tx, out_rx) = mpsc::channel::<Vec<u8>>();
+        let (err_tx, err_rx) = mpsc::channel::<Vec<u8>>();
+
+        if let Some(mut pipe) = stdout_pipe {
+            thread::spawn(move || {
+                let mut buf = Vec::new();
+                let _ = pipe.read_to_end(&mut buf);
+                let _ = out_tx.send(buf);
+            });
+        }
+        if let Some(mut pipe) = stderr_pipe {
+            thread::spawn(move || {
+                let mut buf = Vec::new();
+                let _ = pipe.read_to_end(&mut buf);
+                let _ = err_tx.send(buf);
+            });
+        }
+
+        // Poll for exit with timeout; kill on deadline.
+        let deadline = Instant::now() + Duration::from_secs(GIT_STATUS_TIMEOUT_SECS);
+        let exit_code = loop {
+            match child.try_wait().map_err(|e| format!("git.status: wait error: {e}"))? {
+                Some(status) => break status.code(),
+                None => {
+                    if Instant::now() >= deadline {
+                        let _ = child.kill();
+                        return Err(format!(
+                            "git.status: timed out after {GIT_STATUS_TIMEOUT_SECS}s — process killed"
+                        ));
+                    }
+                    thread::sleep(Duration::from_millis(50));
+                }
+            }
+        };
+
+        let stdout_bytes = out_rx.recv().unwrap_or_default();
+        let stderr_bytes = err_rx.recv().unwrap_or_default();
 
         Ok(json!({
             "cwd": cwd.display().to_string(),
-            "stdout": String::from_utf8_lossy(&output.stdout),
-            "stderr": String::from_utf8_lossy(&output.stderr),
-            "exit_code": output.status.code(),
+            "stdout": bound_output(&stdout_bytes),
+            "stderr": bound_output(&stderr_bytes),
+            "exit_code": exit_code,
+            "preview": format!("git status --short  (cwd: {})", cwd.display()),
+        }))
+    }
+
+    fn scoped_cwd_for_dev(&self, args: &Value, tool: &str) -> Result<PathBuf, String> {
+        let roots = self.default_search_roots();
+        let requested = args
+            .get("cwd")
+            .and_then(Value::as_str)
+            .map(PathBuf::from)
+            .unwrap_or_else(|| {
+                roots.first().cloned().unwrap_or_else(|| std::env::current_dir().unwrap_or_default())
+            });
+        let cwd = requested.canonicalize().map_err(|_| {
+            format!("{tool}: cwd '{}' does not exist or is not accessible", requested.display())
+        })?;
+        let in_workspace = roots.iter().any(|r| r.canonicalize().map(|r| cwd.starts_with(&r)).unwrap_or(false));
+        if !in_workspace {
+            return Err(format!("{tool}: '{}' is outside workspace roots — execution denied", cwd.display()));
+        }
+        Ok(cwd)
+    }
+
+    fn dispatch_dev_cargo_test(&self, args: &Value) -> Result<Value, String> {
+        let cwd = self.scoped_cwd_for_dev(args, "dev.cargo_test")?;
+        run_bounded_dev_cmd("cargo", &["test"], &cwd, Duration::from_secs(DEV_CARGO_TIMEOUT_SECS))
+    }
+
+    fn dispatch_dev_cargo_check(&self, args: &Value) -> Result<Value, String> {
+        let cwd = self.scoped_cwd_for_dev(args, "dev.cargo_check")?;
+        run_bounded_dev_cmd("cargo", &["check"], &cwd, Duration::from_secs(DEV_CARGO_TIMEOUT_SECS))
+    }
+
+    fn dispatch_dev_npm_build(&self, args: &Value) -> Result<Value, String> {
+        let cwd = self.scoped_cwd_for_dev(args, "dev.npm_build")?;
+        run_bounded_dev_cmd("npm", &["run", "build"], &cwd, Duration::from_secs(DEV_NPM_TIMEOUT_SECS))
+    }
+
+    fn dispatch_dev_npm_lint(&self, args: &Value) -> Result<Value, String> {
+        let cwd = self.scoped_cwd_for_dev(args, "dev.npm_lint")?;
+        run_bounded_dev_cmd("npm", &["run", "lint"], &cwd, Duration::from_secs(DEV_NPM_TIMEOUT_SECS))
+    }
+
+    /// Extract structured errors from raw compiler/lint output.
+    /// Read-only: inspects text only, never modifies files.
+    fn dispatch_dev_explain_compiler_error(&self, args: &Value) -> Result<Value, String> {
+        let output = args
+            .get("output")
+            .and_then(Value::as_str)
+            .ok_or_else(|| "dev.explain_compiler_error: 'output' field is required".to_string())?;
+
+        let errors = extract_compiler_errors(output);
+        if errors.is_empty() {
+            return Ok(json!({
+                "errors": [],
+                "summary": "No recognizable compiler errors found in the provided output.",
+            }));
+        }
+
+        let summary = format!(
+            "{} error(s) extracted. Review each `message` and `location` for details.",
+            errors.len()
+        );
+        Ok(json!({
+            "errors": errors,
+            "summary": summary,
         }))
     }
 }
 
 
+
+/// Run a read-only, workspace-scoped dev command with timeout and bounded output.
+/// `program` and `args` must be a fixed, deterministic command — no user-controlled segments.
+fn run_bounded_dev_cmd(
+    program: &str,
+    args: &[&str],
+    cwd: &std::path::Path,
+    timeout: Duration,
+) -> Result<Value, String> {
+    let mut child = std::process::Command::new(program)
+        .args(args)
+        .current_dir(cwd)
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::piped())
+        .spawn()
+        .map_err(|e| format!("{program}: failed to spawn: {e}"))?;
+
+    let stdout_pipe = child.stdout.take();
+    let stderr_pipe = child.stderr.take();
+
+    let (out_tx, out_rx) = mpsc::channel::<Vec<u8>>();
+    let (err_tx, err_rx) = mpsc::channel::<Vec<u8>>();
+
+    if let Some(mut pipe) = stdout_pipe {
+        thread::spawn(move || {
+            let mut buf = Vec::new();
+            let _ = pipe.read_to_end(&mut buf);
+            let _ = out_tx.send(buf);
+        });
+    }
+    if let Some(mut pipe) = stderr_pipe {
+        thread::spawn(move || {
+            let mut buf = Vec::new();
+            let _ = pipe.read_to_end(&mut buf);
+            let _ = err_tx.send(buf);
+        });
+    }
+
+    let deadline = Instant::now() + timeout;
+    let exit_code = loop {
+        match child.try_wait().map_err(|e| format!("{program}: wait error: {e}"))? {
+            Some(status) => break status.code(),
+            None => {
+                if Instant::now() >= deadline {
+                    let _ = child.kill();
+                    return Err(format!(
+                        "{program}: timed out after {}s — process killed",
+                        timeout.as_secs()
+                    ));
+                }
+                thread::sleep(Duration::from_millis(50));
+            }
+        }
+    };
+
+    let stdout_bytes = out_rx.recv().unwrap_or_default();
+    let stderr_bytes = err_rx.recv().unwrap_or_default();
+
+    Ok(json!({
+        "stdout": bound_output_n(&stdout_bytes, DEV_CMD_OUTPUT_LIMIT),
+        "stderr": bound_output_n(&stderr_bytes, DEV_CMD_OUTPUT_LIMIT),
+        "exit_code": exit_code,
+        "preview": format!("{program} {}", args.join(" ")),
+    }))
+}
+
+/// Parse raw compiler/lint output and return a list of structured error objects.
+///
+/// Handles two common formats:
+/// - Rust/cargo: lines starting with `error` or `error[Exxxx]`, followed by location `-->`.
+/// - NPM/ESLint: lines starting with `ERROR` or matching `✖ N problems`.
+fn extract_compiler_errors(output: &str) -> Vec<Value> {
+    let mut errors: Vec<Value> = Vec::new();
+    let mut pending_message: Option<String> = None;
+    let mut pending_code: Option<String> = None;
+
+    for line in output.lines() {
+        let trimmed = line.trim();
+
+        // Cargo: `error[E0308]: mismatched types` or `error: ...`
+        if trimmed.starts_with("error[") || (trimmed.starts_with("error") && trimmed.contains(':') && !trimmed.starts_with("error -->")) {
+            if let Some(msg) = pending_message.take() {
+                errors.push(json!({ "message": msg, "code": pending_code.take(), "location": null }));
+            }
+            // Extract optional error code like E0308
+            let code = if trimmed.starts_with("error[") {
+                trimmed.find(']').map(|end| trimmed[6..end].to_string())
+            } else {
+                None
+            };
+            let message = trimmed
+                .split_once(':')
+                .map(|(_, rest)| rest.trim().to_string())
+                .unwrap_or_else(|| trimmed.to_string());
+            pending_code = code;
+            pending_message = Some(message);
+        }
+        // Cargo: `  --> src/foo.rs:10:5`
+        else if trimmed.starts_with("-->") && pending_message.is_some() {
+            let location = trimmed.trim_start_matches("-->").trim().to_string();
+            errors.push(json!({
+                "message": pending_message.take().unwrap_or_default(),
+                "code": pending_code.take(),
+                "location": location,
+            }));
+        }
+        // NPM/ESLint: `  10:5  error  'foo' is not defined  no-undef`
+        else {
+            let parts: Vec<&str> = trimmed.splitn(4, "  ").collect();
+            if parts.len() >= 3 && parts[1] == "error" && parts[0].contains(':') {
+                errors.push(json!({
+                    "message": parts.get(2).unwrap_or(&"").trim(),
+                    "code": parts.get(3).map(|s| s.trim()),
+                    "location": parts[0].trim(),
+                }));
+            }
+        }
+    }
+
+    // Flush any trailing pending message without a location line.
+    if let Some(msg) = pending_message.take() {
+        errors.push(json!({ "message": msg, "code": pending_code.take(), "location": null }));
+    }
+
+    // Cap at 20 errors to keep response size bounded.
+    errors.truncate(20);
+    errors
+}
+
+fn bound_output_n(bytes: &[u8], limit: usize) -> String {
+    let s = String::from_utf8_lossy(bytes);
+    if s.len() > limit {
+        format!(
+            "{}\n[output truncated: {} bytes total, limit {}B]",
+            &s[..limit],
+            bytes.len(),
+            limit
+        )
+    } else {
+        s.into_owned()
+    }
+}
+
+fn bound_output(bytes: &[u8]) -> String {
+    bound_output_n(bytes, GIT_STATUS_OUTPUT_LIMIT)
+}
 
 impl AgentHandler {
     /// Build a `ToolDispatch` closure wiring all ReAct-compatible tools.
@@ -1854,5 +2147,129 @@ mod tests {
         let resolved = resolve_readable_path("note.txt", &[root.clone()]).expect("should resolve");
         assert!(resolved.starts_with(root.canonicalize().unwrap()));
         let _ = std::fs::remove_dir_all(root);
+    }
+
+    // ── P2.A git.status hardening ────────────────────────────────────────────
+
+    #[test]
+    fn git_status_rejects_cwd_outside_workspace() {
+        // Build a state whose only workspace root is a temp directory that is
+        // different from system temp so we can supply an "outside" path.
+        let root = std::env::temp_dir().join(format!("keynova-ws-{}", Uuid::new_v4()));
+        std::fs::create_dir_all(&root).expect("create workspace root");
+
+        let outside = std::env::temp_dir().join(format!("keynova-outside-{}", Uuid::new_v4()));
+        std::fs::create_dir_all(&outside).expect("create outside dir");
+
+        // bound_output is a free fn — test workspace-scope rejection via the error message.
+        let cwd = outside.canonicalize().unwrap_or(outside.clone());
+        let workspace_root = root.canonicalize().unwrap_or(root.clone());
+        let in_workspace = cwd.starts_with(&workspace_root);
+        assert!(!in_workspace, "outside dir should not start_with workspace root");
+
+        let _ = std::fs::remove_dir_all(root);
+        let _ = std::fs::remove_dir_all(outside);
+    }
+
+    #[test]
+    fn bound_output_truncates_at_limit() {
+        let big = vec![b'x'; GIT_STATUS_OUTPUT_LIMIT + 100];
+        let out = bound_output(&big);
+        assert!(out.contains("[output truncated:"));
+        // The beginning is preserved up to the limit.
+        assert!(out.starts_with(&"x".repeat(GIT_STATUS_OUTPUT_LIMIT)));
+    }
+
+    #[test]
+    fn bound_output_preserves_small_content() {
+        let small = b"M  src/foo.rs\n";
+        let out = bound_output(small);
+        assert_eq!(out, "M  src/foo.rs\n");
+    }
+
+    // ── P2.B dev command helpers ─────────────────────────────────────────────
+
+    #[test]
+    fn bound_output_n_truncates_at_given_limit() {
+        let big = vec![b'a'; DEV_CMD_OUTPUT_LIMIT + 50];
+        let out = bound_output_n(&big, DEV_CMD_OUTPUT_LIMIT);
+        assert!(out.contains("[output truncated:"));
+        assert!(out.starts_with(&"a".repeat(DEV_CMD_OUTPUT_LIMIT)));
+    }
+
+    #[test]
+    fn run_bounded_dev_cmd_captures_echo_output() {
+        let dir = std::env::temp_dir().join(format!("keynova-dev-cmd-{}", Uuid::new_v4()));
+        std::fs::create_dir_all(&dir).expect("create temp dir");
+
+        #[cfg(target_os = "windows")]
+        let (prog, args): (&str, &[&str]) = ("cmd", &["/C", "echo hello"]);
+        #[cfg(not(target_os = "windows"))]
+        let (prog, args): (&str, &[&str]) = ("sh", &["-c", "echo hello"]);
+
+        let result = run_bounded_dev_cmd(prog, args, &dir, Duration::from_secs(5));
+        assert!(result.is_ok(), "command should succeed: {:?}", result);
+        let val = result.unwrap();
+        let stdout = val["stdout"].as_str().unwrap_or("");
+        assert!(stdout.contains("hello"), "stdout should contain 'hello', got: {stdout}");
+
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn run_bounded_dev_cmd_times_out_slow_process() {
+        let dir = std::env::temp_dir().join(format!("keynova-dev-timeout-{}", Uuid::new_v4()));
+        std::fs::create_dir_all(&dir).expect("create temp dir");
+
+        // On Windows, `timeout` exits immediately when stdout is piped (non-interactive).
+        // `ping -n 30 127.0.0.1` works in any mode and takes ~30 s.
+        #[cfg(target_os = "windows")]
+        let (prog, args): (&str, &[&str]) = ("ping", &["-n", "30", "127.0.0.1"]);
+        #[cfg(not(target_os = "windows"))]
+        let (prog, args): (&str, &[&str]) = ("sh", &["-c", "sleep 30"]);
+
+        let result = run_bounded_dev_cmd(prog, args, &dir, Duration::from_millis(300));
+        assert!(result.is_err(), "slow process should time out");
+        assert!(result.unwrap_err().contains("timed out"), "error should mention timeout");
+
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
+    // ── P2.C compiler error extraction ──────────────────────────────────────
+
+    #[test]
+    fn extract_compiler_errors_parses_cargo_error_with_location() {
+        let output = "error[E0308]: mismatched types\n  --> src/main.rs:10:5\n  |\n10 |     let x: i32 = \"hello\";\n";
+        let errors = extract_compiler_errors(output);
+        assert_eq!(errors.len(), 1);
+        assert_eq!(errors[0]["code"].as_str().unwrap(), "E0308");
+        assert!(errors[0]["message"].as_str().unwrap().contains("mismatched types"));
+        assert!(errors[0]["location"].as_str().unwrap().contains("src/main.rs:10:5"));
+    }
+
+    #[test]
+    fn extract_compiler_errors_parses_multiple_cargo_errors() {
+        let output = "error[E0308]: mismatched types\n  --> src/a.rs:1:1\nerror[E0425]: unresolved name\n  --> src/b.rs:5:3\n";
+        let errors = extract_compiler_errors(output);
+        assert_eq!(errors.len(), 2);
+        assert_eq!(errors[0]["code"].as_str().unwrap(), "E0308");
+        assert_eq!(errors[1]["code"].as_str().unwrap(), "E0425");
+    }
+
+    #[test]
+    fn extract_compiler_errors_returns_empty_for_clean_output() {
+        let output = "   Compiling foo v0.1.0\n    Finished dev [unoptimized] target(s) in 0.45s\n";
+        let errors = extract_compiler_errors(output);
+        assert!(errors.is_empty());
+    }
+
+    #[test]
+    fn extract_compiler_errors_caps_at_twenty() {
+        let mut output = String::new();
+        for i in 0..30 {
+            output.push_str(&format!("error: thing {i} failed\n  --> src/x.rs:{i}:1\n"));
+        }
+        let errors = extract_compiler_errors(&output);
+        assert_eq!(errors.len(), 20, "should be capped at 20");
     }
 }

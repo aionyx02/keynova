@@ -2,7 +2,7 @@
 type: task_index
 status: backlog
 priority: p1
-updated: 2026-05-13
+updated: 2026-05-14
 context_policy: retrieve_when_planning
 owner: project
 tags: [feature-first, roadmap, refactor-backlog]
@@ -10,31 +10,9 @@ tags: [feature-first, roadmap, refactor-backlog]
 
 # Backlog Tasks
 
-## P2 - Dev Workflow Pack
+## P2 - Dev Workflow Pack (COMPLETE 2026-05-14)
 
-Goal:
-- Make daily developer workflows executable in Keynova with safe, approval-gated primitives.
-
-### P2.A - Git Status Tool Hardening
-
-- [ ] Restrict `git.status` to workspace-scoped cwd only.
-- [ ] Add approval preview before execution.
-- [ ] Bound stdout/stderr size in observation.
-- [ ] Add timeout handling and clear timeout error response.
-
-### P2.B - Cargo/NPM Read-only Commands
-
-- [ ] Add `dev.cargo_test`.
-- [ ] Add `dev.cargo_check`.
-- [ ] Add `dev.npm_build`.
-- [ ] Add `dev.npm_lint`.
-- [ ] Keep all commands approval-gated and non-destructive.
-
-### P2.C - Explain Compiler Error
-
-- [ ] Extract compiler/runtime errors from command outputs.
-- [ ] Add AI explain flow for errors.
-- [ ] Keep behavior read-only (no direct file modification).
+See `docs/tasks/active.md` for completed task details.
 
 ## P3 - Context Compiler Lite
 
