@@ -2,7 +2,7 @@
 type: task_blockers
 status: active
 priority: p0
-updated: 2026-05-13
+updated: 2026-05-14
 context_policy: retrieve_when_planning
 owner: project
 tags: [security, approval, shell, blockers]
@@ -28,25 +28,43 @@ Allowed:
 - Keep approval-gated read-only or narrowly scoped commands.
 - Keep bounded output and safety checks in tool observations.
 
-## Workflow MVP Scope Guard
+## FEAT.11 Learning Material Review (Blocked)
+
+Status: blocked
+
+Blocked by:
+- ADR-028 accepted with explicit local-context security boundary.
+- TD.5.A verify baseline execution gate.
+- PERF.1 low-memory runtime baseline.
+- TD.1.A IPC boundary.
+- TD.2.A composition root extraction.
+- TD.3.A typed DTO baseline.
+
+Until unblocked, do not:
+- Add runtime local-context scanning features that touch private user files.
+- Add agent tool paths that bypass approval-gated scan scope selection.
+- Add full-content recursive document indexing for this feature.
+
+Allowed before unblock:
+- ADR drafting and review.
+- Config/DTO design scaffolding that does not activate runtime scanning behavior.
+- Unit tests for denylist/redaction logic in isolation.
+
+## RAM Budget Scope Guard
 
 Status: constrained
 
-For P1 workflow v0, do not add:
-- branching
-- parallel execution
-- checkpoint/resume
-- retry policy
-- conditional execution
+Rule:
+- The target "Background Core < 100 MB" excludes active WebView, loaded local LLM model memory, PTY terminal sessions, monitoring streams, and index rebuild tasks.
 
-Rationale:
-- Keep first release as linear pipeline only.
-- Prevent MVP from expanding into full runtime rewrite.
+Do not:
+- Claim end-to-end "Keynova + loaded local model" under 100 MB.
+- Regress startup by enabling heavy runtime services in background by default.
 
 ## Refactor Backlog Execution Gate
 
-Only execute TD.1-TD.5 early when they block P0-P3.
+Only execute TD.1-TD.5 early when they are required by current mainline tasks.
 
 Current known dependency gates:
-- TD.4.B depends on TD.2.A.
-- TD.4.C depends on TD.2.B.
+- PERF.2 aligns with TD.4.B (SearchService actor boundary).
+- PERF.3 aligns with TD.4.C (Terminal actor boundary).

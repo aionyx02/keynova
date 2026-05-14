@@ -149,6 +149,8 @@ pub enum ToolCallError {
     Network(String),
     /// Could not parse the provider's response into a known format.
     Parse(String),
+    /// Provider daemon is not reachable (connection refused / not running).
+    DaemonNotRunning { provider: String, url: String },
 }
 
 impl std::fmt::Display for ToolCallError {
@@ -157,6 +159,10 @@ impl std::fmt::Display for ToolCallError {
             Self::Unsupported => write!(f, "provider does not support tool calls"),
             Self::Network(e) => write!(f, "network error: {e}"),
             Self::Parse(e) => write!(f, "parse error: {e}"),
+            Self::DaemonNotRunning { provider, url } => write!(
+                f,
+                "{provider} is not running at {url}. Start the {provider} daemon and try again."
+            ),
         }
     }
 }
@@ -470,11 +476,17 @@ fn chat_ollama(
     });
 
     let response = client
-        .post(url)
+        .post(&url)
         .header("content-type", "application/json")
         .json(&body)
         .send()
-        .map_err(|e| format!("Ollama request failed: {e}. For large local models, increase ai.ollama_timeout_secs."))?;
+        .map_err(|e| {
+            if e.is_connect() {
+                format!("Ollama is not running at {url}. Start the Ollama daemon and try again.")
+            } else {
+                format!("Ollama request failed: {e}. For large local models, increase ai.ollama_timeout_secs.")
+            }
+        })?;
 
     if !response.status().is_success() {
         let status = response.status();
@@ -646,9 +658,14 @@ fn ollama_chat_with_tools(
         .json(&body)
         .send()
         .map_err(|e| {
-            ToolCallError::Network(format!(
-                "Ollama request failed: {e}. Is the Ollama daemon running?"
-            ))
+            if e.is_connect() {
+                ToolCallError::DaemonNotRunning {
+                    provider: "Ollama".into(),
+                    url: url.clone(),
+                }
+            } else {
+                ToolCallError::Network(format!("Ollama request failed: {e}"))
+            }
         })?;
 
     if !response.status().is_success() {

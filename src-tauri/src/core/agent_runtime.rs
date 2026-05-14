@@ -8,7 +8,7 @@ use uuid::Uuid;
 
 use crate::core::{prepare_observation, AgentAuditEntry, AgentObservationPolicy, AppEvent};
 use crate::managers::ai_manager::{
-    AiMessage, AiToolDefinition, AiToolTurn, ToolCallProvider,
+    AiMessage, AiToolDefinition, AiToolTurn, ToolCallError, ToolCallProvider,
 };
 use crate::models::action::ActionRisk;
 use crate::models::agent::{AgentApproval, AgentRun, AgentRunStatus, AgentStep, ContextVisibility};
@@ -471,7 +471,10 @@ pub fn react_loop_body(
         ) {
             Ok(t) => t,
             Err(e) => {
-                let reason = format!("Provider error at step {step_idx}: {e}");
+                let reason = match &e {
+                    ToolCallError::DaemonNotRunning { .. } => e.to_string(),
+                    _ => format!("Provider error at step {step_idx}: {e}"),
+                };
                 maybe_audit(config, run_id, "react_failed", "error", &reason, None);
                 react_fail(runtime, run_id, &reason);
                 return;
