@@ -12,6 +12,7 @@ pub mod knowledge_store;
 pub mod observability;
 pub mod plugin_runtime;
 pub mod search_registry;
+pub mod workflow_pipeline;
 
 pub use action_registry::{ActionArena, ActionRegistry};
 pub use agent_observation::{prepare_observation, AgentObservationPolicy, PreparedObservation};

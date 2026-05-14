@@ -10,7 +10,7 @@ pub(super) fn sanitize_external_query(query: &str) -> Result<String, String> {
     }
     let lower = trimmed.to_lowercase();
     for denied in [
-        "CLAUDE.md",
+        "claude.md",
         "tasks.md",
         "memory.md",
         "decisions.md",
@@ -110,4 +110,64 @@ pub(super) fn resolve_readable_path(path_str: &str, roots: &[PathBuf]) -> Result
     }
 
     Ok(canonical)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // ─── P0.A / P0.B: sanitize_external_query ────────────────────────────────
+
+    #[test]
+    fn sanitize_external_query_passes_safe_query() {
+        assert_eq!(
+            sanitize_external_query("Rust async programming tutorial"),
+            Ok("Rust async programming tutorial".into())
+        );
+    }
+
+    #[test]
+    fn sanitize_external_query_rejects_empty_query() {
+        assert!(sanitize_external_query("   ").is_err());
+    }
+
+    #[test]
+    fn sanitize_external_query_blocks_private_doc_names() {
+        for term in ["CLAUDE.md", "tasks.md", "memory.md", "decisions.md"] {
+            let result = sanitize_external_query(&format!("contents of {term}"));
+            assert!(
+                result.is_err(),
+                "expected error for query containing '{term}'"
+            );
+        }
+    }
+
+    #[test]
+    fn sanitize_external_query_blocks_secret_credential_terms() {
+        for term in ["api_key", "password", "token", "api key", "secret"] {
+            let result = sanitize_external_query(&format!("my {term} value"));
+            assert!(
+                result.is_err(),
+                "expected error for query containing '{term}'"
+            );
+        }
+    }
+
+    #[test]
+    fn sanitize_external_query_blocks_private_architecture_term() {
+        let result = sanitize_external_query("explain private_architecture design");
+        assert!(result.is_err());
+    }
+
+    // ─── P0.B: looks_sensitive_path ──────────────────────────────────────────
+
+    #[test]
+    fn looks_sensitive_path_detects_ssh_and_env_paths() {
+        use std::path::Path;
+
+        assert!(looks_sensitive_path(Path::new("/home/user/.ssh/id_rsa")));
+        assert!(looks_sensitive_path(Path::new("/home/user/.env")));
+        assert!(looks_sensitive_path(Path::new("C:/Users/user/.aws/credentials")));
+        assert!(!looks_sensitive_path(Path::new("/home/user/projects/keynova/src/main.rs")));
+    }
 }

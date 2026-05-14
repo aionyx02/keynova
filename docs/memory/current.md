@@ -2,7 +2,7 @@
 type: working_memory
 status: active
 priority: p0
-updated: 2026-05-13
+updated: 2026-05-14
 context_policy: always_retrievable
 owner: project
 ---
@@ -29,15 +29,20 @@ owner: project
 
 ## Last Confirmed Progress
 
-- Phase 5 and Phase 6 baseline completed and merged.
-- Docs were previously consolidated; now re-splitting for retrieval quality and context budget control.
-- Task roadmap is now reorganized to Feature First, Refactor Second.
+- P0 Agent Completion Baseline COMPLETE (2026-05-13).
+- P1 Workflow MVP / Command Chaining COMPLETE (2026-05-13).
+  - `workflow_pipeline.rs`: parse `|`-separated pipeline text, map to `WorkflowAction`, 11 tests.
+  - `AutomationEngine::execute_pipeline`: sequential execution with prev-output chaining, 5 tests.
+  - `dispatch.rs`: `automation.execute_pipeline` IPC route.
+  - `CommandPalette.tsx`: pipeline detection on Enter, running indicator, per-stage results UI.
+  - `safety.rs`: 6 new tests for sanitize_external_query + looks_sensitive_path.
+  - Fixed bug: `sanitize_external_query` "CLAUDE.md" was uppercase, never matched.
+- 186 tests passing. 1 pre-existing unrelated failure (`note_lazyvim_missing_nvim_returns_inline_guidance`).
 
 ## Next Step
 
-1. Finish docs auto-sync + guard setup.
-2. Execute P0.A -> P0.B -> P0.C.
-3. Start P1.A pipeline parser after P0 exit criteria is met.
+1. Next mainline: P2 Dev Workflow Pack → define tasks in `docs/tasks/backlog.md`.
+2. Investigate `note_lazyvim_missing_nvim_returns_inline_guidance` pre-existing failure if user wants it fixed.
 
 ## Known Risks
 

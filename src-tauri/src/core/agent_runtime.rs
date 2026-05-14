@@ -1377,6 +1377,195 @@ mod tests {
             .contains("not allowed"));
     }
 
+    // ─── P0.A: Two-step file find then read ─────────────────────────────────
+
+    #[test]
+    fn react_loop_two_step_search_then_read() {
+        use crate::managers::ai_manager::AiToolCallRequest;
+        use uuid::Uuid;
+
+        let tmp_root = std::env::temp_dir()
+            .join(format!("keynova-2step-{}", Uuid::new_v4()));
+        std::fs::create_dir_all(&tmp_root).expect("create tmp dir");
+        let json_file = tmp_root.join("config.json");
+        std::fs::write(&json_file, r#"{"mode":"local"}"#).expect("write file");
+        let json_path = json_file.display().to_string();
+
+        let path_for_read = json_path.clone();
+        let provider = FakeToolCallProvider::new([
+            AiToolTurn::ToolCalls {
+                tool_calls: vec![AiToolCallRequest {
+                    id: "call-search".into(),
+                    name: "filesystem_search".into(),
+                    arguments: json!({ "query": "config.json" }),
+                }],
+            },
+            AiToolTurn::ToolCalls {
+                tool_calls: vec![AiToolCallRequest {
+                    id: "call-read".into(),
+                    name: "filesystem_read".into(),
+                    arguments: json!({ "path": path_for_read }),
+                }],
+            },
+            AiToolTurn::FinalText {
+                content: "The config.json file sets mode to local.".into(),
+            },
+        ]);
+
+        let dispatch = move |name: &str, args: &Value| -> Result<Value, String> {
+            match name {
+                "filesystem_search" => Ok(json!({
+                    "sources": [{
+                        "title": "config.json",
+                        "snippet": json_path,
+                        "uri": json_path,
+                        "source_type": "file",
+                    }]
+                })),
+                "filesystem_read" => {
+                    let path_str = args.get("path").and_then(Value::as_str).unwrap_or("");
+                    let content = std::fs::read_to_string(path_str)
+                        .map_err(|e| format!("read error: {e}"))?;
+                    Ok(json!({
+                        "sources": [{
+                            "title": "config.json",
+                            "snippet": content,
+                            "uri": path_str,
+                            "source_type": "file_read",
+                        }]
+                    }))
+                }
+                other => Err(format!("unexpected tool: {other}")),
+            }
+        };
+
+        let runtime = react_runtime();
+        runtime.insert_run(running_run("two-step-1")).expect("insert run");
+        let tools = AgentToolRegistry::with_default_readonly_tools().list();
+        react_loop_body(
+            &runtime,
+            "two-step-1",
+            &provider,
+            &tools,
+            &ReactLoopConfig::default(),
+            &dispatch,
+        );
+
+        let run = runtime.get("two-step-1").unwrap().unwrap();
+        assert_eq!(run.status, AgentRunStatus::Completed);
+        assert!(run.output.as_deref().unwrap_or("").contains("local"));
+
+        let _ = std::fs::remove_dir_all(tmp_root);
+    }
+
+    // ─── P0.A: Web search round-trip ─────────────────────────────────────────
+
+    #[test]
+    fn react_loop_web_search_returns_grounded_answer() {
+        let provider = FakeToolCallProvider::tool_then_final(
+            "web_search",
+            "call-web",
+            json!({ "query": "Rust async book" }),
+            "According to web results, the async book is at async.rs.",
+        );
+
+        let dispatch = |name: &str, _args: &Value| -> Result<Value, String> {
+            if name == "web_search" {
+                Ok(json!({
+                    "sources": [{
+                        "title": "Rust Async Book",
+                        "snippet": "async.rs is the official async Rust resource.",
+                        "uri": "https://async.rs",
+                        "source_type": "web",
+                    }]
+                }))
+            } else {
+                Err(format!("unexpected tool: {name}"))
+            }
+        };
+
+        let runtime = react_runtime();
+        runtime.insert_run(running_run("web1")).expect("insert run");
+        let tools = AgentToolRegistry::with_default_readonly_tools().list();
+        react_loop_body(
+            &runtime,
+            "web1",
+            &provider,
+            &tools,
+            &ReactLoopConfig::default(),
+            &dispatch,
+        );
+
+        let run = runtime.get("web1").unwrap().unwrap();
+        assert_eq!(run.status, AgentRunStatus::Completed);
+        assert!(run.output.as_deref().unwrap_or("").contains("async.rs"));
+    }
+
+    // ─── P0.A: Stale index warning surfaces in observation ────────────────────
+
+    #[test]
+    fn react_loop_stale_index_warning_surfaced() {
+        let provider = FakeToolCallProvider::tool_then_final(
+            "filesystem_search",
+            "call-stale",
+            json!({ "query": "notes" }),
+            "The search index may be stale, no results found.",
+        );
+
+        let dispatch = |name: &str, _args: &Value| -> Result<Value, String> {
+            if name == "filesystem_search" {
+                Ok(json!({
+                    "sources": [],
+                    "stale_index": true,
+                    "stale_reason": "Index has not been updated in 24 hours.",
+                }))
+            } else {
+                Err(format!("unexpected tool: {name}"))
+            }
+        };
+
+        let runtime = react_runtime();
+        runtime.insert_run(running_run("stale1")).expect("insert run");
+        let tools = AgentToolRegistry::with_default_readonly_tools().list();
+        react_loop_body(
+            &runtime,
+            "stale1",
+            &provider,
+            &tools,
+            &ReactLoopConfig::default(),
+            &dispatch,
+        );
+
+        let run = runtime.get("stale1").unwrap().unwrap();
+        assert_eq!(run.status, AgentRunStatus::Completed);
+        assert!(run.output.as_deref().unwrap_or("").contains("stale"));
+    }
+
+    // ─── P0.B: No-tool run does not invoke dispatch ───────────────────────────
+
+    #[test]
+    fn react_loop_no_tool_call_dispatch_never_invoked() {
+        let provider = FakeToolCallProvider::single_final("Direct answer, no tools needed.");
+        let never_called = |name: &str, _args: &Value| -> Result<Value, String> {
+            panic!("dispatch must NOT be invoked for a no-tool run, but called: {name}");
+        };
+
+        let runtime = react_runtime();
+        runtime.insert_run(running_run("no-tool-1")).expect("insert run");
+        react_loop_body(
+            &runtime,
+            "no-tool-1",
+            &provider,
+            &[],
+            &ReactLoopConfig::default(),
+            &never_called,
+        );
+
+        let run = runtime.get("no-tool-1").unwrap().unwrap();
+        assert_eq!(run.status, AgentRunStatus::Completed);
+        assert!(run.steps.iter().all(|s| s.tool_calls.is_empty()));
+    }
+
     #[test]
     fn react_loop_large_dispatch_result_does_not_panic() {
         let runtime = react_runtime();
