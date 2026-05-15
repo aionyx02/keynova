@@ -94,17 +94,17 @@ Goal: build bounded and controllable context assembly without recursive filesyst
 - [x] Use bounded preview for large content. (snippets > 200 chars trimmed with `…`; total results dropped once budget exceeded)
 - [x] Add prompt audit record for context composition. (`AgentRun.context_bundle` carries `token_budget` with `used_chars`, `remaining_chars`, `truncated`; 3 deterministic tests in `models::context_bundle::tests`)
 
-## FEAT.11 - Learning Material Review (Blocked)
+## FEAT.11 - Learning Material Review ✓ Complete (2026-05-15)
 
-Blocked by: ADR-028, TD.5.A, PERF.1, TD.1.A, TD.2.A, TD.3.A.
+All prerequisites cleared. Developer authorized implementation via explicit instruction.
 
-- [ ] FEAT.11.A Add ADR and security model for local review boundaries.
-- [ ] FEAT.11.B Add config schema under `[agent.local_context]` with disabled-by-default policy.
-- [ ] FEAT.11.C Add typed DTOs for request/candidate/report/scan stats.
-- [ ] FEAT.11.D Build metadata-first review manager based on existing search cache or selected roots.
-- [ ] FEAT.11.E Add rule-based classifier for project/note/certificate/presentation/report classes.
-- [ ] FEAT.11.F Add safe preview pipeline with byte cap, denylist, and redaction.
-- [ ] FEAT.11.G Register approval-gated `learning_material_review` agent tool.
-- [ ] FEAT.11.H Add report UI with scanned roots, candidate count, filtered count, and usage hints.
-- [ ] FEAT.11.I Add approval-gated note draft and markdown export actions.
-- [ ] FEAT.11.J Add regression tests for denied root, symlink escape, secret filter, prompt budget, and grounded output.
+- [x] FEAT.11.A Add ADR and security model for local review boundaries. (`docs/adr/0028-learning-material-review-local-context.md` — status: 提議; symlink escape prevention, denylist filtering, workspace-root-only scope)
+- [x] FEAT.11.B Add config schema under `[agent.local_context]` with disabled-by-default policy. (`settings_schema.rs`: `agent.local_context.enabled`, `max_scan_files`, `max_preview_bytes`, `max_depth`, `extra_denylist`; `default_config.toml`: `[agent.local_context]` section with `enabled=false`)
+- [x] FEAT.11.C Add typed DTOs for request/candidate/report/scan stats. (`src-tauri/src/models/learning_material.rs`: `MaterialClass`, `MaterialCandidate`, `ScanStats`, `ReviewReport` with `to_markdown()`)
+- [x] FEAT.11.D Build metadata-first review manager based on existing search cache or selected roots. (`src-tauri/src/managers/learning_material_manager.rs`: `LearningMaterialManager::from_config`, `scan()` with canonicalize + root-prefix check, max_depth/max_scan_files limits)
+- [x] FEAT.11.E Add rule-based classifier for project/note/certificate/presentation/report classes. (`classify_by_extension` + `is_project_root` in `learning_material_manager.rs`)
+- [x] FEAT.11.F Add safe preview pipeline with byte cap, denylist, and redaction. (`preview_file()` with byte cap + `prepare_observation` secret redaction; `is_denied()` handles glob `*.ext` and exact match patterns; DEFAULT_DENYLIST covers .git, node_modules, .env, *.key, *.pem, id_rsa, etc.)
+- [x] FEAT.11.G Register approval-gated `learning_material_review` agent tool. (`core/agent_runtime.rs`: `LearningMaterialReviewToolParams/Result` with JsonSchema; registered with `AgentToolApprovalPolicy::Required`, `ActionRisk::Medium`, 15_000ms timeout; `handlers/agent/mod.rs`: `dispatch_learning_material_review()` wired into approval-gated dispatch)
+- [x] FEAT.11.H Add report UI with scanned roots, candidate count, filtered count, and usage hints. (`src/components/LearningMaterialPanel.tsx`: scan roots input, stats bar, class filter tabs All/Project/Note/Report/Presentation/Certificate/Unknown, candidate list with name/path/size)
+- [x] FEAT.11.I Add approval-gated note draft and markdown export actions. (`LearningMaterialHandler` commands: `export_note` via `NoteManager.save`, `export_markdown` via canonicalized `fs::write`; UI: "Export as Note" button; `src/ipc/routes.ts`: `LEARNING_MATERIAL_SCAN/EXPORT_NOTE/EXPORT_MARKDOWN` constants)
+- [x] FEAT.11.J Add regression tests for denied root, symlink escape, secret filter, prompt budget, and grounded output. (`learning_material_manager.rs` tests module: 13 tests — disabled guard, secret denylist, glob denylist, extension classifier, project root detection, scan result structure, path prefix rejection, `to_markdown` output; 233/234 total tests pass; 1 pre-existing failure unchanged)

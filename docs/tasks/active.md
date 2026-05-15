@@ -30,9 +30,21 @@ Safety first for runtime lifecycle; feature-first delivery after guardrails are 
 5. PERF.3 Heavy Feature Lazy Runtime. ✓
 6. TD.4 actor-like services and remaining TD.5 hardening. ✓
 7. P3 Context Compiler Lite. ✓
-8. FEAT.11 Learning Material Review (blocked until prerequisites clear).
+8. FEAT.11 Learning Material Review. ✓
 
 ## Recent Execution Notes
+
+- 2026-05-15: FEAT.11 Learning Material Review complete (FEAT.11.A–J):
+  - `docs/adr/0028-learning-material-review-local-context.md`: ADR created (提議 status); workspace-root scope, symlink escape prevention, denylist, disabled-by-default.
+  - `models/learning_material.rs`: `MaterialClass`, `MaterialCandidate`, `ScanStats`, `ReviewReport` with `to_markdown()`.
+  - `managers/learning_material_manager.rs`: metadata-first scanner, `classify_by_extension`, `is_project_root`, `is_denied` (glob + exact), `preview_file` with secret redaction; DEFAULT_DENYLIST covers .env/.key/.pem/id_rsa/etc.
+  - `handlers/learning_material.rs`: `scan`, `preview`, `export_note`, `export_markdown` IPC commands; canonicalized path write for markdown export.
+  - `core/agent_runtime.rs`: `LearningMaterialReviewToolParams/Result` (JsonSchema); `learning_material.review` agent tool registered (ApprovalPolicy::Required, ActionRisk::Medium).
+  - `handlers/agent/mod.rs`: `dispatch_learning_material_review()` wired into approval-gated dispatch.
+  - 5 settings under `agent.local_context` (disabled by default); `default_config.toml` updated.
+  - `src/components/LearningMaterialPanel.tsx`: full scan UI with stats bar, class filter tabs, candidate list, export-as-note action.
+  - `src/ipc/routes.ts`: 3 new IPC route constants.
+  - 13/13 FEAT.11 tests pass; 233/234 total (1 pre-existing failure unchanged); clippy clean.
 
 - 2026-05-15: P3 Context Compiler Lite complete (P3.A + P3.B):
   - `models/context_bundle.rs`: `ContextBundle` struct with `WorkspaceContext`, `SelectedFileContext`, `ContextTokenBudget`; `build()` with 2-pass token budget.

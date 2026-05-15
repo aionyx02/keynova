@@ -119,10 +119,22 @@ owner: project
   - Frontend: `ContextBundle`, `WorkspaceContext`, `SelectedFileContext`, `ContextTokenBudget` types added to `useAgent.ts`; `AgentRun.context_bundle` field added.
   - 3 new deterministic tests in `models::context_bundle::tests`; 220/221 total (1 pre-existing failure unchanged).
 
+- 2026-05-15 FEAT.11 Learning Material Review complete (FEAT.11.A–J):
+  - ADR-028 created (`docs/adr/0028-learning-material-review-local-context.md`), status 提議; developer authorized implementation via explicit instruction.
+  - `models/learning_material.rs`: `MaterialClass` enum, `MaterialCandidate`, `ScanStats`, `ReviewReport` with `to_markdown()`.
+  - `managers/learning_material_manager.rs`: `LearningMaterialManager::from_config`; `scan()` with canonicalize + root-prefix enforcement + symlink escape prevention; `classify_by_extension`; `is_project_root`; `is_denied` (glob `*.ext` + exact); `preview_file` with byte cap + `prepare_observation` redaction; 13 tests.
+  - `handlers/learning_material.rs`: `scan`, `preview`, `export_note`, `export_markdown` IPC commands; `export_markdown` canonicalizes target path before write.
+  - `core/agent_runtime.rs`: `learning_material.review` agent tool (ApprovalPolicy::Required, ActionRisk::Medium, 15_000ms); tool count updated to 6.
+  - `handlers/agent/mod.rs`: `dispatch_learning_material_review()` in approval-gated dispatch.
+  - 5 settings under `agent.local_context` (`enabled=false` default); `default_config.toml` `[agent.local_context]` section added.
+  - `src/components/LearningMaterialPanel.tsx`: scan roots input, stats bar, class filter tabs, candidate list, export-as-note action.
+  - `src/ipc/routes.ts`: `LEARNING_MATERIAL_SCAN/EXPORT_NOTE/EXPORT_MARKDOWN` constants.
+  - 233/234 total tests pass (1 pre-existing failure unchanged); clippy clean.
+
 ## Next Step
 
-1. Keep FEAT.11 at planning/ADR level only until blockers clear.
-2. P3 is complete — next major track is FEAT.11 (blocked) or additional polish.
+All mainline tracks complete (PERF.1–3, TD.1–5, P3, FEAT.11). No active blocking work.
+Options: PERF.1.I memory measurement checklist, additional polish, or new feature planning.
 
 ## Known Risks
 

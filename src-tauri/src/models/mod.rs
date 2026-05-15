@@ -2,6 +2,7 @@ pub mod action;
 pub(crate) mod ipc_requests;
 pub mod agent;
 pub mod context_bundle;
+pub mod learning_material;
 pub mod app;
 pub mod builtin_command;
 pub mod hotkey;

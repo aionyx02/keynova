@@ -141,6 +141,7 @@ src-tauri/src/
 │   ├── system_control.rs / system_monitoring.rs
 │   ├── builtin_cmd.rs / calculator.rs / setting.rs
 │   ├── nvim.rs / automation.rs / plugin.rs
+│   ├── learning_material.rs  # FEAT.11: scan/preview/export_note/export_markdown
 │   └── mod.rs
 ├── managers/              # 業務邏輯（純 Rust，無 Tauri 依賴）
 │   ├── ai_manager.rs / model_manager.rs
@@ -150,11 +151,13 @@ src-tauri/src/
 │   ├── terminal_manager.rs / note_manager.rs / workspace_manager.rs
 │   ├── calculator_manager.rs / translation_manager.rs
 │   ├── portable_nvim_manager.rs / sandbox_manager.rs
+│   ├── learning_material_manager.rs  # FEAT.11: metadata scanner, classifier, preview
 │   └── mod.rs
 ├── models/                # 共用資料結構（serde）
 │   ├── action.rs / agent.rs / app.rs / builtin_command.rs
 │   ├── hotkey.rs / plugin.rs / search_result.rs
 │   ├── settings_schema.rs / terminal.rs / workflow.rs
+│   ├── learning_material.rs  # FEAT.11: MaterialClass, MaterialCandidate, ReviewReport
 │   └── mod.rs
 ├── platform/              # 平台特定程式碼（條件編譯）
 │   ├── windows.rs / linux.rs / macos.rs

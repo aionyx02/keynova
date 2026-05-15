@@ -78,3 +78,10 @@ enable_wifi_info = true
 
 [performance]
 low_memory_mode = false      # true: skip terminal prewarm, defer startup indexing, shorten keep_alive
+
+[agent.local_context]
+enabled = false              # Must be true to allow learning material review scans
+max_scan_files = 500         # Maximum filesystem entries examined per scan
+max_preview_bytes = 4096     # Byte cap for per-file content previews
+max_depth = 4                # Maximum directory recursion depth
+extra_denylist = ""          # Comma-separated extra denylist patterns (merged with built-in defaults)

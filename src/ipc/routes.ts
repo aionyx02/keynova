@@ -41,6 +41,11 @@ export const IPC = {
 
   // feature gate
   FEATURE_ACTIVATE: "feature.activate",
+
+  // learning material review
+  LEARNING_MATERIAL_SCAN: "learning_material.scan",
+  LEARNING_MATERIAL_EXPORT_NOTE: "learning_material.export_note",
+  LEARNING_MATERIAL_EXPORT_MARKDOWN: "learning_material.export_markdown",
 } as const;
 
 export type IpcRoute = (typeof IPC)[keyof typeof IPC];
