@@ -133,8 +133,16 @@ owner: project
 
 ## Next Step
 
-All mainline tracks complete (PERF.1–3, TD.1–5, P3, FEAT.11). No active blocking work.
-Options: PERF.1.I memory measurement checklist, additional polish, or new feature planning.
+All FEAT.11-and-earlier mainline tracks complete. 2026-05-15 規劃了 Post-FEAT.11 Phase Proposal（11 個 track、~80 子任務）寫入 `docs/tasks/backlog.md`。
+
+待使用者選擇起手 phase；推薦平行入口（無 ADR 阻擋）：
+
+- Phase 7a — AGENT.1 / AGENT.2 / AGENT.7：streaming、markdown、cancel、approval UX。
+- Phase 8a — UTIL.1 / UTIL.2：calculator++ 與 dev utilities。
+- Phase 8b — LAUNCH.1：search 結果 secondary actions。
+- Phase 8c — ONBOARD.1：first-run tour、`?` cheatsheet。
+
+ADR-gated tracks 需先草擬 ADR-029 ~ ADR-037 才可進實作（見 `docs/tasks/blocked.md`）。
 
 ## Known Risks
 

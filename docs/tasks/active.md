@@ -23,14 +23,37 @@ Safety first for runtime lifecycle; feature-first delivery after guardrails are 
 
 ## Current Execution Order
 
-1. TD.5.A minimal verify baseline as execution gate. ✓
-2. PERF.1 Low Memory Background Mode. ✓
-3. TD.1 + TD.2 + TD.3 prerequisite slices required by PERF and FEAT tracks. ✓
-4. PERF.2 Search Execution Bound. ✓
-5. PERF.3 Heavy Feature Lazy Runtime. ✓
-6. TD.4 actor-like services and remaining TD.5 hardening. ✓
-7. P3 Context Compiler Lite. ✓
-8. FEAT.11 Learning Material Review. ✓
+Mainline delivered (詳見 `docs/tasks/completed.md`)：
+
+- TD.5.A baseline → PERF.1 → TD.1/2/3 → PERF.2 → PERF.3 → TD.4 + TD.5 → P3 → FEAT.11.
+
+Active queue：**empty**（待使用者於 Next Phase Proposal 中選定起手 track）。
+
+## Next Phase Proposal (2026-05-15, awaiting selection)
+
+Source: agent UX + 功能實用性 + keynova 整體 baseline 缺口盤點。
+
+Recommended parallel entry tracks (highest ROI, no ADR blockers):
+
+- **Phase 7a — AGENT.1 / AGENT.2 / AGENT.7**：streaming、markdown、cancel、approval UX。立即改善等待感與訊息可操作性。
+- **Phase 8a — UTIL.1 / UTIL.2**：calculator++ 與 dev utilities。純 local、可平行於 agent 改造。
+- **Phase 8b — LAUNCH.1**：search 結果 secondary actions（reveal / copy path / file ops）。放大既有 search 投資。
+- **Phase 8c — ONBOARD.1**：first-run tour、`?` cheatsheet、empty-state CTA。降低學習曲線。
+
+ADR-gated tracks（需等 ADR 接受才能進實作，可先草擬 ADR）：
+
+- AGENT.3 (ADR-029) — agent 工具集從「research helper」改為「action executor」
+- AGENT.4 (ADR-030) — OS-level selection capture
+- CLIP.1 (ADR-031) — clipboard history
+- SNIP.1 (ADR-032) — text expansion
+- WIN.1 (ADR-033) — window switcher
+- UTIL.3 (ADR-034) — scheduler / reminder
+- DEV.1.C/D (ADR-035) — external provider auth
+- SYNC.1.D/E/F (ADR-036) — git-backed sync
+- AI.1 (ADR-037) — inline AI surfaces
+
+See `docs/tasks/backlog.md` Post-FEAT.11 Phase Proposal 與 11 個 track section（總計約 80 個子任務）。
+See `docs/tasks/blocked.md` Post-FEAT.11 Tracks Pending ADR 表。
 
 ## Recent Execution Notes
 

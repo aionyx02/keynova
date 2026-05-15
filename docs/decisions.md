@@ -75,3 +75,19 @@ owner: project
 - Everything IPC 完整實作（`everything_ipc.rs` 目前為佔位符）— 見 ADR-006
 - ADR-027 product 解封：各平台剩餘工作（AppContainer / seccomp / App Sandbox entitlement）
 - TD.2 / TD.3 / TD.4 架構演進屆時需新增對應 ADR（見 tasks.md）
+
+## Post-FEAT.11 規劃 — 待起草 ADR (2026-05-15)
+
+下列 ADR 編號已預留給 Post-FEAT.11 Phase Proposal（見 `docs/tasks/backlog.md`）。實際 ADR 檔案於對應 track 進入規劃階段時新建。
+
+| 預留編號 | 預定標題 | 對應 Track |
+|------|------|------|
+| ADR-029 | Agent Tool Surface — Action Tools Boundary | AGENT.3 |
+| ADR-030 | OS-Level Selection Capture Boundary | AGENT.4 |
+| ADR-031 | Clipboard Capture Boundary | CLIP.1 |
+| ADR-032 | Text Expansion Trigger Boundary | SNIP.1 |
+| ADR-033 | Window Enumeration Boundary | WIN.1 |
+| ADR-034 | ScheduleManager — Local Cron-like Scheduler | UTIL.3 |
+| ADR-035 | External Provider Auth Boundary | DEV.1.C/D |
+| ADR-036 | Git-Backed Sync Boundary | SYNC.1.D/E/F |
+| ADR-037 | Inline AI Surfaces Boundary | AI.1 |
