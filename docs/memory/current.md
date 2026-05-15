@@ -54,6 +54,15 @@ owner: project
   - Two lifecycle hooks extracted: `useWindowResize`, `useSearchMetadata`.
 - PERF.1.I checklist added to `docs/testing.md` section 6.1.
 
+- 2026-05-15 TD.3.A–C complete:
+  - `src-tauri/src/models/ipc_requests.rs`: typed Deserialize DTOs for all critical routes (search, setting, terminal).
+  - `handlers/setting.rs`, `handlers/terminal.rs`, `handlers/search.rs`: replaced raw `Value` field access with `serde_json::from_value::<DTO>`.
+  - `src/ipc/routes.ts`: centralized `IPC.*` route constants (35 routes).
+  - `src/ipc/types.ts`: typed request/response interfaces matching Rust DTOs.
+  - `useCommands.ts` migrated from module-level `invoke` to `useIPC()` + constants; `dispatch` now in deps (stable via `IPCProvider`).
+  - `useSearchMetadata.ts`, `useHotkey.ts`, `CommandPalette.tsx`, `TerminalPanel.tsx`: all inline route strings replaced with `IPC.*` constants.
+  - `scripts/docs-sync.mjs` + `docs-guard.mjs`: CRLF normalization fix prevents duplicate frontmatter on Windows.
+
 - 2026-05-15 TD.2.A–C complete:
   - `AppContainer` composition root created; `IPCProvider` provides stable `dispatch` reference; `App.tsx` renders `AppContainer`.
   - `FeatureContext` added: `FeatureProvider` + `useFeature()` with `activate(key: FeatureKey)` — boundary for PERF.3 lazy service activation.
@@ -62,8 +71,9 @@ owner: project
 
 ## Next Step
 
-1. Proceed to TD.3 typed DTOs (request/response DTOs for critical routes, reduce raw Value parsing, align frontend route constants).
-2. Keep FEAT.11 at planning/ADR level only until blockers clear.
+1. Proceed to PERF.2 Search Execution Bound (SearchService coordinator, bounded worker pool, cancellation token propagation, stale-request discard, backpressure, regression tests).
+2. Or proceed to TD.4 (agent approval/cancel channelization, SearchService/Terminal actor alignment).
+3. Keep FEAT.11 at planning/ADR level only until blockers clear.
 
 ## Known Risks
 

@@ -5,21 +5,13 @@ import "@xterm/xterm/css/xterm.css";
 import { listen } from "@tauri-apps/api/event";
 import { useIPC } from "../hooks/useIPC";
 import { useTerminalTheme } from "../hooks/useTerminalTheme";
+import { IPC } from "../ipc/routes";
+import type { SettingEntry, TerminalOpenResponse } from "../ipc/types";
 import type { TerminalLaunchSpec } from "../types/terminal";
 
 interface OutputPayload {
   id: string;
   output: string;
-}
-
-interface OpenResponse {
-  id: string;
-  initial_output: string;
-}
-
-interface SettingEntry {
-  key: string;
-  value: string;
 }
 
 interface ConfigReloadedPayload {
@@ -76,9 +68,7 @@ export function TerminalPanel({ isActive, onExit, launchSpec = null }: Props) {
       const fit = fitAddonRef.current;
       if (!xterm || !fit) return;
       fit.fit();
-      // dispatch is intentionally not in deps — useIPC returns a fresh wrapper each render.
-      // eslint-disable-next-line react-hooks/exhaustive-deps
-      void dispatch("terminal.resize", { id, rows: xterm.rows, cols: xterm.cols });
+      void dispatch(IPC.TERMINAL_RESIZE, { id, rows: xterm.rows, cols: xterm.cols });
     };
 
     const loadTerminalSettings = async () => {
@@ -86,7 +76,7 @@ export function TerminalPanel({ isActive, onExit, launchSpec = null }: Props) {
       let scrollback = termOpts.scrollback;
       if (window.__TAURI_INTERNALS__) {
         try {
-          const entries = await dispatch<SettingEntry[]>("setting.list_all");
+          const entries = await dispatch<SettingEntry[]>(IPC.SETTING_LIST_ALL);
           const get = (k: string) => entries.find((e) => e.key === k)?.value;
           fontSize = parseInt(get("terminal.font_size") ?? "") || fontSize;
           scrollback = parseInt(get("terminal.scrollback_lines") ?? "") || scrollback;
@@ -156,7 +146,7 @@ export function TerminalPanel({ isActive, onExit, launchSpec = null }: Props) {
           return;
         }
         if (data === "\x1b[I") return;
-        void dispatch("terminal.send", { id: sessionId, input: data });
+        void dispatch(IPC.TERMINAL_SEND, { id: sessionId, input: data });
       });
 
       try {
@@ -180,11 +170,11 @@ export function TerminalPanel({ isActive, onExit, launchSpec = null }: Props) {
         });
         if (cancelled) { unlistenOutput(); unlistenOutput = undefined; return; }
 
-        const resp = await dispatch<OpenResponse>("terminal.open", {
+        const resp = await dispatch<TerminalOpenResponse>(IPC.TERMINAL_OPEN, {
           rows: xterm.rows, cols: xterm.cols, launch_spec: launchSpec,
         });
         if (cancelled) {
-          void dispatch("terminal.close", { id: resp.id });
+          void dispatch(IPC.TERMINAL_CLOSE, { id: resp.id });
           return;
         }
 
@@ -217,7 +207,7 @@ export function TerminalPanel({ isActive, onExit, launchSpec = null }: Props) {
       unlistenOutput?.();
       unlistenConfig?.();
       if (sessionId) {
-        void dispatch("terminal.close", { id: sessionId });
+        void dispatch(IPC.TERMINAL_CLOSE, { id: sessionId });
       }
       const xterm = xtermRef.current;
       xtermRef.current = null;

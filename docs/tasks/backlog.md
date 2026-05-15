@@ -43,9 +43,9 @@ Goal: make background runtime predictable and keep memory usage bounded.
 - [x] TD.2.A Extract `AppContainer` composition root. (`src/components/AppContainer.tsx`, `src/context/IPCContext.tsx` — `IPCProvider` wraps stable dispatch; `App.tsx` renders `AppContainer`)
 - [x] TD.2.B Add feature module registration boundary for lazy services. (`src/context/FeatureContext.tsx` — `FeatureProvider` + `useFeature()` with `activate(key)` interface)
 - [x] TD.2.C Reduce `AppState::new()` startup assembly weight. (`src-tauri/src/app/state.rs` — `ManagerBundle`, `create_managers()`, `build_builtin_registry()`, `build_command_router()` extracted; `new()` reduced to ~15 lines)
-- [ ] TD.3.A Add typed request/response DTOs for critical routes.
-- [ ] TD.3.B Reduce raw `Value` parsing in key handlers.
-- [ ] TD.3.C Align frontend route constants and payload types.
+- [x] TD.3.A Add typed request/response DTOs for critical routes. (`src-tauri/src/models/ipc_requests.rs` — DTOs for search.query, search.record_selection, setting.get/set, terminal.open/send/close/resize)
+- [x] TD.3.B Reduce raw `Value` parsing in key handlers. (`handlers/setting.rs`, `handlers/terminal.rs`, `handlers/search.rs` — all critical commands use `serde_json::from_value::<TypedDTO>` instead of manual field access)
+- [x] TD.3.C Align frontend route constants and payload types. (`src/ipc/routes.ts` — all IPC routes as `IPC.*` constants; `src/ipc/types.ts` — typed request/response interfaces; updated `useCommands`, `useHotkey`, `useSearchMetadata`, `CommandPalette`, `TerminalPanel`; `useCommands` migrated from direct `invoke` to `useIPC()`)
 
 ## PERF.2 - Search Execution Bound
 

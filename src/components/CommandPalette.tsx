@@ -12,6 +12,8 @@ import { CommandSuggestions } from "./CommandSuggestions";
 import { PanelRegistry } from "./panel/PanelRegistry";
 import { WorkspaceIndicator } from "./WorkspaceIndicator";
 import { applySourceQuotas, mergeSearchResults, sortSearchResults } from "../utils/search";
+import { IPC } from "../ipc/routes";
+import type { SearchBackendInfo, SettingEntry } from "../ipc/types";
 import type { SearchChunkDiagnostics, SearchChunkPayload, SearchErrorPayload, SearchResult } from "../types/search";
 import type { ActionRef } from "../types/search";
 import type { BuiltinCommandResult } from "../hooks/useCommands";
@@ -21,24 +23,8 @@ const TerminalPanel = React.lazy(() =>
   import("./TerminalPanel").then((m) => ({ default: m.TerminalPanel })),
 );
 
-interface SettingEntry {
-  key: string;
-  value: string;
-}
-
 interface ConfigReloadedPayload {
   changed_keys: string[];
-}
-
-interface SearchBackendInfo {
-  configured: string;
-  active: string;
-  everything_available: boolean;
-  tantivy_available: boolean;
-  file_cache_entries: number;
-  tantivy_index_entries: number;
-  tantivy_index_dir: string;
-  rebuild_supported: boolean;
 }
 
 interface SecondaryAction {
@@ -211,7 +197,7 @@ export function CommandPalette() {
 
     async function refreshLauncherSettings() {
       try {
-        const entries = await dispatch<SettingEntry[]>("setting.list_all");
+        const entries = await dispatch<SettingEntry[]>(IPC.SETTING_LIST_ALL);
         const maxResults = entries.find((entry) => entry.key === "launcher.max_results")?.value;
         const parsed = Number.parseInt(maxResults ?? "", 10);
         if (Number.isFinite(parsed) && parsed > 0) {
@@ -280,7 +266,7 @@ export function CommandPalette() {
 
     async function refreshSearchBackend() {
       try {
-        const info = await dispatch<SearchBackendInfo>("search.backend");
+        const info = await dispatch<SearchBackendInfo>(IPC.SEARCH_BACKEND);
         setSearchBackend(info);
       } catch {
         setSearchBackend(null);
@@ -321,7 +307,7 @@ export function CommandPalette() {
       setSelected(0);
       setCmdResult(null);
       setTimedOutProviders([]);
-      void dispatch("search.cancel").catch(() => {});
+      void dispatch(IPC.SEARCH_CANCEL).catch(() => {});
       inputRef.current?.focus();
     });
     return () => { unlisten.then((fn) => fn()); };
@@ -338,7 +324,7 @@ export function CommandPalette() {
       setCmdResult(null);
       setTimedOutProviders([]);
       activeSearchRequestRef.current = "";
-      void dispatch("search.cancel").catch(() => {});
+      void dispatch(IPC.SEARCH_CANCEL).catch(() => {});
       requestAnimationFrame(() => inputRef.current?.focus());
     });
     return () => { unlisten.then((fn) => fn()); };
@@ -370,7 +356,7 @@ export function CommandPalette() {
         setQuery("");
         setResults([]);
         setTimedOutProviders([]);
-        void dispatch("search.cancel").catch(() => {});
+        void dispatch(IPC.SEARCH_CANCEL).catch(() => {});
         requestAnimationFrame(() => inputRef.current?.focus());
       } else if (queryRef.current !== "") {
         activeSearchRequestRef.current = "";
@@ -379,7 +365,7 @@ export function CommandPalette() {
         setTimedOutProviders([]);
         setPipelineResult(null);
         setPipelineRunning(false);
-        void dispatch("search.cancel").catch(() => {});
+        void dispatch(IPC.SEARCH_CANCEL).catch(() => {});
         inputRef.current?.focus();
       } else {
         void hideWindow();
@@ -438,7 +424,7 @@ export function CommandPalette() {
       setFileDiagnostics(null);
       activeSearchRequestRef.current = "";
       if (debounceRef.current) clearTimeout(debounceRef.current);
-      void dispatch("search.cancel").catch(() => {});
+      void dispatch(IPC.SEARCH_CANCEL).catch(() => {});
       return;
     }
     if (debounceRef.current) clearTimeout(debounceRef.current);
@@ -450,7 +436,7 @@ export function CommandPalette() {
       setTimedOutProviders([]);
       setFileDiagnostics(null);
       try {
-        const data = await dispatch<SearchResult[]>("search.query", {
+        const data = await dispatch<SearchResult[]>(IPC.SEARCH_QUERY, {
           query: ri,
           limit: searchLimitRef.current,
           stream: true,
@@ -474,7 +460,7 @@ export function CommandPalette() {
 
   async function launchResult(result: SearchResult) {
     try {
-      await dispatch("search.record_selection", {
+      await dispatch(IPC.SEARCH_RECORD_SELECTION, {
         source: result.source ?? result.kind,
         path: result.path,
       }).catch(() => {});
@@ -491,7 +477,7 @@ export function CommandPalette() {
           return;
         }
       } else {
-        await dispatch("launcher.launch", { path: result.path });
+        await dispatch(IPC.LAUNCHER_LAUNCH, { path: result.path });
       }
     } finally {
       if (result.kind === "app" || result.kind === "file" || result.kind === "folder") {
@@ -523,7 +509,7 @@ export function CommandPalette() {
     });
     const first = actions[0];
     if (first) {
-      await dispatch("action.run", { action_ref: first.action_ref });
+      await dispatch(IPC.ACTION_RUN, { action_ref: first.action_ref });
     }
   }
 
@@ -672,7 +658,7 @@ export function CommandPalette() {
     setCmdResult(result);
     setResults([]);
     activeSearchRequestRef.current = "";
-    void dispatch("search.cancel").catch(() => {});
+    void dispatch(IPC.SEARCH_CANCEL).catch(() => {});
   }, [dispatch]);
 
   // BUG-12: passed to every panel so Escape inside textarea/input can close the panel
