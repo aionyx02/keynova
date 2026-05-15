@@ -7,6 +7,7 @@ pub mod feature;
 pub mod history;
 pub mod hotkey;
 pub mod launcher;
+pub mod learning_material;
 pub mod model;
 pub mod mouse;
 pub mod note;

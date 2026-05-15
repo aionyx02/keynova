@@ -69,6 +69,7 @@ const TOOL_DEV_CARGO_CHECK: &str = "dev_cargo_check";
 const TOOL_DEV_NPM_BUILD: &str = "dev_npm_build";
 const TOOL_DEV_NPM_LINT: &str = "dev_npm_lint";
 const TOOL_DEV_EXPLAIN_ERROR: &str = "dev_explain_compiler_error";
+const TOOL_LEARNING_MATERIAL_REVIEW: &str = "learning_material_review";
 
 const GIT_STATUS_TIMEOUT_SECS: u64 = 10;
 const GIT_STATUS_OUTPUT_LIMIT: usize = 8 * 1024;
@@ -1331,7 +1332,7 @@ impl ReactDispatchState {
     fn dispatch(&self, name: &str, args: &Value) -> Result<Value, String> {
         // Approval-gated tools require `"__approved": true` injected by the ReAct loop
         // after the user explicitly grants permission. Direct dispatch without approval fails.
-        const APPROVAL_GATED: &[&str] = &[TOOL_GIT_STATUS];
+        const APPROVAL_GATED: &[&str] = &[TOOL_GIT_STATUS, TOOL_LEARNING_MATERIAL_REVIEW];
         if APPROVAL_GATED.contains(&name)
             && args.get("__approved").and_then(Value::as_bool) != Some(true)
         {
@@ -1352,8 +1353,42 @@ impl ReactDispatchState {
             TOOL_DEV_NPM_BUILD => self.dispatch_dev_npm_build(args),
             TOOL_DEV_NPM_LINT => self.dispatch_dev_npm_lint(args),
             TOOL_DEV_EXPLAIN_ERROR => self.dispatch_dev_explain_compiler_error(args),
+            TOOL_LEARNING_MATERIAL_REVIEW => self.dispatch_learning_material_review(args),
             other => Err(format!("unknown react tool '{other}'")),
         }
+    }
+
+    fn dispatch_learning_material_review(&self, args: &Value) -> Result<Value, String> {
+        use crate::managers::learning_material_manager::LearningMaterialManager;
+        let mut roots: Vec<PathBuf> = args
+            .get("roots")
+            .and_then(Value::as_array)
+            .map(|arr| arr.iter().filter_map(Value::as_str).map(PathBuf::from).collect())
+            .unwrap_or_default();
+
+        // Fall back to workspace project root when no roots supplied.
+        if roots.is_empty() {
+            if let Ok(ws) = self.workspace_manager.lock() {
+                if let Some(root) = ws.current().project_root.clone().filter(|r| !r.is_empty()) {
+                    roots.push(PathBuf::from(root));
+                }
+            }
+        }
+
+        let mgr = {
+            let config = self.config.lock().map_err(|e| e.to_string())?;
+            LearningMaterialManager::from_config(&config)
+        };
+
+        let report = mgr.scan(&roots)?;
+        let result = serde_json::json!({
+            "roots": report.roots,
+            "candidate_count": report.stats.candidate_count,
+            "scanned_count": report.stats.scanned_count,
+            "filtered_count": report.stats.filtered_count,
+            "markdown_summary": report.to_markdown(),
+        });
+        Ok(result)
     }
 
     fn dispatch_filesystem_search(&self, args: &Value) -> Result<Value, String> {

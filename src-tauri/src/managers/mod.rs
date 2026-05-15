@@ -6,6 +6,7 @@ pub mod sandbox_manager;
 pub mod calculator_manager;
 pub mod history_manager;
 pub mod hotkey_manager;
+pub mod learning_material_manager;
 pub mod model_manager;
 pub mod mouse_manager;
 pub mod note_manager;

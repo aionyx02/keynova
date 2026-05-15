@@ -23,6 +23,7 @@ use crate::handlers::{
     history::HistoryHandler,
     hotkey::HotkeyHandler,
     launcher::LauncherHandler,
+    learning_material::LearningMaterialHandler,
     model::ModelHandler,
     mouse::MouseHandler,
     note::NoteHandler,
@@ -298,6 +299,10 @@ fn build_command_router(
         event_bus.clone(),
     ))));
     router.register(Arc::new(NvimHandler::new(Arc::new(event_bus.clone()))));
+    router.register(Arc::new(LearningMaterialHandler::new(
+        Arc::clone(&bundle.config_manager),
+        Arc::clone(&bundle.note_manager),
+    )));
     router.register(Arc::new(AutomationHandler));
     router.register(Arc::new(PluginHandler));
     router

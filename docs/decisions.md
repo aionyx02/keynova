@@ -2,7 +2,7 @@
 type: decision_index
 status: active
 priority: p1
-updated: 2026-05-13
+updated: 2026-05-15
 context_policy: retrieve_only
 owner: project
 ---
@@ -66,6 +66,7 @@ owner: project
 | [0025](adr/0025-web-search-providers.md) | Structured Agent Web Search Providers | 接受 | 2026-05-08 |
 | [0026](adr/0026-provider-driven-react-loop.md) | Provider-Driven ReAct Agent Loop | 接受 | 2026-05-08 |
 | [0027](adr/0027-generic-shell-sandbox.md) | Generic Shell Tool Sandbox Requirement | 接受（research，product 未解封）| 2026-05-09 |
+| [0028](adr/0028-learning-material-review-local-context.md) | Learning Material Review Local Context Boundary | 提議 | 2026-05-15 |
 
 ---
 

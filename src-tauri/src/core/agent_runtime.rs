@@ -107,6 +107,16 @@ impl AgentToolRegistry {
             3000,
             1,
         ));
+        registry.register(tool_spec::<LearningMaterialReviewToolParams, LearningMaterialReviewToolResult>(
+            "learning_material.review",
+            "Scan workspace directories for learning materials (notes, reports, presentations, certificates, projects). \
+             Metadata-only — no recursive content indexing. Requires agent.local_context.enabled = true and user approval.",
+            ActionRisk::Medium,
+            AgentToolApprovalPolicy::Required,
+            vec![ContextVisibility::UserPrivate],
+            15_000,
+            1,
+        ));
         registry
     }
 
@@ -223,6 +233,23 @@ pub struct GitStatusToolResult {
     pub stdout: String,
     pub stderr: String,
     pub exit_code: Option<i32>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub struct LearningMaterialReviewToolParams {
+    /// Absolute paths to scan. Defaults to workspace project root when empty.
+    pub roots: Option<Vec<String>>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub struct LearningMaterialReviewToolResult {
+    pub roots: Vec<String>,
+    pub candidate_count: usize,
+    pub scanned_count: usize,
+    pub filtered_count: usize,
+    pub markdown_summary: String,
 }
 
 pub struct AgentRuntime {
@@ -904,17 +931,19 @@ mod tests {
         let runtime = AgentRuntime::new(Arc::new(|_| {}));
         let tools = runtime.list_tools();
 
-        assert_eq!(tools.len(), 5);
+        assert_eq!(tools.len(), 6);
         assert_eq!(tools[0].name, "filesystem.read");
         assert_eq!(tools[1].name, "filesystem.search");
         assert_eq!(tools[2].name, "git.status");
         assert_eq!(tools[3].name, "keynova.search");
-        assert_eq!(tools[4].name, "web.search");
+        assert_eq!(tools[4].name, "learning_material.review");
+        assert_eq!(tools[5].name, "web.search");
         assert!(tools
             .iter()
             .all(|tool| tool.name != "execute_shell_command"));
         assert!(tools.iter().all(|tool| tool.name != "execute_bash_command"));
         assert_eq!(tools[2].approval_policy, AgentToolApprovalPolicy::Required);
+        assert_eq!(tools[4].approval_policy, AgentToolApprovalPolicy::Required);
     }
 
     #[test]
