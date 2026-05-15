@@ -19,6 +19,7 @@ use crate::handlers::{
         SysMonitorCommand, TrCommand,
     },
     calculator::CalculatorHandler,
+    feature::FeatureHandler,
     history::HistoryHandler,
     hotkey::HotkeyHandler,
     launcher::LauncherHandler,
@@ -50,7 +51,6 @@ pub(crate) struct AppState {
     pub(crate) event_bus: EventBus,
     pub(crate) knowledge_store: KnowledgeStoreHandle,
     pub(crate) mouse_active: Arc<AtomicBool>,
-    pub(crate) terminal_manager: Arc<Mutex<TerminalManager>>,
     pub(crate) launcher_focus_guard: Arc<Mutex<Option<Instant>>>,
     pub(crate) _config_manager: Arc<Mutex<ConfigManager>>,
     pub(crate) _config_watcher: Arc<Mutex<Option<notify::RecommendedWatcher>>>,
@@ -227,6 +227,9 @@ fn build_command_router(
         Arc::clone(&bundle.terminal_manager),
         Arc::clone(&bundle.workspace_manager),
     )));
+    router.register(Arc::new(FeatureHandler::new(Arc::clone(
+        &bundle.terminal_manager,
+    ))));
     router.register(Arc::new(MouseHandler::new(Arc::clone(
         &bundle.mouse_manager,
     ))));
@@ -316,7 +319,6 @@ impl AppState {
             event_bus,
             knowledge_store,
             mouse_active: Arc::new(AtomicBool::new(false)),
-            terminal_manager: Arc::clone(&bundle.terminal_manager),
             launcher_focus_guard: Arc::new(Mutex::new(None)),
             _config_manager: bundle.config_manager,
             _config_watcher: Arc::new(Mutex::new(None)),

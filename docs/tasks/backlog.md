@@ -62,11 +62,11 @@ Goal: remove unbounded thread growth and ensure cancellation works end-to-end.
 
 Goal: keep heavy services off until user intent requires them.
 
-- [ ] PERF.3.A Make TerminalManager lazy-init (no PTY/shell before first terminal use).
-- [ ] PERF.3.B Make system monitoring stream session-scoped and stop-on-close.
-- [ ] PERF.3.C Make Nvim manager lazy-init (no detect/download during startup).
-- [ ] PERF.3.D Add AI Runtime Service for setup TTL, request queue, keep_alive, and unload policy.
-- [ ] PERF.3.E Add Lazy Service/Feature Gate support in AppContainer.
+- [x] PERF.3.A Make TerminalManager lazy-init (no PTY/shell before first terminal use). (`bootstrap.rs`: removed `start_prewarm` call and import; terminal cold-starts on first `terminal.open`)
+- [x] PERF.3.B Make system monitoring stream session-scoped and stop-on-close. (Already done: `SystemMonitoringPanel` calls `stream_start` on mount, `stream_stop` on unmount; backend handler verified correct)
+- [x] PERF.3.C Make Nvim manager lazy-init (no detect/download during startup). (Already lazy: `NvimHandler::new()` stores only `event_bus`; `detect_nvim` only runs on `nvim.detect` IPC command)
+- [x] PERF.3.D Add AI Runtime Service for setup TTL, request queue, keep_alive, and unload policy. (`AiHandler`: `in_flight: Arc<AtomicBool>` rejects concurrent requests; `ai.unload` command sends keep_alive=0 to Ollama; `chat_async` clears flag via `completion_flag` parameter. TTL cache + keep_alive from PERF.1)
+- [x] PERF.3.E Add Lazy Service/Feature Gate support in AppContainer. (`FeatureContext.tsx` wired to `feature.activate` IPC; `FeatureHandler` in Rust triggers `start_prewarm` on `terminal` activation; `TerminalPanel` calls `activate("terminal")` on mount; `IPC.FEATURE_ACTIVATE` constant added)
 
 ## TD.4 + TD.5 Follow-Up
 

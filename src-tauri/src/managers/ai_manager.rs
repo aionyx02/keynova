@@ -334,6 +334,8 @@ impl AiManager {
     }
 
     /// 非同步對話：立即回傳 request_id，結果透過 ai.response 事件推送。
+    /// `completion_flag` — 若提供，回應發布後設為 `false`（用於 in-flight 追蹤）。
+    #[allow(clippy::too_many_arguments)]
     pub fn chat_async(
         &self,
         request_id: String,
@@ -342,6 +344,7 @@ impl AiManager {
         max_tokens: u32,
         timeout_secs: u64,
         keep_alive: String,
+        completion_flag: Option<std::sync::Arc<std::sync::atomic::AtomicBool>>,
     ) {
         let publish = Arc::clone(&self.publish_event);
         let history = Arc::clone(&self.history);
@@ -394,6 +397,9 @@ impl AiManager {
                         }),
                     ));
                 }
+            }
+            if let Some(flag) = completion_flag {
+                flag.store(false, std::sync::atomic::Ordering::Relaxed);
             }
         });
     }

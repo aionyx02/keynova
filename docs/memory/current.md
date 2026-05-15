@@ -77,11 +77,19 @@ owner: project
   - 4 deterministic regression tests in `managers::search_service::tests` — all passing.
   - 200/201 tests pass (1 pre-existing unrelated failure unchanged).
 
+- 2026-05-15 PERF.3.A–E complete:
+  - PERF.3.A: `start_prewarm` removed from bootstrap; terminal cold-starts on demand.
+  - PERF.3.B+C: Verified already done (system monitor stop-on-close; nvim lazy detect).
+  - PERF.3.D: `AiHandler.in_flight` rejects concurrent chat; `ai.unload` sends keep_alive=0 to Ollama; `chat_async` gains `completion_flag` parameter.
+  - PERF.3.E: `FeatureContext.activate()` → `feature.activate` IPC → `FeatureHandler` → `start_prewarm`; `TerminalPanel` calls `activate("terminal")` on mount.
+  - Clippy clean; 200/201 tests pass (1 pre-existing failure).
+
 ## Next Step
 
-1. Proceed to PERF.3 Heavy Feature Lazy Runtime (A–E).
-2. Or proceed to TD.4 (agent approval/cancel channelization, actor alignment).
-3. Keep FEAT.11 at planning/ADR level only until blockers clear.
+1. Proceed to TD.4 (agent approval/cancel channelization, SearchService/Terminal actor alignment).
+2. Or proceed to TD.5.B–D (CSP, keyboard regression tests, chunk merge tests).
+3. Or proceed to P3 Context Compiler Lite.
+4. Keep FEAT.11 at planning/ADR level only until blockers clear.
 
 ## Known Risks
 
