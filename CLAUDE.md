@@ -2,7 +2,7 @@
 type: agent_bootstrap
 status: active
 priority: p0
-updated: 2026-05-13
+updated: 2026-05-15
 context_policy: always_retrievable
 owner: project
 ---
@@ -23,18 +23,15 @@ owner: project
 
 Before final response or commit:
 
-1. Update task state in one of:
-   - `docs/tasks/active.md`
-   - `docs/tasks/backlog.md`
-   - `docs/tasks/blocked.md`
-   - `docs/tasks/completed.md`
-2. Update `docs/memory/current.md` (what changed, next step, risks).
-3. If architecture/security/testing behavior changed, update:
+1. Update task state in `docs/tasks/{active,backlog,blocked,completed}.md`.
+2. **Auto-archive completed groups (mandatory)**: when a task group (e.g. `PERF.1`, `TD.3`, `FEAT.11`, `AGENT.1`, `UTIL.2`) reaches 100% `[x]`, move the whole section out of `backlog.md` / `active.md` into `completed.md` **in the same change-set**. Do not leave clusters of `[x]` accumulating in `backlog.md`. Update `Mainline History` references and `active.md` execution-order list as needed.
+3. Update `docs/memory/current.md` (what changed, next step, risks).
+4. If architecture/security/testing behavior changed, update:
    - `docs/architecture.md`
    - `docs/security.md`
    - `docs/testing.md`
-4. If decision boundary changed, add/update ADR in `docs/adr/` and refresh `docs/decisions.md`.
-5. Run `npm run docs:refresh` to prevent documentation drift.
+5. If decision boundary changed, add/update ADR in `docs/adr/` and refresh `docs/decisions.md`.
+6. Run `npm run docs:refresh` to prevent documentation drift.
 
 ## Project Overview
 

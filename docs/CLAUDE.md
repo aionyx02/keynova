@@ -2,7 +2,7 @@
 type: agent_policy
 status: active
 priority: p0
-updated: 2026-05-13
+updated: 2026-05-15
 context_policy: always_retrievable
 owner: project
 ---
@@ -54,6 +54,24 @@ After meaningful changes, update the right file immediately:
 - Security boundary changes -> `docs/security.md`
 - Test strategy changes -> `docs/testing.md`
 - Decision boundary changes -> `docs/adr/*` + `docs/decisions.md`
+
+### 5a. Auto-Archive Completed Task Groups (mandatory)
+
+A task group is a section header in `backlog.md` or `active.md` whose children are `[ ]` / `[x]` items (e.g. `## PERF.1`, `## AGENT.1`, `## FEAT.11`).
+
+Rule: the moment a group becomes 100% `[x]`, in the **same change-set**:
+
+1. Remove the entire group section from `backlog.md` (or `active.md`).
+2. Append the same group to `docs/tasks/completed.md` with a `(COMPLETE YYYY-MM-DD)` suffix on the header; retain per-item implementation hints.
+3. Update `backlog.md` "Mainline History" / `active.md` "Current Execution Order" lists to reflect the new state.
+4. Re-run `npm run docs:refresh` so `docs/index.md` and frontmatter stay in sync.
+
+Why: prevents `[x]` accumulation in `backlog.md` (which hides real remaining work), preserves a clean delivery history, and keeps `active.md` / `backlog.md` small enough to stay always-retrievable.
+
+Do not:
+
+- Leave a completed group sitting in `backlog.md` "for later cleanup".
+- Move only part of a group; either it's fully complete (move the whole section) or partial (stay in place).
 
 ## 6. Auto-Update Guardrail
 
