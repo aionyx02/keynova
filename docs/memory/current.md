@@ -110,10 +110,19 @@ owner: project
   - Added left/right gradient edge masks on the tab rail to blend with existing panel backdrop.
   - Adjusted tab text/spacing to better match command palette visual density.
 
+- 2026-05-15 P3.A–B complete:
+  - `models/context_bundle.rs`: `ContextBundle` with `user_intent`, `workspace` (`WorkspaceContext`), `recent_actions`, `selected_files` (`SelectedFileContext`), `search_results`, and `token_budget` (`ContextTokenBudget`).
+  - `ContextBundle::build()`: two-pass budget — snippets > 200 chars trimmed, total char-count capped at 3000; no recursive filesystem scan.
+  - `AgentHandler::build_context_bundle()`: pulls workspace metadata + recent actions + recent file paths from `WorkspaceManager`; reuses pre-computed `keynova_search` results.
+  - `AgentRun.context_bundle: Option<ContextBundle>` added (`#[serde(default)]` for backward compat).
+  - Both `start_react_run` and `start_heuristic_run` set `context_bundle: Some(...)`.
+  - Frontend: `ContextBundle`, `WorkspaceContext`, `SelectedFileContext`, `ContextTokenBudget` types added to `useAgent.ts`; `AgentRun.context_bundle` field added.
+  - 3 new deterministic tests in `models::context_bundle::tests`; 220/221 total (1 pre-existing failure unchanged).
+
 ## Next Step
 
-1. Proceed to P3 Context Compiler Lite (define `ContextBundle`, build from managers, apply token budget).
-2. Keep FEAT.11 at planning/ADR level only until blockers clear.
+1. Keep FEAT.11 at planning/ADR level only until blockers clear.
+2. P3 is complete — next major track is FEAT.11 (blocked) or additional polish.
 
 ## Known Risks
 

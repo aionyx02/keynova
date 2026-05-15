@@ -83,16 +83,16 @@ Goal: build bounded and controllable context assembly without recursive filesyst
 
 ### P3.A - ContextBundle v0
 
-- [ ] Define `ContextBundle` with `user_intent`, `workspace`, `recent_actions`, `selected_files`, `search_results`, and `token_budget`.
-- [ ] Build context from managers only (Search/Workspace/History), no recursive filesystem scan.
-- [ ] Apply token budget using initial char-count approximation.
+- [x] Define `ContextBundle` with `user_intent`, `workspace`, `recent_actions`, `selected_files`, `search_results`, and `token_budget`. (`models/context_bundle.rs` — `ContextBundle`, `WorkspaceContext`, `SelectedFileContext`, `ContextTokenBudget`)
+- [x] Build context from managers only (Search/Workspace/History), no recursive filesystem scan. (`AgentHandler::build_context_bundle` pulls from `WorkspaceManager` only; search results passed from already-computed `sources_for_prompt`)
+- [x] Apply token budget using initial char-count approximation. (`ContextBundle::build` — two-pass: snippet preview trim at 200 chars, then total char-count cap at 3000)
 
 ### P3.B - Agent Integration
 
-- [ ] Build `ContextBundle` before agent run.
-- [ ] Do not inject full filesystem results into prompt.
-- [ ] Use bounded preview for large content.
-- [ ] Add prompt audit record for context composition.
+- [x] Build `ContextBundle` before agent run. (`start_react_run` and `start_heuristic_run` both call `build_context_bundle` and set `context_bundle: Some(...)` on `AgentRun`)
+- [x] Do not inject full filesystem results into prompt. (only `keynova_search` manager results included; no `filesystem_search` or `filesystem_read` in bundle)
+- [x] Use bounded preview for large content. (snippets > 200 chars trimmed with `…`; total results dropped once budget exceeded)
+- [x] Add prompt audit record for context composition. (`AgentRun.context_bundle` carries `token_budget` with `used_chars`, `remaining_chars`, `truncated`; 3 deterministic tests in `models::context_bundle::tests`)
 
 ## FEAT.11 - Learning Material Review (Blocked)
 
