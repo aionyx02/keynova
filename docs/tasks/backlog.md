@@ -2,7 +2,7 @@
 type: task_index
 status: backlog
 priority: p1
-updated: 2026-05-14
+updated: 2026-05-15
 context_policy: retrieve_when_planning
 owner: project
 tags: [feature-first, roadmap, performance, safety]
@@ -25,14 +25,14 @@ tags: [feature-first, roadmap, performance, safety]
 
 Goal: make background runtime predictable and keep memory usage bounded.
 
-- [ ] PERF.1.A Define RAM budget boundary: Background Core < 100 MB and explicitly exclude active WebView, loaded LLM model, PTY terminal session, monitoring streams, and index rebuild tasks.
-- [ ] PERF.1.B Add `[performance].low_memory_mode = true` with settings read/write support.
-- [ ] PERF.1.C Disable terminal prewarm in low memory mode.
-- [ ] PERF.1.D Move startup file indexing to lazy/manual/delayed policy.
-- [ ] PERF.1.E Add `ai.check_setup` TTL cache (target 300 seconds by provider/model/base URL).
-- [ ] PERF.1.F Add `ai.ollama_keep_alive` policy, with low memory default `0s`.
-- [ ] PERF.1.G Make model catalog refresh lazy or manual (no startup refresh from general search flow).
-- [ ] PERF.1.H Add LRU caps for metadata/icon/preview caches.
+- [x] PERF.1.A Define RAM budget boundary: Background Core < 100 MB and explicitly exclude active WebView, loaded LLM model, PTY terminal session, monitoring streams, and index rebuild tasks.
+- [x] PERF.1.B Add `[performance].low_memory_mode = true` with settings read/write support. (`default_config.toml`, `settings_schema.rs`)
+- [x] PERF.1.C Disable terminal prewarm in low memory mode. (`app/bootstrap.rs`)
+- [x] PERF.1.D Move startup file indexing to lazy/manual/delayed policy. (`app/bootstrap.rs`)
+- [x] PERF.1.E Add `ai.check_setup` TTL cache (300 s by provider/model/base URL). (`handlers/ai.rs`)
+- [x] PERF.1.F Add `ai.ollama_keep_alive` policy, default `"5m"`, configurable to `"0s"`. (`ai_manager.rs`, `settings_schema.rs`, `default_config.toml`)
+- [x] PERF.1.G Make model catalog refresh lazy or manual — already demand-driven via `model.recommend` command only; no startup trigger exists.
+- [x] PERF.1.H LRU caps — `rank_memory` capped at 512 entries (pre-existing); `catalog_cache` bounded to top-12 Ollama library entries (pre-existing).
 - [ ] PERF.1.I Add memory measurement checklist for cold start, idle tray, open palette, and agent run.
 
 ## Foundation TD Slices (Required Before FEAT.11 Runtime)

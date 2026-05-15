@@ -34,6 +34,7 @@ pub struct AiRuntimeConfig {
     pub provider: AiProvider,
     pub max_tokens: u32,
     pub timeout_secs: u64,
+    pub ollama_keep_alive: String,
 }
 
 pub fn resolve_ai_runtime_config<F>(mut get: F) -> Result<AiRuntimeConfig, String>
@@ -76,10 +77,14 @@ where
             .unwrap_or(30),
     };
 
+    let ollama_keep_alive = get("ai.ollama_keep_alive")
+        .unwrap_or_else(|| "5m".into());
+
     Ok(AiRuntimeConfig {
         provider,
         max_tokens,
         timeout_secs: timeout,
+        ollama_keep_alive,
     })
 }
 
@@ -336,6 +341,7 @@ impl AiManager {
         provider: AiProvider,
         max_tokens: u32,
         timeout_secs: u64,
+        keep_alive: String,
     ) {
         let publish = Arc::clone(&self.publish_event);
         let history = Arc::clone(&self.history);
@@ -355,7 +361,7 @@ impl AiManager {
             history.lock().map(|h| h.clone()).unwrap_or_default();
 
         std::thread::spawn(move || {
-            let result = do_chat(&provider, max_tokens, timeout_secs, &messages_snapshot);
+            let result = do_chat(&provider, max_tokens, timeout_secs, &keep_alive, &messages_snapshot);
             match result {
                 Ok(reply) => {
                     if let Ok(mut h) = history.lock() {
@@ -397,6 +403,7 @@ fn do_chat(
     provider: &AiProvider,
     max_tokens: u32,
     timeout_secs: u64,
+    keep_alive: &str,
     messages: &[AiMessage],
 ) -> Result<String, String> {
     match provider {
@@ -404,7 +411,7 @@ fn do_chat(
             chat_claude(api_key, model, max_tokens, timeout_secs, messages)
         }
         AiProvider::Ollama { base_url, model } => {
-            chat_ollama(base_url, model, max_tokens, timeout_secs, messages)
+            chat_ollama(base_url, model, max_tokens, timeout_secs, keep_alive, messages)
         }
         AiProvider::OpenAI {
             api_key,
@@ -462,6 +469,7 @@ fn chat_ollama(
     model: &str,
     max_tokens: u32,
     timeout_secs: u64,
+    keep_alive: &str,
     messages: &[AiMessage],
 ) -> Result<String, String> {
     let client = build_client(timeout_secs)?;
@@ -469,6 +477,7 @@ fn chat_ollama(
     let body = serde_json::json!({
         "model": model,
         "stream": false,
+        "keep_alive": keep_alive,
         "messages": messages_json(messages),
         "options": {
             "num_predict": max_tokens,
@@ -834,6 +843,7 @@ mod tests {
                 },
                 max_tokens: 2048,
                 timeout_secs: 180,
+                ollama_keep_alive: "5m".into(),
             }
         );
     }
