@@ -97,6 +97,12 @@ owner: project
   - `handlers/search.rs`: 5 chunk merge + stale request tests (TD.5.D).
   - 216/1 tests passing (pre-existing failure unchanged).
 
+- 2026-05-15 AI panel UX fix complete:
+  - Added `agent.clear_runs` so AGENT run history and memory refs can be reset.
+  - `AiPanel` clear button now clears by active mode (`CHAT` or `AGENT`).
+  - `useAgent` run ordering changed to chronological (old -> new) for stable latest-at-bottom flow.
+  - `useAi` now guards against stale `ai.get_history` hydration overriding post-clear/post-send state.
+
 ## Next Step
 
 1. Proceed to P3 Context Compiler Lite (define `ContextBundle`, build from managers, apply token budget).

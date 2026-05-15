@@ -293,6 +293,12 @@ impl AgentRuntime {
         Ok(guard.get(run_id).cloned())
     }
 
+    pub fn clear_runs(&self) -> Result<(), String> {
+        let mut guard = self.runs.lock().map_err(|e| e.to_string())?;
+        guard.clear();
+        Ok(())
+    }
+
     pub fn recent_runs(&self, limit: usize) -> Result<Vec<AgentRun>, String> {
         let guard = self.runs.lock().map_err(|e| e.to_string())?;
         let mut runs: Vec<_> = guard.values().cloned().collect();
@@ -875,6 +881,21 @@ mod tests {
                 "agent.run.failed".to_string(),
             ]
         );
+    }
+
+    #[test]
+    fn clear_runs_removes_all_cached_agent_runs() {
+        let runtime = AgentRuntime::new(Arc::new(|_| {}));
+        runtime
+            .insert_run(test_run("run-a", AgentRunStatus::Completed))
+            .expect("insert run-a");
+        runtime
+            .insert_run(test_run("run-b", AgentRunStatus::Completed))
+            .expect("insert run-b");
+
+        runtime.clear_runs().expect("clear runs");
+
+        assert!(runtime.recent_runs(10).expect("recent runs").is_empty());
     }
 
     #[test]

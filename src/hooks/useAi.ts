@@ -34,12 +34,15 @@ export function useAi() {
   const [messages, setMessages] = useState<AiMessage[]>([]);
   const [loading, setLoading] = useState(false);
   const pendingIdRef = useRef<string | null>(null);
+  const hasLocalMutationRef = useRef(false);
 
   useEffect(() => {
     if (!window.__TAURI_INTERNALS__) return;
+    let active = true;
     // Load existing history on mount
     ipcDispatch<{ role: string; content: string }[]>("ai.get_history")
       .then((hist) => {
+        if (!active || hasLocalMutationRef.current) return;
         setMessages(hist.map((m) => ({ role: m.role as "user" | "assistant", content: m.content })));
       })
       .catch(() => {});
@@ -58,12 +61,16 @@ export function useAi() {
       });
     });
 
-    return () => { unlisten.then((fn) => fn()); };
+    return () => {
+      active = false;
+      unlisten.then((fn) => fn());
+    };
   }, []);
 
   const send = useCallback(async (prompt: string) => {
     if (loading || !prompt.trim()) return;
 
+    hasLocalMutationRef.current = true;
     const requestId = `ai-${Date.now()}`;
     pendingIdRef.current = requestId;
     setLoading(true);
@@ -86,7 +93,10 @@ export function useAi() {
   }, [loading]);
 
   const clearHistory = useCallback(async () => {
+    hasLocalMutationRef.current = true;
     await ipcDispatch("ai.clear_history");
+    pendingIdRef.current = null;
+    setLoading(false);
     setMessages([]);
   }, []);
 

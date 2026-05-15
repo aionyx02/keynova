@@ -32,6 +32,13 @@ Safety first for runtime lifecycle; feature-first delivery after guardrails are 
 7. P3 Context Compiler Lite.
 8. FEAT.11 Learning Material Review (blocked until prerequisites clear).
 
+## Recent Execution Notes
+
+- 2026-05-15: AI panel UX hotfix delivered for clear behavior and chronology:
+  - `AGENT` mode now has backend clear command (`agent.clear_runs`) and frontend clear wiring.
+  - Agent runs are rendered in chronological order (old -> new) to keep the newest request at the bottom.
+  - Chat history hydration now avoids stale overwrite after local send/clear actions.
+
 See `docs/tasks/backlog.md` for detailed breakdown.
 See `docs/tasks/blocked.md` for gating constraints.
 See `docs/tasks/completed.md` for P0/P1/P2 history.
