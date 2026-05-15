@@ -131,7 +131,7 @@ async function ipcDispatch<T>(route: string, payload?: Record<string, unknown>):
 
 function upsertRunChronologically(prev: AgentRun[], run: AgentRun): AgentRun[] {
   const index = prev.findIndex((item) => item.id === run.id);
-  if (index === -1) return [run, ...prev];
+  if (index === -1) return [...prev, run];
   return prev.map((item) => (item.id === run.id ? run : item));
 }
 
@@ -203,5 +203,12 @@ export function useAgent() {
     setRuns((prev) => upsertRunChronologically(prev, run));
   }, []);
 
-  return { runs, loading, start, cancel, approve, reject, reactSteps };
+  const clearRuns = useCallback(async () => {
+    await ipcDispatch<{ ok: boolean }>("agent.clear_runs");
+    setRuns([]);
+    setReactSteps({});
+    setLoading(false);
+  }, []);
+
+  return { runs, loading, start, cancel, approve, reject, clearRuns, reactSteps };
 }

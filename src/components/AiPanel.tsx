@@ -297,6 +297,14 @@ export function AiPanel({ onClose, onRunCommandResult }: PanelProps) {
     }
   }
 
+  async function handleClear() {
+    if (mode === "agent") {
+      await agent.clearRuns();
+      return;
+    }
+    await clearHistory();
+  }
+
   return (
     <div
       className="bg-gray-900/95 backdrop-blur-md rounded-b-xl shadow-2xl flex flex-col"
@@ -322,7 +330,7 @@ export function AiPanel({ onClose, onRunCommandResult }: PanelProps) {
           </div>
         </div>
         <button
-          onClick={() => void clearHistory()}
+          onClick={() => void handleClear()}
           className="text-xs text-gray-600 hover:text-gray-400 transition-colors"
         >
           {t.ai.clear}

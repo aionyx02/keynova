@@ -178,6 +178,10 @@ impl CommandHandler for AgentHandler {
                 let limit = payload.get("limit").and_then(Value::as_u64).unwrap_or(10) as usize;
                 Ok(json!(self.run_tool(tool_name, query, limit)?))
             }
+            "clear_runs" => {
+                self.runtime.clear_runs()?;
+                Ok(json!({ "ok": true }))
+            }
             _ => Err(format!("unknown agent command '{command}'")),
         }
     }
