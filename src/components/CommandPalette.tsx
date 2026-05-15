@@ -1,16 +1,18 @@
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, Suspense } from "react";
 import { listen } from "@tauri-apps/api/event";
-import { getCurrentWindow } from "@tauri-apps/api/window";
-import { LogicalSize } from "@tauri-apps/api/dpi";
 import { invoke } from "@tauri-apps/api/core";
+import { getCurrentWindow } from "@tauri-apps/api/window";
 import { useIPC } from "../hooks/useIPC";
+import { useWindowResize } from "../hooks/useWindowResize";
+import { useSearchMetadata } from "../hooks/useSearchMetadata";
 import { useAppStore } from "../stores/appStore";
 import { parseInputMode } from "../hooks/useInputMode";
 import { useCommands } from "../hooks/useCommands";
 import { CommandSuggestions } from "./CommandSuggestions";
 import { PanelRegistry } from "./panel/PanelRegistry";
 import { WorkspaceIndicator } from "./WorkspaceIndicator";
-import type { SearchChunkDiagnostics, SearchChunkPayload, SearchErrorPayload, SearchIconAsset, SearchMetadata, SearchResult } from "../types/search";
+import { applySourceQuotas, mergeSearchResults, sortSearchResults } from "../utils/search";
+import type { SearchChunkDiagnostics, SearchChunkPayload, SearchErrorPayload, SearchResult } from "../types/search";
 import type { ActionRef } from "../types/search";
 import type { BuiltinCommandResult } from "../hooks/useCommands";
 import type { WorkspaceState } from "../hooks/useWorkspace";
@@ -18,8 +20,6 @@ import type { WorkspaceState } from "../hooks/useWorkspace";
 const TerminalPanel = React.lazy(() =>
   import("./TerminalPanel").then((m) => ({ default: m.TerminalPanel })),
 );
-
-const TERMINAL_HEIGHT = 360;
 
 interface SettingEntry {
   key: string;
@@ -69,10 +69,6 @@ function isEditorTerminalResult(result: BuiltinCommandResult | null) {
   return result?.ui_type.type === "Terminal" && result.ui_type.value.editor;
 }
 
-function isTerminalResult(result: BuiltinCommandResult | null) {
-  return result?.ui_type.type === "Terminal";
-}
-
 async function hideWindow() {
   try {
     await getCurrentWindow().hide();
@@ -103,79 +99,10 @@ const KIND_BADGE: Record<string, { label: string; cls: string }> = {
   model: { label: "AI", cls: "bg-fuchsia-500/30 text-fuchsia-300" },
 };
 
-function searchResultKey(result: SearchResult) {
-  return `${result.source ?? result.kind}:${result.path}`;
-}
-
 function hasEncodingError(s: string | undefined | null): boolean {
   return typeof s === "string" && s.includes("�");
 }
 
-// Per-source caps mirror the backend sort_balanced_truncate constants.
-const SOURCE_QUOTAS: Partial<Record<string, number>> = {
-  app: 8,
-  command: 8,
-  note: 8,
-  history: 12,
-  model: 6,
-};
-
-function applySourceQuotas(sorted: SearchResult[], limit: number): SearchResult[] {
-  const counts: Record<string, number> = {};
-  const out: SearchResult[] = [];
-  for (const item of sorted) {
-    const key = item.source ?? item.kind;
-    const quota = SOURCE_QUOTAS[key];
-    const n = counts[key] ?? 0;
-    if (quota !== undefined && n >= quota) continue;
-    counts[key] = n + 1;
-    out.push(item);
-    if (out.length >= limit) break;
-  }
-  return out;
-}
-
-function mergeSearchResults(existing: SearchResult[], incoming: SearchResult[], limit: number) {
-  const seen = new Set(existing.map(searchResultKey));
-  const merged = [...existing];
-  for (const item of incoming) {
-    const key = searchResultKey(item);
-    if (seen.has(key)) continue;
-    seen.add(key);
-    merged.push(item);
-  }
-  return applySourceQuotas(sortSearchResults(merged), limit);
-}
-
-function sortSearchResults(results: SearchResult[]) {
-  return [...results].sort((left, right) => {
-    if (right.score !== left.score) return right.score - left.score;
-    const sourceOrder = searchSourceOrder(left) - searchSourceOrder(right);
-    if (sourceOrder !== 0) return sourceOrder;
-    return (left.title ?? left.name).localeCompare(right.title ?? right.name);
-  });
-}
-
-function searchSourceOrder(result: SearchResult) {
-  switch (result.kind) {
-    case "app":
-      return 0;
-    case "command":
-      return 1;
-    case "folder":
-      return 2;
-    case "file":
-      return 3;
-    case "note":
-      return 4;
-    case "history":
-      return 5;
-    case "model":
-      return 6;
-    default:
-      return 7;
-  }
-}
 
 function isCopyableLocationResult(result: SearchResult | null) {
   return result?.kind === "app" || result?.kind === "file" || result?.kind === "folder";
@@ -204,8 +131,6 @@ export function CommandPalette() {
   const [argSuggestions, setArgSuggestions] = useState<string[]>([]);
   const [selectedArg, setSelectedArg] = useState(0);
   const [searchBackend, setSearchBackend] = useState<SearchBackendInfo | null>(null);
-  const [metadataByPath, setMetadataByPath] = useState<Record<string, SearchMetadata>>({});
-  const [iconsByKey, setIconsByKey] = useState<Record<string, SearchIconAsset>>({});
   const [timedOutProviders, setTimedOutProviders] = useState<string[]>([]);
   const [fileDiagnostics, setFileDiagnostics] = useState<SearchChunkDiagnostics | null>(null);
   const [copiedPath, setCopiedPath] = useState<string | null>(null);
@@ -213,11 +138,9 @@ export function CommandPalette() {
   const [pipelineRunning, setPipelineRunning] = useState(false);
 
   const inputRef = useRef<HTMLInputElement>(null);
-  const containerRef = useRef<HTMLDivElement>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const argDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const copyResetRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const resizeRafRef = useRef<number | null>(null);
   const searchIdRef = useRef(0);
   const activeSearchRequestRef = useRef("");
   const searchLimitRef = useRef(30);
@@ -234,6 +157,9 @@ export function CommandPalette() {
     cmdResultRef.current = cmdResult;
     queryRef.current = query;
   });
+
+  const { containerRef, scheduleWindowResize } = useWindowResize(modeRef, cmdResultRef);
+  const { metadataByPath, iconsByKey } = useSearchMetadata(results, selected);
 
 
   // Split rawInput into command name and trailing args (Minecraft-style)
@@ -280,39 +206,12 @@ export function CommandPalette() {
     };
   }, []);
 
-  const scheduleWindowResize = useCallback(() => {
-    if (!window.__TAURI_INTERNALS__) return;
-    if (resizeRafRef.current !== null) {
-      cancelAnimationFrame(resizeRafRef.current);
-    }
-    resizeRafRef.current = requestAnimationFrame(() => {
-      resizeRafRef.current = null;
-      if (modeRef.current === "terminal") {
-        getCurrentWindow().setSize(new LogicalSize(640, TERMINAL_HEIGHT)).catch(() => {});
-        return;
-      }
-      if (isTerminalResult(cmdResultRef.current)) {
-        getCurrentWindow().setSize(new LogicalSize(640, TERMINAL_HEIGHT)).catch(() => {});
-        return;
-      }
-      const el = containerRef.current;
-      if (!el) return;
-      const rectHeight = Math.ceil(el.getBoundingClientRect().height);
-      const scrollHeight = Math.ceil(el.scrollHeight);
-      const height = Math.max(rectHeight, scrollHeight, 56);
-      getCurrentWindow().setSize(new LogicalSize(640, height)).catch(() => {});
-    });
-  }, []);
-
   useEffect(() => {
     if (!window.__TAURI_INTERNALS__) return;
 
     async function refreshLauncherSettings() {
       try {
-        const entries = await invoke<SettingEntry[]>("cmd_dispatch", {
-          route: "setting.list_all",
-          payload: null,
-        });
+        const entries = await dispatch<SettingEntry[]>("setting.list_all");
         const maxResults = entries.find((entry) => entry.key === "launcher.max_results")?.value;
         const parsed = Number.parseInt(maxResults ?? "", 10);
         if (Number.isFinite(parsed) && parsed > 0) {
@@ -336,6 +235,8 @@ export function CommandPalette() {
     return () => {
       unlisten.then((fn) => fn());
     };
+    // dispatch is intentionally omitted — useIPC returns a fresh wrapper each render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
@@ -379,10 +280,7 @@ export function CommandPalette() {
 
     async function refreshSearchBackend() {
       try {
-        const info = await invoke<SearchBackendInfo>("cmd_dispatch", {
-          route: "search.backend",
-          payload: null,
-        });
+        const info = await dispatch<SearchBackendInfo>("search.backend");
         setSearchBackend(info);
       } catch {
         setSearchBackend(null);
@@ -403,6 +301,8 @@ export function CommandPalette() {
     return () => {
       unlisten.then((fn) => fn());
     };
+    // dispatch is intentionally omitted — useIPC returns a fresh wrapper each render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
@@ -411,53 +311,6 @@ export function CommandPalette() {
       return () => cancelAnimationFrame(raf);
     }
   }, [mode]);
-
-  useEffect(() => {
-    if (!window.__TAURI_INTERNALS__) return;
-    const result = results[selected];
-    if (!result || metadataByPath[result.path]) return;
-    if (result.kind !== "file" && result.kind !== "folder" && result.kind !== "app") return;
-
-    let cancelled = false;
-    dispatch<SearchMetadata>("search.metadata", {
-      path: result.path,
-      kind: result.kind,
-    })
-      .then((metadata) => {
-        if (cancelled) return;
-        setMetadataByPath((current) => ({ ...current, [metadata.path]: metadata }));
-      })
-      .catch(() => {});
-    return () => {
-      cancelled = true;
-    };
-    // dispatch is intentionally omitted because useIPC returns a fresh wrapper each render.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selected, results, metadataByPath]);
-
-  useEffect(() => {
-    if (!window.__TAURI_INTERNALS__) return;
-    const result = results[selected];
-    const iconKey = result?.icon_key;
-    if (!result || !iconKey || iconsByKey[iconKey]) return;
-
-    let cancelled = false;
-    dispatch<SearchIconAsset>("search.icon", {
-      icon_key: iconKey,
-      kind: result.kind,
-      path: result.path,
-    })
-      .then((asset) => {
-        if (cancelled) return;
-        setIconsByKey((current) => ({ ...current, [asset.icon_key]: asset }));
-      })
-      .catch(() => {});
-    return () => {
-      cancelled = true;
-    };
-    // dispatch is intentionally omitted because useIPC returns a fresh wrapper each render.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selected, results, iconsByKey]);
 
   useEffect(() => {
     const unlisten = listen<void>("window-focused", () => {
@@ -550,32 +403,6 @@ export function CommandPalette() {
     argSuggestions.length,
   ]);
 
-  useEffect(() => {
-    if (!window.__TAURI_INTERNALS__) return;
-    const el = containerRef.current;
-    if (!el) return;
-
-    const observer = new ResizeObserver(() => scheduleWindowResize());
-    observer.observe(el);
-
-    const mutationObserver = new MutationObserver(() => scheduleWindowResize());
-    mutationObserver.observe(el, {
-      attributes: true,
-      childList: true,
-      subtree: true,
-    });
-
-    scheduleWindowResize();
-
-    return () => {
-      observer.disconnect();
-      mutationObserver.disconnect();
-      if (resizeRafRef.current !== null) {
-        cancelAnimationFrame(resizeRafRef.current);
-        resizeRafRef.current = null;
-      }
-    };
-  }, [scheduleWindowResize]);
 
   async function runPipeline(text: string) {
     setPipelineRunning(true);
@@ -837,6 +664,8 @@ export function CommandPalette() {
     setResults([]);
     requestAnimationFrame(() => inputRef.current?.focus());
     void keepLauncherOpen();
+    // containerRef is a stable ref object from useWindowResize — omitting is intentional.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [setQuery]);
 
   const handlePanelCommandResult = useCallback((result: BuiltinCommandResult) => {

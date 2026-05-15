@@ -68,7 +68,7 @@ function hasRequiredFrontmatter(filePath) {
   if (!fs.existsSync(filePath)) {
     return false;
   }
-  const content = fs.readFileSync(filePath, "utf8").replace(/^\uFEFF/, "");
+  const content = fs.readFileSync(filePath, "utf8").replace(/^\uFEFF/, "").replace(/\r\n/g, "\n");
   const match = content.match(/^---\n([\s\S]*?)\n---\n?/);
   if (!match) {
     return false;

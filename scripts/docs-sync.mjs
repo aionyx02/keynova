@@ -162,7 +162,7 @@ function todayTaipei() {
 }
 
 function parseFrontmatter(text) {
-  const normalized = text.replace(/^\uFEFF/, "");
+  const normalized = text.replace(/^\uFEFF/, "").replace(/\r\n/g, "\n");
   const match = normalized.match(/^---\n([\s\S]*?)\n---\n?/);
   if (!match) {
     return { frontmatter: new Map(), body: normalized };
@@ -175,7 +175,13 @@ function parseFrontmatter(text) {
       map.set(kv[1], kv[2]);
     }
   }
-  return { frontmatter: map, body: normalized.slice(match[0].length) };
+  // Strip any extra leading frontmatter blocks left by a prior mis-run.
+  let body = normalized.slice(match[0].length);
+  let extra;
+  while ((extra = body.match(/^\s*---\n[\s\S]*?\n---\n?/))) {
+    body = body.slice(extra[0].length);
+  }
+  return { frontmatter: map, body };
 }
 
 function renderFrontmatter(map) {
@@ -199,7 +205,7 @@ function setMetadata(filePath, metadata, updatedDate) {
     return;
   }
   const originalRaw = fs.readFileSync(filePath, "utf8");
-  const original = originalRaw.replace(/^\uFEFF/, "");
+  const original = originalRaw.replace(/^\uFEFF/, "").replace(/\r\n/g, "\n");
   const { frontmatter, body } = parseFrontmatter(original);
   frontmatter.set("type", metadata.type);
   frontmatter.set("status", metadata.status);

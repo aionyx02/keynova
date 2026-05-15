@@ -48,11 +48,22 @@ owner: project
   - `ai.ollama_keep_alive` setting added; threaded through `chat_async` → `chat_ollama`.
   - PERF.1.G (model catalog) and PERF.1.H (LRU caps) verified already compliant.
 
+- 2026-05-15 TD.1.A–C complete:
+  - IPC centralized: `CommandPalette` + `TerminalPanel` use `useIPC().dispatch()` for all `cmd_dispatch` routes.
+  - Search domain logic extracted to `src/utils/search.ts`.
+  - Two lifecycle hooks extracted: `useWindowResize`, `useSearchMetadata`.
+- PERF.1.I checklist added to `docs/testing.md` section 6.1.
+
+- 2026-05-15 TD.2.A–C complete:
+  - `AppContainer` composition root created; `IPCProvider` provides stable `dispatch` reference; `App.tsx` renders `AppContainer`.
+  - `FeatureContext` added: `FeatureProvider` + `useFeature()` with `activate(key: FeatureKey)` — boundary for PERF.3 lazy service activation.
+  - `AppState::new()` refactored: `ManagerBundle`, `create_managers()`, `build_builtin_registry()`, `build_command_router()` extracted; `new()` reduced to ~15 lines.
+  - `scripts/docs-sync.mjs` and `docs-guard.mjs` fixed: CRLF normalization added to prevent duplicate frontmatter injection on Windows.
+
 ## Next Step
 
-1. PERF.1.I: Add memory measurement checklist (cold start, idle tray, open palette, agent run).
-2. Proceed to TD.1 + TD.2 + TD.3 prerequisite slices.
-3. Keep FEAT.11 at planning/ADR level only until blockers clear.
+1. Proceed to TD.3 typed DTOs (request/response DTOs for critical routes, reduce raw Value parsing, align frontend route constants).
+2. Keep FEAT.11 at planning/ADR level only until blockers clear.
 
 ## Known Risks
 
