@@ -11,6 +11,7 @@ pub mod mouse_manager;
 pub mod note_manager;
 pub mod portable_nvim_manager;
 pub mod search_manager;
+pub(crate) mod search_service;
 pub mod system_indexer;
 pub mod system_manager;
 pub mod tantivy_index;

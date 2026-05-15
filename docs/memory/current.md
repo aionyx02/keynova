@@ -69,10 +69,18 @@ owner: project
   - `AppState::new()` refactored: `ManagerBundle`, `create_managers()`, `build_builtin_registry()`, `build_command_router()` extracted; `new()` reduced to ~15 lines.
   - `scripts/docs-sync.mjs` and `docs-guard.mjs` fixed: CRLF normalization added to prevent duplicate frontmatter injection on Windows.
 
+- 2026-05-15 PERF.2.A–F complete:
+  - `src-tauri/src/managers/search_service.rs`: `SearchService` with Condvar-based slot (at most one pending task), cancel token propagation via `Arc<AtomicBool>`.
+  - `execute_stream_query` replaced `std::thread::spawn` per query with `search_service.submit()`.
+  - `file_results_with_timeout` replaced by `file_results_bounded` with cancel token checks before and after platform search.
+  - `StreamWorkerRequest` carries `cancel: Arc<AtomicBool>`; `run_stream_worker` uses it for fast early exit (no mutex needed).
+  - 4 deterministic regression tests in `managers::search_service::tests` — all passing.
+  - 200/201 tests pass (1 pre-existing unrelated failure unchanged).
+
 ## Next Step
 
-1. Proceed to PERF.2 Search Execution Bound (SearchService coordinator, bounded worker pool, cancellation token propagation, stale-request discard, backpressure, regression tests).
-2. Or proceed to TD.4 (agent approval/cancel channelization, SearchService/Terminal actor alignment).
+1. Proceed to PERF.3 Heavy Feature Lazy Runtime (A–E).
+2. Or proceed to TD.4 (agent approval/cancel channelization, actor alignment).
 3. Keep FEAT.11 at planning/ADR level only until blockers clear.
 
 ## Known Risks
