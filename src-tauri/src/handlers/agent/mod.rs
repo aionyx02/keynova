@@ -28,6 +28,7 @@ use crate::models::agent::{
     AgentPlannedAction, AgentRun, AgentRunStatus, AgentStep, AgentToolCall,
     ContextVisibility, GroundingSource,
 };
+use crate::models::context_bundle::{ContextBundle, SelectedFileContext, WorkspaceContext};
 use crate::models::builtin_command::{BuiltinCommandResult, CommandUiType};
 use crate::models::settings_schema::builtin_setting_schema;
 use crate::models::terminal::TerminalLaunchSpec;
@@ -53,6 +54,10 @@ const PROMPT_BUDGET_CHARS: usize = 1400;
 const PROMPT_SOURCE_LIMIT: usize = 6;
 const SESSION_MEMORY_LIMIT: usize = 3;
 const LONG_TERM_MEMORY_LIMIT: usize = 3;
+
+const CONTEXT_BUNDLE_BUDGET_CHARS: usize = 3_000;
+const CONTEXT_BUNDLE_MAX_FILES: usize = 3;
+const CONTEXT_BUNDLE_RECENT_ACTIONS: usize = 5;
 
 const TOOL_KEYNOVA_SEARCH: &str = "keynova_search";
 const TOOL_FILESYSTEM_SEARCH: &str = "filesystem_search";
@@ -216,10 +221,11 @@ impl AgentHandler {
     fn start_react_run(&self, prompt: String) -> Result<AgentRun, String> {
         let run_id = self.runtime.next_run_id();
         let memory_refs = self.memory_refs()?;
-        // Pre-populate prompt_audit with initial local context so the UI can show
-        // which sources were considered even before the first tool call completes.
+        // Pre-populate prompt_audit and context_bundle with initial local context so
+        // the UI can show which sources were considered before the first tool call.
         let (initial_sources, _) = self.sources_for_prompt(&prompt).unwrap_or_default();
         let prompt_audit = build_prompt_audit(&prompt, &initial_sources, PROMPT_BUDGET_CHARS);
+        let context_bundle = self.build_context_bundle(&prompt, initial_sources.clone());
         let run = AgentRun {
             id: run_id.clone(),
             prompt: prompt.clone(),
@@ -239,6 +245,7 @@ impl AgentHandler {
             memory_refs,
             sources: initial_sources,
             prompt_audit: Some(prompt_audit),
+            context_bundle: Some(context_bundle),
             command_result: None,
             output: None,
             error: None,
@@ -281,6 +288,7 @@ impl AgentHandler {
         let (sources, tool_calls) = self.sources_for_prompt(&prompt)?;
         let memory_refs = self.memory_refs()?;
         let prompt_audit = build_prompt_audit(&prompt, &sources, PROMPT_BUDGET_CHARS);
+        let context_bundle = self.build_context_bundle(&prompt, sources.clone());
         let approvals = self.plan_approvals(&prompt)?;
         let direct_answer = self.direct_local_answer(&prompt);
         let status = if approvals.is_empty() {
@@ -327,6 +335,7 @@ impl AgentHandler {
             memory_refs,
             sources,
             prompt_audit: Some(prompt_audit.clone()),
+            context_bundle: Some(context_bundle),
             command_result: None,
             output: Some(direct_answer.unwrap_or_else(|| describe_run(&prompt, &prompt_audit))),
             error: None,
@@ -1110,6 +1119,66 @@ impl AgentHandler {
             summary: summary.to_string(),
             payload_json: payload.map(|value| value.to_string()),
         });
+    }
+
+    /// Assemble a `ContextBundle` from manager data before an agent run.
+    ///
+    /// Pulls workspace metadata, recent actions, and recently accessed file paths
+    /// from `WorkspaceManager` (no filesystem scan). Accepts pre-computed search
+    /// results so `keynova_search` is called only once per run path.
+    fn build_context_bundle(
+        &self,
+        prompt: &str,
+        search_results: Vec<GroundingSource>,
+    ) -> ContextBundle {
+        let (workspace_ctx, recent_actions, selected_files) = self
+            .workspace_manager
+            .lock()
+            .map(|ws| {
+                let current = ws.current();
+                let workspace_ctx = WorkspaceContext {
+                    id: current.id.to_string(),
+                    name: current.name.clone(),
+                    project_root: current.project_root.clone(),
+                    recent_file_count: current.recent_files.len(),
+                    note_count: current.note_ids.len(),
+                };
+                let recent_actions: Vec<String> = current
+                    .recent_actions
+                    .iter()
+                    .take(CONTEXT_BUNDLE_RECENT_ACTIONS)
+                    .cloned()
+                    .collect();
+                let selected_files: Vec<SelectedFileContext> = current
+                    .recent_files
+                    .iter()
+                    .take(CONTEXT_BUNDLE_MAX_FILES)
+                    .map(|path| SelectedFileContext {
+                        path: path.clone(),
+                        preview: String::new(),
+                    })
+                    .collect();
+                (workspace_ctx, recent_actions, selected_files)
+            })
+            .unwrap_or_else(|_| {
+                let ws = WorkspaceContext {
+                    id: "0".into(),
+                    name: "Default".into(),
+                    project_root: None,
+                    recent_file_count: 0,
+                    note_count: 0,
+                };
+                (ws, Vec::new(), Vec::new())
+            });
+
+        ContextBundle::build(
+            prompt.to_string(),
+            workspace_ctx,
+            recent_actions,
+            selected_files,
+            search_results,
+            CONTEXT_BUNDLE_BUDGET_CHARS,
+        )
     }
 }
 

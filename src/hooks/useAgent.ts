@@ -88,6 +88,35 @@ export interface AgentPlannedAction {
   payload: unknown;
 }
 
+export interface WorkspaceContext {
+  id: string;
+  name: string;
+  project_root?: string | null;
+  recent_file_count: number;
+  note_count: number;
+}
+
+export interface SelectedFileContext {
+  path: string;
+  preview: string;
+}
+
+export interface ContextTokenBudget {
+  budget_chars: number;
+  used_chars: number;
+  remaining_chars: number;
+  truncated: boolean;
+}
+
+export interface ContextBundle {
+  user_intent: string;
+  workspace: WorkspaceContext;
+  recent_actions: string[];
+  selected_files: SelectedFileContext[];
+  search_results: GroundingSource[];
+  token_budget: ContextTokenBudget;
+}
+
 export interface AgentRun {
   id: string;
   prompt: string;
@@ -100,6 +129,7 @@ export interface AgentRun {
   memory_refs: AgentMemoryRef[];
   sources: GroundingSource[];
   prompt_audit?: AgentPromptAudit | null;
+  context_bundle?: ContextBundle | null;
   command_result?: BuiltinCommandResult | null;
 }
 

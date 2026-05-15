@@ -23,17 +23,23 @@ Safety first for runtime lifecycle; feature-first delivery after guardrails are 
 
 ## Current Execution Order
 
-1. TD.5.A minimal verify baseline as execution gate.
-2. PERF.1 Low Memory Background Mode.
-3. TD.1 + TD.2 + TD.3 prerequisite slices required by PERF and FEAT tracks.
-4. PERF.2 Search Execution Bound.
-5. PERF.3 Heavy Feature Lazy Runtime.
-6. TD.4 actor-like services and remaining TD.5 hardening.
-7. P3 Context Compiler Lite.
+1. TD.5.A minimal verify baseline as execution gate. ✓
+2. PERF.1 Low Memory Background Mode. ✓
+3. TD.1 + TD.2 + TD.3 prerequisite slices required by PERF and FEAT tracks. ✓
+4. PERF.2 Search Execution Bound. ✓
+5. PERF.3 Heavy Feature Lazy Runtime. ✓
+6. TD.4 actor-like services and remaining TD.5 hardening. ✓
+7. P3 Context Compiler Lite. ✓
 8. FEAT.11 Learning Material Review (blocked until prerequisites clear).
 
 ## Recent Execution Notes
 
+- 2026-05-15: P3 Context Compiler Lite complete (P3.A + P3.B):
+  - `models/context_bundle.rs`: `ContextBundle` struct with `WorkspaceContext`, `SelectedFileContext`, `ContextTokenBudget`; `build()` with 2-pass token budget.
+  - `AgentHandler::build_context_bundle()`: manager-only assembly; no FS scan; bounded snippet preview (200 chars); 3000-char total cap.
+  - `AgentRun.context_bundle: Option<ContextBundle>` (`#[serde(default)]`); both run paths wired.
+  - Frontend types aligned in `useAgent.ts`.
+  - 220/221 tests pass (1 pre-existing failure unchanged).
 - 2026-05-15: AI panel UX hotfix delivered for clear behavior and chronology:
   - `AGENT` mode now has backend clear command (`agent.clear_runs`) and frontend clear wiring.
   - Agent runs are rendered in chronological order (old -> new) to keep the newest request at the bottom.

@@ -5,6 +5,7 @@ use serde_json::Value;
 
 use crate::models::action::{ActionRef, ActionRisk};
 use crate::models::builtin_command::BuiltinCommandResult;
+use crate::models::context_bundle::ContextBundle;
 
 /// Visibility class for context considered by the local agent runtime.
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
@@ -137,6 +138,8 @@ pub struct AgentRun {
     pub memory_refs: Vec<AgentMemoryRef>,
     pub sources: Vec<GroundingSource>,
     pub prompt_audit: Option<AgentPromptAudit>,
+    #[serde(default)]
+    pub context_bundle: Option<ContextBundle>,
     pub command_result: Option<BuiltinCommandResult>,
     pub output: Option<String>,
     pub error: Option<String>,
