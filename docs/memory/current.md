@@ -84,12 +84,23 @@ owner: project
   - PERF.3.E: `FeatureContext.activate()` → `feature.activate` IPC → `FeatureHandler` → `start_prewarm`; `TerminalPanel` calls `activate("terminal")` on mount.
   - Clippy clean; 200/201 tests pass (1 pre-existing failure).
 
+- 2026-05-15 TD.4.A–C complete:
+  - `AgentRuntime`: `run_notify: (Mutex<()>, Condvar)` replaces 100ms poll in `wait_for_react_approval`.
+  - `SearchService`: `Slot::Shutdown` + `shutdown()` complete actor lifecycle.
+  - `TerminalManager` actor boundary verified (no code changes required).
+
+- 2026-05-15 TD.5.B–D complete:
+  - `tauri.conf.json`: CSP hardened with `object-src 'none'`, `frame-src 'none'`, `base-uri 'self'`, `worker-src 'none'`.
+  - `web.rs`: `validate_searxng_url` blocks HTTP to non-localhost SearXNG endpoints.
+  - `settings_schema.rs`: `security.network_allowlist` setting added.
+  - `command_router.rs`: 6 routing regression tests (TD.5.C).
+  - `handlers/search.rs`: 5 chunk merge + stale request tests (TD.5.D).
+  - 216/1 tests passing (pre-existing failure unchanged).
+
 ## Next Step
 
-1. Proceed to TD.4 (agent approval/cancel channelization, SearchService/Terminal actor alignment).
-2. Or proceed to TD.5.B–D (CSP, keyboard regression tests, chunk merge tests).
-3. Or proceed to P3 Context Compiler Lite.
-4. Keep FEAT.11 at planning/ADR level only until blockers clear.
+1. Proceed to P3 Context Compiler Lite (define `ContextBundle`, build from managers, apply token budget).
+2. Keep FEAT.11 at planning/ADR level only until blockers clear.
 
 ## Known Risks
 

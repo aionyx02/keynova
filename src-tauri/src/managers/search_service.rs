@@ -10,6 +10,9 @@ struct WorkItem {
 enum Slot {
     Empty,
     Pending(WorkItem),
+    // Written by shutdown(); not reachable from submit() call sites.
+    #[allow(dead_code)]
+    Shutdown,
 }
 
 /// Single-worker coordinator for background file-search execution.
@@ -45,6 +48,7 @@ impl SearchService {
                 loop {
                     match std::mem::replace(&mut *guard, Slot::Empty) {
                         Slot::Pending(item) => break item,
+                        Slot::Shutdown => return,
                         Slot::Empty => {
                             guard = svc.condvar.wait(guard).unwrap();
                         }
@@ -55,6 +59,15 @@ impl SearchService {
                 (item.task)();
             }
         }
+    }
+
+    /// Signal the worker to exit after its current task (if any) completes.
+    #[allow(dead_code)]
+    pub fn shutdown(&self) {
+        let mut guard = self.slot.lock().unwrap();
+        *guard = Slot::Shutdown;
+        drop(guard);
+        self.condvar.notify_one();
     }
 
     /// Submit a task. Cancels any previously pending or running task by
@@ -136,6 +149,26 @@ mod tests {
 
         // Exactly the last submitted task must have run.
         assert_eq!(ran.load(Ordering::Relaxed), 1);
+    }
+
+    #[test]
+    fn shutdown_stops_worker_after_current_task() {
+        let svc = SearchService::new();
+
+        // Block the worker so the shutdown slot-write happens while it is running.
+        let (unblock_tx, unblock_rx) = std::sync::mpsc::channel::<()>();
+        svc.submit(Arc::new(AtomicBool::new(false)), move || {
+            let _ = unblock_rx.recv_timeout(Duration::from_millis(500));
+        });
+
+        // Shutdown writes Slot::Shutdown; the worker will see it after finishing the task.
+        svc.shutdown();
+
+        // Release the blocker — worker finishes, then exits on Shutdown.
+        let _ = unblock_tx.send(());
+
+        // Allow time for the worker thread to exit.
+        thread::sleep(Duration::from_millis(100));
     }
 
     #[test]

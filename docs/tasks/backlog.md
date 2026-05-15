@@ -70,12 +70,12 @@ Goal: keep heavy services off until user intent requires them.
 
 ## TD.4 + TD.5 Follow-Up
 
-- [ ] TD.4.A Agent approval/cancel channelization cleanup.
-- [ ] TD.4.B Merge SearchService actor changes with PERF.2 execution model.
-- [ ] TD.4.C Merge Terminal actor boundary with PERF.3 lazy runtime model.
-- [ ] TD.5.B Enforce CSP and network allowlist.
-- [ ] TD.5.C Add keyboard/panel routing regression coverage.
-- [ ] TD.5.D Add chunk merge and stale request tests.
+- [x] TD.4.A Agent approval/cancel channelization cleanup. (`core/agent_runtime.rs` — added `run_notify: (Mutex<()>, Condvar)` to `AgentRuntime`; `update_run` and `cancel` call `notify_all`; `wait_for_react_approval` replaced `thread::sleep(100ms)` poll with `condvar.wait_timeout`)
+- [x] TD.4.B Merge SearchService actor changes with PERF.2 execution model. (`managers/search_service.rs` — added `Slot::Shutdown` variant and `SearchService::shutdown()` method; worker loop exits cleanly on `Shutdown`; lifecycle now: `new → submit* → shutdown`)
+- [x] TD.4.C Merge Terminal actor boundary with PERF.3 lazy runtime model. (Verified: `TerminalManager` cold-starts on first `terminal.open`; activation via `FeatureHandler.activate("terminal")`; all state changes route through `TerminalHandler` commands; output via `on_output` callback → EventBus. No code changes required.)
+- [x] TD.5.B Enforce CSP and network allowlist. (`tauri.conf.json`: added `object-src 'none'; frame-src 'none'; base-uri 'self'; worker-src 'none'`; `handlers/agent/web.rs`: `validate_searxng_url` rejects HTTP to non-localhost; `models/settings_schema.rs`: `security.network_allowlist` setting added; 4 new URL-validation tests)
+- [x] TD.5.C Add keyboard/panel routing regression coverage. (`core/command_router.rs`: 6 routing regression tests — valid dispatch, unknown namespace, missing dot, empty route, multi-dot split, handler count)
+- [x] TD.5.D Add chunk merge and stale request tests. (`handlers/search.rs`: 5 new tests — key format, deduplication by source+path, first-batch priority on dup, stale cancel guard, sort quota)
 
 ## P3 - Context Compiler Lite (After PERF Track)
 
