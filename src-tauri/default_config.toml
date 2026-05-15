@@ -41,6 +41,7 @@ model = "qwen2.5:7b"
 claude_model = "claude-sonnet-4-6"
 ollama_url = "http://localhost:11434"
 ollama_timeout_secs = 120
+ollama_keep_alive = "5m"     # Ollama model keep-alive duration; set to "0s" to unload immediately
 openai_api_key = ""
 openai_base_url = "https://api.openai.com/v1"
 openai_model = "gpt-4o-mini"
@@ -74,3 +75,6 @@ ignore_duplicates = true
 enable_volume_control = true
 enable_brightness_control = true
 enable_wifi_info = true
+
+[performance]
+low_memory_mode = false      # true: skip terminal prewarm, defer startup indexing, shorten keep_alive

@@ -2,7 +2,7 @@
 type: working_memory
 status: active
 priority: p0
-updated: 2026-05-14
+updated: 2026-05-15
 context_policy: always_retrievable
 owner: project
 ---
@@ -41,11 +41,17 @@ owner: project
 - P2.C: `dev.explain_compiler_error` tool added with bounded structured extraction.
 - 196 tests passing with 1 pre-existing unrelated failure (`note_lazyvim_missing_nvim_returns_inline_guidance`).
 - 2026-05-14: task planning updated from feasibility review (`Keynova_Agent_Architecture_Tasks_Review.docx`) and normalized into `docs/tasks/{active,backlog,blocked}.md`.
+- 2026-05-15 TD.5.A gate confirmed (196/1). PERF.1.A–H complete:
+  - `performance.low_memory_mode` setting added to `default_config.toml` + `settings_schema.rs`.
+  - Bootstrap gates `start_prewarm` and `start_file_index` on the setting.
+  - `ai.check_setup` TTL cache (300 s, keyed by provider/model/URL) added to `AiHandler`.
+  - `ai.ollama_keep_alive` setting added; threaded through `chat_async` → `chat_ollama`.
+  - PERF.1.G (model catalog) and PERF.1.H (LRU caps) verified already compliant.
 
 ## Next Step
 
-1. Keep TD.5.A verify baseline as gate for incoming PERF work.
-2. Start PERF.1 implementation slices in execution order (prewarm off, startup index lazy, setup TTL, keep_alive policy).
+1. PERF.1.I: Add memory measurement checklist (cold start, idle tray, open palette, agent run).
+2. Proceed to TD.1 + TD.2 + TD.3 prerequisite slices.
 3. Keep FEAT.11 at planning/ADR level only until blockers clear.
 
 ## Known Risks

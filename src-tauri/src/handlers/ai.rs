@@ -1,5 +1,5 @@
 use std::sync::{Arc, Mutex};
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use serde_json::{json, Value};
 
@@ -9,12 +9,21 @@ use crate::managers::ai_manager::{resolve_ai_runtime_config, AiManager, AiProvid
 use crate::managers::model_manager::ModelManager;
 use crate::managers::workspace_manager::WorkspaceManager;
 
+const CHECK_SETUP_TTL: Duration = Duration::from_secs(300);
+
+struct SetupCache {
+    key: String,
+    result: Value,
+    at: Instant,
+}
+
 /// 處理 `ai.*` 指令：chat、clear_history、get_history、check_setup。
 pub struct AiHandler {
     manager: Arc<AiManager>,
     config: Arc<Mutex<ConfigManager>>,
     workspace_manager: Arc<Mutex<WorkspaceManager>>,
     model_manager: Arc<ModelManager>,
+    setup_cache: Mutex<Option<SetupCache>>,
 }
 
 impl AiHandler {
@@ -29,12 +38,21 @@ impl AiHandler {
             config,
             workspace_manager,
             model_manager,
+            setup_cache: Mutex::new(None),
         }
     }
 
     fn get_ai_config(&self) -> Result<AiRuntimeConfig, String> {
         let cfg = self.config.lock().map_err(|e| e.to_string())?;
         resolve_ai_runtime_config(|key| cfg.get(key))
+    }
+
+    fn setup_cache_key(config: &AiRuntimeConfig) -> String {
+        match &config.provider {
+            AiProvider::Ollama { base_url, model } => format!("ollama:{}:{}", base_url, model),
+            AiProvider::Claude { model, .. } => format!("claude:{}", model),
+            AiProvider::OpenAI { base_url, model, .. } => format!("openai:{}:{}", base_url, model),
+        }
     }
 
     fn check_setup_impl(&self) -> Value {
@@ -50,6 +68,15 @@ impl AiHandler {
             });
         };
 
+        let cache_key = Self::setup_cache_key(&ai_config);
+        if let Ok(cache) = self.setup_cache.lock() {
+            if let Some(entry) = cache.as_ref() {
+                if entry.key == cache_key && entry.at.elapsed() < CHECK_SETUP_TTL {
+                    return entry.result.clone();
+                }
+            }
+        }
+
         let hardware = self.model_manager.detect_hardware();
         let recommended = self
             .model_manager
@@ -59,7 +86,7 @@ impl AiHandler {
             .map(|c| c.name)
             .unwrap_or_else(|| "qwen2.5:7b".into());
 
-        match &ai_config.provider {
+        let result = match &ai_config.provider {
             AiProvider::Ollama { base_url, model } => {
                 let (reachable, available, reason) =
                     check_ollama(base_url, model);
@@ -98,7 +125,16 @@ impl AiHandler {
                     "reason": if missing_key { "OpenAI API key is not set" } else { "" },
                 })
             }
+        };
+
+        if let Ok(mut cache) = self.setup_cache.lock() {
+            *cache = Some(SetupCache {
+                key: cache_key,
+                result: result.clone(),
+                at: Instant::now(),
+            });
         }
+        result
     }
 }
 
@@ -185,6 +221,7 @@ impl CommandHandler for AiHandler {
                     ai_config.provider,
                     ai_config.max_tokens,
                     ai_config.timeout_secs,
+                    ai_config.ollama_keep_alive,
                 );
                 if let Ok(mut workspace) = self.workspace_manager.lock() {
                     workspace.record_ai_conversation(request_id.clone());

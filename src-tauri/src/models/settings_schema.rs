@@ -510,6 +510,24 @@ pub fn builtin_setting_schema() -> Vec<SettingSchema> {
             false,
             &["true", "false"],
         ),
+        SettingSchema::new(
+            "performance.low_memory_mode",
+            "performance",
+            "Low memory mode",
+            Boolean,
+            "false",
+            false,
+            &["true", "false"],
+        ),
+        SettingSchema::new(
+            "ai.ollama_keep_alive",
+            "ai",
+            "Ollama keep-alive",
+            String,
+            "5m",
+            false,
+            &[],
+        ),
     ]
 }
 
