@@ -4,6 +4,7 @@ import { FitAddon } from "@xterm/addon-fit";
 import "@xterm/xterm/css/xterm.css";
 import { listen } from "@tauri-apps/api/event";
 import { useIPC } from "../hooks/useIPC";
+import { useFeature } from "../context/FeatureContext";
 import { useTerminalTheme } from "../hooks/useTerminalTheme";
 import { IPC } from "../ipc/routes";
 import type { SettingEntry, TerminalOpenResponse } from "../ipc/types";
@@ -26,6 +27,7 @@ interface Props {
 
 export function TerminalPanel({ isActive, onExit, launchSpec = null }: Props) {
   const { dispatch } = useIPC();
+  const { activate } = useFeature();
   const containerRef = useRef<HTMLDivElement>(null);
   const xtermRef = useRef<Terminal | null>(null);
   const fitAddonRef = useRef<FitAddon | null>(null);
@@ -33,6 +35,10 @@ export function TerminalPanel({ isActive, onExit, launchSpec = null }: Props) {
   const onExitRef = useRef(onExit);
   const launchKey = launchSpec?.launch_id ?? "shell";
   const isEditorSession = Boolean(launchSpec?.editor);
+
+  // Notify the feature gate on first mount so the backend can prewarm.
+  useEffect(() => { activate("terminal"); }, [activate]);
+
   useEffect(() => {
     onExitRef.current = onExit;
   }, [onExit]);

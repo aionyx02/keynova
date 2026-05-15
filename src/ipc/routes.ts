@@ -38,6 +38,9 @@ export const IPC = {
   HOTKEY_UNREGISTER: "hotkey.unregister",
   HOTKEY_LIST: "hotkey.list",
   HOTKEY_CHECK_CONFLICT: "hotkey.check_conflict",
+
+  // feature gate
+  FEATURE_ACTIVATE: "feature.activate",
 } as const;
 
 export type IpcRoute = (typeof IPC)[keyof typeof IPC];

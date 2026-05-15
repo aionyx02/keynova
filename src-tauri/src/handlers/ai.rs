@@ -1,3 +1,4 @@
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
@@ -17,13 +18,15 @@ struct SetupCache {
     at: Instant,
 }
 
-/// 處理 `ai.*` 指令：chat、clear_history、get_history、check_setup。
+/// 處理 `ai.*` 指令：chat、clear_history、get_history、check_setup、unload。
 pub struct AiHandler {
     manager: Arc<AiManager>,
     config: Arc<Mutex<ConfigManager>>,
     workspace_manager: Arc<Mutex<WorkspaceManager>>,
     model_manager: Arc<ModelManager>,
     setup_cache: Mutex<Option<SetupCache>>,
+    /// True while a chat request is in progress — rejects concurrent requests.
+    in_flight: Arc<AtomicBool>,
 }
 
 impl AiHandler {
@@ -39,6 +42,7 @@ impl AiHandler {
             workspace_manager,
             model_manager,
             setup_cache: Mutex::new(None),
+            in_flight: Arc::new(AtomicBool::new(false)),
         }
     }
 
@@ -138,6 +142,24 @@ impl AiHandler {
     }
 }
 
+/// Send keep_alive=0 to Ollama to unload the model from GPU/RAM.
+/// Fire-and-forget — errors are silently ignored.
+fn unload_ollama_model(base_url: &str, model: &str) {
+    let url = format!("{}/api/generate", base_url.trim_end_matches('/'));
+    let model = model.to_string();
+    std::thread::spawn(move || {
+        let client = reqwest::blocking::Client::builder()
+            .timeout(Duration::from_secs(5))
+            .build();
+        if let Ok(client) = client {
+            let _ = client
+                .post(&url)
+                .json(&serde_json::json!({ "model": model, "keep_alive": 0 }))
+                .send();
+        }
+    });
+}
+
 /// Returns `(reachable, model_available, reason)`.
 fn check_ollama(base_url: &str, target_model: &str) -> (bool, bool, &'static str) {
     let url = format!(
@@ -203,6 +225,9 @@ impl CommandHandler for AiHandler {
                         );
                     }
                 }
+                if self.in_flight.compare_exchange(false, true, Ordering::SeqCst, Ordering::SeqCst).is_err() {
+                    return Err("另一個 AI 請求進行中，請等待回應後再試".into());
+                }
                 let request_id = payload
                     .get("request_id")
                     .and_then(Value::as_str)
@@ -222,6 +247,7 @@ impl CommandHandler for AiHandler {
                     ai_config.max_tokens,
                     ai_config.timeout_secs,
                     ai_config.ollama_keep_alive,
+                    Some(Arc::clone(&self.in_flight)),
                 );
                 if let Ok(mut workspace) = self.workspace_manager.lock() {
                     workspace.record_ai_conversation(request_id.clone());
@@ -233,6 +259,13 @@ impl CommandHandler for AiHandler {
                 Ok(json!({ "ok": true }))
             }
             "get_history" => Ok(json!(self.manager.get_history())),
+            "unload" => {
+                let ai_config = self.get_ai_config()?;
+                if let AiProvider::Ollama { base_url, model } = &ai_config.provider {
+                    unload_ollama_model(base_url, model);
+                }
+                Ok(json!({ "ok": true }))
+            }
             _ => Err(format!("unknown ai command '{command}'")),
         }
     }

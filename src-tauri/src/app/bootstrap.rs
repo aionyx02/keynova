@@ -1,5 +1,3 @@
-use std::sync::Arc;
-
 use serde_json::Value;
 use tauri::{Emitter, Manager};
 
@@ -18,7 +16,6 @@ use crate::app::window::{setup_main_window, show_launcher};
 use crate::core::observability;
 use crate::core::{AppEvent, IpcError};
 use crate::app::migration::run_legacy_migration;
-use crate::managers::terminal_manager::start_prewarm;
 
 #[tauri::command]
 fn cmd_dispatch(
@@ -104,9 +101,6 @@ pub fn run() {
                 start_file_index();
             }
             observability::spawn_idle_baseline_probe();
-            if !low_memory {
-                start_prewarm(Arc::clone(&app.state::<AppState>().terminal_manager));
-            }
             start_clipboard_watcher(app);
             setup_global_shortcuts(app.handle(), false);
             setup_config_watcher(app);

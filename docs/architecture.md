@@ -39,7 +39,8 @@ Keynova 是以鍵盤為核心的生產力啟動器，採用 **Tauri 2.x + React 
 │  Layer 4: Business Logic (Handlers → Managers)      │
 │  launcher, hotkey, terminal, mouse, search,         │
 │  ai, agent, note, workspace, translation,           │
-│  model, system_control, nvim, automation, plugin    │
+│  model, system_control, nvim, automation, plugin,   │
+│  feature (lazy-activation gate)                     │
 ├─────────────────────────────────────────────────────┤
 │  Layer 5: Indexer / Storage                         │
 │  tantivy_index, system_indexer, knowledge_store     │
