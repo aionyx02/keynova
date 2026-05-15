@@ -3,9 +3,9 @@ use std::sync::{Arc, Mutex};
 
 use crate::core::config_manager::ConfigManager;
 use crate::core::{CommandHandler, CommandResult};
+use crate::models::ipc_requests::{SettingGetRequest, SettingSetRequest};
 use crate::models::settings_schema::is_sensitive_key;
 
-/// 處理 `setting.*` 命名空間的 IPC 請求，代理至 ConfigManager。
 pub struct SettingHandler {
     config: Arc<Mutex<ConfigManager>>,
 }
@@ -24,31 +24,23 @@ impl CommandHandler for SettingHandler {
     fn execute(&self, command: &str, payload: Value) -> CommandResult {
         match command {
             "get" => {
-                let key = payload
-                    .get("key")
-                    .and_then(Value::as_str)
-                    .ok_or_else(|| "missing 'key' field".to_string())?;
+                let req: SettingGetRequest = serde_json::from_value(payload)
+                    .map_err(|e| format!("invalid setting.get request: {e}"))?;
                 let cfg = self.config.lock().map_err(|e| e.to_string())?;
-                let value = cfg.get(key).map(|raw| {
-                    if is_sensitive_key(key) && !raw.is_empty() {
+                let value = cfg.get(&req.key).map(|raw| {
+                    if is_sensitive_key(&req.key) && !raw.is_empty() {
                         "********".to_string()
                     } else {
                         raw
                     }
                 });
-                Ok(json!({ "value": value, "sensitive": is_sensitive_key(key) }))
+                Ok(json!({ "value": value, "sensitive": is_sensitive_key(&req.key) }))
             }
             "set" => {
-                let key = payload
-                    .get("key")
-                    .and_then(Value::as_str)
-                    .ok_or_else(|| "missing 'key' field".to_string())?;
-                let value = payload
-                    .get("value")
-                    .and_then(Value::as_str)
-                    .ok_or_else(|| "missing 'value' field".to_string())?;
+                let req: SettingSetRequest = serde_json::from_value(payload)
+                    .map_err(|e| format!("invalid setting.set request: {e}"))?;
                 let mut cfg = self.config.lock().map_err(|e| e.to_string())?;
-                cfg.set(key, value)?;
+                cfg.set(&req.key, &req.value)?;
                 Ok(json!({ "ok": true }))
             }
             "list_all" => {
@@ -56,9 +48,9 @@ impl CommandHandler for SettingHandler {
                 let pairs: Vec<_> = cfg
                     .list_all_redacted()
                     .into_iter()
-                    .map(
-                        |(k, v, sensitive)| json!({ "key": k, "value": v, "sensitive": sensitive }),
-                    )
+                    .map(|(k, v, sensitive)| {
+                        json!({ "key": k, "value": v, "sensitive": sensitive })
+                    })
                     .collect();
                 Ok(json!(pairs))
             }

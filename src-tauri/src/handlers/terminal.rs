@@ -3,11 +3,12 @@ use crate::managers::{
     terminal_manager::{start_prewarm, TerminalManager},
     workspace_manager::WorkspaceManager,
 };
-use crate::models::terminal::TerminalLaunchSpec;
+use crate::models::ipc_requests::{
+    TerminalOpenRequest, TerminalResizeRequest, TerminalSendRequest, TerminalSessionRequest,
+};
 use serde_json::{json, Value};
 use std::sync::{Arc, Mutex};
 
-/// 終端浮窗的 IPC 處理器。
 pub struct TerminalHandler {
     manager: Arc<Mutex<TerminalManager>>,
     workspace_manager: Arc<Mutex<WorkspaceManager>>,
@@ -33,64 +34,45 @@ impl CommandHandler for TerminalHandler {
     fn execute(&self, command: &str, payload: Value) -> CommandResult {
         match command {
             "open" => {
-                let rows = payload.get("rows").and_then(Value::as_u64).unwrap_or(24) as u16;
-                let cols = payload.get("cols").and_then(Value::as_u64).unwrap_or(80) as u16;
-                let launch_spec = payload
-                    .get("launch_spec")
-                    .filter(|value| !value.is_null())
-                    .cloned()
-                    .map(serde_json::from_value::<TerminalLaunchSpec>)
-                    .transpose()
-                    .map_err(|e| format!("invalid launch_spec: {e}"))?;
+                let req: TerminalOpenRequest = serde_json::from_value(payload)
+                    .map_err(|e| format!("invalid terminal.open request: {e}"))?;
                 let (id, initial_output) = {
                     let mut mgr = self.manager.lock().map_err(|e| e.to_string())?;
-                    match launch_spec.as_ref() {
-                        Some(spec) => mgr.create_pty_with_command(spec, rows, cols)?,
-                        None => mgr.create_pty(rows, cols)?,
+                    match req.launch_spec.as_ref() {
+                        Some(spec) => mgr.create_pty_with_command(spec, req.rows, req.cols)?,
+                        None => mgr.create_pty(req.rows, req.cols)?,
                     }
                 }; // MutexGuard dropped here — start_prewarm can lock without deadlock
                 if let Ok(mut workspace) = self.workspace_manager.lock() {
                     workspace.record_terminal_session(id.clone());
                 }
-                if launch_spec.is_none() {
+                if req.launch_spec.is_none() {
                     start_prewarm(Arc::clone(&self.manager));
                 }
                 Ok(json!({ "id": id, "initial_output": initial_output }))
             }
             "send" => {
-                let id = payload["id"]
-                    .as_str()
-                    .ok_or("missing field: id")?
-                    .to_string();
-                let input = payload["input"]
-                    .as_str()
-                    .ok_or("missing field: input")?
-                    .to_string();
+                let req: TerminalSendRequest = serde_json::from_value(payload)
+                    .map_err(|e| format!("invalid terminal.send request: {e}"))?;
                 let mgr = self.manager.lock().map_err(|e| e.to_string())?;
-                mgr.write_to_pty(&id, &input)?;
+                mgr.write_to_pty(&req.id, &req.input)?;
                 Ok(Value::Null)
             }
             "close" => {
-                let id = payload["id"]
-                    .as_str()
-                    .ok_or("missing field: id")?
-                    .to_string();
+                let req: TerminalSessionRequest = serde_json::from_value(payload)
+                    .map_err(|e| format!("invalid terminal.close request: {e}"))?;
                 let mut mgr = self.manager.lock().map_err(|e| e.to_string())?;
-                mgr.close_pty(&id)?;
+                mgr.close_pty(&req.id)?;
                 if let Ok(mut workspace) = self.workspace_manager.lock() {
-                    workspace.remove_terminal_session(&id);
+                    workspace.remove_terminal_session(&req.id);
                 }
                 Ok(Value::Null)
             }
             "resize" => {
-                let id = payload["id"]
-                    .as_str()
-                    .ok_or("missing field: id")?
-                    .to_string();
-                let rows = payload["rows"].as_u64().ok_or("missing field: rows")? as u16;
-                let cols = payload["cols"].as_u64().ok_or("missing field: cols")? as u16;
+                let req: TerminalResizeRequest = serde_json::from_value(payload)
+                    .map_err(|e| format!("invalid terminal.resize request: {e}"))?;
                 let mut mgr = self.manager.lock().map_err(|e| e.to_string())?;
-                mgr.resize_pty(&id, rows, cols)?;
+                mgr.resize_pty(&req.id, req.rows, req.cols)?;
                 Ok(Value::Null)
             }
             _ => Err(format!("terminal: unknown command '{command}'")),

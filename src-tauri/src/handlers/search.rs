@@ -8,6 +8,7 @@ use crate::core::{
     observability, ActionArena, AppEvent, BuiltinCommandRegistry, CommandHandler, CommandResult,
     EventBus,
 };
+use crate::models::ipc_requests::{SearchQueryRequest, SearchRecordSelectionRequest};
 use crate::managers::{
     history_manager::HistoryManager,
     model_manager::{HardwareInfo, ModelManager},
@@ -121,16 +122,13 @@ impl CommandHandler for SearchHandler {
                 Ok(serde_json::to_value(mgr.rebuild_index()).map_err(|e| e.to_string())?)
             }
             "record_selection" => {
-                let source = payload
-                    .get("source")
-                    .and_then(Value::as_str)
-                    .unwrap_or("unknown");
-                let path = payload.get("path").and_then(Value::as_str).unwrap_or("");
-                if !path.is_empty() {
+                let req: SearchRecordSelectionRequest = serde_json::from_value(payload)
+                    .map_err(|e| format!("invalid search.record_selection request: {e}"))?;
+                if !req.path.is_empty() {
                     self.manager
                         .lock()
                         .map_err(|e| e.to_string())?
-                        .record_selection(source, path);
+                        .record_selection(&req.source, &req.path);
                 }
                 Ok(json!({ "ok": true }))
             }
@@ -143,16 +141,14 @@ impl CommandHandler for SearchHandler {
 
 impl SearchHandler {
     fn execute_query(&self, payload: Value) -> CommandResult {
-        let query = payload["query"]
-            .as_str()
-            .ok_or("missing field: query")?
-            .to_string();
-        let limit = payload["limit"].as_u64().unwrap_or(10) as usize;
-        if payload["stream"].as_bool().unwrap_or(false) {
-            let request_id = payload["request_id"].as_str().unwrap_or("").to_string();
-            let first_batch_limit = payload["first_batch_limit"]
-                .as_u64()
-                .map(|value| value as usize)
+        let req: SearchQueryRequest = serde_json::from_value(payload)
+            .map_err(|e| format!("invalid search.query request: {e}"))?;
+        let query = req.query;
+        let limit = req.limit;
+        if req.stream {
+            let request_id = req.request_id;
+            let first_batch_limit = req
+                .first_batch_limit
                 .unwrap_or(DEFAULT_FIRST_BATCH_LIMIT)
                 .min(limit)
                 .max(1);
