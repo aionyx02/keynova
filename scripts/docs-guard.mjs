@@ -64,6 +64,38 @@ function getChangedFiles() {
   return changed;
 }
 
+/** Return files added (not modified) in this diff. */
+function getAddedFiles() {
+  const added = new Set();
+  const commands = STAGED_ONLY
+    ? ["git diff --cached --name-only --diff-filter=A"]
+    : ["git diff --name-only --diff-filter=A", "git diff --cached --name-only --diff-filter=A"];
+  for (const command of commands) {
+    run(command)
+      .split(/\r?\n/)
+      .map((line) => normalize(line.trim()))
+      .filter(Boolean)
+      .forEach((line) => added.add(line));
+  }
+  return added;
+}
+
+// Directories whose new files signal an architectural addition.
+const ARCH_NEW_FILE_PREFIXES = [
+  "src-tauri/src/handlers/",
+  "src-tauri/src/managers/",
+  "src-tauri/src/core/",
+  "src/context/",
+  "src/stores/",
+];
+
+// Files that, when modified, indicate structural wiring changes.
+const ARCH_WIRING_FILES = new Set([
+  "src-tauri/src/app/state.rs",
+  "src-tauri/src/app/dispatch.rs",
+  "src/ipc/routes.ts",
+]);
+
 function hasRequiredFrontmatter(filePath) {
   if (!fs.existsSync(filePath)) {
     return false;
@@ -79,6 +111,8 @@ function hasRequiredFrontmatter(filePath) {
 }
 
 const changed = getChangedFiles();
+const added = getAddedFiles();
+
 const codeChanged = [...changed].some(
   (file) => file.startsWith("src/") || file.startsWith("src-tauri/"),
 );
@@ -92,6 +126,32 @@ if (codeChanged && !stateDocsChanged) {
     "[docs-guard] Update at least one of: docs/tasks/{active,backlog,blocked,completed}.md or docs/memory/current.md",
   );
   process.exit(1);
+}
+
+// ── Architecture doc sync ────────────────────────────────────────────────────
+
+const archDocChanged = changed.has("docs/architecture.md");
+
+// Hard check: new module files added → architecture.md must be updated.
+const newArchFiles = [...added].filter((file) =>
+  ARCH_NEW_FILE_PREFIXES.some((prefix) => file.startsWith(prefix)),
+);
+if (newArchFiles.length > 0 && !archDocChanged) {
+  console.error("[docs-guard] New architecture module(s) added but docs/architecture.md was not updated:");
+  for (const file of newArchFiles) {
+    console.error(`  + ${file}`);
+  }
+  console.error("[docs-guard] Add the new module to the relevant section in docs/architecture.md.");
+  process.exit(1);
+}
+
+// Advisory: wiring files modified → remind but do not block.
+const wiringChanged = [...changed].filter((file) => ARCH_WIRING_FILES.has(file));
+if (wiringChanged.length > 0 && !archDocChanged) {
+  console.warn("[docs-guard] Advisory: architecture wiring file(s) modified — update docs/architecture.md if the change is significant:");
+  for (const file of wiringChanged) {
+    console.warn(`  ~ ${file}`);
+  }
 }
 
 const missingFrontmatter = REQUIRED_FRONTMATTER.filter(
