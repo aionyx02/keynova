@@ -37,12 +37,12 @@ Goal: make background runtime predictable and keep memory usage bounded.
 
 ## Foundation TD Slices (Required Before FEAT.11 Runtime)
 
-- [ ] TD.1.A Centralize IPC client and remove direct `invoke` calls from feature UI.
-- [ ] TD.1.B Extract search/ranking pure domain logic from large UI components.
-- [ ] TD.1.C Split CommandPalette responsibilities into focused hooks with lifecycle boundaries.
-- [ ] TD.2.A Extract `AppContainer` composition root.
-- [ ] TD.2.B Add feature module registration boundary for lazy services.
-- [ ] TD.2.C Reduce `AppState::new()` startup assembly weight.
+- [x] TD.1.A Centralize IPC client: replaced all `invoke("cmd_dispatch", ...)` calls in `CommandPalette` and `TerminalPanel` with `useIPC().dispatch()`; `cmd_keep_launcher_open` window command stays as a module-level helper.
+- [x] TD.1.B Extract search domain logic to `src/utils/search.ts`: `searchResultKey`, `SOURCE_QUOTAS`, `applySourceQuotas`, `mergeSearchResults`, `sortSearchResults`, `searchSourceOrder`.
+- [x] TD.1.C Split CommandPalette into focused hooks: `useWindowResize` (RAF + ResizeObserver/MutationObserver lifecycle), `useSearchMetadata` (lazy metadata + icon fetching).
+- [x] TD.2.A Extract `AppContainer` composition root. (`src/components/AppContainer.tsx`, `src/context/IPCContext.tsx` — `IPCProvider` wraps stable dispatch; `App.tsx` renders `AppContainer`)
+- [x] TD.2.B Add feature module registration boundary for lazy services. (`src/context/FeatureContext.tsx` — `FeatureProvider` + `useFeature()` with `activate(key)` interface)
+- [x] TD.2.C Reduce `AppState::new()` startup assembly weight. (`src-tauri/src/app/state.rs` — `ManagerBundle`, `create_managers()`, `build_builtin_registry()`, `build_command_router()` extracted; `new()` reduced to ~15 lines)
 - [ ] TD.3.A Add typed request/response DTOs for critical routes.
 - [ ] TD.3.B Reduce raw `Value` parsing in key handlers.
 - [ ] TD.3.C Align frontend route constants and payload types.
