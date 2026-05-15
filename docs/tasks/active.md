@@ -38,6 +38,14 @@ Safety first for runtime lifecycle; feature-first delivery after guardrails are 
   - `AGENT` mode now has backend clear command (`agent.clear_runs`) and frontend clear wiring.
   - Agent runs are rendered in chronological order (old -> new) to keep the newest request at the bottom.
   - Chat history hydration now avoids stale overwrite after local send/clear actions.
+- 2026-05-15: Setting panel tab bar layout adjusted for dense section lists:
+  - replaced equal-width tab squeeze (`flex-1`) with content-width tabs.
+  - enabled horizontal scrolling for section tabs to avoid overlap/truncation collisions.
+  - added fallback title-casing for unmapped dynamic section labels.
+- 2026-05-15: Setting panel tab visual polish pass:
+  - tab rail now uses subtle dark gradients on both edges to match panel tone.
+  - horizontal scrollbar themed to dark/slate and slimmed down to reduce visual noise.
+  - tab typography tuned to surrounding UI scale (12px semibold, tighter spacing).
 
 See `docs/tasks/backlog.md` for detailed breakdown.
 See `docs/tasks/blocked.md` for gating constraints.

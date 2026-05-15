@@ -92,6 +92,13 @@ const SECTION_EFFECT_HINT: Record<string, string> = {
   system: "Controls system panel capabilities.",
 };
 
+function sectionDisplayLabel(section: string): string {
+  const mapped = SECTION_LABELS[section];
+  if (mapped) return mapped;
+  if (!section) return section;
+  return section.charAt(0).toUpperCase() + section.slice(1);
+}
+
 function parseInitialArgs(initialArgs?: string): SettingDraftPayload {
   const value = initialArgs?.trim();
   if (!value) return {};
@@ -289,20 +296,26 @@ export function SettingPanel({ initialArgs }: PanelProps) {
 
   return (
     <div className="bg-gray-900/95 backdrop-blur-md rounded-b-xl shadow-2xl overflow-hidden">
-      <div className="flex border-b border-gray-700/50">
-        {sections.map((section) => (
-          <button
-            key={section}
-            onClick={() => setActiveSection(section)}
-            className={`flex-1 py-2 text-xs font-medium transition-colors ${
-              activeSection === section
-                ? "text-blue-400 border-b-2 border-blue-400"
-                : "text-gray-500 hover:text-gray-300"
-            }`}
-          >
-            {SECTION_LABELS[section] ?? section}
-          </button>
-        ))}
+      <div className="relative border-b border-gray-700/50">
+        <div className="pointer-events-none absolute inset-y-0 left-0 z-10 w-6 bg-gradient-to-r from-gray-900/90 to-transparent" />
+        <div className="pointer-events-none absolute inset-y-0 right-0 z-10 w-6 bg-gradient-to-l from-gray-900/90 to-transparent" />
+        <div className="setting-tabs-scroll overflow-x-auto overflow-y-hidden">
+          <div className="flex min-w-max items-center gap-0.5 px-2">
+            {sections.map((section) => (
+              <button
+                key={section}
+                onClick={() => setActiveSection(section)}
+                className={`shrink-0 border-b-2 px-3 py-2 text-[12px] font-semibold whitespace-nowrap transition-colors ${
+                  activeSection === section
+                    ? "text-blue-400 border-blue-400"
+                    : "text-gray-500 border-transparent hover:text-gray-300"
+                }`}
+              >
+                {sectionDisplayLabel(section)}
+              </button>
+            ))}
+          </div>
+        </div>
       </div>
 
       <div className="px-4 pt-2 pb-0">

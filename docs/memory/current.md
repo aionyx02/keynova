@@ -102,6 +102,13 @@ owner: project
   - `AiPanel` clear button now clears by active mode (`CHAT` or `AGENT`).
   - `useAgent` run ordering changed to chronological (old -> new) for stable latest-at-bottom flow.
   - `useAi` now guards against stale `ai.get_history` hydration overriding post-clear/post-send state.
+- 2026-05-15 Setting panel tab density fix complete:
+  - `SettingPanel` tabs now render at intrinsic width with horizontal scroll instead of compressed equal-width layout.
+  - dynamic section label fallback capitalization added to improve readability for non-mapped sections (for example `performance`, `security`).
+- 2026-05-15 Setting panel visual polish complete:
+  - Added dark-theme scrollbar skin for section rail (`.setting-tabs-scroll`) in `src/index.css`.
+  - Added left/right gradient edge masks on the tab rail to blend with existing panel backdrop.
+  - Adjusted tab text/spacing to better match command palette visual density.
 
 ## Next Step
 
