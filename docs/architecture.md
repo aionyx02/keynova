@@ -2,7 +2,7 @@
 type: architecture_spec
 status: active
 priority: p1
-updated: 2026-05-13
+updated: 2026-05-15
 context_policy: retrieve_only
 owner: project
 ---
@@ -366,7 +366,17 @@ nvim_bin = ""         # 空白則 detect → portable 下載
 
 ```
 SearchHandler
+    │ (fast path: sync, returns first batch on IPC thread)
+    ├── fast_results() → app + non-file results
     │
+    │ (slow path: async, emits "search.results.chunk" event)
+    ▼
+SearchService (single worker thread, Condvar slot)
+    │  At most one task pending, one running.
+    │  Submitting a new task cancels the previous via Arc<AtomicBool>.
+    ▼
+file_results_bounded()
+    │  Hard timeout (800 ms) + cancel token checks.
     ▼
 SearchManager
     ├── AppManager      → 系統應用程式列表（OS API）
@@ -381,6 +391,8 @@ SearchManager
 **搜尋後端切換：**
 - `backend = "tantivy"`（跨平台，預設）
 - `backend = "everything"`（Windows 限定，使用 Everything SDK）
+
+**並發模型：** `SearchService` 確保每次只有一個背景檔案搜尋執行（PERF.2）。快速打字連發的多個請求會依序取消前一個，只執行最新一個。
 
 搜尋結果統一包裝為 `SearchResult { label, detail, action_ref, … }`，前端透過 `ActionRef` 執行後續動作。
 

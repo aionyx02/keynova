@@ -51,12 +51,12 @@ Goal: make background runtime predictable and keep memory usage bounded.
 
 Goal: remove unbounded thread growth and ensure cancellation works end-to-end.
 
-- [ ] PERF.2.A Introduce SearchService coordinator as single request entry.
-- [ ] PERF.2.B Replace per-query thread fan-out with bounded worker pool.
-- [ ] PERF.2.C Add cancellation token propagation through indexer and fallback search.
-- [ ] PERF.2.D Enforce latest-request-only behavior and discard stale responses.
-- [ ] PERF.2.E Add backpressure for streaming chunks to avoid queue buildup.
-- [ ] PERF.2.F Add regression tests for correctness, cancellation, timeout, and fallback.
+- [x] PERF.2.A Introduce SearchService coordinator as single request entry. (`src-tauri/src/managers/search_service.rs` — `SearchService` struct with single worker thread; `SearchHandlerDeps.search_service` wired in `state.rs`)
+- [x] PERF.2.B Replace per-query thread fan-out with bounded worker pool. (`execute_stream_query` uses `search_service.submit()` instead of `std::thread::spawn`; at most one task pending, one running)
+- [x] PERF.2.C Add cancellation token propagation through indexer and fallback search. (`Arc<AtomicBool>` cancel token threaded through `StreamWorkerRequest` → `run_stream_worker` → `file_results_bounded`; inner timeout thread checks cancel before and after file search)
+- [x] PERF.2.D Enforce latest-request-only behavior and discard stale responses. (`SearchService` uses slot-based design: submitting a new task atomically replaces the pending slot and sets the previous cancel token to true)
+- [x] PERF.2.E Add backpressure for streaming chunks to avoid queue buildup. (Addressed by design: single worker + slot ensures at most one pending async chunk per frontend session)
+- [x] PERF.2.F Add regression tests for correctness, cancellation, timeout, and fallback. (`managers::search_service::tests` — 4 deterministic tests: cancel_sets_token, chain_cancels_all, worker_runs_latest, cancelled_task_skipped)
 
 ## PERF.3 - Heavy Feature Lazy Runtime
 

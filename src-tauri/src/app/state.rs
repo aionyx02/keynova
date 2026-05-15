@@ -39,8 +39,9 @@ use crate::managers::{
     ai_manager::AiManager, app_manager::AppManager, calculator_manager::CalculatorManager,
     history_manager::HistoryManager, hotkey_manager::HotkeyManager, model_manager::ModelManager,
     mouse_manager::MouseManager, note_manager::NoteManager, search_manager::SearchManager,
-    system_manager::SystemManager, terminal_manager::TerminalManager,
-    translation_manager::TranslationManager, workspace_manager::WorkspaceManager,
+    search_service::SearchService, system_manager::SystemManager,
+    terminal_manager::TerminalManager, translation_manager::TranslationManager,
+    workspace_manager::WorkspaceManager,
 };
 
 pub(crate) struct AppState {
@@ -238,6 +239,7 @@ fn build_command_router(
         workspace_manager: Arc::clone(&bundle.workspace_manager),
         model_manager: Arc::clone(&bundle.model_manager),
         event_bus: event_bus.clone(),
+        search_service: SearchService::new(),
     })));
     let eb_for_model = event_bus.clone();
     router.register(Arc::new(ModelHandler::new(

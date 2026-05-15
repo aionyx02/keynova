@@ -1,4 +1,5 @@
 use std::collections::HashSet;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{mpsc, Arc, Mutex};
 use std::time::{Duration, Instant};
 
@@ -14,6 +15,7 @@ use crate::managers::{
     model_manager::{HardwareInfo, ModelManager},
     note_manager::NoteManager,
     search_manager::{SearchBackend, SearchManager},
+    search_service::SearchService,
 };
 use crate::models::action::{Action, UiSearchItem};
 use crate::models::search_result::{ResultKind, SearchResult};
@@ -69,6 +71,7 @@ pub struct SearchHandler {
     workspace_manager: Arc<Mutex<crate::managers::workspace_manager::WorkspaceManager>>,
     model_manager: Arc<ModelManager>,
     event_bus: EventBus,
+    search_service: Arc<SearchService>,
 }
 
 pub struct SearchHandlerDeps {
@@ -80,6 +83,7 @@ pub struct SearchHandlerDeps {
     pub workspace_manager: Arc<Mutex<crate::managers::workspace_manager::WorkspaceManager>>,
     pub model_manager: Arc<ModelManager>,
     pub event_bus: EventBus,
+    pub search_service: Arc<SearchService>,
 }
 
 impl SearchHandler {
@@ -93,6 +97,7 @@ impl SearchHandler {
             workspace_manager: deps.workspace_manager,
             model_manager: deps.model_manager,
             event_bus: deps.event_bus,
+            search_service: deps.search_service,
         }
     }
 }
@@ -216,8 +221,10 @@ impl SearchHandler {
         );
 
         if !query.trim().is_empty() {
+            let cancel = Arc::new(AtomicBool::new(false));
+            let cancel_for_worker = Arc::clone(&cancel);
             let worker = self.clone();
-            std::thread::spawn(move || {
+            self.search_service.submit(cancel, move || {
                 worker.run_stream_worker(StreamWorkerRequest {
                     query,
                     request_id,
@@ -227,6 +234,7 @@ impl SearchHandler {
                     seen: first_keys,
                     first_batch_items,
                     plan,
+                    cancel: cancel_for_worker,
                 });
             });
         } else {
@@ -255,11 +263,12 @@ impl SearchHandler {
             mut seen,
             first_batch_items,
             plan,
+            cancel,
         } = request;
 
         let started = Instant::now();
 
-        if !self.is_generation_current(generation).unwrap_or(false) {
+        if cancel.load(Ordering::Relaxed) {
             return;
         }
 
@@ -267,7 +276,7 @@ impl SearchHandler {
         let mut worker_items = Vec::new();
         let timed_out;
 
-        match self.file_results_with_timeout(backend, query.clone(), plan.file_limit, generation) {
+        match self.file_results_bounded(backend, query.clone(), plan.file_limit, generation, Arc::clone(&cancel)) {
             Some(file_results) => {
                 timed_out = false;
                 match self.base_results_to_ui_items(file_results, &session) {
@@ -284,7 +293,7 @@ impl SearchHandler {
             }
         }
 
-        if !self.is_generation_current(generation).unwrap_or(false) {
+        if cancel.load(Ordering::Relaxed) {
             return;
         }
 
@@ -365,13 +374,17 @@ impl SearchHandler {
         Ok(())
     }
 
-    fn file_results_with_timeout(
+    fn file_results_bounded(
         &self,
         backend: SearchBackend,
         query: String,
         limit: usize,
         generation: u64,
+        cancel: Arc<AtomicBool>,
     ) -> Option<Vec<SearchResult>> {
+        if cancel.load(Ordering::Relaxed) {
+            return None;
+        }
         let (tx, rx) = mpsc::channel();
         let tantivy_index_dir = self
             .manager
@@ -379,8 +392,11 @@ impl SearchHandler {
             .ok()
             .map(|manager| manager.tantivy_index_dir());
         let manager = self.manager.clone();
+        // Inner thread enforces the hard timeout on the platform-specific search call.
         std::thread::spawn(move || {
-            // Early exit if the query was already superseded.
+            if cancel.load(Ordering::Relaxed) {
+                return;
+            }
             if manager
                 .lock()
                 .ok()
@@ -394,7 +410,9 @@ impl SearchHandler {
                 limit,
                 tantivy_index_dir.as_deref(),
             );
-            let _ = tx.send(results);
+            if !cancel.load(Ordering::Relaxed) {
+                let _ = tx.send(results);
+            }
         });
         rx.recv_timeout(PROVIDER_TIMEOUT).ok()
     }
@@ -747,6 +765,8 @@ struct StreamWorkerRequest {
     /// The actual first-batch items, cloned so the worker can build a combined balanced set.
     first_batch_items: Vec<UiSearchItem>,
     plan: SearchPlan,
+    /// Cancel token set by SearchService when a newer request supersedes this one.
+    cancel: Arc<AtomicBool>,
 }
 
 /// Score a command match.
