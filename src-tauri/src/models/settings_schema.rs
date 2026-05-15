@@ -528,6 +528,15 @@ pub fn builtin_setting_schema() -> Vec<SettingSchema> {
             false,
             &[],
         ),
+        SettingSchema::new(
+            "security.network_allowlist",
+            "security",
+            "Outbound network allowlist",
+            String,
+            "api.anthropic.com,api.openai.com,translate.googleapis.com,api.tavily.com,duckduckgo.com,github.com",
+            false,
+            &[],
+        ),
     ]
 }
 

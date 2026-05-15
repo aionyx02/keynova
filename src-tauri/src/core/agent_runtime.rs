@@ -1,5 +1,5 @@
 use std::collections::HashMap;
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Condvar, Mutex};
 
 use schemars::{schema_for, JsonSchema};
 use serde::{Deserialize, Serialize};
@@ -229,6 +229,8 @@ pub struct AgentRuntime {
     runs: Mutex<HashMap<String, AgentRun>>,
     tools: AgentToolRegistry,
     publish_event: Arc<dyn Fn(AppEvent) + Send + Sync>,
+    /// Notified whenever a run is updated or cancelled; used by approval waiters.
+    run_notify: (Mutex<()>, Condvar),
 }
 
 impl AgentRuntime {
@@ -237,6 +239,7 @@ impl AgentRuntime {
             runs: Mutex::new(HashMap::new()),
             tools: AgentToolRegistry::with_default_readonly_tools(),
             publish_event,
+            run_notify: (Mutex::new(()), Condvar::new()),
         }
     }
 
@@ -267,6 +270,7 @@ impl AgentRuntime {
         guard.insert(run_id, run.clone());
         drop(guard);
         self.publish(topic, &run);
+        self.run_notify.1.notify_all();
         Ok(run)
     }
 
@@ -280,6 +284,7 @@ impl AgentRuntime {
         let updated = run.clone();
         drop(guard);
         self.publish("agent.run.failed", &updated);
+        self.run_notify.1.notify_all();
         Ok(updated)
     }
 
@@ -777,8 +782,10 @@ fn truncate_preview(s: &str, max_chars: usize) -> String {
     }
 }
 
-/// Poll the run registry until the given approval changes from "pending",
-/// or until timeout or cancellation.
+/// Block until the given approval changes from "pending", the run is cancelled,
+/// or the deadline is reached.  Uses `AgentRuntime::run_notify` condvar so the
+/// ReAct loop thread does not spin; worst-case latency is 1 s (the fallback
+/// timeout passed to `wait_timeout`), not 100 ms per poll.
 fn wait_for_react_approval(
     runtime: &AgentRuntime,
     run_id: &str,
@@ -788,7 +795,8 @@ fn wait_for_react_approval(
     let deadline =
         std::time::Instant::now() + std::time::Duration::from_secs(timeout_secs.max(1));
     loop {
-        if std::time::Instant::now() >= deadline {
+        let remaining = deadline.saturating_duration_since(std::time::Instant::now());
+        if remaining.is_zero() {
             return ReactApprovalOutcome::TimedOut;
         }
         match runtime.get(run_id) {
@@ -806,7 +814,11 @@ fn wait_for_react_approval(
             }
             _ => return ReactApprovalOutcome::Cancelled,
         }
-        std::thread::sleep(std::time::Duration::from_millis(100));
+        let guard = runtime.run_notify.0.lock().unwrap_or_else(|e| e.into_inner());
+        let _ = runtime
+            .run_notify
+            .1
+            .wait_timeout(guard, remaining.min(std::time::Duration::from_secs(1)));
     }
 }
 
