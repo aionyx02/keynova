@@ -168,7 +168,11 @@ impl CommandHandler for AgentHandler {
             "approve" => {
                 let run_id = require_str(&payload, "run_id")?;
                 let approval_id = require_str(&payload, "approval_id")?;
-                self.approve_run(run_id, approval_id)
+                let remember = payload
+                    .get("remember")
+                    .and_then(Value::as_bool)
+                    .unwrap_or(false);
+                self.approve_run(run_id, approval_id, remember)
                     .and_then(|run| serde_json::to_value(run).map_err(|e| e.to_string()))
             }
             "reject" => {
@@ -266,7 +270,15 @@ impl AgentHandler {
         let tools = self.runtime.list_tools();
         let dispatch = self.build_react_dispatch();
         let knowledge_store = self.knowledge_store.clone();
+        let approval_timeout_secs = {
+            let cfg = self.config.lock().map_err(|e| e.to_string())?;
+            cfg.get("agent.approval_timeout_secs")
+                .and_then(|v| v.parse::<u64>().ok())
+                .filter(|n| *n > 0)
+                .unwrap_or(300)
+        };
         let loop_config = ReactLoopConfig {
+            approval_timeout_secs,
             audit_log: Some(Arc::new(move |entry| {
                 knowledge_store.try_log_agent_audit(entry);
             })),
@@ -372,7 +384,12 @@ impl AgentHandler {
         self.runtime.insert_run(run)
     }
 
-    fn approve_run(&self, run_id: &str, approval_id: &str) -> Result<AgentRun, String> {
+    fn approve_run(
+        &self,
+        run_id: &str,
+        approval_id: &str,
+        remember: bool,
+    ) -> Result<AgentRun, String> {
         let mut run = self
             .runtime
             .get(run_id)?
@@ -385,6 +402,7 @@ impl AgentHandler {
         if run.approvals[approval_index].status != "pending" {
             return Err(format!("approval '{approval_id}' is not pending"));
         }
+        run.approvals[approval_index].remember_for_run = remember;
         match run.approvals[approval_index].planned_action.clone() {
             None => {
                 // ReAct gate approval — mark approved, restore Running; loop resumes.
@@ -533,6 +551,11 @@ impl AgentHandler {
             risk: action.risk,
             summary: action.summary.clone(),
             status: "pending".into(),
+            // Heuristic planned_action approvals don't correspond to a single
+            // tool call and don't participate in the remember-for-run flow.
+            tool_name: None,
+            deadline_unix_ms: None,
+            remember_for_run: false,
         }])
     }
 

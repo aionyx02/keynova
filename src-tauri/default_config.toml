@@ -47,6 +47,7 @@ openai_base_url = "https://api.openai.com/v1"
 openai_model = "gpt-4o-mini"
 max_tokens = 4096
 timeout_secs = 30
+stream_enabled = true        # true: emit ai.stream.chunk events for token streaming UI; false: legacy single-shot
 
 [agent]
 web_search_provider = "disabled"
@@ -54,6 +55,9 @@ long_term_memory_opt_in = false
 searxng_url = ""
 web_search_api_key = ""
 web_search_timeout_secs = 8
+show_audit_by_default = false        # If true, Context audit section of agent runs is pre-expanded
+run_history_cap = 20                 # FIFO cap on in-memory agent runs; oldest evicted to agent_archive table
+approval_timeout_secs = 300          # Approval auto-times-out after N seconds; affects countdown pill in UI
 
 [translation]
 default_src = "auto"

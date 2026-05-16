@@ -4,10 +4,13 @@ use std::time::Instant;
 use serde_json::json;
 
 use crate::core::config_manager::ConfigManager;
+use crate::core::agent_runtime::AgentArchiveSink;
+use crate::core::knowledge_store::AgentArchiveEntry;
 use crate::core::{
     ActionArena, AgentRuntime, AppEvent, BuiltinCommandRegistry, CommandRouter, EventBus,
     KnowledgeStoreHandle,
 };
+use crate::models::agent::AgentRun;
 use crate::handlers::{
     agent::{AgentHandler, AgentHandlerDeps},
     ai::AiHandler,
@@ -80,7 +83,30 @@ struct ManagerBundle {
     translation_manager: Arc<TranslationManager>,
 }
 
-fn create_managers(event_bus: &EventBus) -> ManagerBundle {
+/// Adapter that forwards FIFO-evicted agent runs to the `agent_archive` SQLite table.
+/// Errors are swallowed by KnowledgeStore's fire-and-forget contract; we intentionally
+/// trade durability for never blocking the runtime under DB backpressure.
+struct KnowledgeStoreArchiveSink {
+    handle: KnowledgeStoreHandle,
+}
+
+impl AgentArchiveSink for KnowledgeStoreArchiveSink {
+    fn archive(&self, run: &AgentRun) {
+        let status = serde_json::to_value(&run.status)
+            .ok()
+            .and_then(|v| v.as_str().map(str::to_owned))
+            .unwrap_or_else(|| "unknown".into());
+        let payload_json = serde_json::to_string(run).unwrap_or_else(|_| "{}".into());
+        self.handle.try_archive_agent_run(AgentArchiveEntry {
+            run_id: run.id.clone(),
+            prompt: run.prompt.clone(),
+            status,
+            payload_json,
+        });
+    }
+}
+
+fn create_managers(event_bus: &EventBus, knowledge_store: &KnowledgeStoreHandle) -> ManagerBundle {
     let app_manager = Arc::new(Mutex::new(AppManager::new()));
     let hotkey_manager = Arc::new(Mutex::new(HotkeyManager::new()));
     let mouse_manager = Arc::new(Mutex::new(MouseManager::new()));
@@ -135,9 +161,23 @@ fn create_managers(event_bus: &EventBus) -> ManagerBundle {
     })));
 
     let eb_for_agent = event_bus.clone();
-    let agent_runtime = Arc::new(AgentRuntime::new(Arc::new(move |event| {
-        let _ = eb_for_agent.publish(event);
-    })));
+    let run_cap = config_manager
+        .lock()
+        .ok()
+        .and_then(|c| c.get("agent.run_history_cap"))
+        .and_then(|v| v.parse::<usize>().ok())
+        .filter(|n| *n > 0)
+        .unwrap_or(20);
+    let archive_sink: Arc<dyn AgentArchiveSink> = Arc::new(KnowledgeStoreArchiveSink {
+        handle: knowledge_store.clone(),
+    });
+    let agent_runtime = Arc::new(AgentRuntime::with_archive(
+        Arc::new(move |event| {
+            let _ = eb_for_agent.publish(event);
+        }),
+        run_cap,
+        archive_sink,
+    ));
 
     let eb_for_tr = event_bus.clone();
     let translation_manager = Arc::new(TranslationManager::new(Arc::new(move |event| {
@@ -314,7 +354,7 @@ impl AppState {
         let action_arena = Arc::new(ActionArena::default());
         let knowledge_store = KnowledgeStoreHandle::new_default();
 
-        let bundle = create_managers(&event_bus);
+        let bundle = create_managers(&event_bus, &knowledge_store);
         let command_router =
             build_command_router(&bundle, &event_bus, &action_arena, &knowledge_store);
 

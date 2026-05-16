@@ -2,7 +2,7 @@
 type: architecture_spec
 status: active
 priority: p1
-updated: 2026-05-15
+updated: 2026-05-16
 context_policy: retrieve_only
 owner: project
 ---
@@ -430,6 +430,13 @@ KnowledgeStore: agent_audit 寫入 SQLite
 ```
 
 **AgentObservationPolicy** 控制哪些工具輸出可以被加入觀察（防止資訊洩漏）。
+
+**AgentArchiveSink** (Phase 7a, 2026-05-16)：`AgentRuntime::insert_run` 以 FIFO cap（預設 `agent.run_history_cap = 20`）限制 in-memory `runs`，溢出時透過 `AgentArchiveSink::archive(&AgentRun)` 寫入 `agent_archive` SQLite 表，並 emit `agent.run.archived` 事件。生產線（`app/state.rs`）注入 `KnowledgeStoreArchiveSink`；測試以 `NoopArchiveSink` 或 mock 替代。設計保持 runtime 不直接耦合 KnowledgeStore。
+
+**Approval streaming + cancel** (Phase 7a, 2026-05-16)：
+- `AiManager::chat_async` 接受 `cancel_flag: Option<Arc<AtomicBool>>` 與 `cancel_registry: Option<CancelRegistry>`；handler 註冊 per-request flag，`ai.cancel` 設旗並從 registry 移除；spawned thread 在 thread 起點與 `do_chat` 後 check flag，cancelled 時 rollback user message 並 emit `ai.response { cancelled:true }`。
+- `ai.stream_enabled` (default `true`) 切換到 streaming：三家 provider chunked HTTP，逐 chunk emit `ai.stream.chunk { request_id, delta }`，完成時照舊 emit `ai.response` 收尾。前端 `useAi` 維持單一 `pendingIdRef` guard，stray chunk 自動被丟棄。
+- `wait_for_react_approval` 達到 `agent.approval_timeout_secs`（default 300）時 mutate approval `status = "approval_timeout"` 並 emit `agent.approval.timeout`；approve(remember=true) 在 ReAct 下一個同 `tool_name` 的 gate 被短路為 `Approved`。
 
 ---
 

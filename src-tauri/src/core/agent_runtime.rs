@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, VecDeque};
 use std::sync::{Arc, Condvar, Mutex};
 
 use schemars::{schema_for, JsonSchema};
@@ -252,21 +252,66 @@ pub struct LearningMaterialReviewToolResult {
     pub markdown_summary: String,
 }
 
+/// Receives evicted agent runs when the runtime FIFO cap is exceeded.
+/// Backing impls: `NoopArchiveSink` (tests / pre-FEAT.11 callers) and
+/// `KnowledgeStoreArchiveSink` (production wire-up).
+pub trait AgentArchiveSink: Send + Sync {
+    fn archive(&self, run: &AgentRun);
+}
+
+pub struct NoopArchiveSink;
+
+impl AgentArchiveSink for NoopArchiveSink {
+    fn archive(&self, _run: &AgentRun) {}
+}
+
+/// In-memory run cache plus an insertion-order log used for FIFO eviction.
+/// The two collections are kept under one mutex to avoid lock-ordering bugs.
+struct RunStore {
+    runs: HashMap<String, AgentRun>,
+    order: VecDeque<String>,
+}
+
+impl RunStore {
+    fn new() -> Self {
+        Self {
+            runs: HashMap::new(),
+            order: VecDeque::new(),
+        }
+    }
+}
+
 pub struct AgentRuntime {
-    runs: Mutex<HashMap<String, AgentRun>>,
+    store: Mutex<RunStore>,
     tools: AgentToolRegistry,
     publish_event: Arc<dyn Fn(AppEvent) + Send + Sync>,
     /// Notified whenever a run is updated or cancelled; used by approval waiters.
     run_notify: (Mutex<()>, Condvar),
+    /// Maximum number of runs kept in memory before the oldest is evicted.
+    run_cap: usize,
+    /// Sink for evicted runs.
+    archive_sink: Arc<dyn AgentArchiveSink>,
 }
+
+const DEFAULT_RUN_CAP: usize = 20;
 
 impl AgentRuntime {
     pub fn new(publish_event: Arc<dyn Fn(AppEvent) + Send + Sync>) -> Self {
+        Self::with_archive(publish_event, DEFAULT_RUN_CAP, Arc::new(NoopArchiveSink))
+    }
+
+    pub fn with_archive(
+        publish_event: Arc<dyn Fn(AppEvent) + Send + Sync>,
+        run_cap: usize,
+        archive_sink: Arc<dyn AgentArchiveSink>,
+    ) -> Self {
         Self {
-            runs: Mutex::new(HashMap::new()),
+            store: Mutex::new(RunStore::new()),
             tools: AgentToolRegistry::with_default_readonly_tools(),
             publish_event,
             run_notify: (Mutex::new(()), Condvar::new()),
+            run_cap: run_cap.max(1),
+            archive_sink,
         }
     }
 
@@ -276,9 +321,27 @@ impl AgentRuntime {
 
     pub fn insert_run(&self, run: AgentRun) -> Result<AgentRun, String> {
         let run_id = run.id.clone();
-        let mut guard = self.runs.lock().map_err(|e| e.to_string())?;
-        guard.insert(run_id, run.clone());
-        drop(guard);
+        let mut evicted: Option<AgentRun> = None;
+        {
+            let mut store = self.store.lock().map_err(|e| e.to_string())?;
+            // FIFO eviction: if at cap, archive and drop the oldest entry before
+            // inserting the new one. The order log is the source of truth for
+            // "oldest"; insertion-order, not status, governs eviction.
+            while store.runs.len() >= self.run_cap {
+                let Some(oldest_id) = store.order.pop_front() else {
+                    break;
+                };
+                if let Some(old_run) = store.runs.remove(&oldest_id) {
+                    evicted = Some(old_run);
+                }
+            }
+            store.runs.insert(run_id.clone(), run.clone());
+            store.order.push_back(run_id);
+        }
+        if let Some(old_run) = evicted.as_ref() {
+            self.archive_sink.archive(old_run);
+            self.publish("agent.run.archived", old_run);
+        }
         self.publish("agent.run.started", &run);
         if run.status == AgentRunStatus::WaitingApproval {
             self.publish("agent.approval.required", &run);
@@ -293,42 +356,46 @@ impl AgentRuntime {
 
     pub fn update_run(&self, run: AgentRun, topic: &str) -> Result<AgentRun, String> {
         let run_id = run.id.clone();
-        let mut guard = self.runs.lock().map_err(|e| e.to_string())?;
-        guard.insert(run_id, run.clone());
-        drop(guard);
+        {
+            let mut store = self.store.lock().map_err(|e| e.to_string())?;
+            store.runs.insert(run_id, run.clone());
+        }
         self.publish(topic, &run);
         self.run_notify.1.notify_all();
         Ok(run)
     }
 
     pub fn cancel(&self, run_id: &str) -> Result<AgentRun, String> {
-        let mut guard = self.runs.lock().map_err(|e| e.to_string())?;
-        let run = guard
-            .get_mut(run_id)
-            .ok_or_else(|| format!("agent run '{run_id}' not found"))?;
-        run.status = AgentRunStatus::Cancelled;
-        run.output = Some("Run cancelled before execution completed.".into());
-        let updated = run.clone();
-        drop(guard);
+        let updated = {
+            let mut store = self.store.lock().map_err(|e| e.to_string())?;
+            let run = store
+                .runs
+                .get_mut(run_id)
+                .ok_or_else(|| format!("agent run '{run_id}' not found"))?;
+            run.status = AgentRunStatus::Cancelled;
+            run.output = Some("Run cancelled before execution completed.".into());
+            run.clone()
+        };
         self.publish("agent.run.failed", &updated);
         self.run_notify.1.notify_all();
         Ok(updated)
     }
 
     pub fn get(&self, run_id: &str) -> Result<Option<AgentRun>, String> {
-        let guard = self.runs.lock().map_err(|e| e.to_string())?;
-        Ok(guard.get(run_id).cloned())
+        let store = self.store.lock().map_err(|e| e.to_string())?;
+        Ok(store.runs.get(run_id).cloned())
     }
 
     pub fn clear_runs(&self) -> Result<(), String> {
-        let mut guard = self.runs.lock().map_err(|e| e.to_string())?;
-        guard.clear();
+        let mut store = self.store.lock().map_err(|e| e.to_string())?;
+        store.runs.clear();
+        store.order.clear();
         Ok(())
     }
 
     pub fn recent_runs(&self, limit: usize) -> Result<Vec<AgentRun>, String> {
-        let guard = self.runs.lock().map_err(|e| e.to_string())?;
-        let mut runs: Vec<_> = guard.values().cloned().collect();
+        let store = self.store.lock().map_err(|e| e.to_string())?;
+        let mut runs: Vec<_> = store.runs.values().cloned().collect();
         runs.sort_by(|left, right| right.id.cmp(&left.id));
         runs.truncate(limit);
         Ok(runs)
@@ -378,6 +445,9 @@ pub struct ReactLoopConfig {
     pub max_steps: usize,
     pub max_tokens: u32,
     pub timeout_secs: u64,
+    /// Seconds the ReAct loop will block on a single approval gate before
+    /// returning `TimedOut`. Bound to setting `agent.approval_timeout_secs`.
+    pub approval_timeout_secs: u64,
     pub system_prompt: String,
     /// Optional callback invoked for each audit event during the loop.
     pub audit_log: Option<Arc<dyn Fn(AgentAuditEntry) + Send + Sync>>,
@@ -389,6 +459,7 @@ impl Default for ReactLoopConfig {
             max_steps: 8,
             max_tokens: 4096,
             timeout_secs: 30,
+            approval_timeout_secs: 300,
             system_prompt: concat!(
                 "You are a helpful assistant integrated into Keynova. ",
                 "Use the provided tools to answer the user's request. ",
@@ -547,47 +618,80 @@ pub fn react_loop_body(
                         .map(|s| s.approval_policy == AgentToolApprovalPolicy::Required)
                         .unwrap_or(false);
                     if approval_required {
-                        let approval_id = format!("react-gate:{}", Uuid::new_v4());
-                        let summary = format!(
-                            "Agent wants to run '{}' with args: {}",
-                            call.name,
-                            truncate_preview(&call.arguments.to_string(), 200)
-                        );
-                        let approval = AgentApproval {
-                            id: approval_id.clone(),
-                            action_ref: None,
-                            planned_action: None,
-                            risk: spec.map(|s| s.risk).unwrap_or(ActionRisk::Medium),
-                            summary: summary.clone(),
-                            status: "pending".into(),
+                        // Run-scoped "approve and remember" short-circuit: if any prior
+                        // approval on this run matches the same tool and was approved
+                        // with `remember_for_run=true`, skip the approval gate entirely.
+                        let remembered = runtime
+                            .get(run_id)
+                            .ok()
+                            .flatten()
+                            .map(|run| {
+                                run.approvals.iter().any(|a| {
+                                    a.tool_name.as_deref() == Some(call.name.as_str())
+                                        && a.remember_for_run
+                                        && a.status == "approved"
+                                })
+                            })
+                            .unwrap_or(false);
+
+                        let outcome = if remembered {
+                            maybe_audit(
+                                config,
+                                run_id,
+                                "approval_auto_approved",
+                                "ok",
+                                &format!("Auto-approved '{}' via remember_for_run", call.name),
+                                None,
+                            );
+                            ReactApprovalOutcome::Approved
+                        } else {
+                            let approval_id = format!("react-gate:{}", Uuid::new_v4());
+                            let summary = format!(
+                                "Agent wants to run '{}' with args: {}",
+                                call.name,
+                                truncate_preview(&call.arguments.to_string(), 200)
+                            );
+                            let deadline_unix_ms = current_unix_ms()
+                                .map(|now| now + (config.approval_timeout_secs as i64) * 1000);
+                            let approval = AgentApproval {
+                                id: approval_id.clone(),
+                                action_ref: None,
+                                planned_action: None,
+                                risk: spec.map(|s| s.risk).unwrap_or(ActionRisk::Medium),
+                                summary: summary.clone(),
+                                status: "pending".into(),
+                                tool_name: Some(call.name.clone()),
+                                deadline_unix_ms,
+                                remember_for_run: false,
+                            };
+
+                            maybe_audit(
+                                config,
+                                run_id,
+                                "approval_required",
+                                "pending",
+                                &summary,
+                                Some(json!({
+                                    "tool_name": call.name,
+                                    "args_preview": truncate_preview(&call.arguments.to_string(), 200),
+                                })),
+                            );
+
+                            // Attach the approval to the run and set WaitingApproval status.
+                            if let Ok(Some(mut run)) = runtime.get(run_id) {
+                                run.approvals.push(approval);
+                                run.status = AgentRunStatus::WaitingApproval;
+                                let _ = runtime.update_run(run, "agent.approval.required");
+                            }
+                            emit_react_step(runtime, run_id, step_idx, &call.name, "waiting_approval");
+
+                            wait_for_react_approval(
+                                runtime,
+                                run_id,
+                                &approval_id,
+                                config.approval_timeout_secs,
+                            )
                         };
-
-                        maybe_audit(
-                            config,
-                            run_id,
-                            "approval_required",
-                            "pending",
-                            &summary,
-                            Some(json!({
-                                "tool_name": call.name,
-                                "args_preview": truncate_preview(&call.arguments.to_string(), 200),
-                            })),
-                        );
-
-                        // Attach the approval to the run and set WaitingApproval status.
-                        if let Ok(Some(mut run)) = runtime.get(run_id) {
-                            run.approvals.push(approval);
-                            run.status = AgentRunStatus::WaitingApproval;
-                            let _ = runtime.update_run(run, "agent.approval.required");
-                        }
-                        emit_react_step(runtime, run_id, step_idx, &call.name, "waiting_approval");
-
-                        let outcome = wait_for_react_approval(
-                            runtime,
-                            run_id,
-                            &approval_id,
-                            300, // 5-minute gate timeout
-                        );
 
                         let (obs, step_status) = match outcome {
                             ReactApprovalOutcome::Approved => {
@@ -806,6 +910,15 @@ fn emit_react_step(runtime: &AgentRuntime, run_id: &str, step: usize, tool_name:
     ));
 }
 
+/// Best-effort unix-ms timestamp for approval deadlines. Returns `None` if the
+/// system clock is set before the epoch (effectively impossible on modern OSes).
+fn current_unix_ms() -> Option<i64> {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .ok()
+        .and_then(|d| i64::try_from(d.as_millis()).ok())
+}
+
 fn truncate_preview(s: &str, max_chars: usize) -> String {
     let chars: Vec<char> = s.chars().collect();
     if chars.len() <= max_chars {
@@ -830,6 +943,14 @@ fn wait_for_react_approval(
     loop {
         let remaining = deadline.saturating_duration_since(std::time::Instant::now());
         if remaining.is_zero() {
+            // Mark the approval as timed out and emit a dedicated event so the
+            // panel countdown pill can flip to "Timed out" without polling.
+            if let Ok(Some(mut run)) = runtime.get(run_id) {
+                if let Some(approval) = run.approvals.iter_mut().find(|a| a.id == approval_id) {
+                    approval.status = "approval_timeout".into();
+                }
+                let _ = runtime.update_run(run, "agent.approval.timeout");
+            }
             return ReactApprovalOutcome::TimedOut;
         }
         match runtime.get(run_id) {
@@ -909,6 +1030,95 @@ mod tests {
                 "agent.run.failed".to_string(),
             ]
         );
+    }
+
+    #[test]
+    fn approval_timeout_sets_status_and_emits_event() {
+        use std::time::Duration;
+
+        let topics: Arc<Mutex<Vec<String>>> = Arc::new(Mutex::new(Vec::new()));
+        let topics_clone = Arc::clone(&topics);
+        let runtime = AgentRuntime::new(Arc::new(move |event| {
+            topics_clone.lock().unwrap().push(event.topic);
+        }));
+
+        let approval_id = "react-gate:test-timeout".to_string();
+        let mut run = test_run("rt-1", AgentRunStatus::WaitingApproval);
+        run.approvals.push(AgentApproval {
+            id: approval_id.clone(),
+            action_ref: None,
+            planned_action: None,
+            risk: ActionRisk::Medium,
+            summary: "timeout test".into(),
+            status: "pending".into(),
+            tool_name: Some("git.status".into()),
+            deadline_unix_ms: None,
+            remember_for_run: false,
+        });
+        runtime.insert_run(run).unwrap();
+
+        let outcome = wait_for_react_approval(&runtime, "rt-1", &approval_id, 1);
+        std::thread::sleep(Duration::from_millis(50));
+
+        assert_eq!(outcome, ReactApprovalOutcome::TimedOut);
+        let updated = runtime
+            .get("rt-1")
+            .unwrap()
+            .unwrap()
+            .approvals
+            .into_iter()
+            .find(|a| a.id == approval_id)
+            .unwrap();
+        assert_eq!(updated.status, "approval_timeout");
+
+        let topic_log = topics.lock().unwrap();
+        assert!(
+            topic_log.iter().any(|t| t.as_str() == "agent.approval.timeout"),
+            "expected agent.approval.timeout event, got {:?}",
+            topic_log
+        );
+    }
+
+    #[test]
+    fn insert_run_evicts_fifo_when_over_cap_and_archives() {
+        struct CountingSink(Mutex<Vec<String>>);
+        impl AgentArchiveSink for CountingSink {
+            fn archive(&self, run: &AgentRun) {
+                self.0.lock().unwrap().push(run.id.clone());
+            }
+        }
+        let sink = Arc::new(CountingSink(Mutex::new(Vec::new())));
+        let topics: Arc<Mutex<Vec<String>>> = Arc::new(Mutex::new(Vec::new()));
+        let topics_clone = Arc::clone(&topics);
+        let runtime = AgentRuntime::with_archive(
+            Arc::new(move |event| {
+                topics_clone.lock().unwrap().push(event.topic);
+            }),
+            3,
+            sink.clone() as Arc<dyn AgentArchiveSink>,
+        );
+
+        for i in 0..5 {
+            runtime
+                .insert_run(test_run(&format!("run-{i}"), AgentRunStatus::Completed))
+                .unwrap();
+        }
+
+        // run-0 and run-1 should have been evicted; runs 2/3/4 should remain.
+        assert!(runtime.get("run-0").unwrap().is_none());
+        assert!(runtime.get("run-1").unwrap().is_none());
+        assert!(runtime.get("run-2").unwrap().is_some());
+        assert!(runtime.get("run-4").unwrap().is_some());
+
+        let evicted = sink.0.lock().unwrap();
+        assert_eq!(evicted.as_slice(), &["run-0".to_string(), "run-1".to_string()]);
+
+        let topic_log = topics.lock().unwrap();
+        let archived_count = topic_log
+            .iter()
+            .filter(|t| t.as_str() == "agent.run.archived")
+            .count();
+        assert_eq!(archived_count, 2);
     }
 
     #[test]

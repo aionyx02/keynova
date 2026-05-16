@@ -109,6 +109,9 @@ pub struct AgentPlannedAction {
     pub payload: Value,
 }
 
+/// `status` is the canonical pending/approved/rejected/approval_timeout string.
+/// Frontend (`stepStatusBadge` in AiPanel) already recognises `approval_timeout`;
+/// keeping `String` here avoids a TS discriminated-union migration.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AgentApproval {
     pub id: String,
@@ -117,6 +120,19 @@ pub struct AgentApproval {
     pub risk: ActionRisk,
     pub summary: String,
     pub status: String,
+    /// Tool name that this approval gates. Used by run-scoped "approve and
+    /// remember" short-circuit. `None` for planned-action approvals that
+    /// don't correspond to a single tool.
+    #[serde(default)]
+    pub tool_name: Option<String>,
+    /// Unix epoch ms when this approval expires. Frontend countdown pill
+    /// reads this; `None` means no deadline tracked (legacy/in-memory).
+    #[serde(default)]
+    pub deadline_unix_ms: Option<i64>,
+    /// User opted into auto-approving subsequent calls to the same tool
+    /// within this run. Run-scoped, never persisted across runs.
+    #[serde(default)]
+    pub remember_for_run: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
