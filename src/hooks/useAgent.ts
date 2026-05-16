@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { listen } from "@tauri-apps/api/event";
 import { invoke } from "@tauri-apps/api/core";
+import { IPC } from "../ipc/routes";
 import type { BuiltinCommandResult } from "./useCommands";
 
 export type AgentRisk = "low" | "medium" | "high";
@@ -139,6 +140,9 @@ export interface AgentApproval {
   risk: AgentRisk;
   status: string;
   planned_action?: AgentPlannedAction | null;
+  tool_name?: string | null;
+  deadline_unix_ms?: number | null;
+  remember_for_run?: boolean;
 }
 
 interface AgentEventPayload {
@@ -169,12 +173,19 @@ export function useAgent() {
   const [runs, setRuns] = useState<AgentRun[]>([]);
   const [loading, setLoading] = useState(false);
   const [reactSteps, setReactSteps] = useState<Record<string, ReactStep[]>>({});
+  const [archivedCount, setArchivedCount] = useState(0);
 
   useEffect(() => {
     if (!window.__TAURI_INTERNALS__) return;
     const updateFromEvent = (event: { payload: AgentEventPayload }) => {
       setRuns((prev) => upsertRunChronologically(prev, event.payload.run));
       setLoading(false);
+    };
+    const onArchived = (event: { payload: AgentEventPayload }) => {
+      // Backend evicted the oldest in-memory run to agent_archive; drop it
+      // from the panel state and bump the archive counter for UI hint.
+      setRuns((prev) => prev.filter((r) => r.id !== event.payload.run.id));
+      setArchivedCount((n) => n + 1);
     };
     const updateStep = (event: { payload: AgentStepEventPayload }) => {
       const { run_id, step, tool_name, status, observation_preview } = event.payload;
@@ -192,8 +203,13 @@ export function useAgent() {
     const listeners = Promise.all([
       listen<AgentEventPayload>("agent-run-started", updateFromEvent),
       listen<AgentEventPayload>("agent-approval-required", updateFromEvent),
+      // Backend emits agent.approval.timeout (→ "agent-approval-timeout") when
+      // a pending approval crosses its deadline; the run object includes the
+      // updated approval status so we route it through the standard updater.
+      listen<AgentEventPayload>("agent-approval-timeout", updateFromEvent),
       listen<AgentEventPayload>("agent-run-completed", updateFromEvent),
       listen<AgentEventPayload>("agent-run-failed", updateFromEvent),
+      listen<AgentEventPayload>("agent-run-archived", onArchived),
       listen<AgentStepEventPayload>("agent-step", updateStep),
     ]);
     return () => {
@@ -205,7 +221,7 @@ export function useAgent() {
     if (!prompt.trim()) return;
     setLoading(true);
     try {
-      const run = await ipcDispatch<AgentRun>("agent.start", { prompt });
+      const run = await ipcDispatch<AgentRun>(IPC.AGENT_START, { prompt });
       setRuns((prev) => upsertRunChronologically(prev, run));
     } finally {
       setLoading(false);
@@ -213,20 +229,24 @@ export function useAgent() {
   }, []);
 
   const cancel = useCallback(async (runId: string) => {
-    const run = await ipcDispatch<AgentRun>("agent.cancel", { run_id: runId });
+    const run = await ipcDispatch<AgentRun>(IPC.AGENT_CANCEL, { run_id: runId });
     setRuns((prev) => upsertRunChronologically(prev, run));
   }, []);
 
-  const approve = useCallback(async (runId: string, approvalId: string) => {
-    const run = await ipcDispatch<AgentRun>("agent.approve", {
-      run_id: runId,
-      approval_id: approvalId,
-    });
-    setRuns((prev) => upsertRunChronologically(prev, run));
-  }, []);
+  const approve = useCallback(
+    async (runId: string, approvalId: string, remember?: boolean) => {
+      const run = await ipcDispatch<AgentRun>(IPC.AGENT_APPROVE, {
+        run_id: runId,
+        approval_id: approvalId,
+        remember: remember ?? false,
+      });
+      setRuns((prev) => upsertRunChronologically(prev, run));
+    },
+    [],
+  );
 
   const reject = useCallback(async (runId: string, approvalId: string) => {
-    const run = await ipcDispatch<AgentRun>("agent.reject", {
+    const run = await ipcDispatch<AgentRun>(IPC.AGENT_REJECT, {
       run_id: runId,
       approval_id: approvalId,
     });
@@ -234,11 +254,25 @@ export function useAgent() {
   }, []);
 
   const clearRuns = useCallback(async () => {
-    await ipcDispatch<{ ok: boolean }>("agent.clear_runs");
+    await ipcDispatch<{ ok: boolean }>(IPC.AGENT_CLEAR_RUNS);
     setRuns([]);
     setReactSteps({});
     setLoading(false);
+    setArchivedCount(0);
   }, []);
 
-  return { runs, loading, start, cancel, approve, reject, clearRuns, reactSteps };
+  const resetArchivedCount = useCallback(() => setArchivedCount(0), []);
+
+  return {
+    runs,
+    loading,
+    start,
+    cancel,
+    approve,
+    reject,
+    clearRuns,
+    reactSteps,
+    archivedCount,
+    resetArchivedCount,
+  };
 }

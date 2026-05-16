@@ -2,7 +2,7 @@
 type: working_memory
 status: active
 priority: p0
-updated: 2026-05-15
+updated: 2026-05-16
 context_policy: always_retrievable
 owner: project
 ---
@@ -133,16 +133,22 @@ owner: project
 
 ## Next Step
 
-All FEAT.11-and-earlier mainline tracks complete. 2026-05-15 規劃了 Post-FEAT.11 Phase Proposal（11 個 track、~80 子任務）寫入 `docs/tasks/backlog.md`。
+Phase 7a (AGENT.1/2/7) 已於 2026-05-16 完成，共 12 子項目 / 9 個 slice。詳細交付清單見 `docs/tasks/active.md` "Recent Execution Notes"。
 
-待使用者選擇起手 phase；推薦平行入口（無 ADR 阻擋）：
+待使用者選擇下一個起手 phase；其餘無 ADR 阻擋入口仍可用：
 
-- Phase 7a — AGENT.1 / AGENT.2 / AGENT.7：streaming、markdown、cancel、approval UX。
 - Phase 8a — UTIL.1 / UTIL.2：calculator++ 與 dev utilities。
 - Phase 8b — LAUNCH.1：search 結果 secondary actions。
 - Phase 8c — ONBOARD.1：first-run tour、`?` cheatsheet。
 
 ADR-gated tracks 需先草擬 ADR-029 ~ ADR-037 才可進實作（見 `docs/tasks/blocked.md`）。
+
+## Phase 7a Delivery Summary
+
+- 後端：`ai.cancel` IPC、三家 provider streaming (Ollama NDJSON / OpenAI SSE / Claude SSE)、`AgentRuntime` FIFO 20 + `KnowledgeStoreArchiveSink` → `agent_archive` 表、approval timeout 事件 + `wait_for_react_approval` 寫回 `"approval_timeout"`、approve(remember) 短路下次同工具 approval。
+- 前端：streaming token append、`<ElapsedTimer>`、cancel button（chat + agent running/planning）、`react-markdown` + `rehype-highlight`、`<ErrorCard>` + CTA、hover Copy/Regenerate、`useTextareaAutosize`、`useLocalHistory` ↑/↓ recall、audit default 折疊 setting、`<ApprovalCard>` 含 `<CountdownPill>` + remember checkbox + `<ApprovalSummary>` per kind + Show raw。
+- Settings 新增：`ai.stream_enabled`、`agent.show_audit_by_default`、`agent.run_history_cap`、`agent.approval_timeout_secs`。
+- 測試 242/243 (Phase 7a 新增 +9，1 個 pre-existing failure 不變)；clippy `-D warnings` / npm lint / tsc 全清。
 
 ## Known Risks
 

@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
@@ -27,6 +28,10 @@ pub struct AiHandler {
     setup_cache: Mutex<Option<SetupCache>>,
     /// True while a chat request is in progress — rejects concurrent requests.
     in_flight: Arc<AtomicBool>,
+    /// Per-request cancel tokens keyed by `request_id`. Entry inserted on `ai.chat`,
+    /// removed either by `ai.cancel` (after setting the flag) or by `chat_async`'s
+    /// completion path. Shared into the spawned chat thread for self-cleanup.
+    cancel_flags: Arc<Mutex<HashMap<String, Arc<AtomicBool>>>>,
 }
 
 impl AiHandler {
@@ -43,6 +48,7 @@ impl AiHandler {
             model_manager,
             setup_cache: Mutex::new(None),
             in_flight: Arc::new(AtomicBool::new(false)),
+            cancel_flags: Arc::new(Mutex::new(HashMap::new())),
         }
     }
 
@@ -240,6 +246,10 @@ impl CommandHandler for AiHandler {
                     .to_string();
 
                 let ai_config = self.get_ai_config()?;
+                let cancel_flag = Arc::new(AtomicBool::new(false));
+                if let Ok(mut flags) = self.cancel_flags.lock() {
+                    flags.insert(request_id.clone(), Arc::clone(&cancel_flag));
+                }
                 self.manager.chat_async(
                     request_id.clone(),
                     prompt,
@@ -248,11 +258,34 @@ impl CommandHandler for AiHandler {
                     ai_config.timeout_secs,
                     ai_config.ollama_keep_alive,
                     Some(Arc::clone(&self.in_flight)),
+                    Some(cancel_flag),
+                    Some(Arc::clone(&self.cancel_flags)),
+                    ai_config.stream_enabled,
                 );
                 if let Ok(mut workspace) = self.workspace_manager.lock() {
                     workspace.record_ai_conversation(request_id.clone());
                 }
                 Ok(json!({ "status": "pending", "request_id": request_id }))
+            }
+            "cancel" => {
+                let request_id = payload
+                    .get("request_id")
+                    .and_then(Value::as_str)
+                    .ok_or_else(|| "missing 'request_id'".to_string())?
+                    .to_string();
+                let removed = if let Ok(mut flags) = self.cancel_flags.lock() {
+                    flags.remove(&request_id)
+                } else {
+                    None
+                };
+                let cancelled = match removed {
+                    Some(flag) => {
+                        flag.store(true, Ordering::SeqCst);
+                        true
+                    }
+                    None => false,
+                };
+                Ok(json!({ "ok": true, "cancelled": cancelled, "request_id": request_id }))
             }
             "clear_history" => {
                 self.manager.clear_history();

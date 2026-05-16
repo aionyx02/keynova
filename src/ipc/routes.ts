@@ -46,6 +46,21 @@ export const IPC = {
   LEARNING_MATERIAL_SCAN: "learning_material.scan",
   LEARNING_MATERIAL_EXPORT_NOTE: "learning_material.export_note",
   LEARNING_MATERIAL_EXPORT_MARKDOWN: "learning_material.export_markdown",
+
+  // ai (Phase 7a)
+  AI_CHAT: "ai.chat",
+  AI_CANCEL: "ai.cancel",
+  AI_GET_HISTORY: "ai.get_history",
+  AI_CLEAR_HISTORY: "ai.clear_history",
+  AI_CHECK_SETUP: "ai.check_setup",
+  AI_UNLOAD: "ai.unload",
+
+  // agent (Phase 7a)
+  AGENT_START: "agent.start",
+  AGENT_CANCEL: "agent.cancel",
+  AGENT_APPROVE: "agent.approve",
+  AGENT_REJECT: "agent.reject",
+  AGENT_CLEAR_RUNS: "agent.clear_runs",
 } as const;
 
 export type IpcRoute = (typeof IPC)[keyof typeof IPC];

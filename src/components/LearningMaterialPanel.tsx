@@ -1,5 +1,5 @@
 import { useCallback, useRef, useState } from "react";
-import { useIPC } from "../context/IPCContext";
+import { useIPCContext } from "../context/IPCContext";
 import type { PanelProps } from "../types/panel";
 
 interface MaterialCandidate {
@@ -43,7 +43,7 @@ function formatBytes(bytes: number): string {
 }
 
 export function LearningMaterialPanel({ onClose }: PanelProps) {
-  const { dispatch } = useIPC();
+  const { dispatch } = useIPCContext();
   const [roots, setRoots] = useState("");
   const [report, setReport] = useState<ReviewReport | null>(null);
   const [loading, setLoading] = useState(false);
