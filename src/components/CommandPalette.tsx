@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useSta
 import { listen } from "@tauri-apps/api/event";
 import { invoke } from "@tauri-apps/api/core";
 import { getCurrentWindow } from "@tauri-apps/api/window";
+import { revealItemInDir } from "@tauri-apps/plugin-opener";
 import { useIPC } from "../hooks/useIPC";
 import { useWindowResize } from "../hooks/useWindowResize";
 import { useSearchMetadata } from "../hooks/useSearchMetadata";
@@ -11,7 +12,9 @@ import { useCommands } from "../hooks/useCommands";
 import { CommandSuggestions } from "./CommandSuggestions";
 import { PanelRegistry } from "./panel/PanelRegistry";
 import { WorkspaceIndicator } from "./WorkspaceIndicator";
+import { SecondaryActionMenu } from "./SecondaryActionMenu";
 import { applySourceQuotas, mergeSearchResults, sortSearchResults } from "../utils/search";
+import { basenameFromPath, buildSecondaryActions, type SecondaryActionId } from "../utils/secondaryActions";
 import { IPC } from "../ipc/routes";
 import type { SearchBackendInfo, SettingEntry } from "../ipc/types";
 import type { SearchChunkDiagnostics, SearchChunkPayload, SearchErrorPayload, SearchResult } from "../types/search";
@@ -120,8 +123,14 @@ export function CommandPalette() {
   const [timedOutProviders, setTimedOutProviders] = useState<string[]>([]);
   const [fileDiagnostics, setFileDiagnostics] = useState<SearchChunkDiagnostics | null>(null);
   const [copiedPath, setCopiedPath] = useState<string | null>(null);
+  const [copyHint, setCopyHint] = useState<string | null>(null);
   const [pipelineResult, setPipelineResult] = useState<PipelineReport | null>(null);
   const [pipelineRunning, setPipelineRunning] = useState(false);
+
+  // LAUNCH.1.A — Secondary action menu state (keyboard-driven via onKeyDown below)
+  const [secondaryMenuOpen, setSecondaryMenuOpen] = useState(false);
+  const [menuFocusedIndex, setMenuFocusedIndex] = useState(0);
+  const [expandedMetadata, setExpandedMetadata] = useState(false);
 
   const inputRef = useRef<HTMLInputElement>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -138,10 +147,14 @@ export function CommandPalette() {
   const modeRef = useRef(mode);
   const cmdResultRef = useRef(cmdResult);
   const queryRef = useRef(query);
+  const secondaryMenuOpenRef = useRef(secondaryMenuOpen);
+  const expandedMetadataRef = useRef(expandedMetadata);
   useLayoutEffect(() => {
     modeRef.current = mode;
     cmdResultRef.current = cmdResult;
     queryRef.current = query;
+    secondaryMenuOpenRef.current = secondaryMenuOpen;
+    expandedMetadataRef.current = expandedMetadata;
   });
 
   const { containerRef, scheduleWindowResize } = useWindowResize(modeRef, cmdResultRef);
@@ -340,6 +353,17 @@ export function CommandPalette() {
       e.stopPropagation();
       e.stopImmediatePropagation();
 
+      // Highest priority: close secondary menu / collapse metadata first
+      if (secondaryMenuOpenRef.current) {
+        setSecondaryMenuOpen(false);
+        setMenuFocusedIndex(0);
+        return;
+      }
+      if (expandedMetadataRef.current) {
+        setExpandedMetadata(false);
+        return;
+      }
+
       if (modeRef.current === "terminal") {
         containerRef.current?.focus();
         setQuery("");
@@ -376,6 +400,17 @@ export function CommandPalette() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [setQuery]); // stable Zustand setter — listener registered exactly once
 
+  // Close secondary menu / collapse metadata when result selection or list changes.
+  useEffect(() => {
+    if (secondaryMenuOpenRef.current) {
+      setSecondaryMenuOpen(false);
+      setMenuFocusedIndex(0);
+    }
+    if (expandedMetadataRef.current) {
+      setExpandedMetadata(false);
+    }
+  }, [results, selected]);
+
   // Window sizing
   useEffect(() => {
     scheduleWindowResize();
@@ -387,6 +422,7 @@ export function CommandPalette() {
     cmdSuggestions.length,
     cmdResult,
     argSuggestions.length,
+    expandedMetadata,
   ]);
 
 
@@ -493,12 +529,80 @@ export function CommandPalette() {
     try {
       await navigator.clipboard.writeText(result.path);
       setCopiedPath(result.path);
+      setCopyHint(null);
       if (copyResetRef.current) {
         clearTimeout(copyResetRef.current);
       }
       copyResetRef.current = setTimeout(() => setCopiedPath(null), 1200);
     } catch {
       setCopiedPath(null);
+    }
+  }
+
+  async function copyText(text: string, hint: string) {
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopiedPath(null);
+      setCopyHint(hint);
+      if (copyResetRef.current) {
+        clearTimeout(copyResetRef.current);
+      }
+      copyResetRef.current = setTimeout(() => setCopyHint(null), 1200);
+    } catch {
+      setCopyHint(null);
+    }
+  }
+
+  async function revealResult(result: SearchResult) {
+    if (!result.path) return;
+    try {
+      await revealItemInDir(result.path);
+    } catch {
+      // Plugin failure (e.g. missing permission, non-existent path) — surface in footer.
+      setCopyHint("Reveal failed");
+      if (copyResetRef.current) clearTimeout(copyResetRef.current);
+      copyResetRef.current = setTimeout(() => setCopyHint(null), 1500);
+    }
+  }
+
+  function closeSecondaryMenu() {
+    setSecondaryMenuOpen(false);
+    setMenuFocusedIndex(0);
+  }
+
+  async function handleSecondaryAction(id: SecondaryActionId, result: SearchResult) {
+    switch (id) {
+      case "reveal":
+        await revealResult(result);
+        closeSecondaryMenu();
+        break;
+      case "copy_path":
+        await copyResultLocation(result);
+        if (!isCopyableLocationResult(result) && result.path) {
+          // Notes / non-fs items still expose `path`; copy raw.
+          await copyText(result.path, `Copied: ${result.path}`);
+        }
+        closeSecondaryMenu();
+        break;
+      case "copy_name": {
+        const name = result.name || basenameFromPath(result.path);
+        await copyText(name, `Copied name: ${name}`);
+        closeSecondaryMenu();
+        break;
+      }
+      case "show_metadata":
+        setExpandedMetadata(true);
+        closeSecondaryMenu();
+        break;
+      case "open_with":
+      case "open_as_text":
+      case "rename":
+      case "move":
+      case "delete":
+      case "hash":
+        // Wired in Slice 2-3. Keep no-op so disabled items stay non-throwing.
+        closeSecondaryMenu();
+        break;
     }
   }
 
@@ -524,6 +628,46 @@ export function CommandPalette() {
 
   function onKeyDown(e: React.KeyboardEvent) {
     if (mode === "search") {
+      // Menu open: route arrows/Enter/Left to menu actions; let typed text fall through.
+      if (secondaryMenuOpen) {
+        const r = results[selected] ?? null;
+        const enabled = r ? buildSecondaryActions(r).filter((it) => !it.disabled) : [];
+        if (e.key === "ArrowDown") {
+          e.preventDefault();
+          setMenuFocusedIndex((i) => Math.min(i + 1, Math.max(enabled.length - 1, 0)));
+          return;
+        }
+        if (e.key === "ArrowUp") {
+          e.preventDefault();
+          setMenuFocusedIndex((i) => Math.max(i - 1, 0));
+          return;
+        }
+        if (e.key === "Tab") {
+          e.preventDefault();
+          setMenuFocusedIndex((i) => {
+            const next = e.shiftKey ? i - 1 : i + 1;
+            const max = Math.max(enabled.length - 1, 0);
+            return Math.min(Math.max(next, 0), max);
+          });
+          return;
+        }
+        if (e.key === "Enter") {
+          e.preventDefault();
+          const item = enabled[menuFocusedIndex];
+          if (item && r) void handleSecondaryAction(item.id, r);
+          return;
+        }
+        if (e.key === "ArrowLeft") {
+          // Only close menu if input caret is at start; otherwise let cursor move.
+          const target = e.currentTarget as HTMLInputElement;
+          if (target.selectionStart === 0 && target.selectionEnd === 0) {
+            e.preventDefault();
+            closeSecondaryMenu();
+            return;
+          }
+        }
+        // Other keys fall through to input.
+      }
       if (isCopyShortcut(e)) {
         const target = e.currentTarget as HTMLInputElement;
         if (target.selectionStart !== target.selectionEnd) return;
@@ -531,6 +675,19 @@ export function CommandPalette() {
         if (isCopyableLocationResult(r)) {
           e.preventDefault();
           void copyResultLocation(r);
+          return;
+        }
+      }
+      // Open secondary menu when cursor at end of input and a result is selected.
+      if (!secondaryMenuOpen && (e.key === "ArrowRight" || e.key === "Tab")) {
+        const target = e.currentTarget as HTMLInputElement;
+        const atEnd = target.selectionStart === target.value.length
+          && target.selectionEnd === target.value.length;
+        const r = results[selected] ?? null;
+        if (atEnd && r) {
+          e.preventDefault();
+          setSecondaryMenuOpen(true);
+          setMenuFocusedIndex(0);
           return;
         }
       }
@@ -611,6 +768,10 @@ export function CommandPalette() {
   const panelKey = `${cmdResult ? "command" : "live"}:${activePanelName}:${panelInitialArgs}`;
   const selectedResult = results[selected] ?? null;
   const selectedMetadata = selectedResult ? metadataByPath[selectedResult.path] : null;
+  const menuItems = useMemo(
+    () => (selectedResult ? buildSecondaryActions(selectedResult) : []),
+    [selectedResult],
+  );
   const fileSearchDiagHint = (() => {
     if (!fileDiagnostics) return null;
     const d = fileDiagnostics;
@@ -621,17 +782,19 @@ export function CommandPalette() {
     return null;
   })();
 
-  const searchFooterHint = copiedPath
-    ? `Copied path: ${copiedPath}`
-    : timedOutProviders.length > 0 && !fileDiagnostics
-      ? `Timed out: ${timedOutProviders.join(", ")}`
-      : fileSearchDiagHint ?? (
-          selectedMetadata?.preview
-            ? selectedMetadata.preview
-            : selectedMetadata?.size_bytes !== undefined
-              ? `${selectedMetadata.size_bytes.toLocaleString()} bytes`
-              : "↑↓ 選擇"
-        );
+  const searchFooterHint = copyHint
+    ? copyHint
+    : copiedPath
+      ? `Copied path: ${copiedPath}`
+      : timedOutProviders.length > 0 && !fileDiagnostics
+        ? `Timed out: ${timedOutProviders.join(", ")}`
+        : fileSearchDiagHint ?? (
+            selectedMetadata?.preview
+              ? selectedMetadata.preview
+              : selectedMetadata?.size_bytes !== undefined
+                ? `${selectedMetadata.size_bytes.toLocaleString()} bytes`
+                : "↑↓ 選擇"
+          );
 
   const terminalOnExit = () => {
     // Move focus to container first so terminal becoming display:none
@@ -727,7 +890,7 @@ export function CommandPalette() {
 
           {/* Search results */}
           {hasResults && (
-            <div className="bg-gray-900/95 backdrop-blur-md rounded-b-xl shadow-2xl overflow-hidden">
+            <div className="relative bg-gray-900/95 backdrop-blur-md rounded-b-xl shadow-2xl overflow-hidden">
               <ul className="max-h-[352px] overflow-y-auto py-1">
                 {results.map((r, i) => {
                   const badge = KIND_BADGE[r.kind] ?? KIND_BADGE.file;
@@ -769,8 +932,61 @@ export function CommandPalette() {
                   );
                 })}
               </ul>
-              <div className="border-t border-gray-700/50 px-4 py-1.5 text-[11px] text-gray-600 flex justify-between">
-                <span className="min-w-0 max-w-[320px] truncate">{searchFooterHint}</span><span>Enter 開啟</span><span>Shift+Enter 次要動作</span>
+
+              {/* LAUNCH.1.A — Secondary action menu overlay (keyboard-driven) */}
+              {secondaryMenuOpen && selectedResult && menuItems.length > 0 && (
+                <SecondaryActionMenu
+                  result={selectedResult}
+                  items={menuItems}
+                  focusedIndex={menuFocusedIndex}
+                  onSelect={(id) => void handleSecondaryAction(id, selectedResult)}
+                  onHoverEnabled={setMenuFocusedIndex}
+                />
+              )}
+
+              {/* LAUNCH.1.A — Show metadata expanded view (toggled from action menu) */}
+              {expandedMetadata && selectedResult && (
+                <div className="border-t border-gray-700/50 px-4 py-2 text-xs text-gray-400 bg-gray-950/60">
+                  <div className="mb-1 flex items-center justify-between">
+                    <span className="text-[10px] uppercase tracking-wider text-gray-500">Metadata</span>
+                    <span className="text-[10px] text-gray-600">Esc 收起</span>
+                  </div>
+                  <div className="grid grid-cols-[max-content_1fr] gap-x-3 gap-y-0.5 font-mono">
+                    <span className="text-gray-500">path</span>
+                    <span className="truncate text-gray-300">{selectedResult.path}</span>
+                    {selectedMetadata?.size_bytes !== undefined && (
+                      <>
+                        <span className="text-gray-500">size</span>
+                        <span className="text-gray-300">{selectedMetadata.size_bytes.toLocaleString()} bytes</span>
+                      </>
+                    )}
+                    {selectedMetadata?.modified_ms !== undefined && (
+                      <>
+                        <span className="text-gray-500">modified</span>
+                        <span className="text-gray-300">{new Date(selectedMetadata.modified_ms).toLocaleString()}</span>
+                      </>
+                    )}
+                    {selectedMetadata?.is_dir !== undefined && (
+                      <>
+                        <span className="text-gray-500">type</span>
+                        <span className="text-gray-300">{selectedMetadata.is_dir ? "folder" : "file"}</span>
+                      </>
+                    )}
+                    {selectedMetadata?.preview && (
+                      <>
+                        <span className="text-gray-500">preview</span>
+                        <span className="text-gray-300 whitespace-pre-wrap break-words">{selectedMetadata.preview}</span>
+                      </>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              <div className="border-t border-gray-700/50 px-4 py-1.5 text-[11px] text-gray-600 flex justify-between gap-2">
+                <span className="min-w-0 flex-1 truncate">{searchFooterHint}</span>
+                <span className="shrink-0">Enter 開啟</span>
+                <span className="shrink-0">Shift+Enter 次要</span>
+                <span className="shrink-0">→ Actions</span>
               </div>
             </div>
           )}
