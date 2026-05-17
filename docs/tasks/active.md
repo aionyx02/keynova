@@ -2,7 +2,7 @@
 type: task_index
 status: active
 priority: p0
-updated: 2026-05-16
+updated: 2026-05-17
 context_policy: always_retrievable
 owner: project
 tags: [feature-first, safety-first, performance, agent-ux]
@@ -56,6 +56,12 @@ See `docs/tasks/backlog.md` Post-FEAT.11 Phase Proposal 與 11 個 track section
 See `docs/tasks/blocked.md` Post-FEAT.11 Tracks Pending ADR 表。
 
 ## Recent Execution Notes
+
+- 2026-05-17: LAUNCH.1.A slice 1 scaffold in progress (Phase 8b kickoff):
+  - Frontend: `SecondaryActionMenu` component + `secondaryActions` util + CommandPalette keyboard wiring (open/close, focus index, metadata expand, copy hint) + `@tauri-apps/plugin-opener` reveal integration.
+  - IPC: reserved 8 `file.*` route constants (`open_with` / `reveal` / `rename` / `move` / `delete` / `hash` / `preview` / `open_as_text`) for slice 2-4 backend wiring.
+  - Backend: `FileHandler` skeleton registered in `build_command_router`; concrete dispatch arms pending.
+  - Out-of-scope sidecar in same commit: `Prompt_Engineering_Init_Template.docx` + `scripts/generate_prompt_engineering_doc.py` — cross-project reusable prompt-engineering bootstrap derived from current CLAUDE.md + docs/ pattern.
 
 - 2026-05-16: Phase 7a Agent / AI panel UX upgrade complete — AGENT.1.A–E + AGENT.2.A–C + AGENT.7.A/B/C/D (12 sub-items, 9 slices):
   - **Slice 1**: `src/ipc/routes.ts` — AI/Agent route constants (`AI_CHAT`, `AI_CANCEL`, `AGENT_START`, …); `useAi.ts` + `useAgent.ts` migrated off literal strings; `AiHandler.cancel_flags: Arc<Mutex<HashMap<String, Arc<AtomicBool>>>>` scaffolded.

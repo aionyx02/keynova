@@ -2,7 +2,7 @@
 type: working_memory
 status: active
 priority: p0
-updated: 2026-05-16
+updated: 2026-05-17
 context_policy: always_retrievable
 owner: project
 ---
@@ -130,6 +130,14 @@ owner: project
   - `src/components/LearningMaterialPanel.tsx`: scan roots input, stats bar, class filter tabs, candidate list, export-as-note action.
   - `src/ipc/routes.ts`: `LEARNING_MATERIAL_SCAN/EXPORT_NOTE/EXPORT_MARKDOWN` constants.
   - 233/234 total tests pass (1 pre-existing failure unchanged); clippy clean.
+
+- 2026-05-17 LAUNCH.1.A slice 1 scaffold in progress:
+  - `src/components/SecondaryActionMenu.tsx`: keyboard-driven menu shell (focus index + Enter/Esc).
+  - `src/utils/secondaryActions.ts`: `buildSecondaryActions()` + `basenameFromPath()` + `SecondaryActionId` typed registry.
+  - `src/components/CommandPalette.tsx`: menu open/close state, metadata expand toggle, copy-hint surface; integrates `revealItemInDir` from `@tauri-apps/plugin-opener`.
+  - `src/ipc/routes.ts`: reserved 8 `file.*` route constants for incremental backend wiring (`open_with` / `reveal` / `rename` / `move` / `delete` / `hash` / `preview` / `open_as_text`).
+  - `src-tauri/src/handlers/file.rs` (new) + `handlers/mod.rs` + `app/state.rs`: `FileHandler` skeleton registered in `build_command_router` (no behaviour wired yet — placeholder for slice 2-4).
+  - Out-of-scope this commit: prompt engineering init template (`Prompt_Engineering_Init_Template.docx` + `scripts/generate_prompt_engineering_doc.py`) — cross-project reusable docs scaffold derived from current CLAUDE.md + docs/ pattern.
 
 ## Next Step
 

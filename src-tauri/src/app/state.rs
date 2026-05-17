@@ -23,6 +23,7 @@ use crate::handlers::{
     },
     calculator::CalculatorHandler,
     feature::FeatureHandler,
+    file::FileHandler,
     history::HistoryHandler,
     hotkey::HotkeyHandler,
     launcher::LauncherHandler,
@@ -311,6 +312,7 @@ fn build_command_router(
         Arc::clone(&bundle.note_manager),
         Arc::clone(&bundle.workspace_manager),
     )));
+    router.register(Arc::new(FileHandler::new()));
     router.register(Arc::new(HistoryHandler::new(Arc::clone(
         &bundle.history_manager,
     ))));

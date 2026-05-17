@@ -4,6 +4,7 @@ pub mod automation;
 pub mod builtin_cmd;
 pub mod calculator;
 pub mod feature;
+pub mod file;
 pub mod history;
 pub mod hotkey;
 pub mod launcher;

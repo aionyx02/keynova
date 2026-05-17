@@ -61,6 +61,16 @@ export const IPC = {
   AGENT_APPROVE: "agent.approve",
   AGENT_REJECT: "agent.reject",
   AGENT_CLEAR_RUNS: "agent.clear_runs",
+
+  // file ops (Phase 8b — LAUNCH.1; populated incrementally across Slice 2-4)
+  FILE_OPEN_WITH: "file.open_with",
+  FILE_REVEAL: "file.reveal",
+  FILE_RENAME: "file.rename",
+  FILE_MOVE: "file.move",
+  FILE_DELETE: "file.delete",
+  FILE_HASH: "file.hash",
+  FILE_PREVIEW: "file.preview",
+  FILE_OPEN_AS_TEXT: "file.open_as_text",
 } as const;
 
 export type IpcRoute = (typeof IPC)[keyof typeof IPC];
