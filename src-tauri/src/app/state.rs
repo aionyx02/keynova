@@ -17,7 +17,7 @@ use crate::handlers::{
     automation::AutomationHandler,
     builtin_cmd::{
         AiCommand, BuiltinCmdHandler, CalCommand, DownCommand, HelpCommand, HistoryCommand,
-        ModelDownloadCommand, ModelListCommand, ModelRemoveCommand, NoteCommand,
+        ModelDownloadCommand, ModelListCommand, ModelRemoveCommand, NoteCommand, OnboardCommand,
         RebuildSearchIndexCommand, ReloadCommand, SettingCommand, SysCtlCommand,
         SysMonitorCommand, TrCommand,
     },
@@ -218,6 +218,7 @@ fn build_builtin_registry(
     reg.register(Box::new(HelpCommand));
     reg.register(Box::new(SettingCommand));
     reg.register(Box::new(ReloadCommand));
+    reg.register(Box::new(OnboardCommand));
     reg.register(Box::new(DownCommand));
     reg.register(Box::new(TrCommand));
     reg.register(Box::new(AiCommand));

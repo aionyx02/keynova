@@ -74,6 +74,28 @@ impl BuiltinCommand for ReloadCommand {
     }
 }
 
+pub struct OnboardCommand;
+
+impl BuiltinCommand for OnboardCommand {
+    fn name(&self) -> &'static str {
+        "onboard"
+    }
+
+    fn description(&self) -> &'static str {
+        "Replay the onboarding tour"
+    }
+
+    fn execute(&self, _args: &str) -> BuiltinCommandResult {
+        // Frontend intercepts `/onboard` before the result is rendered (clears
+        // localStorage flag + reopens overlay). This inline text is the
+        // fallback for any code path that reads the BuiltinCommandResult.
+        BuiltinCommandResult {
+            text: "Replaying onboarding tour…".into(),
+            ui_type: CommandUiType::Inline,
+        }
+    }
+}
+
 // ─── Phase 3 builtin commands ────────────────────────────────────────────────
 
 pub struct TrCommand;

@@ -135,6 +135,15 @@ owner: project
   - `src-tauri/src/handlers/file.rs` (new) + `handlers/mod.rs` + `app/state.rs`: `FileHandler` skeleton registered in `build_command_router` (no behaviour wired yet — placeholder for slice 2-4).
   - Out-of-scope this commit: prompt engineering init template (`Prompt_Engineering_Init_Template.docx` + `scripts/generate_prompt_engineering_doc.py`) — cross-project reusable docs scaffold derived from current CLAUDE.md + docs/ pattern.
 
+- 2026-05-18 ONBOARD.1 Slice 1 (A + B + C) 交付：
+  - 新元件 `src/components/OnboardingTour.tsx` (4 步 modal + localStorage `keynova.onboarding.completed`) + `src/components/CheatsheetOverlay.tsx` (4 section 靜態鍵位列表)。
+  - Backend 新 `OnboardCommand` builtin (`/onboard`)；前端 `execCommand` 攔截 name="onboard" → `resetOnboarding()` + reopen。
+  - CommandPalette empty-state CTA：query 非空 + 0 raw results 顯示 4 個 chip (Create note / `/help` / `/setting` / Replay `/onboard`)。
+  - `?` 鍵在 query 為空時觸發 cheatsheet（避免與 search 字符衝突）。
+  - Conditional mount (`{open && <Component … />}`) 取代 prop+effect 防 setState-in-effect lint。
+  - cargo 339/340 (pre-existing nvim 不變)；clippy / lint / tsc 全清。
+  - D (re-engage usage tracking) + E (hotkey 衝突偵測) 留下一批。
+
 - 2026-05-18 UTIL.2.J killport 交付（UTIL.2 group 結案，整段搬 completed.md）：
   - 新模組 `src-tauri/src/core/process_lookup.rs`：`ProcessInfo` struct、`find_process_by_port` 跨平台 (Windows netstat+tasklist / Unix lsof)、`kill_pid` (taskkill / kill -9)、3 個 pure parsers 抽到 module 頂層測。
   - `KillPortCmd` (`handlers/dev_utils_cmd.rs`)：兩段式 confirm — `killport <port>` preview、`killport <port> kill` 第二次 lookup 後執行（TOCTOU 防護）。
@@ -179,11 +188,11 @@ owner: project
 
 ## Next Step
 
-UTIL.2 全段已於 2026-05-18 結案（15 個 dev utility builtin commands 含 killport 兩段式 confirm）。
+ONBOARD.1 Slice 1 (A + B + C) 已於 2026-05-18 完成；D + E 留下一批（需 usage tracking 與 OS-level hotkey enumeration 新基建）。
 
 待使用者選擇下一個起手 phase；其餘無 ADR 阻擋入口：
 
-- Phase 8c — ONBOARD.1：first-run tour、`?` cheatsheet overlay、empty-state CTA、re-engage prompt、hotkey 衝突偵測 (5 子任務)。
+- Phase 8c 尾 — ONBOARD.1.D Re-engage prompt + .E hotkey 衝突偵測。
 - Phase 12 — LAUNCH.2：workspace-aware search 與 `Ctrl+Alt+W` workspace switch hotkey (3 子任務)。
 - Phase 12 — NOTE.1：daily note、templates、backlinks `[[wiki]]`、tag filter、note 全文接主 launcher、HTML/PDF 匯出 (6 子任務)。
 
