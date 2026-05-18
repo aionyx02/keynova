@@ -3,6 +3,7 @@ pub mod ai;
 pub mod automation;
 pub mod builtin_cmd;
 pub mod calculator;
+pub mod dev_utils_cmd;
 pub mod feature;
 pub mod file;
 pub mod history;

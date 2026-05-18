@@ -10,6 +10,7 @@ pub mod event_bus;
 pub mod ipc_error;
 pub mod knowledge_store;
 pub mod observability;
+pub mod dev_utils;
 pub mod plugin_runtime;
 pub mod preview;
 pub mod search_registry;

@@ -132,6 +132,7 @@ src-tauri/src/
 │   ├── observability.rs
 │   ├── plugin_runtime.rs
 │   ├── preview.rs         # LAUNCH.1.C: bounded read + classify_path + guess_image_mime (shared by file.preview + learning_material)
+│   ├── dev_utils.rs       # UTIL.2: uuid/nanoid/pw/hash/b64/url/json/regex/jwt/color/cron pure-fn computations
 │   └── ipc_error.rs
 ├── handlers/              # CommandHandler 實作（每個 namespace 一個）
 │   ├── agent/             # Agent handler 子模組
@@ -141,6 +142,7 @@ src-tauri/src/
 │   ├── terminal.rs / note.rs / workspace.rs
 │   ├── system_control.rs / system_monitoring.rs
 │   ├── builtin_cmd.rs / calculator.rs / setting.rs
+│   ├── dev_utils_cmd.rs        # UTIL.2.A–I: 14 inline BuiltinCommand wrappers
 │   ├── nvim.rs / automation.rs / plugin.rs
 │   ├── learning_material.rs  # FEAT.11: scan/preview/export_note/export_markdown
 │   ├── file.rs               # LAUNCH.1.A/B/C: file.* secondary actions (reveal/open_with/open_as_text/rename/move/delete/hash/preview); destructive ops gated by two-phase confirm; preview returns bounded text 4 KB / image metadata / binary metadata

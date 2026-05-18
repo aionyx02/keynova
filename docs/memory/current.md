@@ -135,6 +135,14 @@ owner: project
   - `src-tauri/src/handlers/file.rs` (new) + `handlers/mod.rs` + `app/state.rs`: `FileHandler` skeleton registered in `build_command_router` (no behaviour wired yet — placeholder for slice 2-4).
   - Out-of-scope this commit: prompt engineering init template (`Prompt_Engineering_Init_Template.docx` + `scripts/generate_prompt_engineering_doc.py`) — cross-project reusable docs scaffold derived from current CLAUDE.md + docs/ pattern.
 
+- 2026-05-18 UTIL.2 Dev Utilities Slice 1 (A–I) 交付（14 個 builtin commands）：
+  - 新模組 `src-tauri/src/core/dev_utils.rs`：uuid_v4、nanoid、generate_password (sym/alnum/alpha)、hash_text (md5/sha1/sha256/sha512)、b64_encode/decode、url_encode/decode、json_pretty/minify、regex_test、jwt_decode (含 exp hint)、color_convert (hex/rgb/hsl)、cron_explain (5/6/7 欄 + 下 5 次 fire)。
+  - 新模組 `src-tauri/src/handlers/dev_utils_cmd.rs`：14 個 BuiltinCommand wrappers (UuidCmd/NanoidCmd/PwCmd/HashCmd/B64enc/B64dec/Urlenc/Urldec/Json/Jsonm/Regex/Jwt/Color/Cron) 全部 inline 結果。
+  - `state.rs::build_builtin_registry` 註冊 14 個指令；皆無 state，與 CalCommand 同層。
+  - Cargo deps：`base64`、`regex`、`md-5`、`sha1`、`cron`、`urlencoding`、`rand`。
+  - 測試：31 個新增（dev_utils 22 + dev_utils_cmd 9）；cargo test 324/325（pre-existing nvim test 不變）；clippy clean。
+  - UTIL.2.J killport 留下一批處理。
+
 - 2026-05-18 UTIL.1 Calculator++ offline parts 交付：
   - `CalculatorManager`：新增 try_currency_conversion (offline 18 currencies, `(offline rate, snapshot 2026-05)` suffix)、try_date_arithmetic (chrono-based, today/tomorrow/yesterday/+−N units/weekday/date-diff)、convert_unit 加 12 個 volume 單位。
   - `today_override: Option<NaiveDate>` 加入 manager 給 date 測試固定 reference 日期。
@@ -165,11 +173,11 @@ owner: project
 
 ## Next Step
 
-UTIL.1 offline parts 已於 2026-05-18 完成；UTIL.1.B-online 待 ADR-038 接受。
+UTIL.2 Slice 1 (A–I) 已於 2026-05-18 完成。UTIL.1.B-online 待 ADR-038、UTIL.2.J killport 留下一批。
 
 待使用者選擇下一個起手 phase；其餘無 ADR 阻擋入口：
 
-- Phase 8a — UTIL.2：uuid / pw / hash / b64 / json / regex / jwt / color / cron / killport (10 子任務)。
+- Phase 8a 尾 — UTIL.2.J killport：跨平台 process enumeration (lsof / netstat) + 兩段式 confirm + kill。
 - Phase 8c — ONBOARD.1：first-run tour、`?` cheatsheet。
 - Phase 12 — LAUNCH.2：workspace-aware search 與 hotkey 切換。
 - Phase 12 — NOTE.1：daily note / templates / backlinks / tag filter。

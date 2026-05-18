@@ -152,16 +152,16 @@ Goal: 把 `cal` 從基本算術擴成日常常用單位/日期/進制計算。Ph
 
 Goal: 補上 dev 日常 in-launcher 小工具，純 local computation。Phase 8, no ADR.
 
-- [ ] UTIL.2.A `uuid` / `nanoid <length>` 生成器（uuid v4 default）。
-- [ ] UTIL.2.B `pw <length> [sym|alnum|alpha]` password generator。
-- [ ] UTIL.2.C `hash <md5|sha1|sha256|sha512> <text>`；text 可由 clipboard 或檔案路徑。
-- [ ] UTIL.2.D `b64enc` / `b64dec` / `urlenc` / `urldec`；輸入 fallback 到 clipboard。
-- [ ] UTIL.2.E `json` / `jsonm`（pretty / minify）；輸入 fallback 到 clipboard；錯誤位置高亮。
-- [ ] UTIL.2.F `regex <pattern> <text>` tester：含 match groups、replace preview。
-- [ ] UTIL.2.G `jwt <token>` 解 header + payload（不驗簽）；標明過期 / 即將過期。
-- [ ] UTIL.2.H `color <#hex|rgb()|hsl()>` 三制互轉；顯示色塊。
-- [ ] UTIL.2.I `cron <expr>` 解釋成自然語言；顯示未來 5 次觸發時間。
-- [ ] UTIL.2.J `killport <port>` 找佔用 process（lsof / netstat）並 confirm 後 kill；approval-gated（destructive）。
+- [x] UTIL.2.A `uuid` / `nanoid <length>` 生成器（2026-05-18 完成；uuid v4、nanoid URL-safe alphabet 預設 21 字）。
+- [x] UTIL.2.B `pw <length> [sym|alnum|alpha]` password generator（2026-05-18 完成；shuffle 兩次防分類偏置）。
+- [x] UTIL.2.C `hash <md5|sha1|sha256|sha512> <text>`（2026-05-18 完成；text fallback to clipboard 留待前端 Phase）。
+- [x] UTIL.2.D `b64enc` / `b64dec` / `urlenc` / `urldec`（2026-05-18 完成；clipboard fallback 留待前端 Phase）。
+- [x] UTIL.2.E `json` / `jsonm`（2026-05-18 完成；錯誤位置高亮留待前端 Phase）。
+- [x] UTIL.2.F `regex <pattern> <text>` tester（2026-05-18 完成；含 capture group 列出、20 match cap；replace preview 留 v2）。
+- [x] UTIL.2.G `jwt <token>` 解 header + payload（2026-05-18 完成；含 `exp` 過期/即將過期 hint，不驗簽）。
+- [x] UTIL.2.H `color <#hex|rgb()|hsl()>` 三制互轉（2026-05-18 完成；色塊預覽留待前端 Phase）。
+- [x] UTIL.2.I `cron <expr>` 解釋（2026-05-18 完成；接受 5/6/7 欄、列下 5 次觸發 local time）。
+- [ ] UTIL.2.J `killport <port>` 找佔用 process（lsof / netstat）並 confirm 後 kill；approval-gated（destructive）。需跨平台 process enumeration + 兩段式 confirm，工作量明顯，下一批處理。
 
 ## UTIL.3 — Reminder & Timer (ADR-034)
 
