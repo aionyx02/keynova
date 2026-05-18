@@ -2,11 +2,11 @@
 type: task_index
 status: active
 priority: p0
-updated: 2026-05-18
+updated: 2026-05-19
 context_policy: always_retrievable
 owner: project
 tags: [feature-first, safety-first, performance, agent-ux]
-last_change: bugfix — trash::delete + fs::rename post-mutation verification + frontend ErrorBoundary + global error/unhandledrejection handlers
+last_change: Bug A 真根因定位 — window auto-hide 對 IME composition focus blip 太敏感; 120ms→400ms + frontend onComposition* 撐住 guard
 ---
 
 # Active Tasks
@@ -56,6 +56,17 @@ See `docs/tasks/backlog.md` Post-FEAT.11 Phase Proposal 與 11 個 track section
 See `docs/tasks/blocked.md` Post-FEAT.11 Tracks Pending ADR 表。
 
 ## Recent Execution Notes
+
+- 2026-05-19: **Bugfix — Bug A 真根因：IME composition focus blip 觸發 auto-hide**
+  - 使用者澄清「閃退」實情：搜尋框打字打到一半 window 自己收起，需重按 Ctrl+K — **不是 renderer crash，是 launcher window auto-hide**。
+  - 定位：`src-tauri/src/app/window.rs:44-72` 對 `WindowEvent::Focused(false)` 等 120ms 後 hide。Windows IME composition window（中文 / 注音輸入法）短暫搶 keyboard focus 就觸發；WebView2 transparent window 的 accessibility subprocess 也有同樣 blip。120ms 太短。
+  - 修法（2 處小改）：
+    - Backend (`window.rs:48`)：`120ms → 400ms`，涵蓋絕大部分 IME / focus blip。
+    - Frontend (`CommandPalette.tsx` input)：新增 `onCompositionStart` / `onCompositionUpdate` / `onCompositionEnd` 主動呼 `keepLauncherOpen()` IPC 設 600ms guard。IME composition 期間絕對不會被 hide。
+  - 既有 `cmd_keep_launcher_open` IPC 沒動，guard 機制重用。
+  - 檢查：`cargo check` 清；`cargo clippy -- -D warnings` 清（先前 9dfd15b verifier tests 還在）；`npx tsc --noEmit` 清、`npm run lint` 清。
+  - 待使用者實測：中文打字、English fast typing 各 30 秒，確認不再 hide。
+  - Bug B（假刪除）狀態不變：9dfd15b 的 verify_path_removed 已就位，但 trash silent fail 的根因仍需使用者 repro + hint 訊息來判定（T1/T2/T3/T4 路線見 `docs/tasks/bug-followup.md`）。
 
 - 2026-05-18: **Bugfix — launcher crash + delete-without-delete (two critical bugs)**
   - Symptoms reported by user: (1) Ctrl+K opens launcher but webview intermittently dies with no log trail; (2) destructive Delete via secondary action menu shows "Moved to recycle bin", hides the row from results, but the file **remains on disk at its original path**.

@@ -1170,6 +1170,16 @@ export function CommandPalette() {
               value={query}
               onChange={(e) => void handleQueryChange(e.target.value)}
               onKeyDown={onKeyDown}
+              // Bug-fix 2026-05-19 — Windows IME composition window briefly
+              // takes keyboard focus while the user is typing Chinese / 注音
+              // / other IME-driven input. That blip fires WindowEvent::
+              // Focused(false) on the Tauri side and (without the guard) the
+              // launcher auto-hides mid-typing. Bump the keep-open guard at
+              // both ends of composition so the 400 ms backend grace period
+              // never elapses while the IME is mid-input.
+              onCompositionStart={() => void keepLauncherOpen()}
+              onCompositionUpdate={() => void keepLauncherOpen()}
+              onCompositionEnd={() => void keepLauncherOpen()}
               placeholder={
                 mode === "command"
                   ? "輸入指令… 試試 /help 或 /setting"
