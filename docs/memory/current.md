@@ -135,6 +135,13 @@ owner: project
   - `src-tauri/src/handlers/file.rs` (new) + `handlers/mod.rs` + `app/state.rs`: `FileHandler` skeleton registered in `build_command_router` (no behaviour wired yet — placeholder for slice 2-4).
   - Out-of-scope this commit: prompt engineering init template (`Prompt_Engineering_Init_Template.docx` + `scripts/generate_prompt_engineering_doc.py`) — cross-project reusable docs scaffold derived from current CLAUDE.md + docs/ pattern.
 
+- 2026-05-18 LAUNCH.2 Slice 1 (A + B) 交付：
+  - `handlers/search.rs` 加 `strip_global_prefix` (pure helper) + `resolve_workspace_filter` + `apply_workspace_filter` (file/folder/app 受 workspace.project_root 限制；`:global` 前綴繞過；command/note/history/model 不受影響)。Sync 與 stream 兩條路徑都套用；`StreamWorkerRequest` 加 `workspace_root` 欄位。
+  - `shortcuts.rs` 加 `Ctrl+Alt+0` (預設) workspace cycle hotkey — spec 原訂 `Ctrl+Alt+W` 但已被 mouse cursor up 佔用，文檔已註明。emit 獨立 `workspace-cycled` event；前端 listener 清 query/results（與 `workspace-switched` 還原 query 行為區隔）。
+  - `default_config.toml` + `settings_schema.rs` 加 `hotkeys.workspace_cycle`。
+  - 5 個新 backend tests；cargo test 344/345 (pre-existing nvim 不變)；clippy/lint/tsc 全清。
+  - C per-workspace quick actions 留下批（需 schema 變更 + UI）。
+
 - 2026-05-18 ONBOARD.1 Slice 1 (A + B + C) 交付：
   - 新元件 `src/components/OnboardingTour.tsx` (4 步 modal + localStorage `keynova.onboarding.completed`) + `src/components/CheatsheetOverlay.tsx` (4 section 靜態鍵位列表)。
   - Backend 新 `OnboardCommand` builtin (`/onboard`)；前端 `execCommand` 攔截 name="onboard" → `resetOnboarding()` + reopen。
@@ -188,12 +195,12 @@ owner: project
 
 ## Next Step
 
-ONBOARD.1 Slice 1 (A + B + C) 已於 2026-05-18 完成；D + E 留下一批（需 usage tracking 與 OS-level hotkey enumeration 新基建）。
+LAUNCH.2 Slice 1 (A + B) 已於 2026-05-18 完成；C per-workspace quick actions 留下一批。ONBOARD.1.D/E 同樣待做。
 
 待使用者選擇下一個起手 phase；其餘無 ADR 阻擋入口：
 
+- Phase 12 — LAUNCH.2.C per-workspace quick actions（schema + UI）。
 - Phase 8c 尾 — ONBOARD.1.D Re-engage prompt + .E hotkey 衝突偵測。
-- Phase 12 — LAUNCH.2：workspace-aware search 與 `Ctrl+Alt+W` workspace switch hotkey (3 子任務)。
 - Phase 12 — NOTE.1：daily note、templates、backlinks `[[wiki]]`、tag filter、note 全文接主 launcher、HTML/PDF 匯出 (6 子任務)。
 
 ADR-gated tracks 需先審批 ADR-029 ~ ADR-038 才可進實作（見 `docs/tasks/blocked.md`）。UTIL.1.B-online 待 ADR-038 接受。

@@ -404,6 +404,24 @@ export function CommandPalette() {
     return () => { unlisten.then((fn) => fn()); };
   }, [dispatch, setQuery]);
 
+  // LAUNCH.2.B — workspace cycle (Ctrl+Alt+0 default): same reset as
+  // `workspace-switched` but the query is force-cleared rather than restored
+  // from the target workspace's saved state.
+  useEffect(() => {
+    if (!window.__TAURI_INTERNALS__) return;
+    const unlisten = listen<WorkspaceState>("workspace-cycled", () => {
+      setQuery("");
+      setResults([]);
+      setSelected(0);
+      setCmdResult(null);
+      setTimedOutProviders([]);
+      activeSearchRequestRef.current = "";
+      void dispatch(IPC.SEARCH_CANCEL).catch(() => {});
+      requestAnimationFrame(() => inputRef.current?.focus());
+    });
+    return () => { unlisten.then((fn) => fn()); };
+  }, [dispatch, setQuery]);
+
   // ESC handler — registered once; reads always-current values via refs
   // so there is no stale-closure race between setCmdResult and effect re-run.
   useEffect(() => {

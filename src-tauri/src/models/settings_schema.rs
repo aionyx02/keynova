@@ -96,6 +96,15 @@ pub fn builtin_setting_schema() -> Vec<SettingSchema> {
             &[],
         ),
         SettingSchema::new(
+            "hotkeys.workspace_cycle",
+            "hotkeys",
+            "Workspace cycle (next)",
+            Hotkey,
+            "Ctrl+Alt+0",
+            false,
+            &[],
+        ),
+        SettingSchema::new(
             "launcher.max_results",
             "launcher",
             "Max results",
