@@ -2,7 +2,7 @@
 type: task_index
 status: backlog
 priority: p1
-updated: 2026-05-15
+updated: 2026-05-18
 context_policy: retrieve_when_planning
 owner: project
 tags: [feature-first, roadmap, performance, safety]
@@ -131,8 +131,8 @@ Goal: 多次 approve 變一次；payload 變人讀的。Phase 7.
 
 Goal: 搜到結果後不只能「開啟」。Phase 8, no ADR (現有 file boundary 已含).
 
-- [ ] LAUNCH.1.A Secondary action menu：方向鍵聚焦結果 → 按 `→` / `Tab` 開菜單；含 Reveal in Explorer / Open with… / Copy path / Copy name / Show metadata。
-- [ ] LAUNCH.1.B File operations（confirm-gated）：Rename、Move、Delete、Open as text、Compute hash。Delete 走 OS recycle bin，不真刪。
+LAUNCH.1.A 與 LAUNCH.1.B 已於 2026-05-18 完成，搬至 `completed.md`。
+
 - [ ] LAUNCH.1.C Preview pane：選中後右側顯示前 500 行 / 4KB 內容或檔案 metadata；image 顯示縮圖。
 - [ ] LAUNCH.1.D Filter chips：依 source type 過濾（file / note / app / cmd / history）；可多選；URL state 同步。
 - [ ] LAUNCH.1.E Rank explainability tooltip：hover 結果顯示「why this rank」（score breakdown：tantivy score / recency / frequency）。

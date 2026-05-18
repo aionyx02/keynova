@@ -2,11 +2,11 @@
 type: task_index
 status: active
 priority: p0
-updated: 2026-05-17
+updated: 2026-05-18
 context_policy: always_retrievable
 owner: project
 tags: [feature-first, safety-first, performance, agent-ux]
-last_change: Phase 7a (AGENT.1/2/7) delivered — streaming, markdown, cancel, autosize, history, FIFO archive, approval timeout
+last_change: LAUNCH.1.A + LAUNCH.1.B delivered — secondary action menu with file ops behind two-phase confirm gate
 ---
 
 # Active Tasks
@@ -25,9 +25,9 @@ Safety first for runtime lifecycle; feature-first delivery after guardrails are 
 
 Mainline delivered (詳見 `docs/tasks/completed.md`)：
 
-- TD.5.A baseline → PERF.1 → TD.1/2/3 → PERF.2 → PERF.3 → TD.4 + TD.5 → P3 → FEAT.11 → **Phase 7a (AGENT.1/2/7)**.
+- TD.5.A baseline → PERF.1 → TD.1/2/3 → PERF.2 → PERF.3 → TD.4 + TD.5 → P3 → FEAT.11 → Phase 7a (AGENT.1/2/7) → **LAUNCH.1.A + LAUNCH.1.B**.
 
-Active queue：**empty**（待使用者選定下一階段；建議 Phase 8a UTIL.1/2 / Phase 8b LAUNCH.1 / Phase 8c ONBOARD.1，皆無 ADR 阻擋）。
+Active queue：**empty**（LAUNCH.1.C/D/E 仍在 backlog；UTIL.1/2、ONBOARD.1 仍可平行起手，皆無 ADR 阻擋）。
 
 ## Next Phase Proposal (2026-05-15, awaiting selection)
 
@@ -56,6 +56,17 @@ See `docs/tasks/backlog.md` Post-FEAT.11 Phase Proposal 與 11 個 track section
 See `docs/tasks/blocked.md` Post-FEAT.11 Tracks Pending ADR 表。
 
 ## Recent Execution Notes
+
+- 2026-05-18: LAUNCH.1.A 收尾 + LAUNCH.1.B 全段交付：
+  - **後端 (`src-tauri/src/handlers/file.rs`)**: 在既有 `reveal` / `open_with` 之上新增 5 個 match arm — `rename` / `move` / `delete` / `hash` / `open_as_text`。Destructive 三個（rename/move/delete）走二段式 confirm gate：`confirm != true` 回 `{ preview: true, ... }`，`confirm: true` 才真執行。`delete` 用 `trash::delete()`（OS recycle bin），`hash` 串流 64 KiB chunks 餵 `sha2::Sha256`，`open_as_text` 用 `text_editor_for_platform()` helper（Windows `notepad.exe` / macOS `TextEdit` / Linux fallback）。
+  - **Typed DTO (`src-tauri/src/models/ipc_requests.rs`)**: 新增 `FileRenameRequest` / `FileMoveRequest` / `FileDeleteRequest` / `FileHashRequest` / `FileOpenAsTextRequest`；handler arm 全走 `serde_json::from_value::<DTO>`。
+  - **Cargo deps (`src-tauri/Cargo.toml`)**: `trash = "5"`、`sha2 = "0.10"`、`tempfile = "3"` (dev-dep)。`trash` 提供跨平台 OS recycle bin（Windows SHFileOperationW / macOS NSFileManager trashItem / Linux freedesktop gio），MIT/Apache-2.0；停留在既有 file boundary 內，不需 ADR。
+  - **前端 (`src/utils/secondaryActions.ts`)**: 解除 `open_with` 的 `disabled`；依 `result.kind` 條件性追加 `open_as_text` (file only) / `rename` / `move` / `delete` (non-app) / `hash` (file only)。新增 `isDestructive()` 與 `parentDirFromPath()` helper。
+  - **前端 (`src/components/SecondaryActionMenu.tsx`)**: 加 `pendingConfirmId` / `inlineInput` / `onInlineInputChange` / `onInlineInputKeyDown` props；focused destructive 項目下方渲染紅框 confirm row；rename/move 焦點時於該列下方渲染 inline `<input>`（autoFocus）。動態 risk 色彩（high→red、medium→amber、low→gray）。
+  - **前端 (`src/components/CommandPalette.tsx`)**: 新 state `pendingConfirm` / `inlineInput`；新 helper `showHint(msg, durationMs)`。`handleSecondaryAction` 6 個 case 全填：`open_with` / `open_as_text` 直接 dispatch 並提示；`hash` dispatch 後自動複製 hex 到 clipboard；`rename` / `move` 先開 inline input，Enter → dry-run preview → 再 Enter 才真執行；`delete` 第一次 Enter → dry-run preview（size + destination） → 再 Enter 才真送 trash。Esc 全域與選擇切換都清空 `pendingConfirm` + `inlineInput`。
+  - **測試 (`src-tauri/src/handlers/file.rs::tests`)**: 16 個（11 新 + 5 既有），含 `rename_preview_when_confirm_false`、`rename_executes_when_confirm_true`、`rename_rejects_existing_target`、`rename_rejects_path_separator_in_new_name`、`move_preview_returns_source_and_target`、`move_rejects_non_directory_target`、`delete_preview_reports_destination_recycle_bin`、`delete_moves_to_trash_when_confirmed`（`#[ignore]` — 需 desktop session）、`hash_sha256_matches_known_vector`（`b"abc"` → `ba7816bf…`）、`hash_rejects_unknown_algorithm`、`open_as_text_requires_path`。
+  - **檢查**：`cargo test handlers::file` 16/16 (1 ignored)；`cargo test` full suite 258/259 (`note_lazyvim_missing_nvim_returns_inline_guidance` pre-existing 不變)；`cargo clippy -- -D warnings` 清；`npx tsc --noEmit` 清；`npm run lint` 清。
+  - LAUNCH.1.C/D/E 仍留在 backlog。LAUNCH.1.A / LAUNCH.1.B 已搬至 `completed.md`。
 
 - 2026-05-17: LAUNCH.1.A slice 1 scaffold in progress (Phase 8b kickoff):
   - Frontend: `SecondaryActionMenu` component + `secondaryActions` util + CommandPalette keyboard wiring (open/close, focus index, metadata expand, copy hint) + `@tauri-apps/plugin-opener` reveal integration.

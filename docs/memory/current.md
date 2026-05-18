@@ -2,7 +2,7 @@
 type: working_memory
 status: active
 priority: p0
-updated: 2026-05-17
+updated: 2026-05-18
 context_policy: always_retrievable
 owner: project
 ---
@@ -139,14 +139,24 @@ owner: project
   - `src-tauri/src/handlers/file.rs` (new) + `handlers/mod.rs` + `app/state.rs`: `FileHandler` skeleton registered in `build_command_router` (no behaviour wired yet — placeholder for slice 2-4).
   - Out-of-scope this commit: prompt engineering init template (`Prompt_Engineering_Init_Template.docx` + `scripts/generate_prompt_engineering_doc.py`) — cross-project reusable docs scaffold derived from current CLAUDE.md + docs/ pattern.
 
+- 2026-05-18 LAUNCH.1.A 收尾 + LAUNCH.1.B 全段交付：
+  - 後端 `src-tauri/src/handlers/file.rs`: 5 個新 match arm — `rename` / `move` / `delete` / `hash` / `open_as_text`，全走 typed DTO (`serde_json::from_value`)。Destructive 三個採二段式 confirm gate（`confirm != true` 回 `{ preview: true, ... }`）。`delete` 用 `trash::delete()`（OS recycle bin）；`hash` 串流 64 KiB chunks 餵 `sha2::Sha256`，回 `{ algorithm, path, hex, bytes }`，只支援 sha256；`open_as_text` 走 `text_editor_for_platform()` (Windows `notepad.exe` / macOS `TextEdit` / Linux fallback to xdg-open)。
+  - Typed DTO `src-tauri/src/models/ipc_requests.rs`: `FileRenameRequest` / `FileMoveRequest` / `FileDeleteRequest` / `FileHashRequest` / `FileOpenAsTextRequest`，全部 `#[serde(default)]` 給可選欄位 + `default_hash_algo()` helper。
+  - Cargo deps `src-tauri/Cargo.toml`: `trash = "5"`、`sha2 = "0.10"`、`tempfile = "3"` (dev-dep)。trash 跨平台 (Windows SHFileOperationW / macOS NSFileManager trashItem / Linux freedesktop gio)，MIT/Apache-2.0，停在既有 file boundary 內不需 ADR。
+  - 前端 `src/utils/secondaryActions.ts`: 解除 `open_with` disabled；依 `result.kind` 條件追加 `open_as_text` (file only) / `rename` / `move` / `delete` (non-app) / `hash` (file only)；新增 `isDestructive()` + `parentDirFromPath()` helper。
+  - 前端 `src/components/SecondaryActionMenu.tsx`: 加 `pendingConfirmId` / `inlineInput` / `onInlineInputChange` / `onInlineInputKeyDown` props；focused destructive 行下方渲染紅框 confirm row；rename/move focus 時於該列下方渲染 inline `<input>`（autoFocus）；risk 顏色（high→red、medium→amber、low→gray）。
+  - 前端 `src/components/CommandPalette.tsx`: 新 state `pendingConfirm` / `inlineInput` + helper `showHint(msg, durationMs)`；`handleSecondaryAction` 6 個 case 全填；Esc 全域與 selection 切換都清空 confirm 狀態。Toast 共用 `setCopyHint` + `copyResetRef`。
+  - 測試 `handlers::file::tests`: 16 個 (11 新 + 5 既有)，含 SHA-256 known vector (`b"abc"` → `ba7816bf…`) 與 `delete_moves_to_trash_when_confirmed`（`#[ignore]`，需 desktop session）。全測 258/259 (pre-existing `note_lazyvim_missing_nvim_returns_inline_guidance` 不變)；`cargo clippy -- -D warnings` 清；`npx tsc --noEmit` 清；`npm run lint` 清。
+  - LAUNCH.1.A + LAUNCH.1.B 搬至 `docs/tasks/completed.md`；LAUNCH.1.C/D/E 留 backlog。
+
 ## Next Step
 
-Phase 7a (AGENT.1/2/7) 已於 2026-05-16 完成，共 12 子項目 / 9 個 slice。詳細交付清單見 `docs/tasks/active.md` "Recent Execution Notes"。
+LAUNCH.1.A 與 LAUNCH.1.B 已於 2026-05-18 完成。剩餘 LAUNCH.1.C/D/E（preview pane / filter chips / rank explainability）仍在 backlog。
 
-待使用者選擇下一個起手 phase；其餘無 ADR 阻擋入口仍可用：
+待使用者選擇下一個起手 phase；其餘無 ADR 阻擋入口：
 
 - Phase 8a — UTIL.1 / UTIL.2：calculator++ 與 dev utilities。
-- Phase 8b — LAUNCH.1：search 結果 secondary actions。
+- Phase 8b 續 — LAUNCH.1.C/D/E：preview pane、filter chips、rank explainability。
 - Phase 8c — ONBOARD.1：first-run tour、`?` cheatsheet。
 
 ADR-gated tracks 需先草擬 ADR-029 ~ ADR-037 才可進實作（見 `docs/tasks/blocked.md`）。
