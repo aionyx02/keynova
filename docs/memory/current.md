@@ -135,6 +135,14 @@ owner: project
   - `src-tauri/src/handlers/file.rs` (new) + `handlers/mod.rs` + `app/state.rs`: `FileHandler` skeleton registered in `build_command_router` (no behaviour wired yet — placeholder for slice 2-4).
   - Out-of-scope this commit: prompt engineering init template (`Prompt_Engineering_Init_Template.docx` + `scripts/generate_prompt_engineering_doc.py`) — cross-project reusable docs scaffold derived from current CLAUDE.md + docs/ pattern.
 
+- 2026-05-18 UTIL.1 Calculator++ offline parts 交付：
+  - `CalculatorManager`：新增 try_currency_conversion (offline 18 currencies, `(offline rate, snapshot 2026-05)` suffix)、try_date_arithmetic (chrono-based, today/tomorrow/yesterday/+−N units/weekday/date-diff)、convert_unit 加 12 個 volume 單位。
+  - `today_override: Option<NaiveDate>` 加入 manager 給 date 測試固定 reference 日期。
+  - `chrono = "0.4"` 已是既有依賴，無新 crate。
+  - 17 個新測試（5 volume + 4 currency + 8 date）；cargo test 293/294（pre-existing nvim test 不變）；clippy clean。
+  - ADR-038 `docs/adr/0038-currency-online-rates.md` 草擬完成（status: 提議），規範 exchangerate.host / open.er-api 雙 provider、24h cache、TLS、無使用者資料外流；登錄到 `decisions.md` + `blocked.md`。
+  - UTIL.1 group **未搬 completed.md**：UTIL.1.B-online 待 ADR-038 接受。
+
 - 2026-05-18 LAUNCH.1.C/D/E 全段交付（LAUNCH.1 group 結案）：
   - 後端 `core/preview.rs` 新檔，抽出 `classify_path` / `read_text_preview` / `guess_image_mime`；`LearningMaterialManager::preview_file` 改呼叫之。
   - `handlers/file.rs` 加 `"preview"` arm，text 走 redact_secrets bounded read（4 KB / 500 lines default，64 KiB / 2000 lines cap），image 只回 metadata + mime，binary 只回 metadata。
@@ -157,16 +165,16 @@ owner: project
 
 ## Next Step
 
-LAUNCH.1.C/D/E 已於 2026-05-18 完成，LAUNCH.1 全段結案。
+UTIL.1 offline parts 已於 2026-05-18 完成；UTIL.1.B-online 待 ADR-038 接受。
 
 待使用者選擇下一個起手 phase；其餘無 ADR 阻擋入口：
 
-- Phase 8a — UTIL.1 / UTIL.2：calculator++ 與 dev utilities。
+- Phase 8a — UTIL.2：uuid / pw / hash / b64 / json / regex / jwt / color / cron / killport (10 子任務)。
 - Phase 8c — ONBOARD.1：first-run tour、`?` cheatsheet。
 - Phase 12 — LAUNCH.2：workspace-aware search 與 hotkey 切換。
 - Phase 12 — NOTE.1：daily note / templates / backlinks / tag filter。
 
-ADR-gated tracks 需先草擬 ADR-029 ~ ADR-037 才可進實作（見 `docs/tasks/blocked.md`）。
+ADR-gated tracks 需先審批 ADR-029 ~ ADR-038 才可進實作（見 `docs/tasks/blocked.md`）。
 
 ## Phase 7a Delivery Summary
 
