@@ -6,7 +6,7 @@ updated: 2026-05-18
 context_policy: always_retrievable
 owner: project
 tags: [feature-first, safety-first, performance, agent-ux]
-last_change: LAUNCH.2 Slice 1 (A workspace-aware search + B Ctrl+Alt+0 cycle hotkey) delivered; C per-workspace quick actions deferred
+last_change: bugfix — trash::delete + fs::rename post-mutation verification + frontend ErrorBoundary + global error/unhandledrejection handlers
 ---
 
 # Active Tasks
@@ -56,6 +56,44 @@ See `docs/tasks/backlog.md` Post-FEAT.11 Phase Proposal 與 11 個 track section
 See `docs/tasks/blocked.md` Post-FEAT.11 Tracks Pending ADR 表。
 
 ## Recent Execution Notes
+
+- 2026-05-18: **Bugfix — launcher crash + delete-without-delete (two critical bugs)**
+  - Symptoms reported by user: (1) Ctrl+K opens launcher but webview intermittently dies with no log trail; (2) destructive Delete via secondary action menu shows "Moved to recycle bin", hides the row from results, but the file **remains on disk at its original path**.
+  - Root causes:
+    - **Bug 1**: no top-level React `ErrorBoundary`, no global `window.addEventListener('error' | 'unhandledrejection')`. Any uncaught error in CommandPalette mount-time hooks tore down the entire WebView with no recovery and no console evidence.
+    - **Bug 2**: `handlers/file.rs::"delete"` arm called `trash::delete()` and trusted its `Ok()` return. `trash` v5 wraps `SHFileOperationW` on Windows, which is documented to return success without moving the file in several edge cases (file in use, Recycle Bin disabled on the target volume, network shares without trash, permission quirks). Frontend's `recentlyDeleted` kill-set then hid the row, producing a "fake delete" experience.
+  - **Slice 1 — backend post-mutation verification (`src-tauri/src/handlers/file.rs`)**: new `verify_path_removed(target)` checks `fs::symlink_metadata(target)` after `trash::delete` and returns `Err` (with a long diagnostic listing likely causes) when the file still resolves at its original path. `"rename"` and `"move"` arms call a parallel `verify_rename_landed(source, target)` checking that source is gone AND target exists. Both helpers are pure and unit-tested (4 new tests). Backend `Err` propagates through dispatch → frontend `catch` → `showHint` (duration bumped 3000→5000 ms so the user can read the longer message). The row stays in the result list because `refreshAfterFileMutation` is only invoked on the success branch.
+  - **Slice 2 — defensive frontend baseline**: new `src/components/ErrorBoundary.tsx` (top-level class component with `getDerivedStateFromError` + `componentDidCatch`; renders an actionable fallback card with `Reload` + `Copy error` buttons; no IPC dependency so it survives even when providers crash). `AppContainer` wraps `CommandPalette` in `<ErrorBoundary>`. `src/main.tsx` registers `window.addEventListener('error' | 'unhandledrejection')` that `console.error` with `[keynova:window-error]` / `[keynova:unhandled-rejection]` tags — when the user hits the crash again the WebView leveldb log will retain the trace.
+  - **Checks**: `cargo test handlers::file` 26/26 + 1 ignored (+4 new verifier tests); full suite 350/351 (pre-existing `note_lazyvim_missing_nvim_returns_inline_guidance` unchanged); `cargo clippy -- -D warnings` clean; `npm run lint` clean; `npx tsc --noEmit` clean.
+  - **Pending user verification before commit** (per user request "測試過後再修正"):
+    1. Bug 2 lock case: open `test.txt` in Notepad (locks file) → search & Delete in launcher → expected: hint shows "trash returned ok but file still exists at ... (possible causes: …)", row stays in list, file remains on disk. Earlier behavior would silently hide the row.
+    2. Bug 2 happy case: regular file delete → row vanishes, file moved to Recycle Bin, verify in Explorer.
+    3. Bug 1: open/close launcher 20× via Ctrl+K/Esc. If crash recurs, DevTools console (F12) should now hold `[keynova:*]` tagged lines — paste those back.
+    4. If a render error fires, ErrorBoundary fallback card should show with `Reload` button — confirm it's not a blank window.
+
+- 2026-05-18: **Bugfix — secondary action menu clipped before Delete**
+  - Symptom: short result panes clipped the action popover, so lower actions such as `Delete` were not visible.
+  - Fix: `SecondaryActionMenu` now uses a fixed `390 x 360` panel with a scrollable action body and automatic `scrollIntoView` for keyboard focus. `CommandPalette` reserves a stable left-column height while the menu is open and allows the overlay to remain visible instead of being clipped by the result card.
+  - Checks: `npx tsc --noEmit` passes; `npm run lint` passes. Vite browser smoke page starts at `http://127.0.0.1:5173/`; full Tauri-backed APP_CACHE interaction requires the desktop runtime.
+
+- 2026-05-18: **Bugfix — stale deleted files still appearing from APP_CACHE / persisted indexes**
+  - Root cause: the previous deleted-path guard only covered file operations initiated inside Keynova. Files deleted externally could remain in APP_CACHE, Tantivy, or native indexer results until rebuild.
+  - Fix: `SearchManager::file_results_for_backend` now over-fetches candidates, drops file/folder results whose `metadata` no longer exists or whose kind no longer matches, then applies the display limit. This covers APP_CACHE, Tantivy, Everything, and non-Windows native indexer paths.
+  - Tests: added two focused regression tests for stale-path removal and limit-after-filter behavior; `cargo test --manifest-path src-tauri/Cargo.toml filter_existing_file_results` passes; `cargo clippy --manifest-path src-tauri/Cargo.toml -- -D warnings` passes. Full `cargo test --manifest-path src-tauri/Cargo.toml` remains 346 passed / 1 failed / 1 ignored with the known pre-existing `note_lazyvim_missing_nvim_returns_inline_guidance` failure.
+
+- 2026-05-18: **Bugfix — LAUNCH.1.D filter chips silently hiding results across sessions**
+  - 症狀：使用者搜尋任何字串時，file/folder 結果全消失。
+  - 診斷：實際讀 `%LOCALAPPDATA%\com.keynova.app\EBWebView\Default\Local Storage\leveldb` 發現 `keynova.searchFilters` 殘留為 `["note","app"]`。`visibleResults` derivation 根據此 set 把 file/folder 全濾掉。
+  - 根因：LAUNCH.1.D 設計把 chip selection 持久化到 localStorage（原 spec 寫 "URL state 同步"，桌面 app 沒 URL 我換成 localStorage）。用戶在某次 toggle 後切 chip 沒清回，跨 session 卡住所有後續搜尋。
+  - 修正 (`src/components/FilterChips.tsx`)：`loadFilters()` 改為永遠回空 Set；新 `clearLegacyFilters()` 主動 `localStorage.removeItem` 舊鍵；`saveFilters` 整段移除。`CommandPalette.tsx` mount 時 `useEffect(clearLegacyFilters, [])` 清掉殘留；移除 saveFilters auto-write effect。Filter chips 改為 session-scoped — 重啟 app 即清空，避免「卡住的 filter」陷阱。
+  - 檢查：`npx tsc --noEmit` 清、`npm run lint` 清。
+
+- 2026-05-18: **Bugfix — LAUNCH.1.B destructive ops leak deleted entries**
+  - 症狀：使用者對 file 執行 `delete` / `rename` / `move` 並 confirm 後，原項目仍出現在 result list；再按 Enter 開啟會 hit dead path、再按 → 開菜單可能對錯誤對象操作。
+  - 第一輪修正（不足）：optimistic local removal + 透過 `handleQueryChange(query)` re-fire search。問題：Windows Everything 索引 Recycle Bin entries，re-fire 會把剛刪的檔案 resurrect。
+  - 第二輪修正：`src/components/CommandPalette.tsx` 新增 `recentlyDeletedRef: useRef<Set<string>>`：(1) `refreshAfterFileMutation` 不再 re-fire search，只把 path 加入 ref + 從 `results` filter 掉；(2) chunk listener 用 ref 過濾 `payload.items`，攔截晚到的 stream chunk 帶回已刪 path；(3) `handleQueryChange` / `workspace-switched` / `workspace-cycled` 三個 listener 都 `clear()` ref，避免 cross-context 過濾錯。
+  - 不影響 preview-only 路徑（confirm=false dry-run 不調 refresh）。
+  - 檢查：`npx tsc --noEmit` 清、`npm run lint` 清；backend 無動。
 
 - 2026-05-18: LAUNCH.2 Slice 1 (A + B) 交付：
   - **A — workspace-aware search (`handlers/search.rs`)**：新 pure helper `strip_global_prefix` (處理 `:global` / `:global foo` / 空白變體) + `SearchHandler::resolve_workspace_filter` (combines prefix strip 與 `workspace_manager.current().project_root`)。新 `apply_workspace_filter(&mut Vec<UiSearchItem>, Option<&str>)`：file/folder/app 限制在 root 內（case-insensitive prefix）；command/note/history/model 永遠保留。Sync (`execute_sync_query`) 與 stream (`execute_stream_query` + `run_stream_worker`) 兩條路徑都套用；`StreamWorkerRequest` 加 `workspace_root: Option<String>` 欄位。

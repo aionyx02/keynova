@@ -67,30 +67,29 @@ export function FilterChips({ active, onChange }: Props) {
 
 const STORAGE_KEY = "keynova.searchFilters";
 
-/** Loads persisted filter set from localStorage; returns empty set on any parse error. */
+/**
+ * LAUNCH.1.D — filter chips state is now in-memory only.
+ *
+ * Cross-session persistence (the original `loadFilters` / `saveFilters` pair)
+ * created a UX trap: a single accidental click on, say, the `Notes` chip
+ * would silently hide every `file` and `folder` result on every future
+ * launch, with no visible cause beyond the dimly-coloured chip bar. Several
+ * users hit this and reported "file and folder all gone".
+ *
+ * `loadFilters` now returns an empty set (always start clean). `clearLegacyFilters`
+ * cleans up the leftover localStorage entry on first mount so existing users
+ * recover without manual intervention.
+ */
 export function loadFilters(): Set<SourceFilter> {
-  if (typeof window === "undefined" || !window.localStorage) return new Set();
-  try {
-    const raw = window.localStorage.getItem(STORAGE_KEY);
-    if (!raw) return new Set();
-    const parsed: unknown = JSON.parse(raw);
-    if (!Array.isArray(parsed)) return new Set();
-    const known: SourceFilter[] = ["app", "file", "command", "note", "history", "model"];
-    const valid = parsed.filter((k): k is SourceFilter =>
-      typeof k === "string" && (known as string[]).includes(k),
-    );
-    return new Set(valid);
-  } catch {
-    return new Set();
-  }
+  return new Set();
 }
 
-/** Persists filter set to localStorage. Failures are swallowed (e.g. private mode). */
-export function saveFilters(filters: Set<SourceFilter>) {
+export function clearLegacyFilters() {
   if (typeof window === "undefined" || !window.localStorage) return;
   try {
-    window.localStorage.setItem(STORAGE_KEY, JSON.stringify([...filters]));
+    window.localStorage.removeItem(STORAGE_KEY);
   } catch {
     /* ignore */
   }
 }
+

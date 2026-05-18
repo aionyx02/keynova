@@ -323,48 +323,56 @@ impl SearchManager {
             return Vec::new();
         }
         let q = query.to_lowercase();
+        let fetch_limit = existing_path_fetch_limit(limit);
 
         #[cfg(target_os = "windows")]
         {
             match backend {
                 SearchBackend::Everything => {
-                    crate::platform::windows::everything_search(query, limit as u32)
-                        .into_iter()
-                        .map(|(name, path, is_folder)| SearchResult {
-                            kind: if is_folder {
-                                ResultKind::Folder
-                            } else {
-                                ResultKind::File
-                            },
-                            score: file_name_match_score(&name, &q),
-                            name,
-                            path,
-                        })
-                        .collect()
+                    let results =
+                        crate::platform::windows::everything_search(query, fetch_limit as u32)
+                            .into_iter()
+                            .map(|(name, path, is_folder)| SearchResult {
+                                kind: if is_folder {
+                                    ResultKind::Folder
+                                } else {
+                                    ResultKind::File
+                                },
+                                score: file_name_match_score(&name, &q),
+                                name,
+                                path,
+                            })
+                            .collect();
+                    filter_existing_file_results(results, limit)
                 }
                 SearchBackend::AppCache | SearchBackend::Tantivy => {
                     if backend == SearchBackend::Tantivy {
                         if let Some(index_dir) = tantivy_index_dir {
-                            if let Ok(results) = tantivy_index::search(index_dir, query, limit) {
+                            if let Ok(results) =
+                                tantivy_index::search(index_dir, query, fetch_limit)
+                            {
+                                let results = filter_existing_file_results(results, limit);
                                 if !results.is_empty() {
                                     return results;
                                 }
                             }
                         }
                     }
-                    crate::platform::windows::scan_files_from_cache(query, limit)
-                        .into_iter()
-                        .map(|(name, path, is_folder)| SearchResult {
-                            kind: if is_folder {
-                                ResultKind::Folder
-                            } else {
-                                ResultKind::File
-                            },
-                            score: file_name_match_score(&name, &q),
-                            name,
-                            path,
-                        })
-                        .collect()
+                    let results =
+                        crate::platform::windows::scan_files_from_cache(query, fetch_limit)
+                            .into_iter()
+                            .map(|(name, path, is_folder)| SearchResult {
+                                kind: if is_folder {
+                                    ResultKind::Folder
+                                } else {
+                                    ResultKind::File
+                                },
+                                score: file_name_match_score(&name, &q),
+                                name,
+                                path,
+                            })
+                            .collect();
+                    filter_existing_file_results(results, limit)
                 }
             }
         }
@@ -373,7 +381,8 @@ impl SearchManager {
         {
             if backend == SearchBackend::Tantivy {
                 if let Some(index_dir) = tantivy_index_dir {
-                    if let Ok(results) = tantivy_index::search(index_dir, query, limit) {
+                    if let Ok(results) = tantivy_index::search(index_dir, query, fetch_limit) {
+                        let results = filter_existing_file_results(results, limit);
                         if !results.is_empty() {
                             return results;
                         }
@@ -381,20 +390,26 @@ impl SearchManager {
                 }
             }
             // Use native system indexer (mdfind / plocate / locate / ignore_walk)
-            crate::managers::system_indexer::search_system_index(query, &[], limit, tantivy_index_dir)
-                .hits
-                .into_iter()
-                .map(|hit| SearchResult {
-                    kind: if hit.is_dir {
-                        ResultKind::Folder
-                    } else {
-                        ResultKind::File
-                    },
-                    score: hit.score,
-                    name: hit.name,
-                    path: hit.path,
-                })
-                .collect()
+            let results = crate::managers::system_indexer::search_system_index(
+                query,
+                &[],
+                fetch_limit,
+                tantivy_index_dir,
+            )
+            .hits
+            .into_iter()
+            .map(|hit| SearchResult {
+                kind: if hit.is_dir {
+                    ResultKind::Folder
+                } else {
+                    ResultKind::File
+                },
+                score: hit.score,
+                name: hit.name,
+                path: hit.path,
+            })
+            .collect();
+            filter_existing_file_results(results, limit)
         }
     }
 
@@ -456,6 +471,38 @@ fn trim_rank_memory(memory: &mut HashMap<String, SearchRankMemoryEntry>) {
     entries.sort_by_key(|(_, last_seen_secs)| *last_seen_secs);
     for (key, _) in entries.into_iter().take(memory.len().saturating_sub(512)) {
         memory.remove(&key);
+    }
+}
+
+fn existing_path_fetch_limit(limit: usize) -> usize {
+    limit.saturating_mul(4).min(1_000).max(limit)
+}
+
+fn filter_existing_file_results(results: Vec<SearchResult>, limit: usize) -> Vec<SearchResult> {
+    results
+        .into_iter()
+        .filter(search_result_path_exists)
+        .take(limit)
+        .collect()
+}
+
+fn search_result_path_exists(result: &SearchResult) -> bool {
+    match &result.kind {
+        ResultKind::File | ResultKind::Folder => {
+            path_matches_result_kind(&result.path, &result.kind)
+        }
+        _ => true,
+    }
+}
+
+fn path_matches_result_kind(path: &str, kind: &ResultKind) -> bool {
+    let Ok(metadata) = std::fs::metadata(path) else {
+        return false;
+    };
+    match kind {
+        ResultKind::File => metadata.is_file(),
+        ResultKind::Folder => metadata.is_dir(),
+        _ => true,
     }
 }
 
@@ -593,5 +640,74 @@ mod tests {
         let (recency, frequency) = manager.rank_boost_breakdown("file", "C:/tmp/a.txt");
         assert_eq!(recency, 0, "8-day-old selection should give 0 recency");
         assert_eq!(frequency, 4, "one selection should give frequency = 1*4 = 4");
+    }
+
+    #[test]
+    fn filter_existing_file_results_drops_missing_paths() {
+        let dir = tempfile::TempDir::new().unwrap();
+        let live_file = dir.path().join("live.md");
+        let live_folder = dir.path().join("folder");
+        std::fs::write(&live_file, "ok").unwrap();
+        std::fs::create_dir_all(&live_folder).unwrap();
+
+        let results = vec![
+            SearchResult {
+                kind: ResultKind::File,
+                name: "deleted.md".into(),
+                path: dir.path().join("deleted.md").display().to_string(),
+                score: 99,
+            },
+            SearchResult {
+                kind: ResultKind::File,
+                name: "live.md".into(),
+                path: live_file.display().to_string(),
+                score: 98,
+            },
+            SearchResult {
+                kind: ResultKind::Folder,
+                name: "folder".into(),
+                path: live_folder.display().to_string(),
+                score: 97,
+            },
+            SearchResult {
+                kind: ResultKind::Folder,
+                name: "wrong-kind".into(),
+                path: live_file.display().to_string(),
+                score: 96,
+            },
+        ];
+
+        let filtered = filter_existing_file_results(results, 10);
+        let names = filtered
+            .iter()
+            .map(|result| result.name.as_str())
+            .collect::<Vec<_>>();
+        assert_eq!(names, vec!["live.md", "folder"]);
+    }
+
+    #[test]
+    fn filter_existing_file_results_applies_limit_after_stale_drop() {
+        let dir = tempfile::TempDir::new().unwrap();
+        let live_file = dir.path().join("live.md");
+        std::fs::write(&live_file, "ok").unwrap();
+
+        let results = vec![
+            SearchResult {
+                kind: ResultKind::File,
+                name: "deleted.md".into(),
+                path: dir.path().join("deleted.md").display().to_string(),
+                score: 99,
+            },
+            SearchResult {
+                kind: ResultKind::File,
+                name: "live.md".into(),
+                path: live_file.display().to_string(),
+                score: 98,
+            },
+        ];
+
+        let filtered = filter_existing_file_results(results, 1);
+        assert_eq!(filtered.len(), 1);
+        assert_eq!(filtered[0].name, "live.md");
     }
 }
