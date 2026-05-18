@@ -22,6 +22,10 @@ use crate::handlers::{
         SysMonitorCommand, TrCommand,
     },
     calculator::CalculatorHandler,
+    dev_utils_cmd::{
+        B64decCmd, B64encCmd, ColorCmd, CronCmd, HashCmd, JsonCmd, JsonmCmd, JwtCmd, NanoidCmd,
+        PwCmd, RegexCmd, UrldecCmd, UrlencCmd, UuidCmd,
+    },
     feature::FeatureHandler,
     file::FileHandler,
     history::HistoryHandler,
@@ -232,6 +236,21 @@ fn build_builtin_registry(
     reg.register(Box::new(SysCtlCommand));
     reg.register(Box::new(SysMonitorCommand));
     reg.register(Box::new(RebuildSearchIndexCommand));
+    // UTIL.2 dev utilities (Slice 1 — A through I)
+    reg.register(Box::new(UuidCmd));
+    reg.register(Box::new(NanoidCmd));
+    reg.register(Box::new(PwCmd));
+    reg.register(Box::new(HashCmd));
+    reg.register(Box::new(B64encCmd));
+    reg.register(Box::new(B64decCmd));
+    reg.register(Box::new(UrlencCmd));
+    reg.register(Box::new(UrldecCmd));
+    reg.register(Box::new(JsonCmd));
+    reg.register(Box::new(JsonmCmd));
+    reg.register(Box::new(RegexCmd));
+    reg.register(Box::new(JwtCmd));
+    reg.register(Box::new(ColorCmd));
+    reg.register(Box::new(CronCmd));
     drop(reg);
     registry
 }

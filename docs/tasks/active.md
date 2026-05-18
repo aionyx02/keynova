@@ -6,7 +6,7 @@ updated: 2026-05-18
 context_policy: always_retrievable
 owner: project
 tags: [feature-first, safety-first, performance, agent-ux]
-last_change: UTIL.1 offline parts delivered (A volume + B-offline + C date + D existing); UTIL.1.B-online blocked on ADR-038 (drafted, 提議)
+last_change: UTIL.2.A–I delivered — 14 dev utility builtin commands (uuid/nanoid/pw/hash/b64/url/json/regex/jwt/color/cron); UTIL.2.J killport deferred
 ---
 
 # Active Tasks
@@ -56,6 +56,14 @@ See `docs/tasks/backlog.md` Post-FEAT.11 Phase Proposal 與 11 個 track section
 See `docs/tasks/blocked.md` Post-FEAT.11 Tracks Pending ADR 表。
 
 ## Recent Execution Notes
+
+- 2026-05-18: UTIL.2 Dev Utilities Slice 1 (A–I) 交付（14 個 builtin commands）：
+  - **新模組 (`src-tauri/src/core/dev_utils.rs`)**：pure-fn 計算層，無 manager actor。涵蓋 uuid v4 + nanoid (URL-safe alphabet)、`generate_password` (sym/alnum/alpha 三模式 + 二次 shuffle)、`hash_text` (md5/sha1/sha256/sha512)、`b64_encode/decode`、`url_encode/decode`、`json_pretty/minify`、`regex_test` (capture groups + 20 match cap)、`jwt_decode` (URL-safe base64 + serde_json pretty + `exp` 過期 hint)、`color_convert` (#hex/rgb()/hsl() 三制互轉，含短 hex `#0f0` → `#00FF00` 展開)、`cron_explain` (5/6/7 欄 auto-pad seconds + 下 5 次 fire local time)。
+  - **BuiltinCommand wrappers (`src-tauri/src/handlers/dev_utils_cmd.rs`)**: 14 個 `BuiltinCommand` impls — UuidCmd、NanoidCmd、PwCmd、HashCmd、B64encCmd、B64decCmd、UrlencCmd、UrldecCmd、JsonCmd、JsonmCmd、RegexCmd、JwtCmd、ColorCmd、CronCmd。全部回 `CommandUiType::Inline`；invalid args 不 panic 而是回 `usage:` / `error:` 文字。
+  - **註冊 (`src-tauri/src/app/state.rs`)**：14 個指令塞入 `build_builtin_registry`；皆無 state、無 manager 依賴，與既有 `CalCommand` 同一層。
+  - **Cargo deps**：新增 `base64 = "0.22"`、`regex = "1"`、`md-5 = "0.10"`、`sha1 = "0.10"`、`cron = "0.12"`、`urlencoding = "2"`、`rand = "0.8"`。`uuid`、`sha2`、`chrono`、`serde_json` 已是既有依賴。
+  - **測試**：core::dev_utils 22 個、handlers::dev_utils_cmd 9 個，總 31 個新增。`cargo test` 324/325（+31；pre-existing nvim test 不變）；`cargo clippy -- -D warnings` 清。
+  - **未做（v2 / 下一批）**：clipboard fallback for hash/b64/json/etc.（前端工作）、regex replace preview、color 色塊預覽、UTIL.2.J killport（跨平台 process enumeration + 兩段式 confirm，工作量另算）。
 
 - 2026-05-18: UTIL.1 Calculator++ offline parts 交付（A volume + B-offline + C date + D 既有）：
   - **UTIL.1.A volume**：`CalculatorManager::convert_unit` 擴 12 個 volume 單位（l/ml/cl/dl/m3/cup/tbsp/tsp/fl_oz/pt/qt/gal，US 標準），既有 length/weight/temperature/time/area/speed/data 不動。新增 5 個測試。
