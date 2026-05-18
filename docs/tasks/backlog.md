@@ -135,9 +135,9 @@ Goal: 多次 approve 變一次；payload 變人讀的。Phase 7.
 
 Goal: 搜尋預設貼合當下 workspace。Phase 12.
 
-- [ ] LAUNCH.2.A Search 預設限 current workspace；輸入 `:global` 前綴擴大。
-- [ ] LAUNCH.2.B Workspace switch hotkey（預設 `Ctrl+Alt+W`）；切換時清搜尋。
-- [ ] LAUNCH.2.C Per-workspace quick actions：每 workspace 自己的 macro / hotkey override（存於 workspace metadata）。
+- [x] LAUNCH.2.A Search 預設限 current workspace；輸入 `:global` 前綴擴大（2026-05-18 完成；`strip_global_prefix` pure helper + `apply_workspace_filter` post-filter；sync + stream 兩條路徑全套用；workspace.project_root 為 None 時 fallback global）。
+- [x] LAUNCH.2.B Workspace cycle hotkey（2026-05-18 完成）。**Default 改為 `Ctrl+Alt+0`**（spec 原訂 `Ctrl+Alt+W` 但已被 mouse cursor up 佔用）。emits 獨立 `workspace-cycled` event；前端清 query/results。`hotkeys.workspace_cycle` 設定可改鍵。
+- [ ] LAUNCH.2.C Per-workspace quick actions：每 workspace 自己的 macro / hotkey override（存於 workspace metadata）。需 schema 變更與 UI 管理介面，下一批處理。
 
 ## UTIL.1 — Calculator++
 

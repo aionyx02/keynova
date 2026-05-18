@@ -6,7 +6,7 @@ updated: 2026-05-18
 context_policy: always_retrievable
 owner: project
 tags: [feature-first, safety-first, performance, agent-ux]
-last_change: ONBOARD.1 Slice 1 (A onboarding tour + B `?` cheatsheet + C empty-state CTA) delivered; D/E left for next batch
+last_change: LAUNCH.2 Slice 1 (A workspace-aware search + B Ctrl+Alt+0 cycle hotkey) delivered; C per-workspace quick actions deferred
 ---
 
 # Active Tasks
@@ -56,6 +56,12 @@ See `docs/tasks/backlog.md` Post-FEAT.11 Phase Proposal 與 11 個 track section
 See `docs/tasks/blocked.md` Post-FEAT.11 Tracks Pending ADR 表。
 
 ## Recent Execution Notes
+
+- 2026-05-18: LAUNCH.2 Slice 1 (A + B) 交付：
+  - **A — workspace-aware search (`handlers/search.rs`)**：新 pure helper `strip_global_prefix` (處理 `:global` / `:global foo` / 空白變體) + `SearchHandler::resolve_workspace_filter` (combines prefix strip 與 `workspace_manager.current().project_root`)。新 `apply_workspace_filter(&mut Vec<UiSearchItem>, Option<&str>)`：file/folder/app 限制在 root 內（case-insensitive prefix）；command/note/history/model 永遠保留。Sync (`execute_sync_query`) 與 stream (`execute_stream_query` + `run_stream_worker`) 兩條路徑都套用；`StreamWorkerRequest` 加 `workspace_root: Option<String>` 欄位。
+  - **B — workspace cycle hotkey**：原 spec 訂 `Ctrl+Alt+W` 但已被 mouse cursor up 佔用，改 default `Ctrl+Alt+0`（與 workspace_1/2/3 同系列）。新設定 `hotkeys.workspace_cycle` (`default_config.toml` + `settings_schema.rs`)。`shortcuts.rs` 註冊：讀 config、計算 `(current+1) % SLOT_COUNT`、`switch_to(next)`、emit `workspace-cycled` event。前端 `CommandPalette.tsx` 加獨立 listener：清 `query` / `results` / `selected` / `cmdResult`，呼 `SEARCH_CANCEL`，refocus input。與原 `workspace-switched` (Ctrl+Alt+1/2/3) 不同點：cycle 強制清空 query，不還原 workspace 儲存的 query。
+  - **檢查**：`cargo test` 344/345（+5 新測試：4 apply_workspace_filter cases + 1 strip_global_prefix variants；pre-existing nvim 不變）；`cargo clippy -- -D warnings` 清；`npm run lint` 清；`npx tsc --noEmit` 清。
+  - **未做（下一批）**：LAUNCH.2.C per-workspace quick actions — 需 macro/hotkey override schema 與 UI。
 
 - 2026-05-18: ONBOARD.1 Slice 1 (A + B + C) 交付：
   - **A — onboarding tour (`src/components/OnboardingTour.tsx` 新檔)**：4 步 modal (welcome / search / commands / customise)。localStorage `keynova.onboarding.completed` flag + `hasCompletedOnboarding()` / `markOnboardingCompleted()` / `resetOnboarding()` helper。Conditional mount in CommandPalette (`{onboardingOpen && <OnboardingTour … />}`) 保證每次 reopen 從 stepIdx=0 開始，避免 setState-in-effect。Esc/Skip → mark completed + close；Enter/→ next；← back。

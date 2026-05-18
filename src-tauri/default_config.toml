@@ -1,9 +1,10 @@
 [hotkeys]
-app_launcher   = "Ctrl+K"
-mouse_control  = "Ctrl+Alt+M"
-workspace_1    = "Ctrl+Alt+1"
-workspace_2    = "Ctrl+Alt+2"
-workspace_3    = "Ctrl+Alt+3"
+app_launcher    = "Ctrl+K"
+mouse_control   = "Ctrl+Alt+M"
+workspace_1     = "Ctrl+Alt+1"
+workspace_2     = "Ctrl+Alt+2"
+workspace_3     = "Ctrl+Alt+3"
+workspace_cycle = "Ctrl+Alt+0"        # LAUNCH.2.B — cycles to next workspace + clears query
 
 [launcher]
 scan_paths = []          # 額外掃描路徑（空陣列代表僅掃描系統預設路徑）

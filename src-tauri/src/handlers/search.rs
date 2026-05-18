@@ -145,10 +145,31 @@ impl CommandHandler for SearchHandler {
 }
 
 impl SearchHandler {
+    /// LAUNCH.2.A — resolve workspace scope from the query.
+    ///
+    /// - Strips a leading `:global ` (or bare `:global`) prefix and returns
+    ///   `(cleaned_query, None)` so the search runs unrestricted.
+    /// - Otherwise, returns `(query, current_workspace.project_root)`. When
+    ///   the workspace has no `project_root` configured, the second tuple
+    ///   element is `None` and search behaves globally as before.
+    fn resolve_workspace_filter(&self, raw: &str) -> (String, Option<String>) {
+        let (cleaned, global) = strip_global_prefix(raw);
+        if global {
+            return (cleaned, None);
+        }
+        let workspace_root = self
+            .workspace_manager
+            .lock()
+            .ok()
+            .and_then(|mgr| mgr.current().project_root.clone())
+            .filter(|s| !s.trim().is_empty());
+        (cleaned, workspace_root)
+    }
+
     fn execute_query(&self, payload: Value) -> CommandResult {
         let req: SearchQueryRequest = serde_json::from_value(payload)
             .map_err(|e| format!("invalid search.query request: {e}"))?;
-        let query = req.query;
+        let (query, workspace_root) = self.resolve_workspace_filter(&req.query);
         let limit = req.limit;
         if req.stream {
             let request_id = req.request_id;
@@ -157,12 +178,31 @@ impl SearchHandler {
                 .unwrap_or(DEFAULT_FIRST_BATCH_LIMIT)
                 .min(limit)
                 .max(1);
-            return self.execute_stream_query(query, limit, first_batch_limit, request_id);
+            return self.execute_stream_query(query, workspace_root, limit, first_batch_limit, request_id);
         }
-        self.execute_sync_query(query, limit)
+        self.execute_sync_query(query, workspace_root, limit)
     }
 
-    fn execute_sync_query(&self, query: String, limit: usize) -> CommandResult {
+    /// LAUNCH.2.A — filter results in-place to those whose `path` lives under
+    /// `root` (case-insensitive prefix match — Windows paths). Non-file kinds
+    /// (`command`/`note`/`history`/`model`) are always retained.
+    fn apply_workspace_filter(items: &mut Vec<UiSearchItem>, root: Option<&str>) {
+        let Some(root) = root else { return };
+        let needle = root.to_lowercase();
+        items.retain(|item| match item.kind {
+            ResultKind::File | ResultKind::Folder | ResultKind::App => {
+                item.path.to_lowercase().starts_with(&needle)
+            }
+            _ => true,
+        });
+    }
+
+    fn execute_sync_query(
+        &self,
+        query: String,
+        workspace_root: Option<String>,
+        limit: usize,
+    ) -> CommandResult {
         let started = Instant::now();
         let session = self.action_arena.start_session();
         let plan = SearchPlan::from_limit(limit, limit);
@@ -181,6 +221,7 @@ impl SearchHandler {
         if !self.is_generation_current(generation)? {
             return Ok(json!(Vec::<UiSearchItem>::new()));
         }
+        Self::apply_workspace_filter(&mut results, workspace_root.as_deref());
         sort_balanced_truncate(&mut results, plan.display_limit);
         observability::log_search_query(
             backend,
@@ -195,6 +236,7 @@ impl SearchHandler {
     fn execute_stream_query(
         &self,
         query: String,
+        workspace_root: Option<String>,
         limit: usize,
         first_batch_limit: usize,
         request_id: String,
@@ -209,6 +251,7 @@ impl SearchHandler {
         let plan = SearchPlan::from_limit(limit, first_batch_limit);
 
         let mut first_batch = self.fast_results(&query, &plan, &session)?;
+        Self::apply_workspace_filter(&mut first_batch, workspace_root.as_deref());
         sort_truncate(&mut first_batch, plan.first_batch_limit);
         let first_keys = result_keys(&first_batch);
         let first_batch_items = first_batch.clone();
@@ -235,6 +278,7 @@ impl SearchHandler {
                     first_batch_items,
                     plan,
                     cancel: cancel_for_worker,
+                    workspace_root,
                 });
             });
         } else {
@@ -264,6 +308,7 @@ impl SearchHandler {
             first_batch_items,
             plan,
             cancel,
+            workspace_root,
         } = request;
 
         let started = Instant::now();
@@ -305,6 +350,8 @@ impl SearchHandler {
                 combined.push(item);
             }
         }
+        // LAUNCH.2.A — restrict file/folder/app results to workspace root when set.
+        Self::apply_workspace_filter(&mut combined, workspace_root.as_deref());
         let pre_balance_count = combined.len();
         sort_balanced_truncate(&mut combined, plan.display_limit);
         let returned_count = combined.len();
@@ -785,6 +832,9 @@ struct StreamWorkerRequest {
     plan: SearchPlan,
     /// Cancel token set by SearchService when a newer request supersedes this one.
     cancel: Arc<AtomicBool>,
+    /// LAUNCH.2.A — workspace root to restrict file/folder/app results to.
+    /// `None` for global search (workspace had no project_root or `:global` prefix used).
+    workspace_root: Option<String>,
 }
 
 /// Score a command match.
@@ -973,6 +1023,20 @@ fn percent_encode(value: &str) -> String {
         .collect()
 }
 
+/// LAUNCH.2.A — strip a leading `:global` token (with or without trailing space)
+/// from the raw query. Returns `(cleaned_query, was_global)`. Pure so it can be
+/// unit-tested without constructing a SearchHandler.
+fn strip_global_prefix(raw: &str) -> (String, bool) {
+    let trimmed = raw.trim_start();
+    if trimmed == ":global" {
+        return (String::new(), true);
+    }
+    if let Some(rest) = trimmed.strip_prefix(":global ") {
+        return (rest.trim_start().to_string(), true);
+    }
+    (raw.to_string(), false)
+}
+
 fn stable_hash(value: &str) -> u64 {
     let mut h: u64 = 14695981039346656037;
     for b in value.bytes() {
@@ -1007,6 +1071,71 @@ mod tests {
             path: format!("{source}://{idx}"),
             score_breakdown: Default::default(),
         }
+    }
+
+    // ── LAUNCH.2.A workspace filter ─────────────────────────────────────────
+
+    fn make_typed_item(kind: ResultKind, path: &str) -> UiSearchItem {
+        let mut item = make_item("file", 100, 0);
+        item.kind = kind;
+        item.path = path.into();
+        item
+    }
+
+    #[test]
+    fn strip_global_prefix_handles_variants() {
+        assert_eq!(strip_global_prefix("readme"), ("readme".into(), false));
+        assert_eq!(strip_global_prefix(":global"), (String::new(), true));
+        assert_eq!(strip_global_prefix(":global foo"), ("foo".into(), true));
+        assert_eq!(strip_global_prefix("  :global  foo"), ("foo".into(), true));
+        // `:globalfoo` (no separator) should not be treated as the prefix.
+        assert_eq!(strip_global_prefix(":globalfoo"), (":globalfoo".into(), false));
+    }
+
+    #[test]
+    fn apply_workspace_filter_no_root_is_noop() {
+        let mut items = vec![
+            make_typed_item(ResultKind::File, "C:/foo/a.txt"),
+            make_typed_item(ResultKind::File, "D:/bar/b.txt"),
+        ];
+        SearchHandler::apply_workspace_filter(&mut items, None);
+        assert_eq!(items.len(), 2);
+    }
+
+    #[test]
+    fn apply_workspace_filter_keeps_files_under_root() {
+        let mut items = vec![
+            make_typed_item(ResultKind::File, "C:/proj/src/a.rs"),
+            make_typed_item(ResultKind::File, "C:/proj/src/b.rs"),
+            make_typed_item(ResultKind::File, "C:/other/c.rs"),
+        ];
+        SearchHandler::apply_workspace_filter(&mut items, Some("C:/proj"));
+        assert_eq!(items.len(), 2);
+        assert!(items.iter().all(|i| i.path.starts_with("C:/proj")));
+    }
+
+    #[test]
+    fn apply_workspace_filter_is_case_insensitive() {
+        let mut items = vec![
+            make_typed_item(ResultKind::File, "C:/Proj/src/a.rs"),
+            make_typed_item(ResultKind::File, "c:/proj/src/b.rs"),
+        ];
+        SearchHandler::apply_workspace_filter(&mut items, Some("c:/PROJ"));
+        assert_eq!(items.len(), 2);
+    }
+
+    #[test]
+    fn apply_workspace_filter_retains_non_file_kinds() {
+        let mut items = vec![
+            make_typed_item(ResultKind::File, "C:/other/a.rs"),
+            make_typed_item(ResultKind::Command, "command://help"),
+            make_typed_item(ResultKind::Note, "note://daily"),
+            make_typed_item(ResultKind::History, "history://abc"),
+        ];
+        SearchHandler::apply_workspace_filter(&mut items, Some("C:/proj"));
+        // File dropped (outside root); command/note/history retained.
+        assert_eq!(items.len(), 3);
+        assert!(items.iter().all(|i| i.kind != ResultKind::File));
     }
 
     #[test]
