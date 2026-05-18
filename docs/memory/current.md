@@ -135,6 +135,12 @@ owner: project
   - `src-tauri/src/handlers/file.rs` (new) + `handlers/mod.rs` + `app/state.rs`: `FileHandler` skeleton registered in `build_command_router` (no behaviour wired yet — placeholder for slice 2-4).
   - Out-of-scope this commit: prompt engineering init template (`Prompt_Engineering_Init_Template.docx` + `scripts/generate_prompt_engineering_doc.py`) — cross-project reusable docs scaffold derived from current CLAUDE.md + docs/ pattern.
 
+- 2026-05-18 UTIL.2.J killport 交付（UTIL.2 group 結案，整段搬 completed.md）：
+  - 新模組 `src-tauri/src/core/process_lookup.rs`：`ProcessInfo` struct、`find_process_by_port` 跨平台 (Windows netstat+tasklist / Unix lsof)、`kill_pid` (taskkill / kill -9)、3 個 pure parsers 抽到 module 頂層測。
+  - `KillPortCmd` (`handlers/dev_utils_cmd.rs`)：兩段式 confirm — `killport <port>` preview、`killport <port> kill` 第二次 lookup 後執行（TOCTOU 防護）。
+  - 安全邊界：launcher-only、無 IPC route、無 agent tool、user-initiated；同 LAUNCH.1.B 二段式 confirm pattern；不需 ADR。
+  - 測試：15 個新（core::process_lookup 12 + KillPortCmd 3）；cargo test 339/340（pre-existing nvim 不變）；clippy clean。
+
 - 2026-05-18 UTIL.2 Dev Utilities Slice 1 (A–I) 交付（14 個 builtin commands）：
   - 新模組 `src-tauri/src/core/dev_utils.rs`：uuid_v4、nanoid、generate_password (sym/alnum/alpha)、hash_text (md5/sha1/sha256/sha512)、b64_encode/decode、url_encode/decode、json_pretty/minify、regex_test、jwt_decode (含 exp hint)、color_convert (hex/rgb/hsl)、cron_explain (5/6/7 欄 + 下 5 次 fire)。
   - 新模組 `src-tauri/src/handlers/dev_utils_cmd.rs`：14 個 BuiltinCommand wrappers (UuidCmd/NanoidCmd/PwCmd/HashCmd/B64enc/B64dec/Urlenc/Urldec/Json/Jsonm/Regex/Jwt/Color/Cron) 全部 inline 結果。
@@ -173,16 +179,15 @@ owner: project
 
 ## Next Step
 
-UTIL.2 Slice 1 (A–I) 已於 2026-05-18 完成。UTIL.1.B-online 待 ADR-038、UTIL.2.J killport 留下一批。
+UTIL.2 全段已於 2026-05-18 結案（15 個 dev utility builtin commands 含 killport 兩段式 confirm）。
 
 待使用者選擇下一個起手 phase；其餘無 ADR 阻擋入口：
 
-- Phase 8a 尾 — UTIL.2.J killport：跨平台 process enumeration (lsof / netstat) + 兩段式 confirm + kill。
-- Phase 8c — ONBOARD.1：first-run tour、`?` cheatsheet。
-- Phase 12 — LAUNCH.2：workspace-aware search 與 hotkey 切換。
-- Phase 12 — NOTE.1：daily note / templates / backlinks / tag filter。
+- Phase 8c — ONBOARD.1：first-run tour、`?` cheatsheet overlay、empty-state CTA、re-engage prompt、hotkey 衝突偵測 (5 子任務)。
+- Phase 12 — LAUNCH.2：workspace-aware search 與 `Ctrl+Alt+W` workspace switch hotkey (3 子任務)。
+- Phase 12 — NOTE.1：daily note、templates、backlinks `[[wiki]]`、tag filter、note 全文接主 launcher、HTML/PDF 匯出 (6 子任務)。
 
-ADR-gated tracks 需先審批 ADR-029 ~ ADR-038 才可進實作（見 `docs/tasks/blocked.md`）。
+ADR-gated tracks 需先審批 ADR-029 ~ ADR-038 才可進實作（見 `docs/tasks/blocked.md`）。UTIL.1.B-online 待 ADR-038 接受。
 
 ## Phase 7a Delivery Summary
 

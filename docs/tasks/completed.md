@@ -270,3 +270,27 @@ Goal: 完成 LAUNCH.1 全段（搜到結果後右側 preview / 過濾 / 排名�
 - [x] 測試：`handlers::file::tests` 16 → 22 (+6 preview cases)；`core::preview::tests` 新增 7；`managers::search_manager` 新增 4 (breakdown variants)。完整測試 276/277 (1 pre-existing `note_lazyvim_missing_nvim_returns_inline_guidance` 不變)；`cargo clippy -- -D warnings` / `npx tsc --noEmit` / `npm run lint` 全清。
 
 - [x] 文件：`docs/security.md` 新增 §10 `Tauri Asset Protocol`：說明 scope `**` 與既有 file IPC 讀取邊界對齊、禁止用途、`file.preview` redact 邊界。
+
+## UTIL.2 — Dev Utilities (COMPLETE 2026-05-18)
+
+Goal: 補上 dev 日常 in-launcher 小工具，純 local computation。Phase 8a, no ADR.
+
+- [x] UTIL.2.A `uuid` / `nanoid <length>` 生成器（uuid v4 default；nanoid URL-safe alphabet `A-Za-z0-9_-`，預設 21 字、cap 256）。
+- [x] UTIL.2.B `pw <length> [sym|alnum|alpha]` password generator（從 alphabet 抽樣後額外 shuffle 一輪以消除 grouping bias）。
+- [x] UTIL.2.C `hash <md5|sha1|sha256|sha512> <text>`（4 個 algo 全用 RustCrypto crates）。
+- [x] UTIL.2.D `b64enc` / `b64dec` / `urlenc` / `urldec`（標準 base64 + URL percent-encoding；decode 失敗回明確錯誤）。
+- [x] UTIL.2.E `json` / `jsonm`（serde_json round-trip pretty / minify；invalid JSON 顯示 `invalid JSON: ...`）。
+- [x] UTIL.2.F `regex <pattern> <text>` tester（regex crate；列出 `[start..end] match`、捕獲群組、20 match cap）。
+- [x] UTIL.2.G `jwt <token>` 解 header + payload（URL-safe base64 + serde_json pretty；`exp` 過期 / 即將過期 hint 包 chrono UTC datetime）。
+- [x] UTIL.2.H `color <#hex|rgb()|hsl()>` 三制互轉（純 RGB↔HSL 數學；支援短 hex `#0f0` → `#00FF00`）。
+- [x] UTIL.2.I `cron <expr>` 解釋（cron crate；接受 5/6/7 欄、5 欄自動補 `0` seconds 前綴、列下 5 次觸發 local time）。
+- [x] UTIL.2.J `killport <port>` 兩段式 confirm + cross-platform kill。
+  - **`src-tauri/src/core/process_lookup.rs` (新檔)**: `ProcessInfo { pid, process_name, port, protocol }`；`find_process_by_port` 跨平台 dispatch（Windows `netstat -ano -p TCP` + `tasklist /FO CSV /NH` parse process name；Unix `lsof -nP -iTCP:PORT -sTCP:LISTEN`）；`kill_pid` 走 `taskkill /F /PID` 或 `kill -9`。Pure parsers `parse_netstat_tcp_listen` / `parse_tasklist_csv` / `parse_lsof_listen` 抽到 module top-level 給單元測試。
+  - **`src-tauri/src/handlers/dev_utils_cmd.rs::KillPortCmd`**: `killport <port>` → preview（pid + process_name + protocol + 操作提示）；`killport <port> kill` → 第二次 lookup 後實際 kill（second lookup 是設計選擇，避免 TOCTOU race 用陳舊 pid）。
+  - 安全邊界：launcher-only（無 IPC route、無 agent tool），與 LAUNCH.1.B 二段式 confirm 同 pattern，不需 ADR。`kill_pid(0)` / `find_process_by_port(0)` 拒絕。
+
+實作摘要：
+- 新模組 `src-tauri/src/core/dev_utils.rs`（pure-fn 計算層，無 manager actor）+ `src-tauri/src/handlers/dev_utils_cmd.rs`（15 個 BuiltinCommand wrappers，全部 `CommandUiType::Inline`）+ `src-tauri/src/core/process_lookup.rs`（killport 子系統）。`state.rs::build_builtin_registry` 註冊 15 個指令。
+- 新 Cargo deps：`base64 = "0.22"`、`regex = "1"`、`md-5 = "0.10"`、`sha1 = "0.10"`、`cron = "0.12"`、`urlencoding = "2"`、`rand = "0.8"`。`uuid` / `sha2` / `chrono` / `serde_json` 沿用既有。
+- 測試：core::dev_utils 22、handlers::dev_utils_cmd 12 (含 killport 3)、core::process_lookup 12，總計 46 個新測試。完整測試 339/340（pre-existing `note_lazyvim_missing_nvim_returns_inline_guidance` 不變）；`cargo clippy -- -D warnings` 清。
+- 未做（v2 / 之後）：clipboard fallback for hash/b64/json input（前端工作）、regex replace preview、color swatch 預覽。

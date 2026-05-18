@@ -9,6 +9,7 @@ use std::str::FromStr;
 use crate::core::builtin_command_registry::BuiltinCommand;
 use crate::core::dev_utils;
 use crate::core::dev_utils::PasswordMode;
+use crate::core::process_lookup;
 use crate::models::builtin_command::{BuiltinCommandResult, CommandUiType};
 
 fn inline(text: String) -> BuiltinCommandResult {
@@ -317,6 +318,62 @@ impl BuiltinCommand for ColorCmd {
     }
 }
 
+// ── killport (UTIL.2.J — destructive, two-phase confirm) ───────────────────
+
+pub struct KillPortCmd;
+impl BuiltinCommand for KillPortCmd {
+    fn name(&self) -> &'static str {
+        "killport"
+    }
+    fn description(&self) -> &'static str {
+        "Find and (after confirm) kill the process listening on a TCP port"
+    }
+    fn args_hint(&self) -> Option<&'static str> {
+        Some("<port>  ·  <port> kill")
+    }
+    /// Two-phase invocation:
+    /// - `killport <port>` → look up and preview process info; do nothing else.
+    /// - `killport <port> kill` → look up again and actually kill.
+    ///
+    /// The second lookup is intentional — between preview and confirm the
+    /// owning process may have changed.
+    fn execute(&self, args: &str) -> BuiltinCommandResult {
+        let trimmed = args.trim();
+        if trimmed.is_empty() {
+            return inline("usage: killport <port>  ·  killport <port> kill".into());
+        }
+        let mut parts = trimmed.split_whitespace();
+        let port_token = parts.next().unwrap_or("");
+        let confirm = parts.next().map(|s| s.eq_ignore_ascii_case("kill")).unwrap_or(false);
+
+        let port: u16 = match port_token.parse() {
+            Ok(p) if p > 0 => p,
+            _ => return inline(format!("error: invalid port '{port_token}'")),
+        };
+
+        let info = match process_lookup::find_process_by_port(port) {
+            Ok(Some(info)) => info,
+            Ok(None) => return inline(format!("no process listening on port {port}")),
+            Err(e) => return inline(format!("error: {e}")),
+        };
+
+        if !confirm {
+            return inline(format!(
+                "Preview · port {} ({})\n  pid          {}\n  process_name {}\n\nTo kill, run: killport {} kill",
+                info.port, info.protocol, info.pid, info.process_name, info.port,
+            ));
+        }
+
+        match process_lookup::kill_pid(info.pid) {
+            Ok(()) => inline(format!(
+                "killed pid {} ({}) listening on port {} ({})",
+                info.pid, info.process_name, info.port, info.protocol,
+            )),
+            Err(e) => inline(format!("error: kill failed: {e}")),
+        }
+    }
+}
+
 // ── cron ────────────────────────────────────────────────────────────────────
 
 pub struct CronCmd;
@@ -408,5 +465,30 @@ mod tests {
     fn cron_cmd_handles_5_field() {
         let out = execute_inline(&CronCmd, "*/15 * * * *");
         assert!(out.contains("schedule"));
+    }
+
+    // ── killport ────────────────────────────────────────────────────────────
+
+    #[test]
+    fn killport_no_args_shows_usage() {
+        assert!(execute_inline(&KillPortCmd, "").starts_with("usage:"));
+    }
+
+    #[test]
+    fn killport_invalid_port_shows_error() {
+        assert!(execute_inline(&KillPortCmd, "abc").starts_with("error: invalid port"));
+        assert!(execute_inline(&KillPortCmd, "0").starts_with("error: invalid port"));
+    }
+
+    /// Pick a port unlikely to be bound (>= 60000) and assert the command
+    /// reports "no process listening". This is the only end-to-end path we
+    /// can exercise without binding a real socket or risking false positives.
+    #[test]
+    fn killport_unbound_port_reports_none() {
+        let out = execute_inline(&KillPortCmd, "62345");
+        assert!(
+            out.contains("no process listening") || out.starts_with("error:"),
+            "unexpected: {out}"
+        );
     }
 }

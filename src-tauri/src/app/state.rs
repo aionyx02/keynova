@@ -23,8 +23,8 @@ use crate::handlers::{
     },
     calculator::CalculatorHandler,
     dev_utils_cmd::{
-        B64decCmd, B64encCmd, ColorCmd, CronCmd, HashCmd, JsonCmd, JsonmCmd, JwtCmd, NanoidCmd,
-        PwCmd, RegexCmd, UrldecCmd, UrlencCmd, UuidCmd,
+        B64decCmd, B64encCmd, ColorCmd, CronCmd, HashCmd, JsonCmd, JsonmCmd, JwtCmd, KillPortCmd,
+        NanoidCmd, PwCmd, RegexCmd, UrldecCmd, UrlencCmd, UuidCmd,
     },
     feature::FeatureHandler,
     file::FileHandler,
@@ -251,6 +251,7 @@ fn build_builtin_registry(
     reg.register(Box::new(JwtCmd));
     reg.register(Box::new(ColorCmd));
     reg.register(Box::new(CronCmd));
+    reg.register(Box::new(KillPortCmd));
     drop(reg);
     registry
 }

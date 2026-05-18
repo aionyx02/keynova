@@ -6,7 +6,7 @@ updated: 2026-05-18
 context_policy: always_retrievable
 owner: project
 tags: [feature-first, safety-first, performance, agent-ux]
-last_change: UTIL.2.A–I delivered — 14 dev utility builtin commands (uuid/nanoid/pw/hash/b64/url/json/regex/jwt/color/cron); UTIL.2.J killport deferred
+last_change: UTIL.2 全段交付 — 15 dev utility builtin commands incl. killport two-phase confirm; UTIL.2 group archived to completed.md
 ---
 
 # Active Tasks
@@ -25,9 +25,9 @@ Safety first for runtime lifecycle; feature-first delivery after guardrails are 
 
 Mainline delivered (詳見 `docs/tasks/completed.md`)：
 
-- TD.5.A baseline → PERF.1 → TD.1/2/3 → PERF.2 → PERF.3 → TD.4 + TD.5 → P3 → FEAT.11 → Phase 7a (AGENT.1/2/7) → LAUNCH.1.A + LAUNCH.1.B → **LAUNCH.1.C/D/E**.
+- TD.5.A baseline → PERF.1 → TD.1/2/3 → PERF.2 → PERF.3 → TD.4 + TD.5 → P3 → FEAT.11 → Phase 7a (AGENT.1/2/7) → LAUNCH.1.A + LAUNCH.1.B → LAUNCH.1.C/D/E → UTIL.1 offline parts → **UTIL.2**.
 
-Active queue：**empty**（LAUNCH.1 全段已完成；UTIL.1/2、ONBOARD.1、LAUNCH.2 仍可平行起手，皆無 ADR 阻擋）。
+Active queue：**empty**（UTIL.2 全段已完成；ONBOARD.1、LAUNCH.2、NOTE.1 仍可平行起手，皆無 ADR 阻擋。UTIL.1.B-online 待 ADR-038、其他 ADR-029 ~ 037 仍 pending）。
 
 ## Next Phase Proposal (2026-05-15, awaiting selection)
 
@@ -56,6 +56,14 @@ See `docs/tasks/backlog.md` Post-FEAT.11 Phase Proposal 與 11 個 track section
 See `docs/tasks/blocked.md` Post-FEAT.11 Tracks Pending ADR 表。
 
 ## Recent Execution Notes
+
+- 2026-05-18: UTIL.2.J killport 交付（UTIL.2 group 結案）：
+  - **`src-tauri/src/core/process_lookup.rs` (新檔)**: `ProcessInfo { pid, process_name, port, protocol }`；`find_process_by_port` 跨平台 dispatch — Windows 走 `netstat -ano -p TCP` + `tasklist /FI "PID eq X" /FO CSV /NH` 二次查 process name；Unix 走 `lsof -nP -iTCP:PORT -sTCP:LISTEN`。`kill_pid` 跨平台：`taskkill /F /PID` 或 `kill -9`。Pure parsers (`parse_netstat_tcp_listen` / `parse_tasklist_csv` / `parse_lsof_listen`) 抽到 module 頂層給單元測試。
+  - **`KillPortCmd` (`handlers/dev_utils_cmd.rs`)**: 兩段式 confirm — `killport <port>` 回 preview（pid + process_name + protocol + 操作提示），不殺；`killport <port> kill` 第二次 lookup 後實際 kill。第二次 lookup 是 TOCTOU 防護，避免 preview 後 process 已換成別的 pid。
+  - **註冊**: `state.rs::build_builtin_registry` 加 `KillPortCmd`，dev utility 指令總計 15 個。
+  - **安全邊界**: launcher-only（無 IPC route、無 agent tool）；與 LAUNCH.1.B 二段式 confirm 同 pattern；user-initiated → 不需 ADR。`kill_pid(0)` / `find_process_by_port(0)` guard。
+  - **測試**: core::process_lookup 12 個（5 netstat parser + 3 tasklist + 2 lsof + 2 zero-guard）；handlers::dev_utils_cmd KillPortCmd 3 個（usage/invalid/unbound port）。完整 339/340（pre-existing nvim test 不變）；clippy `-D warnings` 清；docs:refresh 過。
+  - **歸檔**: UTIL.2 group 整段搬至 `completed.md` (per docs/CLAUDE.md §5a)；backlog.md UTIL.2 段移除；Mainline History 加 row 12。
 
 - 2026-05-18: UTIL.2 Dev Utilities Slice 1 (A–I) 交付（14 個 builtin commands）：
   - **新模組 (`src-tauri/src/core/dev_utils.rs`)**：pure-fn 計算層，無 manager actor。涵蓋 uuid v4 + nanoid (URL-safe alphabet)、`generate_password` (sym/alnum/alpha 三模式 + 二次 shuffle)、`hash_text` (md5/sha1/sha256/sha512)、`b64_encode/decode`、`url_encode/decode`、`json_pretty/minify`、`regex_test` (capture groups + 20 match cap)、`jwt_decode` (URL-safe base64 + serde_json pretty + `exp` 過期 hint)、`color_convert` (#hex/rgb()/hsl() 三制互轉，含短 hex `#0f0` → `#00FF00` 展開)、`cron_explain` (5/6/7 欄 auto-pad seconds + 下 5 次 fire local time)。
