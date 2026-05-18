@@ -13,6 +13,11 @@ import { CommandSuggestions } from "./CommandSuggestions";
 import { PanelRegistry } from "./panel/PanelRegistry";
 import { WorkspaceIndicator } from "./WorkspaceIndicator";
 import { SecondaryActionMenu } from "./SecondaryActionMenu";
+import { FilterChips, loadFilters, saveFilters } from "./FilterChips";
+import { PreviewPane } from "./PreviewPane";
+import { RankTooltip } from "./RankTooltip";
+import { useFilePreview, isPreviewable } from "../hooks/useFilePreview";
+import { PALETTE_WIDTH_NARROW, PALETTE_WIDTH_WIDE } from "../hooks/useWindowResize";
 import { applySourceQuotas, mergeSearchResults, sortSearchResults } from "../utils/search";
 import {
   basenameFromPath,
@@ -22,7 +27,7 @@ import {
 } from "../utils/secondaryActions";
 import { IPC } from "../ipc/routes";
 import type { SearchBackendInfo, SettingEntry } from "../ipc/types";
-import type { SearchChunkDiagnostics, SearchChunkPayload, SearchErrorPayload, SearchResult } from "../types/search";
+import type { SearchChunkDiagnostics, SearchChunkPayload, SearchErrorPayload, SearchResult, SourceFilter } from "../types/search";
 import type { ActionRef } from "../types/search";
 import type { BuiltinCommandResult } from "../hooks/useCommands";
 import type { WorkspaceState } from "../hooks/useWorkspace";
@@ -143,6 +148,24 @@ export function CommandPalette() {
   const [pendingConfirm, setPendingConfirm] = useState<SecondaryActionId | null>(null);
   const [inlineInput, setInlineInput] = useState<{ for: "rename" | "move"; value: string } | null>(null);
 
+  // LAUNCH.1.D — source-type filter chips (multi-select, persisted to localStorage).
+  const [activeFilters, setActiveFilters] = useState<Set<SourceFilter>>(() => loadFilters());
+  useEffect(() => {
+    saveFilters(activeFilters);
+  }, [activeFilters]);
+
+  // LAUNCH.1.C/E — settings as state (consumed during render to gate UI).
+  const [previewEnabled, setPreviewEnabled] = useState(true);
+  const [showRankBreakdown, setShowRankBreakdown] = useState(true);
+
+  // LAUNCH.1.C — dynamic palette width: 640 normally, 960 when preview pane visible.
+  const paletteWidthRef = useRef<number>(PALETTE_WIDTH_NARROW);
+
+  // LAUNCH.1.E — rank tooltip hover state. `rect` is captured at the moment the
+  // hover delay fires so subsequent renders can read it without touching a ref.
+  const [hover, setHover] = useState<{ index: number; rect: DOMRect } | null>(null);
+  const hoverTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   const inputRef = useRef<HTMLInputElement>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const argDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -168,7 +191,7 @@ export function CommandPalette() {
     expandedMetadataRef.current = expandedMetadata;
   });
 
-  const { containerRef, scheduleWindowResize } = useWindowResize(modeRef, cmdResultRef);
+  const { containerRef, scheduleWindowResize } = useWindowResize(modeRef, cmdResultRef, paletteWidthRef);
   const { metadataByPath, iconsByKey } = useSearchMetadata(results, selected);
 
 
@@ -213,6 +236,9 @@ export function CommandPalette() {
       if (copyResetRef.current) {
         clearTimeout(copyResetRef.current);
       }
+      if (hoverTimerRef.current) {
+        clearTimeout(hoverTimerRef.current);
+      }
     };
   }, []);
 
@@ -227,6 +253,14 @@ export function CommandPalette() {
         if (Number.isFinite(parsed) && parsed > 0) {
           searchLimitRef.current = parsed;
         }
+        const previewEnabledSetting = entries.find((entry) => entry.key === "search.preview_enabled")?.value;
+        if (previewEnabledSetting !== undefined) {
+          setPreviewEnabled(previewEnabledSetting !== "false");
+        }
+        const showRankSetting = entries.find((entry) => entry.key === "search.show_rank_breakdown")?.value;
+        if (showRankSetting !== undefined) {
+          setShowRankBreakdown(showRankSetting !== "false");
+        }
       } catch {
         // keep current search limit
       }
@@ -234,9 +268,12 @@ export function CommandPalette() {
 
     void refreshLauncherSettings();
     const unlisten = listen<ConfigReloadedPayload>("config-reloaded", (event) => {
+      const keys = event.payload.changed_keys;
       if (
-        event.payload.changed_keys.length === 0 ||
-        event.payload.changed_keys.includes("launcher.max_results")
+        keys.length === 0 ||
+        keys.includes("launcher.max_results") ||
+        keys.includes("search.preview_enabled") ||
+        keys.includes("search.show_rank_breakdown")
       ) {
         void refreshLauncherSettings();
       }
@@ -434,6 +471,7 @@ export function CommandPalette() {
     mode,
     query,
     results.length,
+    activeFilters,
     cmdSuggestions.length,
     cmdResult,
     argSuggestions.length,
@@ -751,7 +789,7 @@ export function CommandPalette() {
     if (mode === "search") {
       // Menu open: route arrows/Enter/Left to menu actions; let typed text fall through.
       if (secondaryMenuOpen) {
-        const r = results[selected] ?? null;
+        const r = visibleResults[safeSelected] ?? null;
         const enabled = r ? buildSecondaryActions(r).filter((it) => !it.disabled) : [];
         if (e.key === "ArrowDown") {
           e.preventDefault();
@@ -792,7 +830,7 @@ export function CommandPalette() {
       if (isCopyShortcut(e)) {
         const target = e.currentTarget as HTMLInputElement;
         if (target.selectionStart !== target.selectionEnd) return;
-        const r = results[selected] ?? null;
+        const r = visibleResults[safeSelected] ?? null;
         if (isCopyableLocationResult(r)) {
           e.preventDefault();
           void copyResultLocation(r);
@@ -804,7 +842,7 @@ export function CommandPalette() {
         const target = e.currentTarget as HTMLInputElement;
         const atEnd = target.selectionStart === target.value.length
           && target.selectionEnd === target.value.length;
-        const r = results[selected] ?? null;
+        const r = visibleResults[safeSelected] ?? null;
         if (atEnd && r) {
           e.preventDefault();
           setSecondaryMenuOpen(true);
@@ -812,7 +850,7 @@ export function CommandPalette() {
           return;
         }
       }
-      if (e.key === "ArrowDown") { e.preventDefault(); setSelected((i) => Math.min(i + 1, results.length - 1)); }
+      if (e.key === "ArrowDown") { e.preventDefault(); setSelected((i) => Math.min(i + 1, visibleResults.length - 1)); }
       else if (e.key === "ArrowUp") { e.preventDefault(); setSelected((i) => Math.max(i - 1, 0)); }
       else if (e.key === "Enter") {
         e.preventDefault();
@@ -820,7 +858,7 @@ export function CommandPalette() {
           void runPipeline(query);
           return;
         }
-        const r = results[selected];
+        const r = visibleResults[safeSelected];
         if (r) {
           if (e.shiftKey) void runFirstSecondary(r);
           else void launchResult(r);
@@ -863,7 +901,24 @@ export function CommandPalette() {
     }
   }
 
-  const hasResults = results.length > 0 && mode === "search";
+  // LAUNCH.1.D — derived view: filter chips strip the result list down to active kinds.
+  // Empty filter set means "show all". `folder` is grouped with the `file` chip.
+  // No useMemo: filter is O(n) over a small list capped at launcher.max_results.
+  const visibleResults: SearchResult[] = activeFilters.size === 0
+    ? results
+    : results.filter((r) => {
+        if (r.kind === "folder") return activeFilters.has("file");
+        return activeFilters.has(r.kind as SourceFilter);
+      });
+
+  // Read-side clamp so a stale `selected` (e.g. after filter toggle shrinks the
+  // list) doesn't index past the array. User input via ArrowDown/Up already
+  // clamps against `visibleResults.length` so no state-sync effect is needed.
+  const safeSelected = visibleResults.length === 0
+    ? 0
+    : Math.min(selected, visibleResults.length - 1);
+
+  const hasResults = visibleResults.length > 0 && mode === "search";
   const hasCmdSuggestions = cmdSuggestions.length > 0 && mode === "command" && !cmdResult && !isArgsPhase;
   const hasArgSuggestions = isArgsPhase && argSuggestions.length > 0 && !cmdResult;
 
@@ -887,8 +942,29 @@ export function CommandPalette() {
   const terminalLaunchSpec =
     cmdResult?.ui_type.type === "Terminal" ? cmdResult.ui_type.value : null;
   const panelKey = `${cmdResult ? "command" : "live"}:${activePanelName}:${panelInitialArgs}`;
-  const selectedResult = results[selected] ?? null;
+  const selectedResult = visibleResults[safeSelected] ?? null;
   const selectedMetadata = selectedResult ? metadataByPath[selectedResult.path] : null;
+
+  // LAUNCH.1.C — preview pane only renders for previewable kinds. The palette
+  // window expands to PALETTE_WIDTH_WIDE while this is true and snaps back
+  // otherwise; useWindowResize reads `paletteWidthRef.current` each tick.
+  const showPreview =
+    previewEnabled &&
+    !!selectedResult &&
+    (selectedResult.kind === "file" ||
+      selectedResult.kind === "folder" ||
+      selectedResult.kind === "note") &&
+    mode === "search" &&
+    visibleResults.length > 0;
+
+  useEffect(() => {
+    paletteWidthRef.current = showPreview ? PALETTE_WIDTH_WIDE : PALETTE_WIDTH_NARROW;
+    scheduleWindowResize();
+  }, [showPreview, scheduleWindowResize]);
+
+  const { previewByPath } = useFilePreview(visibleResults, safeSelected);
+  const previewForSelected = selectedResult ? previewByPath[selectedResult.path] : undefined;
+  const previewLoading = isPreviewable(selectedResult) && !previewForSelected;
   const menuItems = useMemo(
     () => (selectedResult ? buildSecondaryActions(selectedResult) : []),
     [selectedResult],
@@ -1009,82 +1085,129 @@ export function CommandPalette() {
             </div>
           </div>
 
-          {/* Search results */}
-          {hasResults && (
+          {/* Search results — show chip bar whenever raw results exist so the user can always clear filters */}
+          {mode === "search" && results.length > 0 && visibleResults.length === 0 && (
             <div className="relative bg-gray-900/95 backdrop-blur-md rounded-b-xl shadow-2xl overflow-hidden">
-              <ul className="max-h-[352px] overflow-y-auto py-1">
-                {results.map((r, i) => {
-                  const badge = KIND_BADGE[r.kind] ?? KIND_BADGE.file;
-                  const icon = r.icon_key ? iconsByKey[r.icon_key] : null;
-                  return (
-                    <li
-                      key={r.path}
-                      ref={(el) => { if (i === selected && el) el.scrollIntoView({ block: "nearest" }); }}
-                      onMouseDown={() => void launchResult(r)}
-                      onMouseEnter={() => setSelected(i)}
-                      className={`flex items-center gap-2 px-4 py-2.5 cursor-pointer text-sm transition-colors ${
-                        i === selected ? "bg-blue-600/70 text-white" : "text-gray-300 hover:bg-white/8"
-                      }`}
-                    >
-                      {icon ? (
-                        <img
-                          src={icon.data_url}
-                          alt=""
-                          className="h-6 w-6 shrink-0 rounded"
-                          draggable={false}
-                        />
-                      ) : (
-                        <span className={`shrink-0 rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${badge.cls}`}>
-                          {badge.label}
-                        </span>
-                      )}
-                      <span className={`truncate font-medium${hasEncodingError(r.title ?? r.name) ? " text-gray-500 italic" : ""}`}>
-                        {hasEncodingError(r.title ?? r.name) ? "(無法解碼的名稱)" : (r.title ?? r.name)}
-                      </span>
-                      {Boolean(r.secondary_action_count) && (
-                        <span className="shrink-0 text-[10px] text-gray-500">+{r.secondary_action_count}</span>
-                      )}
-                      {r.kind !== "app" && (
-                        <span className="ml-auto shrink-0 max-w-[220px] truncate text-xs text-gray-500">
-                          {hasEncodingError(r.subtitle ?? r.path) ? "(無法解碼的路徑)" : (r.subtitle ?? r.path)}
-                        </span>
-                      )}
-                    </li>
-                  );
-                })}
-              </ul>
+              <FilterChips active={activeFilters} onChange={setActiveFilters} />
+              <div className="px-4 py-3 text-sm text-gray-400">
+                Filter hides all {results.length} results.
+                <button
+                  type="button"
+                  onClick={() => setActiveFilters(new Set())}
+                  className="ml-2 text-sky-300 hover:text-sky-200 underline"
+                >
+                  Clear filter
+                </button>
+              </div>
+            </div>
+          )}
+          {hasResults && (
+            <div className="bg-gray-900/95 backdrop-blur-md rounded-b-xl shadow-2xl overflow-hidden">
+              <FilterChips active={activeFilters} onChange={setActiveFilters} />
+              <div className={showPreview ? "grid grid-cols-[1fr_320px]" : ""}>
+                {/* Left column — result list + secondary menu overlay anchored here */}
+                <div className="relative min-w-0">
+                  <ul className="max-h-[352px] overflow-y-auto py-1">
+                    {visibleResults.map((r, i) => {
+                      const badge = KIND_BADGE[r.kind] ?? KIND_BADGE.file;
+                      const icon = r.icon_key ? iconsByKey[r.icon_key] : null;
+                      return (
+                        <li
+                          key={r.path}
+                          ref={(el) => { if (i === safeSelected && el) el.scrollIntoView({ block: "nearest" }); }}
+                          onMouseDown={() => void launchResult(r)}
+                          onMouseEnter={(e) => {
+                            setSelected(i);
+                            if (!showRankBreakdown) return;
+                            const rect = e.currentTarget.getBoundingClientRect();
+                            if (hoverTimerRef.current) clearTimeout(hoverTimerRef.current);
+                            hoverTimerRef.current = setTimeout(() => {
+                              setHover({ index: i, rect });
+                            }, 400);
+                          }}
+                          onMouseLeave={() => {
+                            if (hoverTimerRef.current) {
+                              clearTimeout(hoverTimerRef.current);
+                              hoverTimerRef.current = null;
+                            }
+                            setHover(null);
+                          }}
+                          className={`flex items-center gap-2 px-4 py-2.5 cursor-pointer text-sm transition-colors ${
+                            i === safeSelected ? "bg-blue-600/70 text-white" : "text-gray-300 hover:bg-white/8"
+                          }`}
+                        >
+                          {icon ? (
+                            <img
+                              src={icon.data_url}
+                              alt=""
+                              className="h-6 w-6 shrink-0 rounded"
+                              draggable={false}
+                            />
+                          ) : (
+                            <span className={`shrink-0 rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${badge.cls}`}>
+                              {badge.label}
+                            </span>
+                          )}
+                          <span className={`truncate font-medium${hasEncodingError(r.title ?? r.name) ? " text-gray-500 italic" : ""}`}>
+                            {hasEncodingError(r.title ?? r.name) ? "(無法解碼的名稱)" : (r.title ?? r.name)}
+                          </span>
+                          {Boolean(r.secondary_action_count) && (
+                            <span className="shrink-0 text-[10px] text-gray-500">+{r.secondary_action_count}</span>
+                          )}
+                          {r.kind !== "app" && (
+                            <span className="ml-auto shrink-0 max-w-[220px] truncate text-xs text-gray-500">
+                              {hasEncodingError(r.subtitle ?? r.path) ? "(無法解碼的路徑)" : (r.subtitle ?? r.path)}
+                            </span>
+                          )}
+                        </li>
+                      );
+                    })}
+                  </ul>
 
-              {/* LAUNCH.1.A — Secondary action menu overlay (keyboard-driven) */}
-              {secondaryMenuOpen && selectedResult && menuItems.length > 0 && (
-                <SecondaryActionMenu
-                  result={selectedResult}
-                  items={menuItems}
-                  focusedIndex={menuFocusedIndex}
-                  onSelect={(id) => void handleSecondaryAction(id, selectedResult)}
-                  onHoverEnabled={setMenuFocusedIndex}
-                  pendingConfirmId={pendingConfirm}
-                  inlineInput={inlineInput}
-                  onInlineInputChange={(value) =>
-                    setInlineInput((prev) => (prev ? { ...prev, value } : prev))
-                  }
-                  onInlineInputKeyDown={(e) => {
-                    if (e.key === "Enter") {
-                      e.preventDefault();
-                      e.stopPropagation();
-                      if (inlineInput && selectedResult) {
-                        void handleSecondaryAction(inlineInput.for, selectedResult);
+                  {/* LAUNCH.1.A — Secondary action menu overlay (keyboard-driven, anchored to left column) */}
+                  {secondaryMenuOpen && selectedResult && menuItems.length > 0 && (
+                    <SecondaryActionMenu
+                      result={selectedResult}
+                      items={menuItems}
+                      focusedIndex={menuFocusedIndex}
+                      onSelect={(id) => void handleSecondaryAction(id, selectedResult)}
+                      onHoverEnabled={setMenuFocusedIndex}
+                      pendingConfirmId={pendingConfirm}
+                      inlineInput={inlineInput}
+                      onInlineInputChange={(value) =>
+                        setInlineInput((prev) => (prev ? { ...prev, value } : prev))
                       }
-                    } else if (e.key === "Escape") {
-                      e.preventDefault();
-                      e.stopPropagation();
-                      setInlineInput(null);
-                      setPendingConfirm(null);
-                    }
-                  }}
-                />
-              )}
+                      onInlineInputKeyDown={(e) => {
+                        if (e.key === "Enter") {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          if (inlineInput && selectedResult) {
+                            void handleSecondaryAction(inlineInput.for, selectedResult);
+                          }
+                        } else if (e.key === "Escape") {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          setInlineInput(null);
+                          setPendingConfirm(null);
+                        }
+                      }}
+                    />
+                  )}
+                </div>
 
-              {/* LAUNCH.1.A — Show metadata expanded view (toggled from action menu) */}
+                {/* LAUNCH.1.C — right preview column */}
+                {showPreview && (
+                  <div className="max-h-[352px] border-l border-gray-700/50 bg-gray-950/40">
+                    <PreviewPane
+                      result={selectedResult}
+                      preview={previewForSelected}
+                      loading={previewLoading}
+                    />
+                  </div>
+                )}
+              </div>
+
+              {/* LAUNCH.1.A — Show metadata expanded view (toggled from action menu, spans both columns) */}
               {expandedMetadata && selectedResult && (
                 <div className="border-t border-gray-700/50 px-4 py-2 text-xs text-gray-400 bg-gray-950/60">
                   <div className="mb-1 flex items-center justify-between">
@@ -1130,6 +1253,13 @@ export function CommandPalette() {
               </div>
             </div>
           )}
+
+          {/* LAUNCH.1.E — rank tooltip (rendered last so it overlays everything) */}
+          <RankTooltip
+            breakdown={hover ? visibleResults[hover.index]?.score_breakdown : undefined}
+            anchorRect={hover ? hover.rect : null}
+            visible={hover !== null}
+          />
 
           {/* Command suggestions */}
           {hasCmdSuggestions && (

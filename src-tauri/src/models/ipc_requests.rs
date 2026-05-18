@@ -119,3 +119,12 @@ fn default_hash_algo() -> String {
 pub(crate) struct FileOpenAsTextRequest {
     pub path: String,
 }
+
+#[derive(Deserialize)]
+pub(crate) struct FilePreviewRequest {
+    pub path: String,
+    #[serde(default)]
+    pub max_bytes: Option<usize>,
+    #[serde(default)]
+    pub max_lines: Option<usize>,
+}

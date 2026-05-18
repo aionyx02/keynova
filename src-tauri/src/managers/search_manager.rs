@@ -232,13 +232,17 @@ impl SearchManager {
         }
     }
 
-    pub fn rank_boost(&self, source: &str, path: &str) -> i64 {
+    /// Returns `(recency_boost, frequency_boost)` for the given key.
+    ///
+    /// The UI surfaces these as `score_breakdown` so the user can see "why this
+    /// rank" (LAUNCH.1.E). Session-only — values reset on app restart.
+    pub fn rank_boost_breakdown(&self, source: &str, path: &str) -> (i64, i64) {
         let key = rank_key(source, path);
         let Ok(memory) = self.rank_memory.lock() else {
-            return 0;
+            return (0, 0);
         };
         let Some(entry) = memory.get(&key) else {
-            return 0;
+            return (0, 0);
         };
         let age_secs = now_secs().saturating_sub(entry.last_seen_secs);
         let recency = if age_secs < 60 * 60 {
@@ -250,7 +254,8 @@ impl SearchManager {
         } else {
             0
         };
-        recency + (entry.count.min(10) as i64 * 4)
+        let frequency = entry.count.min(10) as i64 * 4;
+        (recency, frequency)
     }
 
     pub fn cancel_generation(&self) -> u64 {
@@ -536,8 +541,57 @@ mod tests {
     fn rank_memory_boosts_recent_selection() {
         let app_manager = Arc::new(Mutex::new(AppManager::new()));
         let manager = SearchManager::new_with_config(app_manager, Some("app_cache"), None);
-        assert_eq!(manager.rank_boost("file", "C:/tmp/a.txt"), 0);
+        let (r0, f0) = manager.rank_boost_breakdown("file", "C:/tmp/a.txt");
+        assert_eq!((r0, f0), (0, 0));
         manager.record_selection("file", "C:/tmp/a.txt");
-        assert!(manager.rank_boost("file", "C:/tmp/a.txt") > 0);
+        let (r1, f1) = manager.rank_boost_breakdown("file", "C:/tmp/a.txt");
+        assert!(r1 + f1 > 0);
+    }
+
+    #[test]
+    fn rank_boost_breakdown_missing_entry_returns_zero() {
+        let app_manager = Arc::new(Mutex::new(AppManager::new()));
+        let manager = SearchManager::new_with_config(app_manager, Some("app_cache"), None);
+        assert_eq!(manager.rank_boost_breakdown("file", "C:/tmp/missing.txt"), (0, 0));
+    }
+
+    #[test]
+    fn rank_boost_breakdown_fresh_entry_yields_recency_and_frequency() {
+        let app_manager = Arc::new(Mutex::new(AppManager::new()));
+        let manager = SearchManager::new_with_config(app_manager, Some("app_cache"), None);
+        for _ in 0..3 {
+            manager.record_selection("file", "C:/tmp/a.txt");
+        }
+        let (recency, frequency) = manager.rank_boost_breakdown("file", "C:/tmp/a.txt");
+        assert_eq!(recency, 25, "fresh selection should give max recency");
+        assert_eq!(frequency, 12, "count=3 should give frequency = 3*4 = 12");
+    }
+
+    #[test]
+    fn rank_boost_breakdown_frequency_capped_at_ten() {
+        let app_manager = Arc::new(Mutex::new(AppManager::new()));
+        let manager = SearchManager::new_with_config(app_manager, Some("app_cache"), None);
+        for _ in 0..15 {
+            manager.record_selection("file", "C:/tmp/a.txt");
+        }
+        let (_, frequency) = manager.rank_boost_breakdown("file", "C:/tmp/a.txt");
+        assert_eq!(frequency, 40, "count.min(10) * 4 = 40 even with 15 selections");
+    }
+
+    #[test]
+    fn rank_boost_breakdown_decays_after_recency_windows() {
+        // Reaching into the rank_memory directly to forge an aged timestamp keeps
+        // this test deterministic without sleeping for hours of wall-clock time.
+        let app_manager = Arc::new(Mutex::new(AppManager::new()));
+        let manager = SearchManager::new_with_config(app_manager, Some("app_cache"), None);
+        manager.record_selection("file", "C:/tmp/a.txt");
+        {
+            let mut mem = manager.rank_memory.lock().unwrap();
+            let entry = mem.get_mut("file:C:/tmp/a.txt").unwrap();
+            entry.last_seen_secs = entry.last_seen_secs.saturating_sub(8 * 24 * 60 * 60);
+        }
+        let (recency, frequency) = manager.rank_boost_breakdown("file", "C:/tmp/a.txt");
+        assert_eq!(recency, 0, "8-day-old selection should give 0 recency");
+        assert_eq!(frequency, 4, "one selection should give frequency = 1*4 = 4");
     }
 }

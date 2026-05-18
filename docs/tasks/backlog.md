@@ -25,6 +25,9 @@ tags: [feature-first, roadmap, performance, safety]
 6. TD.4 alignment + TD.5 hardening.
 7. P3 Context Compiler Lite.
 8. FEAT.11 Learning Material Review.
+9. Phase 7a AGENT.1 / AGENT.2 / AGENT.7 (streaming / markdown / cancel / approval UX).
+10. LAUNCH.1.A + LAUNCH.1.B Secondary action menu + confirm-gated file ops.
+11. LAUNCH.1.C/D/E Preview pane + filter chips + rank tooltip.
 
 ## Post-FEAT.11 Phase Proposal (2026-05-15)
 
@@ -126,16 +129,6 @@ Goal: 多次 approve 變一次；payload 變人讀的。Phase 7.
 - [ ] AGENT.7.B Human-friendly payload preview：每種 planned_action.kind / tool 有 `summary_view` 元件；保留 raw JSON 在 `Show raw` toggle。
 - [ ] AGENT.7.C Agent runs 自動上限 FIFO 20：超過從頭丟棄並 archive 到 `knowledge_store.agent_archive`；面板顯示「Archived N runs」hint。
 - [ ] AGENT.7.D Approval timeout 視覺化：剩餘時間倒數，超時自動標 `approval_timeout` 並 emit event。
-
-## LAUNCH.1 — Secondary Actions on Search Results
-
-Goal: 搜到結果後不只能「開啟」。Phase 8, no ADR (現有 file boundary 已含).
-
-LAUNCH.1.A 與 LAUNCH.1.B 已於 2026-05-18 完成，搬至 `completed.md`。
-
-- [ ] LAUNCH.1.C Preview pane：選中後右側顯示前 500 行 / 4KB 內容或檔案 metadata；image 顯示縮圖。
-- [ ] LAUNCH.1.D Filter chips：依 source type 過濾（file / note / app / cmd / history）；可多選；URL state 同步。
-- [ ] LAUNCH.1.E Rank explainability tooltip：hover 結果顯示「why this rank」（score breakdown：tantivy score / recency / frequency）。
 
 ## LAUNCH.2 — Workspace-Aware Search
 

@@ -2,7 +2,7 @@
 type: security_policy
 status: active
 priority: p0
-updated: 2026-05-13
+updated: 2026-05-18
 context_policy: retrieve_when_planning
 owner: project
 ---
@@ -180,4 +180,27 @@ Agent 執行工具前，`safety.rs` 中的 `ToolPermissionGate` 必須評估：
 | Agent shell 命令執行 | 目前高風險工具需人工審查 | 計劃加入細粒度 allowlist |
 | 翻譯 API key 儲存 | 存在 config.toml（明文） | 計劃支援 OS keychain |
 | CSP 設定 | 尚未完整設定 | TD.5 安全強化計劃中 |
+
+---
+
+## 10. Tauri Asset Protocol（LAUNCH.1.C）
+
+### 10.1 設定
+
+`src-tauri/tauri.conf.json` 啟用 `app.security.assetProtocol = { enable: true, scope: ["**"] }`，並在 `Cargo.toml` 開啟 `tauri` 的 `protocol-asset` feature。CSP `img-src` 已含 `asset: https://asset.localhost`。
+
+### 10.2 邊界說明
+
+`assetProtocol.scope: ["**"]` 允許 `convertFileSrc(path)` 對任意檔案系統路徑產生 `asset://` URL，給 LAUNCH.1.C preview pane 的 `<img>` 標籤使用。
+
+**讀取邊界與既有 IPC 對齊**：使用者本來就能透過 `file.reveal` / `file.open_with` / `file.open_as_text` / `file.preview` 觸發任意路徑讀取（這些 IPC 由前端按鈕或 secondary action menu 啟動，需使用者主動操作）。asset 協議只是用同一個讀取邊界提供圖片 `<img>` 來源，沒有擴大可讀取範圍。
+
+**禁止用途**：
+- 不得用 asset 協議自動傳送檔案內容到外部網路（CSP `connect-src` 不含 asset host，已硬性阻擋）。
+- 不得用 asset 協議當作 RPC channel（IPC 仍走 `cmd_dispatch`）。
+- 前端不得從遠端 origin 接受 path 參數傳入 `convertFileSrc`（WebView 載入本機靜態資源，原本就不接受外部 origin）。
+
+### 10.3 file.preview IPC 邊界
+
+`file.preview` 為 read-only，路徑必須通過 `trim_path` + `ensure_path_exists` 驗證；text preview 走 `core/preview::read_text_preview` 套用 `AgentObservationPolicy { redact_secrets: true }` 遮蔽常見 secret pattern；max_bytes 上限 64 KiB、max_lines 上限 2000，避免 IPC payload 過大。Binary / image 不回傳檔案內容，僅 metadata。
 

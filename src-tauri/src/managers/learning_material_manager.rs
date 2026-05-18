@@ -1,9 +1,8 @@
-use std::io::Read;
 use std::path::{Path, PathBuf};
 use std::time::UNIX_EPOCH;
 
-use crate::core::{prepare_observation, AgentObservationPolicy};
 use crate::core::config_manager::ConfigManager;
+use crate::core::preview::read_text_preview;
 use crate::models::learning_material::{MaterialCandidate, MaterialClass, ReviewReport, ScanStats};
 
 const DEFAULT_MAX_SCAN_FILES: usize = 500;
@@ -131,25 +130,9 @@ impl LearningMaterialManager {
             return format!("[{size} bytes: too large for preview]");
         }
 
-        let mut buf = vec![0u8; self.max_preview_bytes];
-        let n = match std::fs::File::open(path).and_then(|mut f| f.read(&mut buf)) {
-            Ok(n) => n,
-            Err(e) => return format!("[read error: {e}]"),
-        };
-
-        match std::str::from_utf8(&buf[..n]) {
-            Ok(text) => prepare_observation(
-                text,
-                &AgentObservationPolicy {
-                    max_chars: self.max_preview_bytes,
-                    max_lines: 80,
-                    preserve_head_lines: 40,
-                    preserve_tail_lines: 20,
-                    redact_secrets: true,
-                },
-            )
-            .content,
-            Err(_) => "[binary: preview not available]".to_string(),
+        match read_text_preview(path, self.max_preview_bytes, 80, true) {
+            Ok(preview) => preview.content,
+            Err(e) => format!("[read error: {e}]"),
         }
     }
 
