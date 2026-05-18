@@ -140,12 +140,13 @@ Goal: 搜尋預設貼合當下 workspace。Phase 12.
 
 ## UTIL.1 — Calculator++
 
-Goal: 把 `cal` 從基本算術擴成日常常用單位/日期/進制計算。Phase 8, no ADR.
+Goal: 把 `cal` 從基本算術擴成日常常用單位/日期/進制計算。Phase 8, no ADR for offline parts.
 
-- [ ] UTIL.1.A 單位轉換（長度、重量、溫度、容量、時間）：解析 `100 kg to lb` 等自然輸入；用 `uom` crate 或自寫 conversion table。
-- [ ] UTIL.1.B 貨幣轉換：離線 fallback 表 + 可選線上 rate（exchangerate.host / open.er-api）；timeout 2s、24h 快取；網路失敗 fallback offline。
-- [ ] UTIL.1.C 日期/時間運算：`3 days ago` / `today + 90 days` / `2026/12/31 - today` / `next monday`；用 `chrono-english` 或自寫 parser。
-- [ ] UTIL.1.D 進制轉換:`0xff to dec` / `bin 0b1010` / `hex 255` / `oct 100`。
+- [x] UTIL.1.A 單位轉換（2026-05-18 完成）：length/weight/temperature/time/area/speed/data 早於 baseline；本批補 volume (ml/l/cl/dl/m3/cup/tbsp/tsp/fl_oz/pt/qt/gal)。
+- [x] UTIL.1.B-offline 貨幣換算（2026-05-18 完成）：hard-coded USD-base rate snapshot (18 currencies)；輸出附 `(offline rate, snapshot YYYY-MM)`。
+- [ ] UTIL.1.B-online 線上 rate（blocked on **ADR-038** — exchangerate.host / open.er-api allowlist、24h 快取、timeout 2s/5s、TLS 強制、無使用者資料外流、預設 opt-in `false`）。ADR 草擬完成，待開發者接受。
+- [x] UTIL.1.C 日期/時間運算（2026-05-18 完成）：chrono-based parser；`today + N days/weeks/months/years`、`N days ago`、`<date> - <date>` (days)、`next/last <weekday>`、`tomorrow/yesterday`。支援 `YYYY-MM-DD` 與 `YYYY/MM/DD`。
+- [x] UTIL.1.D 進位轉換（既有功能）：`0xFF` / `0b1010` / `0o17`、`255 to hex` / `10 to bin` / `100 to oct`。
 
 ## UTIL.2 — Dev Utilities
 

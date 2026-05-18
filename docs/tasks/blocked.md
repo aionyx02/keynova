@@ -2,7 +2,7 @@
 type: task_blockers
 status: active
 priority: p0
-updated: 2026-05-15
+updated: 2026-05-18
 context_policy: retrieve_when_planning
 owner: project
 tags: [security, approval, shell, blockers]
@@ -86,6 +86,7 @@ Each track below has been scoped in `backlog.md` but requires the listed ADR to 
 | DEV.1.C/D External Provider Auth | ADR-035 | GitHub/GitLab token storage 與 OS keyring 整合是新 secret boundary |
 | SYNC.1.D/E/F Git-Backed Sync | ADR-036 | 對使用者控制路徑做 git push/pull 屬於新的 write/execute 邊界 |
 | AI.1 Inline AI Surfaces | ADR-037 | AI 進入 launcher / terminal / note 改變 ai.chat trigger 表面與 approval gate 配置 |
+| UTIL.1.B online rates | ADR-038 | 新增外網目標 `api.exchangerate.host` / `open.er-api.com`，需 docs/security.md §5.2 規定的 ADR；offline fallback 已交付，online 部分待 ADR 接受 |
 
 Do not (until corresponding ADR is `接受`):
 - Activate runtime behaviour of the gated subsystem.

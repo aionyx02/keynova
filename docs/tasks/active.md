@@ -6,7 +6,7 @@ updated: 2026-05-18
 context_policy: always_retrievable
 owner: project
 tags: [feature-first, safety-first, performance, agent-ux]
-last_change: LAUNCH.1.C/D/E delivered — preview pane (640→960 dynamic) + filter chips + rank tooltip; LAUNCH.1 group fully complete
+last_change: UTIL.1 offline parts delivered (A volume + B-offline + C date + D existing); UTIL.1.B-online blocked on ADR-038 (drafted, 提議)
 ---
 
 # Active Tasks
@@ -56,6 +56,15 @@ See `docs/tasks/backlog.md` Post-FEAT.11 Phase Proposal 與 11 個 track section
 See `docs/tasks/blocked.md` Post-FEAT.11 Tracks Pending ADR 表。
 
 ## Recent Execution Notes
+
+- 2026-05-18: UTIL.1 Calculator++ offline parts 交付（A volume + B-offline + C date + D 既有）：
+  - **UTIL.1.A volume**：`CalculatorManager::convert_unit` 擴 12 個 volume 單位（l/ml/cl/dl/m3/cup/tbsp/tsp/fl_oz/pt/qt/gal，US 標準），既有 length/weight/temperature/time/area/speed/data 不動。新增 5 個測試。
+  - **UTIL.1.B-offline currency**：`try_currency_conversion` 新方法走 hard-coded USD-base 表（18 currencies: USD/EUR/GBP/JPY/CNY/TWD/KRW/HKD/SGD/AUD/CAD/CHF/INR/THB/MYR/PHP/IDR/VND）；結果末尾附 `(offline rate, snapshot 2026-05)` 提示 stale。Online 部分 blocked on ADR-038。新增 4 個測試。
+  - **UTIL.1.C date arithmetic**：用 chrono `NaiveDate` + `Days`/`Months`/`Weekday` API；支援 `today`/`tomorrow`/`yesterday`、`today + N days/weeks/months/years`、`N <unit> ago`、`<date> - <date>` (days between)、`next/last <weekday>`；接受 `YYYY-MM-DD` 與 `YYYY/MM/DD`。CalculatorManager 加 `today_override: Option<NaiveDate>` 給測試固定參考日期。新增 8 個測試。
+  - **UTIL.1.D base conversion**：既有功能 (`0xFF`、`10 to bin`、`255 to hex`、`0o17`)，標記完成。
+  - **ADR-038**：`docs/adr/0038-currency-online-rates.md` 草擬完成（status: 提議）；涵蓋 exchangerate.host / open.er-api 雙 provider、24h 快取、TLS 強制、2s/5s timeout、無使用者資料外流、`calculator.currency_online_enabled` 預設 false。`docs/decisions.md` + `docs/tasks/blocked.md` 同步登錄。
+  - **檢查**：`cargo test` 293/294（+17：5 volume + 4 currency + 8 date；pre-existing nvim test 不變）；`cargo clippy -- -D warnings` 清。
+  - **未動作**：UTIL.1 group 因 `UTIL.1.B-online` 待 ADR-038 接受，**不搬移 completed.md**（per docs/CLAUDE.md §5a，group 需 100% 才能整段歸檔）。
 
 - 2026-05-18: LAUNCH.1.C/D/E 全段交付（LAUNCH.1 group 結案）：
   - **Slice 1（後端基礎）**：`UiSearchItem` 加 `score_breakdown { base, recency_boost, frequency_boost }`（`#[serde(default)]`）；`SearchManager::rank_boost_breakdown(source, path) -> (i64, i64)` 取代舊 `rank_boost`；`apply_rank_boost` 寫入三段拆解，總分仍為 base+boost 維持排序穩定。新檔 `src-tauri/src/core/preview.rs` 提供 `classify_path` / `read_text_preview` / `guess_image_mime` shared helpers，`LearningMaterialManager::preview_file` 改呼叫之。`handlers/file.rs` 加 `preview` arm（typed `FilePreviewRequest`，text 4 KB / 500 行 default、64 KiB / 2000 行 cap，image 只回 metadata + mime，binary 只回 metadata）。`tauri.conf.json` 開啟 `assetProtocol { enable: true, scope: ["**"] }`，`Cargo.toml` 加 `protocol-asset` feature。`[search]` section 加 `preview_enabled` / `show_rank_breakdown`。測試：file 6 個 + core::preview 7 個 + search_manager 4 個 = 17 個新增。
