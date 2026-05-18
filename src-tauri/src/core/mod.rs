@@ -13,6 +13,7 @@ pub mod observability;
 pub mod dev_utils;
 pub mod plugin_runtime;
 pub mod preview;
+pub mod process_lookup;
 pub mod search_registry;
 pub mod workflow_pipeline;
 
