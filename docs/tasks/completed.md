@@ -2,7 +2,7 @@
 type: task_history
 status: completed
 priority: p3
-updated: 2026-05-15
+updated: 2026-05-18
 context_policy: archive
 owner: project
 tags: [history]
@@ -211,3 +211,30 @@ All prerequisites cleared. Developer authorized implementation via explicit inst
 - [x] FEAT.11.H Add report UI with scanned roots, candidate count, filtered count, and usage hints. (`src/components/LearningMaterialPanel.tsx`: scan roots input, stats bar, class filter tabs All/Project/Note/Report/Presentation/Certificate/Unknown, candidate list with name/path/size)
 - [x] FEAT.11.I Add approval-gated note draft and markdown export actions. (`LearningMaterialHandler` commands: `export_note` via `NoteManager.save`, `export_markdown` via canonicalized `fs::write`; UI: "Export as Note" button; `src/ipc/routes.ts`: `LEARNING_MATERIAL_SCAN/EXPORT_NOTE/EXPORT_MARKDOWN` constants)
 - [x] FEAT.11.J Add regression tests for denied root, symlink escape, secret filter, prompt budget, and grounded output. (`learning_material_manager.rs` tests module: 13 tests — disabled guard, secret denylist, glob denylist, extension classifier, project root detection, scan result structure, path prefix rejection, `to_markdown` output; 233/234 total tests pass; 1 pre-existing failure unchanged)
+
+## LAUNCH.1.A — Secondary Action Menu (COMPLETE 2026-05-18)
+
+Goal: 搜到結果後不只能「開啟」。Phase 8b, no ADR (現有 file boundary 已含).
+
+- [x] LAUNCH.1.A Secondary action menu：方向鍵聚焦結果 → 按 `→` / `Tab` 開菜單；含 Reveal in Explorer / Open with… / Open as text / Copy path / Copy name / Show metadata / Compute SHA-256。
+  - `src/components/SecondaryActionMenu.tsx`: 菜單 + 動態 risk 色彩 + inline confirm row + inline input 行（rename/move 用）。
+  - `src/utils/secondaryActions.ts`: `buildSecondaryActions()` 依 `result.kind` 條件性發出 action；新增 `isDestructive()` + `parentDirFromPath()` helper。
+  - `src/components/CommandPalette.tsx` (`handleSecondaryAction`): `open_with` / `open_as_text` 走 `IPC.FILE_OPEN_WITH` / `IPC.FILE_OPEN_AS_TEXT`；`hash` 串流 SHA-256 並複製到 clipboard；toast 統一走 `setCopyHint` + `copyResetRef`。
+  - `src-tauri/src/handlers/file.rs`: `open_with` 既有 arm 接上 `tauri-plugin-opener::open_path(path, None)`；新增 `open_as_text` arm 透過 `text_editor_for_platform()` 選 OS-specific 編輯器 (Windows `notepad.exe` / macOS `TextEdit` / Linux fallback to xdg-open)。
+  - `src-tauri/src/handlers/file.rs::tests`: 11 個新測試（保留 5 個既有）。
+
+## LAUNCH.1.B — File Operations with Two-Phase Confirm (COMPLETE 2026-05-18)
+
+Goal: 接上實際 file mutation（rename / move / delete / hash / open_as_text），全部 confirm-gated。Phase 8b, no ADR。
+
+- [x] LAUNCH.1.B File operations（confirm-gated）：Rename、Move、Delete、Open as text、Compute hash。Delete 走 OS recycle bin，不真刪。
+  - **後端二段式 confirm gate**：`FileHandler` 收到 `confirm != true` 時回傳 `{ preview: true, ... }`；`confirm: true` 才真執行。實作於 `src-tauri/src/handlers/file.rs`。
+  - **前端 inline confirm**：destructive action（rename/move/delete）按第一次 Enter 跑 dry-run；preview 訊息走 `setCopyHint` 顯示，菜單下方紅框列同步出現「Confirm — Enter / y · Esc / n」。第二次 Enter 才真執行。實作於 `src/components/CommandPalette.tsx` + `src/components/SecondaryActionMenu.tsx`。
+  - **新增依賴**：`trash = "5"`（跨平台 OS recycle bin: Windows SHFileOperationW / macOS NSFileManager trashItem / Linux freedesktop gio），`sha2 = "0.10"`（hash），`tempfile = "3"`（dev-dep for tests）。`src-tauri/Cargo.toml`。
+  - **Typed DTOs**：`FileRenameRequest` / `FileMoveRequest` / `FileDeleteRequest` / `FileHashRequest` / `FileOpenAsTextRequest` 於 `src-tauri/src/models/ipc_requests.rs`；handler arm 全部走 `serde_json::from_value::<DTO>` 而非 raw `Value` 存取。
+  - **Hash**：只支援 `sha256`；64 KiB 串流讀檔，回 `{ algorithm, path, hex, bytes }`；其他算法返回 `unsupported algorithm` error。前端自動複製 hex 到 clipboard。
+  - **Delete**：preview 顯示 `{ kind, size, destination: "recycle_bin" }`（folder 的 size 回 `null` 避免同步遞迴）；`trash::delete()` 為實際操作。
+  - **Rename / Move**：preview 顯示計算後的 `target` path；rename 驗證 new_name 非空 / 無 `/`、`\` / 非 `.` `..`；move 驗證 `target_dir` 為目錄；target 已存在 → error（move 可帶 `overwrite: true` 略過）。
+  - **Open as text**：`tauri_plugin_opener::open_path(path, with)`，`with` 由 `text_editor_for_platform()` 平台條件選擇。
+  - 測試：`handlers::file::tests` 16 個（11 新 + 5 既有），含 known SHA-256 vector (`b"abc"` → `ba7816bf…`)；`delete_moves_to_trash_when_confirmed` `#[ignore]`（需 desktop session）；CI 全綠。
+  - 完整測試：258/259 通過（pre-existing `note_lazyvim_missing_nvim_returns_inline_guidance` 不變）；`cargo clippy -- -D warnings` / `npx tsc --noEmit` / `npm run lint` 全清。

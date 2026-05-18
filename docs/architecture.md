@@ -2,7 +2,7 @@
 type: architecture_spec
 status: active
 priority: p1
-updated: 2026-05-17
+updated: 2026-05-18
 context_policy: retrieve_only
 owner: project
 ---
@@ -142,7 +142,7 @@ src-tauri/src/
 │   ├── builtin_cmd.rs / calculator.rs / setting.rs
 │   ├── nvim.rs / automation.rs / plugin.rs
 │   ├── learning_material.rs  # FEAT.11: scan/preview/export_note/export_markdown
-│   ├── file.rs               # LAUNCH.1: file.* secondary actions (open_with/reveal/rename/move/delete/hash/preview/open_as_text) — skeleton
+│   ├── file.rs               # LAUNCH.1.A/B: file.* secondary actions (reveal/open_with/open_as_text/rename/move/delete/hash); destructive ops gated by two-phase confirm (`confirm: false` returns preview JSON, `confirm: true` mutates)
 │   └── mod.rs
 ├── managers/              # 業務邏輯（純 Rust，無 Tauri 依賴）
 │   ├── ai_manager.rs / model_manager.rs

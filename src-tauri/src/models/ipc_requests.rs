@@ -76,3 +76,46 @@ pub(crate) struct TerminalResizeRequest {
     pub rows: u16,
     pub cols: u16,
 }
+
+// ── file ─────────────────────────────────────────────────────────────────────
+
+#[derive(Deserialize)]
+pub(crate) struct FileRenameRequest {
+    pub path: String,
+    pub new_name: String,
+    #[serde(default)]
+    pub confirm: bool,
+}
+
+#[derive(Deserialize)]
+pub(crate) struct FileMoveRequest {
+    pub path: String,
+    pub target_dir: String,
+    #[serde(default)]
+    pub overwrite: bool,
+    #[serde(default)]
+    pub confirm: bool,
+}
+
+#[derive(Deserialize)]
+pub(crate) struct FileDeleteRequest {
+    pub path: String,
+    #[serde(default)]
+    pub confirm: bool,
+}
+
+#[derive(Deserialize)]
+pub(crate) struct FileHashRequest {
+    pub path: String,
+    #[serde(default = "default_hash_algo")]
+    pub algorithm: String,
+}
+
+fn default_hash_algo() -> String {
+    "sha256".to_string()
+}
+
+#[derive(Deserialize)]
+pub(crate) struct FileOpenAsTextRequest {
+    pub path: String,
+}

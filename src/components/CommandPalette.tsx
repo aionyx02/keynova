@@ -14,7 +14,12 @@ import { PanelRegistry } from "./panel/PanelRegistry";
 import { WorkspaceIndicator } from "./WorkspaceIndicator";
 import { SecondaryActionMenu } from "./SecondaryActionMenu";
 import { applySourceQuotas, mergeSearchResults, sortSearchResults } from "../utils/search";
-import { basenameFromPath, buildSecondaryActions, type SecondaryActionId } from "../utils/secondaryActions";
+import {
+  basenameFromPath,
+  buildSecondaryActions,
+  parentDirFromPath,
+  type SecondaryActionId,
+} from "../utils/secondaryActions";
 import { IPC } from "../ipc/routes";
 import type { SearchBackendInfo, SettingEntry } from "../ipc/types";
 import type { SearchChunkDiagnostics, SearchChunkPayload, SearchErrorPayload, SearchResult } from "../types/search";
@@ -131,6 +136,12 @@ export function CommandPalette() {
   const [secondaryMenuOpen, setSecondaryMenuOpen] = useState(false);
   const [menuFocusedIndex, setMenuFocusedIndex] = useState(0);
   const [expandedMetadata, setExpandedMetadata] = useState(false);
+
+  // LAUNCH.1.B — two-phase confirm gate for destructive file ops.
+  // pendingConfirm: set after a dry-run dispatch; next Enter on the same action runs for real.
+  // inlineInput: open for rename/move (need a target name/path).
+  const [pendingConfirm, setPendingConfirm] = useState<SecondaryActionId | null>(null);
+  const [inlineInput, setInlineInput] = useState<{ for: "rename" | "move"; value: string } | null>(null);
 
   const inputRef = useRef<HTMLInputElement>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -357,6 +368,8 @@ export function CommandPalette() {
       if (secondaryMenuOpenRef.current) {
         setSecondaryMenuOpen(false);
         setMenuFocusedIndex(0);
+        setPendingConfirm(null);
+        setInlineInput(null);
         return;
       }
       if (expandedMetadataRef.current) {
@@ -405,6 +418,8 @@ export function CommandPalette() {
     if (secondaryMenuOpenRef.current) {
       setSecondaryMenuOpen(false);
       setMenuFocusedIndex(0);
+      setPendingConfirm(null);
+      setInlineInput(null);
     }
     if (expandedMetadataRef.current) {
       setExpandedMetadata(false);
@@ -568,6 +583,15 @@ export function CommandPalette() {
   function closeSecondaryMenu() {
     setSecondaryMenuOpen(false);
     setMenuFocusedIndex(0);
+    setPendingConfirm(null);
+    setInlineInput(null);
+  }
+
+  function showHint(message: string, durationMs = 1500) {
+    setCopiedPath(null);
+    setCopyHint(message);
+    if (copyResetRef.current) clearTimeout(copyResetRef.current);
+    copyResetRef.current = setTimeout(() => setCopyHint(null), durationMs);
   }
 
   async function handleSecondaryAction(id: SecondaryActionId, result: SearchResult) {
@@ -595,14 +619,111 @@ export function CommandPalette() {
         closeSecondaryMenu();
         break;
       case "open_with":
-      case "open_as_text":
-      case "rename":
-      case "move":
-      case "delete":
-      case "hash":
-        // Wired in Slice 2-3. Keep no-op so disabled items stay non-throwing.
+        try {
+          await dispatch(IPC.FILE_OPEN_WITH, { path: result.path });
+          showHint(`Opened: ${basenameFromPath(result.path)}`);
+        } catch (err) {
+          showHint(`Open failed: ${(err as Error).message}`, 2500);
+        }
         closeSecondaryMenu();
         break;
+      case "open_as_text":
+        try {
+          await dispatch(IPC.FILE_OPEN_AS_TEXT, { path: result.path });
+          showHint("Opened as text");
+        } catch (err) {
+          showHint(`Open failed: ${(err as Error).message}`, 2500);
+        }
+        closeSecondaryMenu();
+        break;
+      case "hash":
+        try {
+          showHint("Hashing…", 60_000);
+          const res = await dispatch<{ hex: string; bytes: number }>(IPC.FILE_HASH, {
+            path: result.path,
+          });
+          await navigator.clipboard.writeText(res.hex);
+          showHint(`SHA-256 copied: ${res.hex.slice(0, 12)}… (${res.bytes} bytes)`, 2500);
+        } catch (err) {
+          showHint(`Hash failed: ${(err as Error).message}`, 2500);
+        }
+        closeSecondaryMenu();
+        break;
+      case "rename": {
+        if (!inlineInput || inlineInput.for !== "rename") {
+          setInlineInput({ for: "rename", value: basenameFromPath(result.path) });
+          setPendingConfirm(null);
+          return;
+        }
+        const confirm = pendingConfirm === "rename";
+        try {
+          const res = await dispatch<{ preview?: boolean; target?: string }>(IPC.FILE_RENAME, {
+            path: result.path,
+            new_name: inlineInput.value,
+            confirm,
+          });
+          if (!confirm) {
+            showHint(`Preview → ${res.target ?? inlineInput.value}`, 3000);
+            setPendingConfirm("rename");
+          } else {
+            showHint(`Renamed to ${inlineInput.value}`);
+            closeSecondaryMenu();
+          }
+        } catch (err) {
+          showHint(`Rename failed: ${(err as Error).message}`, 3000);
+          setPendingConfirm(null);
+        }
+        break;
+      }
+      case "move": {
+        if (!inlineInput || inlineInput.for !== "move") {
+          setInlineInput({ for: "move", value: parentDirFromPath(result.path) });
+          setPendingConfirm(null);
+          return;
+        }
+        const confirm = pendingConfirm === "move";
+        try {
+          const res = await dispatch<{ preview?: boolean; target?: string }>(IPC.FILE_MOVE, {
+            path: result.path,
+            target_dir: inlineInput.value,
+            confirm,
+          });
+          if (!confirm) {
+            showHint(`Preview → ${res.target ?? inlineInput.value}`, 3000);
+            setPendingConfirm("move");
+          } else {
+            showHint(`Moved to ${inlineInput.value}`);
+            closeSecondaryMenu();
+          }
+        } catch (err) {
+          showHint(`Move failed: ${(err as Error).message}`, 3000);
+          setPendingConfirm(null);
+        }
+        break;
+      }
+      case "delete": {
+        const confirm = pendingConfirm === "delete";
+        try {
+          const res = await dispatch<{
+            preview?: boolean;
+            size?: number | null;
+            kind?: string;
+            destination?: string;
+          }>(IPC.FILE_DELETE, { path: result.path, confirm });
+          if (!confirm) {
+            const sizeStr = res.size != null ? `${res.size} bytes` : "unknown size";
+            showHint(`Will move ${res.kind} (${sizeStr}) to ${res.destination}`, 3000);
+            setPendingConfirm("delete");
+          } else {
+            showHint("Moved to recycle bin");
+            closeSecondaryMenu();
+          }
+        } catch (err) {
+          showHint(`Delete failed: ${(err as Error).message}`, 3000);
+          setPendingConfirm(null);
+        }
+        break;
+      }
     }
   }
 
@@ -941,6 +1062,25 @@ export function CommandPalette() {
                   focusedIndex={menuFocusedIndex}
                   onSelect={(id) => void handleSecondaryAction(id, selectedResult)}
                   onHoverEnabled={setMenuFocusedIndex}
+                  pendingConfirmId={pendingConfirm}
+                  inlineInput={inlineInput}
+                  onInlineInputChange={(value) =>
+                    setInlineInput((prev) => (prev ? { ...prev, value } : prev))
+                  }
+                  onInlineInputKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      if (inlineInput && selectedResult) {
+                        void handleSecondaryAction(inlineInput.for, selectedResult);
+                      }
+                    } else if (e.key === "Escape") {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      setInlineInput(null);
+                      setPendingConfirm(null);
+                    }
+                  }}
                 />
               )}
 
