@@ -14,7 +14,7 @@ import { PanelRegistry } from "./panel/PanelRegistry";
 import { WorkspaceIndicator } from "./WorkspaceIndicator";
 import { SecondaryActionMenu } from "./SecondaryActionMenu";
 import { CheatsheetOverlay } from "./CheatsheetOverlay";
-import { FilterChips, loadFilters, saveFilters } from "./FilterChips";
+import { FilterChips, clearLegacyFilters, loadFilters } from "./FilterChips";
 import {
   OnboardingTour,
   hasCompletedOnboarding,
@@ -154,11 +154,16 @@ export function CommandPalette() {
   const [pendingConfirm, setPendingConfirm] = useState<SecondaryActionId | null>(null);
   const [inlineInput, setInlineInput] = useState<{ for: "rename" | "move"; value: string } | null>(null);
 
-  // LAUNCH.1.D — source-type filter chips (multi-select, persisted to localStorage).
+  // LAUNCH.1.D — source-type filter chips (multi-select, session-scoped).
+  // Initial set is always empty: persistence across launches caused users to
+  // silently hide entire result kinds without realising why. See FilterChips
+  // module comment for context.
   const [activeFilters, setActiveFilters] = useState<Set<SourceFilter>>(() => loadFilters());
+  // Remove any legacy persisted chip selection from earlier builds so existing
+  // users aren't left stuck with hidden results until they manually click Clear.
   useEffect(() => {
-    saveFilters(activeFilters);
-  }, [activeFilters]);
+    clearLegacyFilters();
+  }, []);
 
   // LAUNCH.1.C/E — settings as state (consumed during render to gate UI).
   const [previewEnabled, setPreviewEnabled] = useState(true);
@@ -178,6 +183,14 @@ export function CommandPalette() {
   // ONBOARD.1.B — `?` cheatsheet overlay (only triggers from Shift+/ when input
   // is empty or non-search mode; otherwise typing `?` flows into the input).
   const [cheatsheetOpen, setCheatsheetOpen] = useState(false);
+
+  // LAUNCH.1.B bugfix — paths the user just deleted/moved/renamed. Used as a
+  // render-time kill set so a deleted file can never display, regardless of
+  // which `setResults` callsite (initial debounce response, stream chunk,
+  // merge, etc.) reintroduces it. Windows Everything still indexes Recycle
+  // Bin entries, so without this set a just-trashed file resurrects on the
+  // next chunk. Cleared on query change / workspace switch.
+  const [recentlyDeleted, setRecentlyDeleted] = useState<Set<string>>(() => new Set());
 
   const inputRef = useRef<HTMLInputElement>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -313,6 +326,9 @@ export function CommandPalette() {
       }
       if (payload.replace) {
         // Final balanced batch from backend — replace results entirely.
+        // LAUNCH.1.B bugfix: deleted paths are filtered at render time via
+        // `visibleResults`, so the kill set doesn't need to live in this
+        // event handler.
         setResults(applySourceQuotas(sortSearchResults(payload.items), searchLimitRef.current));
       } else if (payload.items.length > 0) {
         setResults((current) =>
@@ -398,6 +414,7 @@ export function CommandPalette() {
       setCmdResult(null);
       setTimedOutProviders([]);
       activeSearchRequestRef.current = "";
+      setRecentlyDeleted(new Set());
       void dispatch(IPC.SEARCH_CANCEL).catch(() => {});
       requestAnimationFrame(() => inputRef.current?.focus());
     });
@@ -416,6 +433,7 @@ export function CommandPalette() {
       setCmdResult(null);
       setTimedOutProviders([]);
       activeSearchRequestRef.current = "";
+      setRecentlyDeleted(new Set());
       void dispatch(IPC.SEARCH_CANCEL).catch(() => {});
       requestAnimationFrame(() => inputRef.current?.focus());
     });
@@ -507,6 +525,10 @@ export function CommandPalette() {
     cmdResult,
     argSuggestions.length,
     expandedMetadata,
+    secondaryMenuOpen,
+    menuFocusedIndex,
+    pendingConfirm,
+    inlineInput,
   ]);
 
 
@@ -534,6 +556,9 @@ export function CommandPalette() {
     setSelectedCmd(0);
     setSelectedArg(0);
     setArgSuggestions([]);
+    // LAUNCH.1.B bugfix — typing a new query enters a fresh search context;
+    // suppress-list is no longer relevant.
+    setRecentlyDeleted(new Set());
     const { mode: newMode, rawInput: ri } = parseInputMode(value);
     // Mount terminal on first "> " entry; avoids useEffect setState cascade
     if (newMode === "terminal") setTerminalMounted(true);
@@ -656,6 +681,30 @@ export function CommandPalette() {
     setInlineInput(null);
   }
 
+  /**
+   * LAUNCH.1.B bug-fix — after delete/rename/move succeeds the original path
+   * must vanish from the result list. Strategy:
+   *
+   * Add the path to `recentlyDeleted` state. The `visibleResults` derivation
+   * filters by this set on every render, so it doesn't matter which code
+   * path (initial debounce response, stream chunk, merge…) reintroduces the
+   * path: the row simply cannot render.
+   *
+   * No re-fire of the search — Windows Everything still indexes Recycle Bin
+   * entries, so re-firing would resurrect the trashed file in the chunk
+   * stream. The render-time kill set is the only authoritative gate.
+   *
+   * Cleared on next query change / workspace switch.
+   */
+  function refreshAfterFileMutation(droppedPath: string) {
+    setRecentlyDeleted((prev) => {
+      const next = new Set(prev);
+      next.add(droppedPath);
+      return next;
+    });
+    setSelected(0);
+  }
+
   function showHint(message: string, durationMs = 1500) {
     setCopiedPath(null);
     setCopyHint(message);
@@ -737,6 +786,7 @@ export function CommandPalette() {
           } else {
             showHint(`Renamed to ${inlineInput.value}`);
             closeSecondaryMenu();
+            refreshAfterFileMutation(result.path);
           }
         } catch (err) {
           showHint(`Rename failed: ${(err as Error).message}`, 3000);
@@ -763,6 +813,7 @@ export function CommandPalette() {
           } else {
             showHint(`Moved to ${inlineInput.value}`);
             closeSecondaryMenu();
+            refreshAfterFileMutation(result.path);
           }
         } catch (err) {
           showHint(`Move failed: ${(err as Error).message}`, 3000);
@@ -786,9 +837,13 @@ export function CommandPalette() {
           } else {
             showHint("Moved to recycle bin");
             closeSecondaryMenu();
+            refreshAfterFileMutation(result.path);
           }
         } catch (err) {
-          showHint(`Delete failed: ${(err as Error).message}`, 3000);
+          // 5000ms: backend now returns a longer diagnostic message when trash
+          // returns Ok but the file remains on disk (in-use, Recycle Bin
+          // disabled, network drive…). Give the user time to read.
+          showHint(`Delete failed: ${(err as Error).message}`, 5000);
           setPendingConfirm(null);
         }
         break;
@@ -948,15 +1003,20 @@ export function CommandPalette() {
     }
   }
 
-  // LAUNCH.1.D — derived view: filter chips strip the result list down to active kinds.
-  // Empty filter set means "show all". `folder` is grouped with the `file` chip.
-  // No useMemo: filter is O(n) over a small list capped at launcher.max_results.
-  const visibleResults: SearchResult[] = activeFilters.size === 0
-    ? results
-    : results.filter((r) => {
-        if (r.kind === "folder") return activeFilters.has("file");
-        return activeFilters.has(r.kind as SourceFilter);
-      });
+  // LAUNCH.1.D + LAUNCH.1.B bugfix — derived view:
+  //   1. chip filter (file/note/app/command/history/model);
+  //   2. recently-deleted kill set so trashed paths can't reappear from
+  //      Everything's Recycle-Bin index via a streaming chunk or stale
+  //      response.
+  // Filter is O(n) over a small list capped at launcher.max_results; no
+  // useMemo needed and react-hooks/preserve-manual-memoization complains
+  // when we add one.
+  const visibleResults: SearchResult[] = results.filter((r) => {
+    if (recentlyDeleted.has(r.path)) return false;
+    if (activeFilters.size === 0) return true;
+    if (r.kind === "folder") return activeFilters.has("file");
+    return activeFilters.has(r.kind as SourceFilter);
+  });
 
   // Read-side clamp so a stale `selected` (e.g. after filter toggle shrinks the
   // list) doesn't index past the array. User input via ArrowDown/Up already
@@ -1188,11 +1248,11 @@ export function CommandPalette() {
             </div>
           )}
           {hasResults && (
-            <div className="bg-gray-900/95 backdrop-blur-md rounded-b-xl shadow-2xl overflow-hidden">
+            <div className={`bg-gray-900/95 backdrop-blur-md rounded-b-xl shadow-2xl ${secondaryMenuOpen ? "overflow-visible" : "overflow-hidden"}`}>
               <FilterChips active={activeFilters} onChange={setActiveFilters} />
               <div className={showPreview ? "grid grid-cols-[1fr_320px]" : ""}>
                 {/* Left column — result list + secondary menu overlay anchored here */}
-                <div className="relative min-w-0">
+                <div className={`relative min-w-0 ${secondaryMenuOpen ? "min-h-[384px]" : ""}`}>
                   <ul className="max-h-[352px] overflow-y-auto py-1">
                     {visibleResults.map((r, i) => {
                       const badge = KIND_BADGE[r.kind] ?? KIND_BADGE.file;
@@ -1283,7 +1343,7 @@ export function CommandPalette() {
 
                 {/* LAUNCH.1.C — right preview column */}
                 {showPreview && (
-                  <div className="max-h-[352px] border-l border-gray-700/50 bg-gray-950/40">
+                  <div className={`${secondaryMenuOpen ? "h-[384px]" : "max-h-[352px]"} border-l border-gray-700/50 bg-gray-950/40`}>
                     <PreviewPane
                       result={selectedResult}
                       preview={previewForSelected}

@@ -32,6 +32,8 @@ owner: project
 
 ## Last Confirmed Progress
 
+- 2026-05-18 Secondary action menu size fix: fixed `SecondaryActionMenu` at `390 x 360`, made its action body scrollable with focus auto-scroll, and reserved stable CommandPalette height while open so lower actions like `Delete` remain reachable. `npx tsc --noEmit` and `npm run lint` pass.
+- 2026-05-18 Search stale-path bugfix: `SearchManager::file_results_for_backend` filters missing or type-mismatched file/folder paths before display for APP_CACHE, Tantivy, Everything, and native indexer results. Added regression tests for stale-path removal and post-filter limit behavior; focused test + clippy pass. Full cargo test still has the known pre-existing `note_lazyvim_missing_nvim_returns_inline_guidance` failure.
 - P2.A: `dispatch_git_status` hardened with workspace scope, timeout, output bound, and preview field.
 - P2.B: 4 approval-gated dev tools added: `dev.cargo_test`, `dev.cargo_check`, `dev.npm_build`, `dev.npm_lint`.
 - P2.C: `dev.explain_compiler_error` tool added with bounded structured extraction.

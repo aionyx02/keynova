@@ -90,6 +90,7 @@ impl CommandHandler for FileHandler {
                     }));
                 }
                 fs::rename(&source_path, &target).map_err(|e| format!("rename failed: {e}"))?;
+                verify_rename_landed(&source_path, &target)?;
                 Ok(json!({
                     "ok": true,
                     "source": source,
@@ -124,6 +125,7 @@ impl CommandHandler for FileHandler {
                     }));
                 }
                 fs::rename(&source_path, &target).map_err(|e| format!("move failed: {e}"))?;
+                verify_rename_landed(&source_path, &target)?;
                 Ok(json!({
                     "ok": true,
                     "source": source,
@@ -154,6 +156,21 @@ impl CommandHandler for FileHandler {
                     }));
                 }
                 trash::delete(&target).map_err(|e| format!("delete failed: {e}"))?;
+                // `trash` v5 on Windows wraps SHFileOperationW which is known to
+                // return Ok() without actually moving the file in some edge
+                // cases (file in use, Recycle Bin disabled on volume, network
+                // drives, permission quirks). Verify the path is gone before
+                // reporting success — otherwise the launcher hides the row
+                // (kill set) while the file silently remains on disk.
+                verify_path_removed(&target).map_err(|reason| {
+                    format!(
+                        "trash returned ok but {}. Possible causes: file is open in another app, \
+                         Recycle Bin disabled on this volume, insufficient permissions, \
+                         or the path is on a network share without trash support. \
+                         Path: {}",
+                        reason, path
+                    )
+                })?;
                 Ok(json!({
                     "ok": true,
                     "path": path,
@@ -277,6 +294,43 @@ fn text_editor_for_platform() -> Option<&'static str> {
     } else {
         None
     }
+}
+
+/// Post-mutation verifier for destructive ops: ensures the original path is
+/// gone after `trash::delete` (which can return Ok without actually moving
+/// the file on Windows). Returns `Ok(())` when the path is truly removed,
+/// `Err(reason)` when the file/folder still exists.
+fn verify_path_removed(target: &Path) -> Result<(), String> {
+    // `Path::exists` follows symlinks; for trash purposes we want to know
+    // whether ANY entry (file/dir/symlink) is still resolvable at this path.
+    // `symlink_metadata` reports the entry without following, so a broken
+    // symlink would still be considered "present" — which matches the user's
+    // expectation (they asked to delete this entry).
+    match fs::symlink_metadata(target) {
+        Ok(_) => Err(format!("file still exists at {}", target.display())),
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(()),
+        Err(e) => Err(format!(
+            "could not verify removal of {}: {e}",
+            target.display()
+        )),
+    }
+}
+
+/// Post-rename verifier: source must no longer exist and target must.
+fn verify_rename_landed(source: &Path, target: &Path) -> Result<(), String> {
+    if source.exists() {
+        return Err(format!(
+            "rename returned ok but source still exists at {}",
+            source.display()
+        ));
+    }
+    if !target.exists() {
+        return Err(format!(
+            "rename returned ok but target was not created at {}",
+            target.display()
+        ));
+    }
+    Ok(())
 }
 
 fn stream_sha256(path: &Path) -> Result<(String, u64), String> {
@@ -526,6 +580,44 @@ mod tests {
             .execute("open_as_text", json!({}))
             .expect_err("missing path should error");
         assert!(err.contains("missing field") || err.contains("path"), "unexpected: {err}");
+    }
+
+    // ── verify_path_removed / verify_rename_landed (bug-fix 2026-05-18) ─────
+
+    #[test]
+    fn verify_path_removed_reports_present_file() {
+        let dir = TempDir::new().unwrap();
+        let p = tmp_file(&dir, "still-here.txt", b"x");
+        let err = verify_path_removed(&p).expect_err("file present should error");
+        assert!(err.contains("still exists"), "unexpected: {err}");
+    }
+
+    #[test]
+    fn verify_path_removed_ok_when_missing() {
+        let dir = TempDir::new().unwrap();
+        let p = dir.path().join("never-existed.txt");
+        verify_path_removed(&p).expect("missing path should be Ok");
+    }
+
+    #[test]
+    fn verify_rename_landed_detects_no_move() {
+        let dir = TempDir::new().unwrap();
+        let src = tmp_file(&dir, "src.txt", b"x");
+        let dst = dir.path().join("dst.txt");
+        // src still exists, dst missing → both checks should fail. The function
+        // surfaces the source-still-exists branch first.
+        let err = verify_rename_landed(&src, &dst).expect_err("should error");
+        assert!(err.contains("source still exists"), "unexpected: {err}");
+    }
+
+    #[test]
+    fn verify_rename_landed_ok_when_moved() {
+        let dir = TempDir::new().unwrap();
+        let src_real = tmp_file(&dir, "real.txt", b"x");
+        let src_phantom = dir.path().join("phantom.txt"); // never created
+        // Pretend `src_phantom` was renamed to `src_real`: phantom missing,
+        // real present — verify is happy.
+        verify_rename_landed(&src_phantom, &src_real).expect("ok when src gone, dst exists");
     }
 
     // ── preview (LAUNCH.1.C) ─────────────────────────────────────────────────

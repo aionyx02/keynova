@@ -42,6 +42,9 @@ Desktop.ini
 *.local
 .keynova/
 
+# ── Claude Code 自己的工作狀態（plan / schedule / cache）──
+.claude/
+
 # ── 私人文件（已改為 git 追蹤以防遺失）────────────
 AGENTS.md
 
