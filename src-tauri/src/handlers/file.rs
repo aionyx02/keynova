@@ -1,13 +1,16 @@
 use std::fs;
 use std::io::Read;
 use std::path::{Path, PathBuf};
+use std::time::UNIX_EPOCH;
 
 use serde_json::{json, Value};
 use sha2::{Digest, Sha256};
 
+use crate::core::preview::{classify_path, guess_image_mime, read_text_preview, PreviewKind};
 use crate::core::{CommandHandler, CommandResult};
 use crate::models::ipc_requests::{
-    FileDeleteRequest, FileHashRequest, FileMoveRequest, FileOpenAsTextRequest, FileRenameRequest,
+    FileDeleteRequest, FileHashRequest, FileMoveRequest, FileOpenAsTextRequest, FilePreviewRequest,
+    FileRenameRequest,
 };
 
 /// Handles `file.*` IPC commands invoked from the launcher's secondary action menu.
@@ -173,6 +176,52 @@ impl CommandHandler for FileHandler {
                     "hex": hex,
                     "bytes": bytes,
                 }))
+            }
+            "preview" => {
+                let req: FilePreviewRequest = serde_json::from_value(payload)
+                    .map_err(|e| format!("invalid file.preview request: {e}"))?;
+                let path = trim_path(&req.path)?;
+                ensure_path_exists(&path)?;
+                let p = Path::new(&path);
+                let meta = fs::metadata(p).map_err(|e| format!("metadata failed: {e}"))?;
+                let size_bytes = meta.len();
+                let modified_ms = meta
+                    .modified()
+                    .ok()
+                    .and_then(|t| t.duration_since(UNIX_EPOCH).ok())
+                    .map(|d| d.as_millis() as i64);
+                let kind = classify_path(p, &meta);
+                match kind {
+                    PreviewKind::Image => Ok(json!({
+                        "path": path,
+                        "kind": "image",
+                        "size_bytes": size_bytes,
+                        "modified_ms": modified_ms,
+                        "mime": guess_image_mime(p),
+                        "truncated": false,
+                    })),
+                    PreviewKind::Text => {
+                        let max_bytes = req.max_bytes.unwrap_or(4096).min(64 * 1024);
+                        let max_lines = req.max_lines.unwrap_or(500).min(2000);
+                        let preview = read_text_preview(p, max_bytes, max_lines, true)?;
+                        Ok(json!({
+                            "path": path,
+                            "kind": "text",
+                            "size_bytes": size_bytes,
+                            "modified_ms": modified_ms,
+                            "content": preview.content,
+                            "truncated": preview.truncated,
+                            "line_count": preview.line_count,
+                        }))
+                    }
+                    PreviewKind::Binary => Ok(json!({
+                        "path": path,
+                        "kind": "binary",
+                        "size_bytes": size_bytes,
+                        "modified_ms": modified_ms,
+                        "truncated": false,
+                    })),
+                }
             }
             _ => Err(format!("unknown file command '{command}'")),
         }
@@ -477,5 +526,88 @@ mod tests {
             .execute("open_as_text", json!({}))
             .expect_err("missing path should error");
         assert!(err.contains("missing field") || err.contains("path"), "unexpected: {err}");
+    }
+
+    // ── preview (LAUNCH.1.C) ─────────────────────────────────────────────────
+
+    #[test]
+    fn preview_text_file_returns_content_with_size_and_kind() {
+        let dir = TempDir::new().unwrap();
+        let path = tmp_file(&dir, "note.md", b"# heading\nbody line\n");
+        let res = handler()
+            .execute("preview", json!({ "path": path.to_string_lossy() }))
+            .expect("preview ok");
+        assert_eq!(res["kind"], json!("text"));
+        assert!(res["content"].as_str().unwrap().contains("heading"));
+        assert_eq!(res["size_bytes"], json!(20));
+        assert_eq!(res["truncated"], json!(false));
+        assert!(res["line_count"].as_i64().unwrap() >= 1);
+    }
+
+    #[test]
+    fn preview_image_returns_kind_image_no_content() {
+        let dir = TempDir::new().unwrap();
+        let path = tmp_file(&dir, "a.png", b"\x89PNG\r\n\x1a\n");
+        let res = handler()
+            .execute("preview", json!({ "path": path.to_string_lossy() }))
+            .expect("preview ok");
+        assert_eq!(res["kind"], json!("image"));
+        assert_eq!(res["mime"], json!("image/png"));
+        assert!(res.get("content").is_none(), "image preview must not include content");
+    }
+
+    #[test]
+    fn preview_binary_returns_kind_binary_no_content() {
+        let dir = TempDir::new().unwrap();
+        // High-non-printable content with no extension → sniff classifies as binary.
+        let content: Vec<u8> = (0..=255u16).map(|i| i as u8).collect();
+        let path = tmp_file(&dir, "blob", &content);
+        let res = handler()
+            .execute("preview", json!({ "path": path.to_string_lossy() }))
+            .expect("preview ok");
+        assert_eq!(res["kind"], json!("binary"));
+        assert!(res.get("content").is_none());
+    }
+
+    #[test]
+    fn preview_truncates_when_file_exceeds_cap() {
+        let dir = TempDir::new().unwrap();
+        let body: String = (0..2000).map(|i| format!("line {i}\n")).collect();
+        let path = tmp_file(&dir, "big.txt", body.as_bytes());
+        let res = handler()
+            .execute(
+                "preview",
+                json!({ "path": path.to_string_lossy(), "max_bytes": 256, "max_lines": 50 }),
+            )
+            .expect("preview ok");
+        assert_eq!(res["kind"], json!("text"));
+        assert_eq!(res["truncated"], json!(true));
+    }
+
+    #[test]
+    fn preview_missing_path_errors() {
+        let err = handler()
+            .execute("preview", json!({}))
+            .expect_err("missing path should error");
+        assert!(err.contains("missing field") || err.contains("path"), "unexpected: {err}");
+    }
+
+    #[test]
+    fn preview_clamps_oversized_max_bytes() {
+        let dir = TempDir::new().unwrap();
+        let body = vec![b'a'; 200_000];
+        let path = tmp_file(&dir, "big.txt", &body);
+        let res = handler()
+            .execute(
+                "preview",
+                json!({ "path": path.to_string_lossy(), "max_bytes": 1_000_000 }),
+            )
+            .expect("preview ok");
+        // Even though the request asked for 1 MB, the handler caps to 64 KiB.
+        let content_len = res["content"].as_str().unwrap().len();
+        assert!(
+            content_len <= 64 * 1024,
+            "content should be capped at 64 KiB, got {content_len}"
+        );
     }
 }

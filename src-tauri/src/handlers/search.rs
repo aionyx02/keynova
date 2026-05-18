@@ -17,7 +17,7 @@ use crate::managers::{
     search_manager::{SearchBackend, SearchManager},
     search_service::SearchService,
 };
-use crate::models::action::{Action, UiSearchItem};
+use crate::models::action::{Action, ScoreBreakdown, UiSearchItem};
 use crate::models::search_result::{ResultKind, SearchResult};
 
 const DEFAULT_FIRST_BATCH_LIMIT: usize = 30;
@@ -492,6 +492,7 @@ impl SearchHandler {
                     kind: result.kind,
                     name: result.name,
                     path: result.path,
+                    score_breakdown: ScoreBreakdown::default(),
                 };
                 self.apply_rank_boost(&mut item);
                 Ok(item)
@@ -500,9 +501,22 @@ impl SearchHandler {
     }
 
     fn apply_rank_boost(&self, item: &mut UiSearchItem) {
-        if let Ok(manager) = self.manager.lock() {
-            item.score += manager.rank_boost(&item.source, &item.path);
-        }
+        let base = item.score;
+        let Ok(manager) = self.manager.lock() else {
+            item.score_breakdown = ScoreBreakdown {
+                base,
+                recency_boost: 0,
+                frequency_boost: 0,
+            };
+            return;
+        };
+        let (recency, frequency) = manager.rank_boost_breakdown(&item.source, &item.path);
+        item.score = base + recency + frequency;
+        item.score_breakdown = ScoreBreakdown {
+            base,
+            recency_boost: recency,
+            frequency_boost: frequency,
+        };
     }
 
     fn append_command_results(
@@ -543,6 +557,7 @@ impl SearchHandler {
                 kind: ResultKind::Command,
                 name: meta.name.to_string(),
                 path: format!("command://{}", meta.name),
+                score_breakdown: ScoreBreakdown::default(),
             };
             self.apply_rank_boost(&mut item);
             out.push(item);
@@ -584,6 +599,7 @@ impl SearchHandler {
                 kind: ResultKind::Note,
                 name: note.name.clone(),
                 path: format!("note://{}", note.name),
+                score_breakdown: ScoreBreakdown::default(),
             };
             self.apply_rank_boost(&mut item);
             out.push(item);
@@ -634,6 +650,7 @@ impl SearchHandler {
                 kind: ResultKind::History,
                 name: snippet,
                 path: format!("history://{}", entry.id),
+                score_breakdown: ScoreBreakdown::default(),
             };
             self.apply_rank_boost(&mut item);
             out.push(item);
@@ -680,6 +697,7 @@ impl SearchHandler {
                 kind: ResultKind::Model,
                 name: model.name.clone(),
                 path: format!("model://{}", model.name),
+                score_breakdown: ScoreBreakdown::default(),
             };
             self.apply_rank_boost(&mut item);
             out.push(item);
@@ -987,6 +1005,7 @@ mod tests {
             kind: ResultKind::File,
             name: format!("{source}-{idx}"),
             path: format!("{source}://{idx}"),
+            score_breakdown: Default::default(),
         }
     }
 

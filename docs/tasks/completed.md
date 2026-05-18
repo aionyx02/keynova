@@ -238,3 +238,35 @@ Goal: 接上實際 file mutation（rename / move / delete / hash / open_as_text�
   - **Open as text**：`tauri_plugin_opener::open_path(path, with)`，`with` 由 `text_editor_for_platform()` 平台條件選擇。
   - 測試：`handlers::file::tests` 16 個（11 新 + 5 既有），含 known SHA-256 vector (`b"abc"` → `ba7816bf…`)；`delete_moves_to_trash_when_confirmed` `#[ignore]`（需 desktop session）；CI 全綠。
   - 完整測試：258/259 通過（pre-existing `note_lazyvim_missing_nvim_returns_inline_guidance` 不變）；`cargo clippy -- -D warnings` / `npx tsc --noEmit` / `npm run lint` 全清。
+
+## LAUNCH.1.C/D/E — Preview Pane + Filter Chips + Rank Tooltip (COMPLETE 2026-05-18)
+
+Goal: 完成 LAUNCH.1 全段（搜到結果後右側 preview / 過濾 / 排名透明化）。Phase 8b, no ADR (沿用既有 file boundary + asset protocol 配置)。
+
+- [x] LAUNCH.1.C Preview pane：選中 file/folder/note 時，palette window 由 640 px 動態拓寬到 960 px，右側 320 px split column 顯示 text/image/binary preview。
+  - **後端 (`src-tauri/src/handlers/file.rs`)**: 新增 `preview` match arm，走 typed `FilePreviewRequest` DTO；text 走 `core::preview::read_text_preview`（4096 byte default、64 KiB cap、500 line default、2000 line cap、`prepare_observation` 套 redact_secrets），image 回 `{ kind: "image", mime, size_bytes, modified_ms }`，binary 只回 metadata；UTF-8 與 sniff 同時判定（前 512 bytes 非可印字元比例 > 5% → binary）。
+  - **Shared helper (`src-tauri/src/core/preview.rs`)**: `classify_path` / `read_text_preview` / `guess_image_mime` / `PreviewKind`。`LearningMaterialManager::preview_file` (`managers/learning_material_manager.rs`) 改呼叫 `read_text_preview`，移除原本 80 行重複的 buf 處理 + AgentObservationPolicy 配置。
+  - **DTO (`src-tauri/src/models/ipc_requests.rs`)**: `FilePreviewRequest { path, max_bytes?, max_lines? }`。
+  - **Tauri 設定 (`src-tauri/tauri.conf.json` + `Cargo.toml`)**: 新增 `app.security.assetProtocol = { enable: true, scope: ["**"] }`，`tauri` deps 加 `protocol-asset` feature。CSP `img-src` 已含 `asset: https://asset.localhost` 故不動。
+  - **前端 (`src/hooks/useFilePreview.ts` 新檔)**: 80 ms debounce + LRU 64 cache + `cancelled` flag；`isPreviewable()` 公開給 CommandPalette 計算 `previewLoading`（避免 setState-in-effect）。
+  - **前端 (`src/components/PreviewPane.tsx` 新檔)**: 三種 render 分支 — text 走 `<pre>` monospace + truncation badge、image 走 `convertFileSrc(path)` + `<img>` + size/mtime footer、binary 走 metadata-only。寬 320 px、最大高 352 px 與 result list 對齊。
+  - **前端 (`src/hooks/useWindowResize.ts`)**: 新增 `widthRef` optional 參數與 `PALETTE_WIDTH_NARROW`(640) / `PALETTE_WIDTH_WIDE`(960) 常數。`setSize` 改讀 ref，預設 640。
+  - **前端 (`src/components/CommandPalette.tsx`)**: `paletteWidthRef` + `useEffect` 依 `showPreview` 切換寬度並觸發 resize；result container 改成 `grid grid-cols-[1fr_320px]` 條件式佈局；`relative` anchor 從 outer 搬到 inner left wrapper（避免 SecondaryActionMenu 漂進 preview 欄）；footer hint bar 與 expandedMetadata 維持 full-width。
+
+- [x] LAUNCH.1.D Filter chips：依 `kind` 過濾 result list (file / note / app / command / history / model)；多選；localStorage 持久化。純前端，無 IPC。
+  - **前端 (`src/components/FilterChips.tsx` 新檔)**: 6 個 chip 按鈕，active 各自套 KIND_BADGE 對齊色系，inactive 灰。`loadFilters()` / `saveFilters()` 用 `localStorage["keynova.searchFilters"]`，`JSON.parse` 失敗回空 Set，並 whitelist 校驗 known `SourceFilter`。
+  - **前端 (`src/components/CommandPalette.tsx`)**: `activeFilters: Set<SourceFilter>` state + auto-save effect；衍生 `visibleResults`（無 useMemo，filter O(n) 對小 list），`folder` 對應 `file` chip；`safeSelected` render-time clamp 取代 setState-in-effect。Raw results > 0 但 visible == 0 時顯示「Filter hides all N results · Clear filter」hint 維持使用者可逃出。
+  - v1 mouse-only；`Alt+1..6` 留 v2。
+
+- [x] LAUNCH.1.E Rank tooltip：hover 結果列 → 400 ms 後右側浮現 score 三段拆解（base / recency boost / frequency boost）。Session-only，無持久化。
+  - **後端 (`src-tauri/src/models/action.rs`)**: 新增 `ScoreBreakdown { base, recency_boost, frequency_boost }`；`UiSearchItem.score_breakdown` 欄位（`#[serde(default)]`）。
+  - **後端 (`src-tauri/src/managers/search_manager.rs`)**: 新增 `rank_boost_breakdown(source, path) -> (i64, i64)`；舊 `rank_boost()` 已無內部用途整個移除（測試一併改用 breakdown）。
+  - **後端 (`src-tauri/src/handlers/search.rs`)**: `apply_rank_boost` 重寫成 capture base → 算 boost → 寫 breakdown + 累加 score。6 條 `UiSearchItem` 建構路徑（file / command / note / history / model / search_registry test fixture）全部填 `score_breakdown: Default::default()` 後再呼 apply。
+  - **前端 (`src/components/RankTooltip.tsx` 新檔)**: `position: fixed`、`z-30`、`pointer-events-none`；自動依 anchor rect 與 viewport 寬度判斷貼右或翻左。顯示總分 + 三行 base/recency/frequency 拆解。
+  - **前端 (`src/components/CommandPalette.tsx`)**: `hover: { index, rect }` state（單一 object 避免 stale rect），`<li>` 加 mouseEnter 設 400 ms timer / mouseLeave 清 timer；unmount cleanup 清 hover timer。`show_rank_breakdown=false` 時不裝 timer，不渲染 tooltip。
+
+- [x] Settings：`[search]` section 加 `preview_enabled = true`、`show_rank_breakdown = true`；`settings_schema.rs` 同步新增兩個 Boolean schema entry。`config-reloaded` event 監聽兩個 key。
+
+- [x] 測試：`handlers::file::tests` 16 → 22 (+6 preview cases)；`core::preview::tests` 新增 7；`managers::search_manager` 新增 4 (breakdown variants)。完整測試 276/277 (1 pre-existing `note_lazyvim_missing_nvim_returns_inline_guidance` 不變)；`cargo clippy -- -D warnings` / `npx tsc --noEmit` / `npm run lint` 全清。
+
+- [x] 文件：`docs/security.md` 新增 §10 `Tauri Asset Protocol`：說明 scope `**` 與既有 file IPC 讀取邊界對齊、禁止用途、`file.preview` redact 邊界。

@@ -15,6 +15,8 @@ backend = "auto"
 index_dir = ""
 exclude_dirs = "AppData,node_modules,.git,target,dist"
 max_file_results = 50
+preview_enabled = true        # LAUNCH.1.C — show right-side preview pane for selected file/folder/note
+show_rank_breakdown = true    # LAUNCH.1.E — show rank tooltip on result hover
 
 [terminal]
 default_shell = ""       # 空字串代表使用系統預設 shell

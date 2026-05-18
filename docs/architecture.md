@@ -131,6 +131,7 @@ src-tauri/src/
 │   ├── search_registry.rs
 │   ├── observability.rs
 │   ├── plugin_runtime.rs
+│   ├── preview.rs         # LAUNCH.1.C: bounded read + classify_path + guess_image_mime (shared by file.preview + learning_material)
 │   └── ipc_error.rs
 ├── handlers/              # CommandHandler 實作（每個 namespace 一個）
 │   ├── agent/             # Agent handler 子模組
@@ -142,7 +143,7 @@ src-tauri/src/
 │   ├── builtin_cmd.rs / calculator.rs / setting.rs
 │   ├── nvim.rs / automation.rs / plugin.rs
 │   ├── learning_material.rs  # FEAT.11: scan/preview/export_note/export_markdown
-│   ├── file.rs               # LAUNCH.1.A/B: file.* secondary actions (reveal/open_with/open_as_text/rename/move/delete/hash); destructive ops gated by two-phase confirm (`confirm: false` returns preview JSON, `confirm: true` mutates)
+│   ├── file.rs               # LAUNCH.1.A/B/C: file.* secondary actions (reveal/open_with/open_as_text/rename/move/delete/hash/preview); destructive ops gated by two-phase confirm; preview returns bounded text 4 KB / image metadata / binary metadata
 │   └── mod.rs
 ├── managers/              # 業務邏輯（純 Rust，無 Tauri 依賴）
 │   ├── ai_manager.rs / model_manager.rs

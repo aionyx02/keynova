@@ -6,7 +6,7 @@ updated: 2026-05-18
 context_policy: always_retrievable
 owner: project
 tags: [feature-first, safety-first, performance, agent-ux]
-last_change: LAUNCH.1.A + LAUNCH.1.B delivered — secondary action menu with file ops behind two-phase confirm gate
+last_change: LAUNCH.1.C/D/E delivered — preview pane (640→960 dynamic) + filter chips + rank tooltip; LAUNCH.1 group fully complete
 ---
 
 # Active Tasks
@@ -25,9 +25,9 @@ Safety first for runtime lifecycle; feature-first delivery after guardrails are 
 
 Mainline delivered (詳見 `docs/tasks/completed.md`)：
 
-- TD.5.A baseline → PERF.1 → TD.1/2/3 → PERF.2 → PERF.3 → TD.4 + TD.5 → P3 → FEAT.11 → Phase 7a (AGENT.1/2/7) → **LAUNCH.1.A + LAUNCH.1.B**.
+- TD.5.A baseline → PERF.1 → TD.1/2/3 → PERF.2 → PERF.3 → TD.4 + TD.5 → P3 → FEAT.11 → Phase 7a (AGENT.1/2/7) → LAUNCH.1.A + LAUNCH.1.B → **LAUNCH.1.C/D/E**.
 
-Active queue：**empty**（LAUNCH.1.C/D/E 仍在 backlog；UTIL.1/2、ONBOARD.1 仍可平行起手，皆無 ADR 阻擋）。
+Active queue：**empty**（LAUNCH.1 全段已完成；UTIL.1/2、ONBOARD.1、LAUNCH.2 仍可平行起手，皆無 ADR 阻擋）。
 
 ## Next Phase Proposal (2026-05-15, awaiting selection)
 
@@ -56,6 +56,13 @@ See `docs/tasks/backlog.md` Post-FEAT.11 Phase Proposal 與 11 個 track section
 See `docs/tasks/blocked.md` Post-FEAT.11 Tracks Pending ADR 表。
 
 ## Recent Execution Notes
+
+- 2026-05-18: LAUNCH.1.C/D/E 全段交付（LAUNCH.1 group 結案）：
+  - **Slice 1（後端基礎）**：`UiSearchItem` 加 `score_breakdown { base, recency_boost, frequency_boost }`（`#[serde(default)]`）；`SearchManager::rank_boost_breakdown(source, path) -> (i64, i64)` 取代舊 `rank_boost`；`apply_rank_boost` 寫入三段拆解，總分仍為 base+boost 維持排序穩定。新檔 `src-tauri/src/core/preview.rs` 提供 `classify_path` / `read_text_preview` / `guess_image_mime` shared helpers，`LearningMaterialManager::preview_file` 改呼叫之。`handlers/file.rs` 加 `preview` arm（typed `FilePreviewRequest`，text 4 KB / 500 行 default、64 KiB / 2000 行 cap，image 只回 metadata + mime，binary 只回 metadata）。`tauri.conf.json` 開啟 `assetProtocol { enable: true, scope: ["**"] }`，`Cargo.toml` 加 `protocol-asset` feature。`[search]` section 加 `preview_enabled` / `show_rank_breakdown`。測試：file 6 個 + core::preview 7 個 + search_manager 4 個 = 17 個新增。
+  - **Slice 2（filter chips）**：新 `src/components/FilterChips.tsx`（6 個 chip、KIND_BADGE 對齊色系、`localStorage["keynova.searchFilters"]` 持久化）。`src/types/search.ts` 加 `SourceFilter` / `ScoreBreakdown` / `FilePreviewResult`。`CommandPalette` 衍生 `visibleResults`（`folder` 對應 `file` chip）、`safeSelected` render-time clamp 取代 setState-in-effect；raw > 0 但 visible == 0 時顯示「Clear filter」escape hatch。
+  - **Slice 3（preview pane + rank tooltip + 動態寬）**：新 `useFilePreview.ts`（80 ms debounce、LRU 64 cache、`cancelled` flag）、`PreviewPane.tsx`（text/image/binary 三分支、`convertFileSrc` 走 asset protocol）、`RankTooltip.tsx`（fixed pos、自動翻邊）。`useWindowResize.ts` 加 `widthRef` 參數 + `PALETTE_WIDTH_NARROW`(640) / `PALETTE_WIDTH_WIDE`(960)。`CommandPalette` 用 `showPreview` 控 `paletteWidthRef` 切換並觸發 resize；result container grid-cols-[1fr_320px]；`relative` anchor 搬到 inner left wrapper（SecondaryActionMenu 不漂進 preview 欄）；`hover: {index, rect}` 單一 state 取代 ref-during-render。
+  - **檢查**：`cargo test` 276/277（pre-existing nvim test 不變）；`cargo clippy -- -D warnings` 清；`npx tsc --noEmit` 清；`npm run lint` 清。
+  - **文件**：`docs/security.md` 新增 §10 `Tauri Asset Protocol` 邊界說明。LAUNCH.1 group 全段搬至 `completed.md`，`backlog.md` 移除整段。
 
 - 2026-05-18: LAUNCH.1.A 收尾 + LAUNCH.1.B 全段交付：
   - **後端 (`src-tauri/src/handlers/file.rs`)**: 在既有 `reveal` / `open_with` 之上新增 5 個 match arm — `rename` / `move` / `delete` / `hash` / `open_as_text`。Destructive 三個（rename/move/delete）走二段式 confirm gate：`confirm != true` 回 `{ preview: true, ... }`，`confirm: true` 才真執行。`delete` 用 `trash::delete()`（OS recycle bin），`hash` 串流 64 KiB chunks 餵 `sha2::Sha256`，`open_as_text` 用 `text_editor_for_platform()` helper（Windows `notepad.exe` / macOS `TextEdit` / Linux fallback）。

@@ -20,12 +20,8 @@ owner: project
 - P0 Agent Completion Baseline COMPLETE (2026-05-13).
 - P1 Workflow MVP COMPLETE (2026-05-13).
 - P2 Dev Workflow Pack COMPLETE (2026-05-14).
-- Mainline shifted to runtime stability track:
-  - PERF.1 Low Memory Background Mode
-  - PERF.2 Search Execution Bound
-  - PERF.3 Heavy Feature Lazy Runtime
-- P3 Context Compiler Lite remains planned after PERF track.
-- FEAT.11 Learning Material Review remains blocked.
+- PERF.1/2/3 + TD.1/2/3/4/5 + P3 + FEAT.11 + Phase 7a + LAUNCH.1 全段 COMPLETE (2026-05-18)。
+- 下一個 phase 待選擇（無 ADR 阻擋入口：UTIL.1/2、ONBOARD.1、LAUNCH.2、NOTE.1）。
 
 ## Important Constraints
 
@@ -139,6 +135,16 @@ owner: project
   - `src-tauri/src/handlers/file.rs` (new) + `handlers/mod.rs` + `app/state.rs`: `FileHandler` skeleton registered in `build_command_router` (no behaviour wired yet — placeholder for slice 2-4).
   - Out-of-scope this commit: prompt engineering init template (`Prompt_Engineering_Init_Template.docx` + `scripts/generate_prompt_engineering_doc.py`) — cross-project reusable docs scaffold derived from current CLAUDE.md + docs/ pattern.
 
+- 2026-05-18 LAUNCH.1.C/D/E 全段交付（LAUNCH.1 group 結案）：
+  - 後端 `core/preview.rs` 新檔，抽出 `classify_path` / `read_text_preview` / `guess_image_mime`；`LearningMaterialManager::preview_file` 改呼叫之。
+  - `handlers/file.rs` 加 `"preview"` arm，text 走 redact_secrets bounded read（4 KB / 500 lines default，64 KiB / 2000 lines cap），image 只回 metadata + mime，binary 只回 metadata。
+  - `models/action.rs` `UiSearchItem` 加 `ScoreBreakdown { base, recency_boost, frequency_boost }` 欄位；`SearchManager::rank_boost_breakdown` 取代 `rank_boost`；`handlers/search.rs::apply_rank_boost` 寫入三段拆解。
+  - `tauri.conf.json` 加 `app.security.assetProtocol = { enable: true, scope: ["**"] }`，`Cargo.toml` 加 `protocol-asset` feature。`docs/security.md` 新增 §10 邊界說明（read-only、與既有 file IPC 對齊、禁止用途）。
+  - 前端新增 `src/components/{FilterChips,PreviewPane,RankTooltip}.tsx` 與 `src/hooks/useFilePreview.ts`；`useWindowResize.ts` 加 `widthRef` 參數，預設 640 px，preview 顯示時動態切到 960 px。
+  - `CommandPalette` 改 grid 佈局（`grid-cols-[1fr_320px]`），`relative` anchor 從 outer 搬到 inner left wrapper（保留 SecondaryActionMenu 落位）。
+  - 設定 `search.preview_enabled` / `search.show_rank_breakdown` 預設 true，配 `config-reloaded` event 監聽。
+  - 測試：file::tests 22（+6）、core::preview::tests 7（新）、search_manager 4 個 breakdown 測試；總計 276/277（pre-existing nvim test 不變）。clippy / lint / tsc 全清。
+
 - 2026-05-18 LAUNCH.1.A 收尾 + LAUNCH.1.B 全段交付：
   - 後端 `src-tauri/src/handlers/file.rs`: 5 個新 match arm — `rename` / `move` / `delete` / `hash` / `open_as_text`，全走 typed DTO (`serde_json::from_value`)。Destructive 三個採二段式 confirm gate（`confirm != true` 回 `{ preview: true, ... }`）。`delete` 用 `trash::delete()`（OS recycle bin）；`hash` 串流 64 KiB chunks 餵 `sha2::Sha256`，回 `{ algorithm, path, hex, bytes }`，只支援 sha256；`open_as_text` 走 `text_editor_for_platform()` (Windows `notepad.exe` / macOS `TextEdit` / Linux fallback to xdg-open)。
   - Typed DTO `src-tauri/src/models/ipc_requests.rs`: `FileRenameRequest` / `FileMoveRequest` / `FileDeleteRequest` / `FileHashRequest` / `FileOpenAsTextRequest`，全部 `#[serde(default)]` 給可選欄位 + `default_hash_algo()` helper。
@@ -151,13 +157,14 @@ owner: project
 
 ## Next Step
 
-LAUNCH.1.A 與 LAUNCH.1.B 已於 2026-05-18 完成。剩餘 LAUNCH.1.C/D/E（preview pane / filter chips / rank explainability）仍在 backlog。
+LAUNCH.1.C/D/E 已於 2026-05-18 完成，LAUNCH.1 全段結案。
 
 待使用者選擇下一個起手 phase；其餘無 ADR 阻擋入口：
 
 - Phase 8a — UTIL.1 / UTIL.2：calculator++ 與 dev utilities。
-- Phase 8b 續 — LAUNCH.1.C/D/E：preview pane、filter chips、rank explainability。
 - Phase 8c — ONBOARD.1：first-run tour、`?` cheatsheet。
+- Phase 12 — LAUNCH.2：workspace-aware search 與 hotkey 切換。
+- Phase 12 — NOTE.1：daily note / templates / backlinks / tag filter。
 
 ADR-gated tracks 需先草擬 ADR-029 ~ ADR-037 才可進實作（見 `docs/tasks/blocked.md`）。
 

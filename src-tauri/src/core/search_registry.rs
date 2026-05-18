@@ -92,6 +92,7 @@ mod tests {
                 kind: ResultKind::File,
                 name: self.0.into(),
                 path: self.0.into(),
+                score_breakdown: Default::default(),
             }]
         }
     }
