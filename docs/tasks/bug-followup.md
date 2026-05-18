@@ -21,13 +21,33 @@ tags: [bug, crash, delete, diagnosis]
 
 ---
 
-## Bug A — Launcher renderer crash on Ctrl+K
+## Bug A — Launcher 打字打到一半自動關掉（已找到根因）
 
-### 症狀
-- Ctrl+K 開 launcher 偶發 WebView 直接死或白屏
-- 沒固定 repro 步驟
-- 之前無 log trail
-- 9dfd15b 後 `ErrorBoundary` + `window.addEventListener('error'|'unhandledrejection')` 已就位，下次崩可留訊息
+### 症狀（2026-05-19 使用者澄清）
+- **不是 renderer crash**：是 launcher window 自動 hide
+- 使用者在搜尋框打字打到一半 → window 收起 → 需要重按 Ctrl+K 才能繼續
+- 原本以為是閃退，實際是 **focus loss → auto-hide** 機制過於敏感
+
+### 根因（已定位）
+`src-tauri/src/app/window.rs:44-72` 監聽 `WindowEvent::Focused(false)` 並在 120ms 後 hide window。
+觸發來源：
+1. **Windows IME composition window**：中文 / 注音輸入法的 candidate window 短暫搶 keyboard focus → 主視窗收到 Focused(false) → 120ms 不夠 → hide
+2. **WebView2 transparent window** 在 Windows 上的 accessibility subprocess 偶發 focus blip
+3. **WebView2 popup / autocomplete** 等子視窗短暫拉焦
+
+### 已落地修法（feature/diagnostic-baseline-attempt 後續）
+- **Backend (`window.rs`)**：sleep `120ms → 400ms`，涵蓋絕大部分 IME / focus blip
+- **Frontend (`CommandPalette.tsx`)** input element：加 `onCompositionStart` / `onCompositionUpdate` / `onCompositionEnd` 主動呼 `keepLauncherOpen()` 設 600ms guard。IME 期間絕對不會被 hide。
+- 既有 `cmd_keep_launcher_open` IPC 沒動，guard 機制重用。
+
+### 待驗證
+- [ ] 使用者實測：中文打 keynova 注音、English fast typing 各 30 秒，確認不再 hide。
+- [ ] 邊緣案例：如果 400ms 還是不夠（極慢 IME），考慮把 hide 改成需要連續兩次 sleep + recheck 都 unfocused 才執行。
+- [ ] 若 IME 不是因，則改往原 R2 (WebView2 host crash) / R3 (Rust panic) 路線排查。
+
+### 防呆基建（仍保留，跟主修法獨立）
+- ErrorBoundary fallback card ✓
+- Global error / unhandledrejection handler ✓ — 對 IME 修法無關，但對未來真崩潰仍有用
 
 ### 已知未明的事
 1. 是 **renderer 內 React error** 還是 **WebView2 host 進程崩**？

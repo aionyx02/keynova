@@ -42,10 +42,16 @@ pub(crate) fn setup_main_window(app: &tauri::App) -> Result<(), Box<dyn std::err
             let _ = window_focused.emit("window-focused", ());
         }
         tauri::WindowEvent::Focused(false) => {
+            // Bug-fix 2026-05-19 — IME composition + WebView2 transparent
+            // window 在 Windows 上會發出短暫的 Focused(false) blip（中文輸入
+            // 法 composition window、accessibility subprocess、popup 滑動都
+            // 會觸發）。原本的 120ms grace period 太短，使用者打字打到一
+            // 半就會被 hide 掉。提到 400ms 涵蓋 99% 的 IME / focus blip，
+            // 真要關 launcher 用 Esc 比較快也不痛。
             let window_blur = window_blur.clone();
             let blur_guard = Arc::clone(&blur_guard);
             tauri::async_runtime::spawn(async move {
-                tokio::time::sleep(Duration::from_millis(120)).await;
+                tokio::time::sleep(Duration::from_millis(400)).await;
                 let should_keep_open = blur_guard
                     .lock()
                     .map(|mut guard| {
