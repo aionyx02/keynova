@@ -212,11 +212,11 @@ Goal: 讓 NoteManager 從簡單檔案儲存升級為日常 driver。Phase 12, no
 
 Goal: 降低學習曲線，提高功能可發現性。Phase 8, no ADR.
 
-- [ ] ONBOARD.1.A 初次啟動 onboarding tour（4 步：開 launcher / 搜尋 / 指令 / hotkey）；可隨時 `/onboard` 重看。
-- [ ] ONBOARD.1.B `?` cheatsheet overlay：任一 panel 按 `?` 顯示當前可用按鍵；資料來源 panel 自註冊。
-- [ ] ONBOARD.1.C Empty state CTA：搜不到時建議「建立 note：X」/「`/help`」/「`/setting`」。
-- [ ] ONBOARD.1.D Re-engage prompt：偵測 30 天未用某功能且使用 ≥7 天 → 主面板輕量提示 1 次。
-- [ ] ONBOARD.1.E First-run hotkey 衝突偵測 + 修正引導：列出 conflict、提供建議替代。
+- [x] ONBOARD.1.A 初次啟動 onboarding tour（2026-05-18 完成）：4 步 modal (welcome / search / commands / customise)；localStorage `keynova.onboarding.completed` 持久化；conditional mount 保證 reopen 重置 step；`/onboard` builtin 清 flag + 重觸發。
+- [x] ONBOARD.1.B `?` cheatsheet overlay（2026-05-18 完成）：query 為空時 `?` 觸發；4 個 section (Global / Search results / Secondary action menu / Onboarding tour) 列鍵位；click backdrop / Esc / 再按 `?` 關閉。v2: 各 panel 自註冊鍵位（先用靜態清單）。
+- [x] ONBOARD.1.C Empty state CTA（2026-05-18 完成）：search 模式 + query 非空 + 0 raw results 時顯示 4 個 CTA：Create note "$query"、`/help`、`/setting`、Replay `/onboard`。
+- [ ] ONBOARD.1.D Re-engage prompt：偵測 30 天未用某功能且使用 ≥7 天 → 主面板輕量提示 1 次。需 per-feature usage tracking 新基建，下一批處理。
+- [ ] ONBOARD.1.E First-run hotkey 衝突偵測 + 修正引導：列出 conflict、提供建議替代。需跨平台 OS-level hotkey enumeration，下一批處理。
 
 ## SYNC.1 — Settings/Notes Export & Sync (ADR-036, partial)
 

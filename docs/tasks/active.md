@@ -6,7 +6,7 @@ updated: 2026-05-18
 context_policy: always_retrievable
 owner: project
 tags: [feature-first, safety-first, performance, agent-ux]
-last_change: UTIL.2 全段交付 — 15 dev utility builtin commands incl. killport two-phase confirm; UTIL.2 group archived to completed.md
+last_change: ONBOARD.1 Slice 1 (A onboarding tour + B `?` cheatsheet + C empty-state CTA) delivered; D/E left for next batch
 ---
 
 # Active Tasks
@@ -56,6 +56,15 @@ See `docs/tasks/backlog.md` Post-FEAT.11 Phase Proposal 與 11 個 track section
 See `docs/tasks/blocked.md` Post-FEAT.11 Tracks Pending ADR 表。
 
 ## Recent Execution Notes
+
+- 2026-05-18: ONBOARD.1 Slice 1 (A + B + C) 交付：
+  - **A — onboarding tour (`src/components/OnboardingTour.tsx` 新檔)**：4 步 modal (welcome / search / commands / customise)。localStorage `keynova.onboarding.completed` flag + `hasCompletedOnboarding()` / `markOnboardingCompleted()` / `resetOnboarding()` helper。Conditional mount in CommandPalette (`{onboardingOpen && <OnboardingTour … />}`) 保證每次 reopen 從 stepIdx=0 開始，避免 setState-in-effect。Esc/Skip → mark completed + close；Enter/→ next；← back。
+  - **A backend — `OnboardCommand` (`src-tauri/src/handlers/builtin_cmd.rs`)**：`/onboard` builtin。前端 `execCommand` 攔截 name === "onboard"：`resetOnboarding()` + `setQuery("")` + `setOnboardingOpen(true)`，不送 backend result UI。後端 OnboardCommand fallback 回 Inline `"Replaying onboarding tour…"` 給任何讀 result 的 code path。
+  - **B — `?` cheatsheet overlay (`src/components/CheatsheetOverlay.tsx` 新檔)**：query 為空時 `?` 觸發（避免與打 `?` 進 search 衝突）。4 個 section (Global / Search results / Secondary action menu / Onboarding tour)，列鍵位 + 描述。Esc / 再按 `?` / 點 backdrop 關閉。Conditional mount 同 A。v2 留：各 panel 自註冊鍵位（先用靜態清單足夠）。
+  - **C — empty-state CTA (`src/components/CommandPalette.tsx`)**：search 模式 + `query.trim() !== ""` + `results.length === 0` + 非 pipeline 時，於 input bar 下方顯示 4 個 CTA chip：Create note "$query"（呼 `/note create $query`）、`/help`、`/setting`、Replay `/onboard`。
+  - **註冊 (`src-tauri/src/app/state.rs`)**：`OnboardCommand` 加進 `build_builtin_registry`。
+  - **檢查**：`cargo test` 339/340（pre-existing nvim test 不變）；`cargo clippy -- -D warnings` 清；`npm run lint` 清；`npx tsc --noEmit` 清。
+  - **未做（下一批）**：ONBOARD.1.D Re-engage prompt 需 per-feature last-used timestamps 持久化；ONBOARD.1.E First-run hotkey 衝突偵測需跨平台 OS-level hotkey enumeration。
 
 - 2026-05-18: UTIL.2.J killport 交付（UTIL.2 group 結案）：
   - **`src-tauri/src/core/process_lookup.rs` (新檔)**: `ProcessInfo { pid, process_name, port, protocol }`；`find_process_by_port` 跨平台 dispatch — Windows 走 `netstat -ano -p TCP` + `tasklist /FI "PID eq X" /FO CSV /NH` 二次查 process name；Unix 走 `lsof -nP -iTCP:PORT -sTCP:LISTEN`。`kill_pid` 跨平台：`taskkill /F /PID` 或 `kill -9`。Pure parsers (`parse_netstat_tcp_listen` / `parse_tasklist_csv` / `parse_lsof_listen`) 抽到 module 頂層給單元測試。

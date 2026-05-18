@@ -13,7 +13,13 @@ import { CommandSuggestions } from "./CommandSuggestions";
 import { PanelRegistry } from "./panel/PanelRegistry";
 import { WorkspaceIndicator } from "./WorkspaceIndicator";
 import { SecondaryActionMenu } from "./SecondaryActionMenu";
+import { CheatsheetOverlay } from "./CheatsheetOverlay";
 import { FilterChips, loadFilters, saveFilters } from "./FilterChips";
+import {
+  OnboardingTour,
+  hasCompletedOnboarding,
+  resetOnboarding,
+} from "./OnboardingTour";
 import { PreviewPane } from "./PreviewPane";
 import { RankTooltip } from "./RankTooltip";
 import { useFilePreview, isPreviewable } from "../hooks/useFilePreview";
@@ -165,6 +171,13 @@ export function CommandPalette() {
   // hover delay fires so subsequent renders can read it without touching a ref.
   const [hover, setHover] = useState<{ index: number; rect: DOMRect } | null>(null);
   const hoverTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // ONBOARD.1.A — first-run tour overlay state.
+  const [onboardingOpen, setOnboardingOpen] = useState(() => !hasCompletedOnboarding());
+
+  // ONBOARD.1.B — `?` cheatsheet overlay (only triggers from Shift+/ when input
+  // is empty or non-search mode; otherwise typing `?` flows into the input).
+  const [cheatsheetOpen, setCheatsheetOpen] = useState(false);
 
   const inputRef = useRef<HTMLInputElement>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -778,6 +791,15 @@ export function CommandPalette() {
 
   async function execCommand(name: string, args = "") {
     try {
+      // ONBOARD.1.A — `/onboard` re-triggers the tour without going through
+      // the builtin command result UI: clear the localStorage flag, open the
+      // overlay, and skip rendering a Panel/Inline result.
+      if (name === "onboard") {
+        resetOnboarding();
+        setQuery("");
+        setOnboardingOpen(true);
+        return;
+      }
       const result = await runCommand(name, args);
       setCmdResult(result);
     } catch {
@@ -786,6 +808,13 @@ export function CommandPalette() {
   }
 
   function onKeyDown(e: React.KeyboardEvent) {
+    // ONBOARD.1.B — `?` opens cheatsheet when input is empty, so it doesn't
+    // collide with typing `?` as part of a query.
+    if (e.key === "?" && query === "" && !secondaryMenuOpen && !cmdResult) {
+      e.preventDefault();
+      setCheatsheetOpen(true);
+      return;
+    }
     if (mode === "search") {
       // Menu open: route arrows/Enter/Left to menu actions; let typed text fall through.
       if (secondaryMenuOpen) {
@@ -1085,6 +1114,45 @@ export function CommandPalette() {
             </div>
           </div>
 
+          {/* ONBOARD.1.C — empty-state CTA: search mode, non-empty query, zero raw results */}
+          {mode === "search" && query.trim() !== "" && results.length === 0 && !pipelineRunning && !pipelineResult && (
+            <div className="bg-gray-900/95 backdrop-blur-md rounded-b-xl shadow-2xl overflow-hidden">
+              <div className="px-4 py-3 text-sm text-gray-400">
+                <div className="mb-2">No results for <span className="font-mono text-gray-300">{query}</span>.</div>
+                <div className="flex flex-wrap gap-2 text-xs">
+                  <button
+                    type="button"
+                    onClick={() => void execCommand("note", `create ${query}`)}
+                    className="rounded bg-sky-600/30 px-2 py-1 text-sky-200 ring-1 ring-sky-600/40 hover:bg-sky-600/50"
+                  >
+                    Create note &quot;{query}&quot;
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => { setQuery("/help"); }}
+                    className="rounded bg-gray-800/60 px-2 py-1 text-gray-300 ring-1 ring-gray-700/40 hover:bg-gray-800"
+                  >
+                    Try /help
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => { setQuery("/setting"); }}
+                    className="rounded bg-gray-800/60 px-2 py-1 text-gray-300 ring-1 ring-gray-700/40 hover:bg-gray-800"
+                  >
+                    Open /setting
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => void execCommand("onboard")}
+                    className="rounded bg-gray-800/60 px-2 py-1 text-gray-300 ring-1 ring-gray-700/40 hover:bg-gray-800"
+                  >
+                    Replay /onboard
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* Search results — show chip bar whenever raw results exist so the user can always clear filters */}
           {mode === "search" && results.length > 0 && visibleResults.length === 0 && (
             <div className="relative bg-gray-900/95 backdrop-blur-md rounded-b-xl shadow-2xl overflow-hidden">
@@ -1260,6 +1328,16 @@ export function CommandPalette() {
             anchorRect={hover ? hover.rect : null}
             visible={hover !== null}
           />
+
+          {/* ONBOARD.1.A — first-run tour overlay (conditional mount resets step) */}
+          {onboardingOpen && (
+            <OnboardingTour onClose={() => setOnboardingOpen(false)} />
+          )}
+
+          {/* ONBOARD.1.B — `?` cheatsheet overlay */}
+          {cheatsheetOpen && (
+            <CheatsheetOverlay onClose={() => setCheatsheetOpen(false)} />
+          )}
 
           {/* Command suggestions */}
           {hasCmdSuggestions && (
