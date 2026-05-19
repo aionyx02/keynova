@@ -2,7 +2,7 @@
 type: agent_policy
 status: active
 priority: p0
-updated: 2026-05-15
+updated: 2026-05-19
 context_policy: always_retrievable
 owner: project
 ---
@@ -52,7 +52,7 @@ After meaningful changes, update the right file immediately:
 - Working strategy/next step -> `docs/memory/current.md`
 - Architecture changes -> `docs/architecture.md`
 - Security boundary changes -> `docs/security.md`
-- Test strategy changes -> `docs/testing.md`
+- Test strategy changes -> `docs/testing.md 、 testing-edge-case.md`
 - Decision boundary changes -> `docs/adr/*` + `docs/decisions.md`
 
 ### 5a. Auto-Archive Completed Task Groups (mandatory)
