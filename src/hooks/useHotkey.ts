@@ -1,23 +1,27 @@
 import { useIPC } from "./useIPC";
+import { IPC } from "../ipc/routes";
 import type { ConflictInfo, HotkeyConfig } from "../types/hotkey";
 
 export function useHotkey() {
   const { dispatch } = useIPC();
 
-  async function register(config: HotkeyConfig): Promise<void> {
-    return dispatch("hotkey.register", config as unknown as Record<string, unknown>);
+  function register(config: HotkeyConfig): Promise<void> {
+    return dispatch(IPC.HOTKEY_REGISTER, config as unknown as Record<string, unknown>);
   }
 
-  async function unregister(id: string): Promise<void> {
-    return dispatch("hotkey.unregister", { id });
+  function unregister(id: string): Promise<void> {
+    return dispatch(IPC.HOTKEY_UNREGISTER, { id });
   }
 
-  async function list(): Promise<HotkeyConfig[]> {
-    return dispatch<HotkeyConfig[]>("hotkey.list");
+  function list(): Promise<HotkeyConfig[]> {
+    return dispatch<HotkeyConfig[]>(IPC.HOTKEY_LIST);
   }
 
-  async function checkConflict(config: HotkeyConfig): Promise<ConflictInfo | null> {
-    return dispatch<ConflictInfo | null>("hotkey.check_conflict", config as unknown as Record<string, unknown>);
+  function checkConflict(config: HotkeyConfig): Promise<ConflictInfo | null> {
+    return dispatch<ConflictInfo | null>(
+      IPC.HOTKEY_CHECK_CONFLICT,
+      config as unknown as Record<string, unknown>,
+    );
   }
 
   return { register, unregister, list, checkConflict };

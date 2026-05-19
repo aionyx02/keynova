@@ -1,7 +1,18 @@
+---
+type: testing_policy
+status: active
+priority: p1
+updated: 2026-05-15
+context_policy: retrieve_when_debugging
+owner: project
+---
+
 # Keynova 測試策略
 
+> Retrieval policy: 寫測試、查失敗、驗證 regression 時讀取對應章節，不需每次全讀。
+
 **版本：** 1.0  
-**最後更新：** 2026-05-10  
+**最後更新：** 2026-05-13  
 **相關文件：** `docs/architecture.md`, `docs/security.md`
 
 ---
@@ -165,7 +176,23 @@ npm run tauri build
 | Tantivy 索引建立 | < 30s | 10,000 個檔案 |
 | knowledge.db action_log 寫入 | < 5ms/筆 | 非同步，不阻塞 UI |
 | 冷啟動（UI 可見） | < 200ms | — |
-| 記憶體（冷啟動） | < 120MB | — |
+| 記憶體（Background Core 冷啟動） | < 100MB | 不含 WebView、LLM model、PTY |
+
+### 6.1 記憶體量測清單（PERF.1.I）
+
+量測工具：Windows Task Manager → Keynova.exe → Memory (Private Working Set)
+
+| 量測點 | 步驟 | 預期上限 | 備註 |
+|--------|------|---------|------|
+| 冷啟動 | 啟動後等待 5 秒，查看 RSS | < 100 MB | 不開啟調色盤、不開啟終端 |
+| 系統匣待機 | 視窗關閉後等待 30 秒 | < 100 MB | prewarm 與 indexer 均應完成或跳過 |
+| 開啟調色盤 | 呼叫 Ctrl+K 後輸入查詢 | < 120 MB | 含 WebView 及搜尋結果渲染 |
+| 執行 Agent | 執行一次 /agent 任務（含 LLM 回應） | 不設上限 | 僅記錄 delta，不含已載入 model |
+
+量測前注意事項：
+- 使用 `performance.low_memory_mode = true` 時，冷啟動應省略 prewarm 和 startup indexing。
+- 若 `low_memory_mode = false`，prewarm PTY 會增加約 10–20 MB；屬預期行為。
+- `ai.ollama_keep_alive = "0s"` 可讓模型在每次請求後立即卸載，大幅降低 delta。
 
 ---
 
@@ -201,3 +228,4 @@ npm run test
 ```
 
 所有指令必須以 exit code 0 完成才能合併。
+

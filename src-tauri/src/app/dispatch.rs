@@ -73,6 +73,10 @@ fn dispatch_command(
         return run_automation_execute(payload, app, state);
     }
 
+    if route == "automation.execute_pipeline" {
+        return run_pipeline_execute(payload, app, state);
+    }
+
     if let Some(name) = builtin_control_command(route, &payload) {
         return run_builtin_control_command(app, name);
     }
@@ -120,6 +124,29 @@ fn run_automation_execute(
     let report = AutomationEngine::execute(&workflow, |route, payload| {
         dispatch_command(route, payload, app, state).map_err(|error| error.to_string())
     });
+    Ok(json!(report))
+}
+
+fn run_pipeline_execute(
+    payload: Value,
+    app: &tauri::AppHandle,
+    state: &tauri::State<'_, AppState>,
+) -> Result<Value, IpcError> {
+    use crate::core::workflow_pipeline::parse_pipeline_text;
+
+    let text = payload
+        .get("text")
+        .and_then(Value::as_str)
+        .filter(|text| !text.trim().is_empty())
+        .ok_or_else(|| IpcError::new("invalid_pipeline_request", "missing or empty 'text'"))?;
+
+    let actions = parse_pipeline_text(text)
+        .map_err(|e| IpcError::new("pipeline_parse_error", e.to_string()))?;
+
+    let report = AutomationEngine::execute_pipeline("pipeline", actions, |route, action_payload| {
+        dispatch_command(route, action_payload, app, state).map_err(|e| e.to_string())
+    });
+
     Ok(json!(report))
 }
 
@@ -270,7 +297,9 @@ pub(crate) fn cmd_keep_launcher_open_impl(
     state: tauri::State<'_, AppState>,
 ) -> Result<(), IpcError> {
     if let Ok(mut guard) = state.launcher_focus_guard.lock() {
-        *guard = Some(Instant::now() + Duration::from_millis(600));
+        // 2000ms TTL > backend 1500ms grace — 配合 frontend 在每次 keydown
+        // (200ms throttle) renew guard，blur 後 sleep 完檢查時 guard 還有效。
+        *guard = Some(Instant::now() + Duration::from_millis(2000));
     }
     window
         .show()

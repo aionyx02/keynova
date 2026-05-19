@@ -1,16 +1,39 @@
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, Suspense } from "react";
 import { listen } from "@tauri-apps/api/event";
-import { getCurrentWindow } from "@tauri-apps/api/window";
-import { LogicalSize } from "@tauri-apps/api/dpi";
 import { invoke } from "@tauri-apps/api/core";
+import { getCurrentWindow } from "@tauri-apps/api/window";
+import { revealItemInDir } from "@tauri-apps/plugin-opener";
 import { useIPC } from "../hooks/useIPC";
+import { useWindowResize } from "../hooks/useWindowResize";
+import { useSearchMetadata } from "../hooks/useSearchMetadata";
 import { useAppStore } from "../stores/appStore";
 import { parseInputMode } from "../hooks/useInputMode";
 import { useCommands } from "../hooks/useCommands";
 import { CommandSuggestions } from "./CommandSuggestions";
 import { PanelRegistry } from "./panel/PanelRegistry";
 import { WorkspaceIndicator } from "./WorkspaceIndicator";
-import type { SearchChunkDiagnostics, SearchChunkPayload, SearchErrorPayload, SearchIconAsset, SearchMetadata, SearchResult } from "../types/search";
+import { SecondaryActionMenu } from "./SecondaryActionMenu";
+import { CheatsheetOverlay } from "./CheatsheetOverlay";
+import { FilterChips, clearLegacyFilters, loadFilters } from "./FilterChips";
+import {
+  OnboardingTour,
+  hasCompletedOnboarding,
+  resetOnboarding,
+} from "./OnboardingTour";
+import { PreviewPane } from "./PreviewPane";
+import { RankTooltip } from "./RankTooltip";
+import { useFilePreview, isPreviewable } from "../hooks/useFilePreview";
+import { PALETTE_WIDTH_NARROW, PALETTE_WIDTH_WIDE } from "../hooks/useWindowResize";
+import { applySourceQuotas, mergeSearchResults, sortSearchResults } from "../utils/search";
+import {
+  basenameFromPath,
+  buildSecondaryActions,
+  parentDirFromPath,
+  type SecondaryActionId,
+} from "../utils/secondaryActions";
+import { IPC } from "../ipc/routes";
+import type { SearchBackendInfo, SettingEntry } from "../ipc/types";
+import type { SearchChunkDiagnostics, SearchChunkPayload, SearchErrorPayload, SearchResult, SourceFilter } from "../types/search";
 import type { ActionRef } from "../types/search";
 import type { BuiltinCommandResult } from "../hooks/useCommands";
 import type { WorkspaceState } from "../hooks/useWorkspace";
@@ -19,26 +42,14 @@ const TerminalPanel = React.lazy(() =>
   import("./TerminalPanel").then((m) => ({ default: m.TerminalPanel })),
 );
 
-const TERMINAL_HEIGHT = 360;
-
-interface SettingEntry {
-  key: string;
-  value: string;
-}
+// 2026-05-19 Bug B2 — TTL for `recentlyDeleted` kill-set. If user restores a
+// trashed file from Recycle Bin within this window, search still hides it;
+// after the window the kill-set entry is ignored and the restored file
+// reappears in results without needing a workspace switch.
+const RECENTLY_DELETED_TTL_MS = 30_000;
 
 interface ConfigReloadedPayload {
   changed_keys: string[];
-}
-
-interface SearchBackendInfo {
-  configured: string;
-  active: string;
-  everything_available: boolean;
-  tantivy_available: boolean;
-  file_cache_entries: number;
-  tantivy_index_entries: number;
-  tantivy_index_dir: string;
-  rebuild_supported: boolean;
 }
 
 interface SecondaryAction {
@@ -47,12 +58,26 @@ interface SecondaryAction {
   risk: "low" | "medium" | "high";
 }
 
-function isEditorTerminalResult(result: BuiltinCommandResult | null) {
-  return result?.ui_type.type === "Terminal" && result.ui_type.value.editor;
+interface PipelineStageResult {
+  index: number;
+  route: string;
+  status: string;
+  output?: unknown;
+  error?: string;
 }
 
-function isTerminalResult(result: BuiltinCommandResult | null) {
-  return result?.ui_type.type === "Terminal";
+interface PipelineReport {
+  log: {
+    workflow_name: string;
+    status: string;
+    action_count: number;
+    error?: string;
+  };
+  actions: PipelineStageResult[];
+}
+
+function isEditorTerminalResult(result: BuiltinCommandResult | null) {
+  return result?.ui_type.type === "Terminal" && result.ui_type.value.editor;
 }
 
 async function hideWindow() {
@@ -85,79 +110,10 @@ const KIND_BADGE: Record<string, { label: string; cls: string }> = {
   model: { label: "AI", cls: "bg-fuchsia-500/30 text-fuchsia-300" },
 };
 
-function searchResultKey(result: SearchResult) {
-  return `${result.source ?? result.kind}:${result.path}`;
-}
-
 function hasEncodingError(s: string | undefined | null): boolean {
   return typeof s === "string" && s.includes("�");
 }
 
-// Per-source caps mirror the backend sort_balanced_truncate constants.
-const SOURCE_QUOTAS: Partial<Record<string, number>> = {
-  app: 8,
-  command: 8,
-  note: 8,
-  history: 12,
-  model: 6,
-};
-
-function applySourceQuotas(sorted: SearchResult[], limit: number): SearchResult[] {
-  const counts: Record<string, number> = {};
-  const out: SearchResult[] = [];
-  for (const item of sorted) {
-    const key = item.source ?? item.kind;
-    const quota = SOURCE_QUOTAS[key];
-    const n = counts[key] ?? 0;
-    if (quota !== undefined && n >= quota) continue;
-    counts[key] = n + 1;
-    out.push(item);
-    if (out.length >= limit) break;
-  }
-  return out;
-}
-
-function mergeSearchResults(existing: SearchResult[], incoming: SearchResult[], limit: number) {
-  const seen = new Set(existing.map(searchResultKey));
-  const merged = [...existing];
-  for (const item of incoming) {
-    const key = searchResultKey(item);
-    if (seen.has(key)) continue;
-    seen.add(key);
-    merged.push(item);
-  }
-  return applySourceQuotas(sortSearchResults(merged), limit);
-}
-
-function sortSearchResults(results: SearchResult[]) {
-  return [...results].sort((left, right) => {
-    if (right.score !== left.score) return right.score - left.score;
-    const sourceOrder = searchSourceOrder(left) - searchSourceOrder(right);
-    if (sourceOrder !== 0) return sourceOrder;
-    return (left.title ?? left.name).localeCompare(right.title ?? right.name);
-  });
-}
-
-function searchSourceOrder(result: SearchResult) {
-  switch (result.kind) {
-    case "app":
-      return 0;
-    case "command":
-      return 1;
-    case "folder":
-      return 2;
-    case "file":
-      return 3;
-    case "note":
-      return 4;
-    case "history":
-      return 5;
-    case "model":
-      return 6;
-    default:
-      return 7;
-  }
-}
 
 function isCopyableLocationResult(result: SearchResult | null) {
   return result?.kind === "app" || result?.kind === "file" || result?.kind === "folder";
@@ -186,18 +142,78 @@ export function CommandPalette() {
   const [argSuggestions, setArgSuggestions] = useState<string[]>([]);
   const [selectedArg, setSelectedArg] = useState(0);
   const [searchBackend, setSearchBackend] = useState<SearchBackendInfo | null>(null);
-  const [metadataByPath, setMetadataByPath] = useState<Record<string, SearchMetadata>>({});
-  const [iconsByKey, setIconsByKey] = useState<Record<string, SearchIconAsset>>({});
   const [timedOutProviders, setTimedOutProviders] = useState<string[]>([]);
   const [fileDiagnostics, setFileDiagnostics] = useState<SearchChunkDiagnostics | null>(null);
   const [copiedPath, setCopiedPath] = useState<string | null>(null);
+  const [copyHint, setCopyHint] = useState<string | null>(null);
+  const [pipelineResult, setPipelineResult] = useState<PipelineReport | null>(null);
+  const [pipelineRunning, setPipelineRunning] = useState(false);
+
+  // LAUNCH.1.A — Secondary action menu state (keyboard-driven via onKeyDown below)
+  const [secondaryMenuOpen, setSecondaryMenuOpen] = useState(false);
+  const [menuFocusedIndex, setMenuFocusedIndex] = useState(0);
+  const [expandedMetadata, setExpandedMetadata] = useState(false);
+
+  // LAUNCH.1.B — two-phase confirm gate for destructive file ops.
+  // pendingConfirm: set after a dry-run dispatch; next Enter on the same action runs for real.
+  // inlineInput: open for rename/move (need a target name/path).
+  const [pendingConfirm, setPendingConfirm] = useState<SecondaryActionId | null>(null);
+  const [inlineInput, setInlineInput] = useState<{ for: "rename" | "move"; value: string } | null>(null);
+
+  // LAUNCH.1.D — source-type filter chips (multi-select, session-scoped).
+  // Initial set is always empty: persistence across launches caused users to
+  // silently hide entire result kinds without realising why. See FilterChips
+  // module comment for context.
+  const [activeFilters, setActiveFilters] = useState<Set<SourceFilter>>(() => loadFilters());
+  // Remove any legacy persisted chip selection from earlier builds so existing
+  // users aren't left stuck with hidden results until they manually click Clear.
+  useEffect(() => {
+    clearLegacyFilters();
+  }, []);
+
+  // LAUNCH.1.C/E — settings as state (consumed during render to gate UI).
+  const [previewEnabled, setPreviewEnabled] = useState(true);
+  const [showRankBreakdown, setShowRankBreakdown] = useState(true);
+
+  // LAUNCH.1.C — dynamic palette width: 640 normally, 960 when preview pane visible.
+  const paletteWidthRef = useRef<number>(PALETTE_WIDTH_NARROW);
+
+  // LAUNCH.1.E — rank tooltip hover state. `rect` is captured at the moment the
+  // hover delay fires so subsequent renders can read it without touching a ref.
+  const [hover, setHover] = useState<{ index: number; rect: DOMRect } | null>(null);
+  const hoverTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // ONBOARD.1.A — first-run tour overlay state.
+  const [onboardingOpen, setOnboardingOpen] = useState(() => !hasCompletedOnboarding());
+
+  // ONBOARD.1.B — `?` cheatsheet overlay (only triggers from Shift+/ when input
+  // is empty or non-search mode; otherwise typing `?` flows into the input).
+  const [cheatsheetOpen, setCheatsheetOpen] = useState(false);
+
+  // LAUNCH.1.B bugfix — paths the user just deleted/moved/renamed. Used as a
+  // render-time kill set so a deleted file can never display, regardless of
+  // which `setResults` callsite (initial debounce response, stream chunk,
+  // merge, etc.) reintroduces it. Windows Everything still indexes Recycle
+  // Bin entries, so without this set a just-trashed file resurrects on the
+  // next chunk. Cleared on query change / workspace switch.
+  //
+  // 2026-05-19 Bug B2 fix — map to Date.now() timestamp + visibleResults
+  // applies a 30 s TTL. If user restores a file from Recycle Bin within the
+  // same launcher session, the kill-set entry naturally expires and the
+  // restored file becomes searchable again without a workspace switch.
+  const [recentlyDeleted, setRecentlyDeleted] = useState<Map<string, number>>(
+    () => new Map(),
+  );
 
   const inputRef = useRef<HTMLInputElement>(null);
-  const containerRef = useRef<HTMLDivElement>(null);
+  // Bug-fix 2026-05-19 (round 2) — throttle for keepLauncherOpen() renewal
+  // on every keystroke. Backend launcher_focus_guard TTL is 2s; we refresh
+  // it at most every 200ms while user is interacting → guard always wins
+  // against the 1.5s Focused(false) grace, regardless of English/IME path.
+  const lastGuardRef = useRef<number>(0);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const argDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const copyResetRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const resizeRafRef = useRef<number | null>(null);
   const searchIdRef = useRef(0);
   const activeSearchRequestRef = useRef("");
   const searchLimitRef = useRef(30);
@@ -209,11 +225,18 @@ export function CommandPalette() {
   const modeRef = useRef(mode);
   const cmdResultRef = useRef(cmdResult);
   const queryRef = useRef(query);
+  const secondaryMenuOpenRef = useRef(secondaryMenuOpen);
+  const expandedMetadataRef = useRef(expandedMetadata);
   useLayoutEffect(() => {
     modeRef.current = mode;
     cmdResultRef.current = cmdResult;
     queryRef.current = query;
+    secondaryMenuOpenRef.current = secondaryMenuOpen;
+    expandedMetadataRef.current = expandedMetadata;
   });
+
+  const { containerRef, scheduleWindowResize } = useWindowResize(modeRef, cmdResultRef, paletteWidthRef);
+  const { metadataByPath, iconsByKey } = useSearchMetadata(results, selected);
 
 
   // Split rawInput into command name and trailing args (Minecraft-style)
@@ -257,31 +280,10 @@ export function CommandPalette() {
       if (copyResetRef.current) {
         clearTimeout(copyResetRef.current);
       }
+      if (hoverTimerRef.current) {
+        clearTimeout(hoverTimerRef.current);
+      }
     };
-  }, []);
-
-  const scheduleWindowResize = useCallback(() => {
-    if (!window.__TAURI_INTERNALS__) return;
-    if (resizeRafRef.current !== null) {
-      cancelAnimationFrame(resizeRafRef.current);
-    }
-    resizeRafRef.current = requestAnimationFrame(() => {
-      resizeRafRef.current = null;
-      if (modeRef.current === "terminal") {
-        getCurrentWindow().setSize(new LogicalSize(640, TERMINAL_HEIGHT)).catch(() => {});
-        return;
-      }
-      if (isTerminalResult(cmdResultRef.current)) {
-        getCurrentWindow().setSize(new LogicalSize(640, TERMINAL_HEIGHT)).catch(() => {});
-        return;
-      }
-      const el = containerRef.current;
-      if (!el) return;
-      const rectHeight = Math.ceil(el.getBoundingClientRect().height);
-      const scrollHeight = Math.ceil(el.scrollHeight);
-      const height = Math.max(rectHeight, scrollHeight, 56);
-      getCurrentWindow().setSize(new LogicalSize(640, height)).catch(() => {});
-    });
   }, []);
 
   useEffect(() => {
@@ -289,14 +291,19 @@ export function CommandPalette() {
 
     async function refreshLauncherSettings() {
       try {
-        const entries = await invoke<SettingEntry[]>("cmd_dispatch", {
-          route: "setting.list_all",
-          payload: null,
-        });
+        const entries = await dispatch<SettingEntry[]>(IPC.SETTING_LIST_ALL);
         const maxResults = entries.find((entry) => entry.key === "launcher.max_results")?.value;
         const parsed = Number.parseInt(maxResults ?? "", 10);
         if (Number.isFinite(parsed) && parsed > 0) {
           searchLimitRef.current = parsed;
+        }
+        const previewEnabledSetting = entries.find((entry) => entry.key === "search.preview_enabled")?.value;
+        if (previewEnabledSetting !== undefined) {
+          setPreviewEnabled(previewEnabledSetting !== "false");
+        }
+        const showRankSetting = entries.find((entry) => entry.key === "search.show_rank_breakdown")?.value;
+        if (showRankSetting !== undefined) {
+          setShowRankBreakdown(showRankSetting !== "false");
         }
       } catch {
         // keep current search limit
@@ -305,9 +312,12 @@ export function CommandPalette() {
 
     void refreshLauncherSettings();
     const unlisten = listen<ConfigReloadedPayload>("config-reloaded", (event) => {
+      const keys = event.payload.changed_keys;
       if (
-        event.payload.changed_keys.length === 0 ||
-        event.payload.changed_keys.includes("launcher.max_results")
+        keys.length === 0 ||
+        keys.includes("launcher.max_results") ||
+        keys.includes("search.preview_enabled") ||
+        keys.includes("search.show_rank_breakdown")
       ) {
         void refreshLauncherSettings();
       }
@@ -316,6 +326,8 @@ export function CommandPalette() {
     return () => {
       unlisten.then((fn) => fn());
     };
+    // dispatch is intentionally omitted — useIPC returns a fresh wrapper each render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
@@ -332,6 +344,9 @@ export function CommandPalette() {
       }
       if (payload.replace) {
         // Final balanced batch from backend — replace results entirely.
+        // LAUNCH.1.B bugfix: deleted paths are filtered at render time via
+        // `visibleResults`, so the kill set doesn't need to live in this
+        // event handler.
         setResults(applySourceQuotas(sortSearchResults(payload.items), searchLimitRef.current));
       } else if (payload.items.length > 0) {
         setResults((current) =>
@@ -359,10 +374,7 @@ export function CommandPalette() {
 
     async function refreshSearchBackend() {
       try {
-        const info = await invoke<SearchBackendInfo>("cmd_dispatch", {
-          route: "search.backend",
-          payload: null,
-        });
+        const info = await dispatch<SearchBackendInfo>(IPC.SEARCH_BACKEND);
         setSearchBackend(info);
       } catch {
         setSearchBackend(null);
@@ -383,6 +395,8 @@ export function CommandPalette() {
     return () => {
       unlisten.then((fn) => fn());
     };
+    // dispatch is intentionally omitted — useIPC returns a fresh wrapper each render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
@@ -393,53 +407,6 @@ export function CommandPalette() {
   }, [mode]);
 
   useEffect(() => {
-    if (!window.__TAURI_INTERNALS__) return;
-    const result = results[selected];
-    if (!result || metadataByPath[result.path]) return;
-    if (result.kind !== "file" && result.kind !== "folder" && result.kind !== "app") return;
-
-    let cancelled = false;
-    dispatch<SearchMetadata>("search.metadata", {
-      path: result.path,
-      kind: result.kind,
-    })
-      .then((metadata) => {
-        if (cancelled) return;
-        setMetadataByPath((current) => ({ ...current, [metadata.path]: metadata }));
-      })
-      .catch(() => {});
-    return () => {
-      cancelled = true;
-    };
-    // dispatch is intentionally omitted because useIPC returns a fresh wrapper each render.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selected, results, metadataByPath]);
-
-  useEffect(() => {
-    if (!window.__TAURI_INTERNALS__) return;
-    const result = results[selected];
-    const iconKey = result?.icon_key;
-    if (!result || !iconKey || iconsByKey[iconKey]) return;
-
-    let cancelled = false;
-    dispatch<SearchIconAsset>("search.icon", {
-      icon_key: iconKey,
-      kind: result.kind,
-      path: result.path,
-    })
-      .then((asset) => {
-        if (cancelled) return;
-        setIconsByKey((current) => ({ ...current, [asset.icon_key]: asset }));
-      })
-      .catch(() => {});
-    return () => {
-      cancelled = true;
-    };
-    // dispatch is intentionally omitted because useIPC returns a fresh wrapper each render.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selected, results, iconsByKey]);
-
-  useEffect(() => {
     const unlisten = listen<void>("window-focused", () => {
       if (modeRef.current === "terminal") return;
       activeSearchRequestRef.current = "";
@@ -448,7 +415,7 @@ export function CommandPalette() {
       setSelected(0);
       setCmdResult(null);
       setTimedOutProviders([]);
-      void dispatch("search.cancel").catch(() => {});
+      void dispatch(IPC.SEARCH_CANCEL).catch(() => {});
       inputRef.current?.focus();
     });
     return () => { unlisten.then((fn) => fn()); };
@@ -465,7 +432,27 @@ export function CommandPalette() {
       setCmdResult(null);
       setTimedOutProviders([]);
       activeSearchRequestRef.current = "";
-      void dispatch("search.cancel").catch(() => {});
+      setRecentlyDeleted(new Map());
+      void dispatch(IPC.SEARCH_CANCEL).catch(() => {});
+      requestAnimationFrame(() => inputRef.current?.focus());
+    });
+    return () => { unlisten.then((fn) => fn()); };
+  }, [dispatch, setQuery]);
+
+  // LAUNCH.2.B — workspace cycle (Ctrl+Alt+0 default): same reset as
+  // `workspace-switched` but the query is force-cleared rather than restored
+  // from the target workspace's saved state.
+  useEffect(() => {
+    if (!window.__TAURI_INTERNALS__) return;
+    const unlisten = listen<WorkspaceState>("workspace-cycled", () => {
+      setQuery("");
+      setResults([]);
+      setSelected(0);
+      setCmdResult(null);
+      setTimedOutProviders([]);
+      activeSearchRequestRef.current = "";
+      setRecentlyDeleted(new Map());
+      void dispatch(IPC.SEARCH_CANCEL).catch(() => {});
       requestAnimationFrame(() => inputRef.current?.focus());
     });
     return () => { unlisten.then((fn) => fn()); };
@@ -481,6 +468,19 @@ export function CommandPalette() {
       e.stopPropagation();
       e.stopImmediatePropagation();
 
+      // Highest priority: close secondary menu / collapse metadata first
+      if (secondaryMenuOpenRef.current) {
+        setSecondaryMenuOpen(false);
+        setMenuFocusedIndex(0);
+        setPendingConfirm(null);
+        setInlineInput(null);
+        return;
+      }
+      if (expandedMetadataRef.current) {
+        setExpandedMetadata(false);
+        return;
+      }
+
       if (modeRef.current === "terminal") {
         containerRef.current?.focus();
         setQuery("");
@@ -492,17 +492,21 @@ export function CommandPalette() {
       if (cmdResultRef.current !== null) {
         activeSearchRequestRef.current = "";
         setCmdResult(null);
+        setPipelineResult(null);
+        setPipelineRunning(false);
         setQuery("");
         setResults([]);
         setTimedOutProviders([]);
-        void dispatch("search.cancel").catch(() => {});
+        void dispatch(IPC.SEARCH_CANCEL).catch(() => {});
         requestAnimationFrame(() => inputRef.current?.focus());
       } else if (queryRef.current !== "") {
         activeSearchRequestRef.current = "";
         setQuery("");
         setResults([]);
         setTimedOutProviders([]);
-        void dispatch("search.cancel").catch(() => {});
+        setPipelineResult(null);
+        setPipelineRunning(false);
+        void dispatch(IPC.SEARCH_CANCEL).catch(() => {});
         inputRef.current?.focus();
       } else {
         void hideWindow();
@@ -513,6 +517,19 @@ export function CommandPalette() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [setQuery]); // stable Zustand setter — listener registered exactly once
 
+  // Close secondary menu / collapse metadata when result selection or list changes.
+  useEffect(() => {
+    if (secondaryMenuOpenRef.current) {
+      setSecondaryMenuOpen(false);
+      setMenuFocusedIndex(0);
+      setPendingConfirm(null);
+      setInlineInput(null);
+    }
+    if (expandedMetadataRef.current) {
+      setExpandedMetadata(false);
+    }
+  }, [results, selected]);
+
   // Window sizing
   useEffect(() => {
     scheduleWindowResize();
@@ -521,45 +538,45 @@ export function CommandPalette() {
     mode,
     query,
     results.length,
+    activeFilters,
     cmdSuggestions.length,
     cmdResult,
     argSuggestions.length,
+    expandedMetadata,
+    secondaryMenuOpen,
+    menuFocusedIndex,
+    pendingConfirm,
+    inlineInput,
   ]);
 
-  useEffect(() => {
-    if (!window.__TAURI_INTERNALS__) return;
-    const el = containerRef.current;
-    if (!el) return;
 
-    const observer = new ResizeObserver(() => scheduleWindowResize());
-    observer.observe(el);
-
-    const mutationObserver = new MutationObserver(() => scheduleWindowResize());
-    mutationObserver.observe(el, {
-      attributes: true,
-      childList: true,
-      subtree: true,
-    });
-
-    scheduleWindowResize();
-
-    return () => {
-      observer.disconnect();
-      mutationObserver.disconnect();
-      if (resizeRafRef.current !== null) {
-        cancelAnimationFrame(resizeRafRef.current);
-        resizeRafRef.current = null;
-      }
-    };
-  }, [scheduleWindowResize]);
+  async function runPipeline(text: string) {
+    setPipelineRunning(true);
+    setPipelineResult(null);
+    try {
+      const report = await dispatch<PipelineReport>("automation.execute_pipeline", { text });
+      setPipelineResult(report);
+    } catch (err) {
+      setPipelineResult({
+        log: { workflow_name: "pipeline", status: "failed", action_count: 0, error: String(err) },
+        actions: [],
+      });
+    } finally {
+      setPipelineRunning(false);
+    }
+  }
 
   function handleQueryChange(value: string) {
     setQuery(value);
     setCmdResult(null);
     setCopiedPath(null);
+    setPipelineResult(null);
     setSelectedCmd(0);
     setSelectedArg(0);
     setArgSuggestions([]);
+    // LAUNCH.1.B bugfix — typing a new query enters a fresh search context;
+    // suppress-list is no longer relevant.
+    setRecentlyDeleted(new Map());
     const { mode: newMode, rawInput: ri } = parseInputMode(value);
     // Mount terminal on first "> " entry; avoids useEffect setState cascade
     if (newMode === "terminal") setTerminalMounted(true);
@@ -570,7 +587,7 @@ export function CommandPalette() {
       setFileDiagnostics(null);
       activeSearchRequestRef.current = "";
       if (debounceRef.current) clearTimeout(debounceRef.current);
-      void dispatch("search.cancel").catch(() => {});
+      void dispatch(IPC.SEARCH_CANCEL).catch(() => {});
       return;
     }
     if (debounceRef.current) clearTimeout(debounceRef.current);
@@ -582,7 +599,7 @@ export function CommandPalette() {
       setTimedOutProviders([]);
       setFileDiagnostics(null);
       try {
-        const data = await dispatch<SearchResult[]>("search.query", {
+        const data = await dispatch<SearchResult[]>(IPC.SEARCH_QUERY, {
           query: ri,
           limit: searchLimitRef.current,
           stream: true,
@@ -606,7 +623,7 @@ export function CommandPalette() {
 
   async function launchResult(result: SearchResult) {
     try {
-      await dispatch("search.record_selection", {
+      await dispatch(IPC.SEARCH_RECORD_SELECTION, {
         source: result.source ?? result.kind,
         path: result.path,
       }).catch(() => {});
@@ -623,7 +640,7 @@ export function CommandPalette() {
           return;
         }
       } else {
-        await dispatch("launcher.launch", { path: result.path });
+        await dispatch(IPC.LAUNCHER_LAUNCH, { path: result.path });
       }
     } finally {
       if (result.kind === "app" || result.kind === "file" || result.kind === "folder") {
@@ -639,12 +656,224 @@ export function CommandPalette() {
     try {
       await navigator.clipboard.writeText(result.path);
       setCopiedPath(result.path);
+      setCopyHint(null);
       if (copyResetRef.current) {
         clearTimeout(copyResetRef.current);
       }
       copyResetRef.current = setTimeout(() => setCopiedPath(null), 1200);
     } catch {
       setCopiedPath(null);
+    }
+  }
+
+  async function copyText(text: string, hint: string) {
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopiedPath(null);
+      setCopyHint(hint);
+      if (copyResetRef.current) {
+        clearTimeout(copyResetRef.current);
+      }
+      copyResetRef.current = setTimeout(() => setCopyHint(null), 1200);
+    } catch {
+      setCopyHint(null);
+    }
+  }
+
+  async function revealResult(result: SearchResult) {
+    if (!result.path) return;
+    try {
+      await revealItemInDir(result.path);
+    } catch {
+      // Plugin failure (e.g. missing permission, non-existent path) — surface in footer.
+      setCopyHint("Reveal failed");
+      if (copyResetRef.current) clearTimeout(copyResetRef.current);
+      copyResetRef.current = setTimeout(() => setCopyHint(null), 1500);
+    }
+  }
+
+  function closeSecondaryMenu() {
+    setSecondaryMenuOpen(false);
+    setMenuFocusedIndex(0);
+    setPendingConfirm(null);
+    setInlineInput(null);
+  }
+
+  /**
+   * LAUNCH.1.B bug-fix — after delete/rename/move succeeds the original path
+   * must vanish from the result list. Strategy:
+   *
+   * Add the path to `recentlyDeleted` state. The `visibleResults` derivation
+   * filters by this set on every render, so it doesn't matter which code
+   * path (initial debounce response, stream chunk, merge…) reintroduces the
+   * path: the row simply cannot render.
+   *
+   * No re-fire of the search — Windows Everything still indexes Recycle Bin
+   * entries, so re-firing would resurrect the trashed file in the chunk
+   * stream. The render-time kill set is the only authoritative gate.
+   *
+   * Cleared on next query change / workspace switch.
+   */
+  function refreshAfterFileMutation(droppedPath: string) {
+    setRecentlyDeleted((prev) => {
+      const next = new Map(prev);
+      next.set(droppedPath, Date.now());
+      return next;
+    });
+    setSelected(0);
+  }
+
+  function showHint(message: string, durationMs = 1500) {
+    setCopiedPath(null);
+    setCopyHint(message);
+    if (copyResetRef.current) clearTimeout(copyResetRef.current);
+    copyResetRef.current = setTimeout(() => setCopyHint(null), durationMs);
+  }
+
+  async function handleSecondaryAction(id: SecondaryActionId, result: SearchResult) {
+    switch (id) {
+      case "reveal":
+        await revealResult(result);
+        closeSecondaryMenu();
+        break;
+      case "copy_path":
+        await copyResultLocation(result);
+        if (!isCopyableLocationResult(result) && result.path) {
+          // Notes / non-fs items still expose `path`; copy raw.
+          await copyText(result.path, `Copied: ${result.path}`);
+        }
+        closeSecondaryMenu();
+        break;
+      case "copy_name": {
+        const name = result.name || basenameFromPath(result.path);
+        await copyText(name, `Copied name: ${name}`);
+        closeSecondaryMenu();
+        break;
+      }
+      case "show_metadata":
+        setExpandedMetadata(true);
+        closeSecondaryMenu();
+        break;
+      case "open_with":
+        try {
+          await dispatch(IPC.FILE_OPEN_WITH, { path: result.path });
+          showHint(`Opened: ${basenameFromPath(result.path)}`);
+        } catch (err) {
+          showHint(`Open failed: ${(err as Error).message}`, 2500);
+        }
+        closeSecondaryMenu();
+        break;
+      case "open_as_text":
+        try {
+          await dispatch(IPC.FILE_OPEN_AS_TEXT, { path: result.path });
+          showHint("Opened as text");
+        } catch (err) {
+          showHint(`Open failed: ${(err as Error).message}`, 2500);
+        }
+        closeSecondaryMenu();
+        break;
+      case "hash":
+        try {
+          showHint("Hashing…", 60_000);
+          const res = await dispatch<{ hex: string; bytes: number }>(IPC.FILE_HASH, {
+            path: result.path,
+          });
+          await navigator.clipboard.writeText(res.hex);
+          showHint(`SHA-256 copied: ${res.hex.slice(0, 12)}… (${res.bytes} bytes)`, 2500);
+        } catch (err) {
+          showHint(`Hash failed: ${(err as Error).message}`, 2500);
+        }
+        closeSecondaryMenu();
+        break;
+      case "rename": {
+        if (!inlineInput || inlineInput.for !== "rename") {
+          setInlineInput({ for: "rename", value: basenameFromPath(result.path) });
+          setPendingConfirm(null);
+          return;
+        }
+        const confirm = pendingConfirm === "rename";
+        try {
+          const res = await dispatch<{ preview?: boolean; target?: string }>(IPC.FILE_RENAME, {
+            path: result.path,
+            new_name: inlineInput.value,
+            confirm,
+          });
+          if (!confirm) {
+            showHint(`⚠ Press Enter again to rename → ${res.target ?? inlineInput.value} · Esc cancel`, 4000);
+            setPendingConfirm("rename");
+          } else {
+            showHint(`Renamed to ${inlineInput.value}`);
+            closeSecondaryMenu();
+            refreshAfterFileMutation(result.path);
+          }
+        } catch (err) {
+          showHint(`Rename failed: ${(err as Error).message}`, 3000);
+          setPendingConfirm(null);
+        }
+        break;
+      }
+      case "move": {
+        if (!inlineInput || inlineInput.for !== "move") {
+          setInlineInput({ for: "move", value: parentDirFromPath(result.path) });
+          setPendingConfirm(null);
+          return;
+        }
+        const confirm = pendingConfirm === "move";
+        try {
+          const res = await dispatch<{ preview?: boolean; target?: string }>(IPC.FILE_MOVE, {
+            path: result.path,
+            target_dir: inlineInput.value,
+            confirm,
+          });
+          if (!confirm) {
+            showHint(`⚠ Press Enter again to move → ${res.target ?? inlineInput.value} · Esc cancel`, 4000);
+            setPendingConfirm("move");
+          } else {
+            showHint(`Moved to ${inlineInput.value}`);
+            closeSecondaryMenu();
+            refreshAfterFileMutation(result.path);
+          }
+        } catch (err) {
+          showHint(`Move failed: ${(err as Error).message}`, 3000);
+          setPendingConfirm(null);
+        }
+        break;
+      }
+      case "delete": {
+        const confirm = pendingConfirm === "delete";
+        try {
+          const res = await dispatch<{
+            preview?: boolean;
+            size?: number | null;
+            kind?: string;
+            destination?: string;
+          }>(IPC.FILE_DELETE, { path: result.path, confirm });
+          if (!confirm) {
+            const sizeStr = res.size != null ? `${res.size} bytes` : "unknown size";
+            const name = result.name || basenameFromPath(result.path);
+            showHint(
+              `⚠ Press Enter again to delete ${name} · ${sizeStr} → ${res.destination ?? "recycle bin"} · Esc cancel`,
+              4000,
+            );
+            setPendingConfirm("delete");
+          } else {
+            // 2026-05-19 Bug B1 — Windows Explorer desktop view does not always
+            // re-enumerate on SHCNE_DELETE (OneDrive redirect, Defender scan,
+            // multi-instance Explorer). File IS in Recycle Bin; the icon may
+            // linger until F5. Hint surfaces that so user is not confused.
+            showHint("Moved to recycle bin · Press F5 on desktop if icon lingers", 2500);
+            closeSecondaryMenu();
+            refreshAfterFileMutation(result.path);
+          }
+        } catch (err) {
+          // 5000ms: backend now returns a longer diagnostic message when trash
+          // returns Ok but the file remains on disk (in-use, Recycle Bin
+          // disabled, network drive…). Give the user time to read.
+          showHint(`Delete failed: ${(err as Error).message}`, 5000);
+          setPendingConfirm(null);
+        }
+        break;
+      }
     }
   }
 
@@ -655,12 +884,21 @@ export function CommandPalette() {
     });
     const first = actions[0];
     if (first) {
-      await dispatch("action.run", { action_ref: first.action_ref });
+      await dispatch(IPC.ACTION_RUN, { action_ref: first.action_ref });
     }
   }
 
   async function execCommand(name: string, args = "") {
     try {
+      // ONBOARD.1.A — `/onboard` re-triggers the tour without going through
+      // the builtin command result UI: clear the localStorage flag, open the
+      // overlay, and skip rendering a Panel/Inline result.
+      if (name === "onboard") {
+        resetOnboarding();
+        setQuery("");
+        setOnboardingOpen(true);
+        return;
+      }
       const result = await runCommand(name, args);
       setCmdResult(result);
     } catch {
@@ -669,22 +907,95 @@ export function CommandPalette() {
   }
 
   function onKeyDown(e: React.KeyboardEvent) {
+    // Bug-fix 2026-05-19 (round 2) — Bug A真根因：英文打字也會觸發
+    // WindowEvent::Focused(false) blip。每次 keydown 都 renew guard (200ms
+    // throttle) → backend grace 期內 guard 必有效 → 不 hide。
+    // eslint-disable-next-line react-hooks/purity -- event handler, not render path
+    const now = Date.now();
+    if (now - lastGuardRef.current > 200) {
+      lastGuardRef.current = now;
+      void keepLauncherOpen();
+    }
+    // ONBOARD.1.B — `?` opens cheatsheet when input is empty, so it doesn't
+    // collide with typing `?` as part of a query.
+    if (e.key === "?" && query === "" && !secondaryMenuOpen && !cmdResult) {
+      e.preventDefault();
+      setCheatsheetOpen(true);
+      return;
+    }
     if (mode === "search") {
+      // Menu open: route arrows/Enter/Left to menu actions; let typed text fall through.
+      if (secondaryMenuOpen) {
+        const r = visibleResults[safeSelected] ?? null;
+        const enabled = r ? buildSecondaryActions(r).filter((it) => !it.disabled) : [];
+        if (e.key === "ArrowDown") {
+          e.preventDefault();
+          setMenuFocusedIndex((i) => Math.min(i + 1, Math.max(enabled.length - 1, 0)));
+          return;
+        }
+        if (e.key === "ArrowUp") {
+          e.preventDefault();
+          setMenuFocusedIndex((i) => Math.max(i - 1, 0));
+          return;
+        }
+        if (e.key === "Tab") {
+          e.preventDefault();
+          setMenuFocusedIndex((i) => {
+            const next = e.shiftKey ? i - 1 : i + 1;
+            const max = Math.max(enabled.length - 1, 0);
+            return Math.min(Math.max(next, 0), max);
+          });
+          return;
+        }
+        if (e.key === "Enter") {
+          e.preventDefault();
+          const item = enabled[menuFocusedIndex];
+          if (item && r) void handleSecondaryAction(item.id, r);
+          return;
+        }
+        if (e.key === "ArrowLeft") {
+          // Only close menu if input caret is at start; otherwise let cursor move.
+          const target = e.currentTarget as HTMLInputElement;
+          if (target.selectionStart === 0 && target.selectionEnd === 0) {
+            e.preventDefault();
+            closeSecondaryMenu();
+            return;
+          }
+        }
+        // Other keys fall through to input.
+      }
       if (isCopyShortcut(e)) {
         const target = e.currentTarget as HTMLInputElement;
         if (target.selectionStart !== target.selectionEnd) return;
-        const r = results[selected] ?? null;
+        const r = visibleResults[safeSelected] ?? null;
         if (isCopyableLocationResult(r)) {
           e.preventDefault();
           void copyResultLocation(r);
           return;
         }
       }
-      if (e.key === "ArrowDown") { e.preventDefault(); setSelected((i) => Math.min(i + 1, results.length - 1)); }
+      // Open secondary menu when cursor at end of input and a result is selected.
+      if (!secondaryMenuOpen && (e.key === "ArrowRight" || e.key === "Tab")) {
+        const target = e.currentTarget as HTMLInputElement;
+        const atEnd = target.selectionStart === target.value.length
+          && target.selectionEnd === target.value.length;
+        const r = visibleResults[safeSelected] ?? null;
+        if (atEnd && r) {
+          e.preventDefault();
+          setSecondaryMenuOpen(true);
+          setMenuFocusedIndex(0);
+          return;
+        }
+      }
+      if (e.key === "ArrowDown") { e.preventDefault(); setSelected((i) => Math.min(i + 1, visibleResults.length - 1)); }
       else if (e.key === "ArrowUp") { e.preventDefault(); setSelected((i) => Math.max(i - 1, 0)); }
       else if (e.key === "Enter") {
         e.preventDefault();
-        const r = results[selected];
+        if (query.includes("|")) {
+          void runPipeline(query);
+          return;
+        }
+        const r = visibleResults[safeSelected];
         if (r) {
           if (e.shiftKey) void runFirstSecondary(r);
           else void launchResult(r);
@@ -727,7 +1038,34 @@ export function CommandPalette() {
     }
   }
 
-  const hasResults = results.length > 0 && mode === "search";
+  // LAUNCH.1.D + LAUNCH.1.B bugfix — derived view:
+  //   1. chip filter (file/note/app/command/history/model);
+  //   2. recently-deleted kill set with 30 s TTL so trashed paths can't
+  //      reappear from Everything's Recycle-Bin index via a streaming chunk
+  //      or stale response. TTL means a user-initiated restore from Recycle
+  //      Bin starts being searchable again ~30 s later, even without a
+  //      workspace switch / query change.
+  // Filter is O(n) over a small list capped at launcher.max_results; no
+  // useMemo needed and react-hooks/preserve-manual-memoization complains
+  // when we add one.
+  // eslint-disable-next-line react-hooks/purity -- TTL check; stable within this render
+  const _killCutoff = Date.now() - RECENTLY_DELETED_TTL_MS;
+  const visibleResults: SearchResult[] = results.filter((r) => {
+    const killTs = recentlyDeleted.get(r.path);
+    if (killTs !== undefined && killTs > _killCutoff) return false;
+    if (activeFilters.size === 0) return true;
+    if (r.kind === "folder") return activeFilters.has("file");
+    return activeFilters.has(r.kind as SourceFilter);
+  });
+
+  // Read-side clamp so a stale `selected` (e.g. after filter toggle shrinks the
+  // list) doesn't index past the array. User input via ArrowDown/Up already
+  // clamps against `visibleResults.length` so no state-sync effect is needed.
+  const safeSelected = visibleResults.length === 0
+    ? 0
+    : Math.min(selected, visibleResults.length - 1);
+
+  const hasResults = visibleResults.length > 0 && mode === "search";
   const hasCmdSuggestions = cmdSuggestions.length > 0 && mode === "command" && !cmdResult && !isArgsPhase;
   const hasArgSuggestions = isArgsPhase && argSuggestions.length > 0 && !cmdResult;
 
@@ -751,8 +1089,33 @@ export function CommandPalette() {
   const terminalLaunchSpec =
     cmdResult?.ui_type.type === "Terminal" ? cmdResult.ui_type.value : null;
   const panelKey = `${cmdResult ? "command" : "live"}:${activePanelName}:${panelInitialArgs}`;
-  const selectedResult = results[selected] ?? null;
+  const selectedResult = visibleResults[safeSelected] ?? null;
   const selectedMetadata = selectedResult ? metadataByPath[selectedResult.path] : null;
+
+  // LAUNCH.1.C — preview pane only renders for previewable kinds. The palette
+  // window expands to PALETTE_WIDTH_WIDE while this is true and snaps back
+  // otherwise; useWindowResize reads `paletteWidthRef.current` each tick.
+  const showPreview =
+    previewEnabled &&
+    !!selectedResult &&
+    (selectedResult.kind === "file" ||
+      selectedResult.kind === "folder" ||
+      selectedResult.kind === "note") &&
+    mode === "search" &&
+    visibleResults.length > 0;
+
+  useEffect(() => {
+    paletteWidthRef.current = showPreview ? PALETTE_WIDTH_WIDE : PALETTE_WIDTH_NARROW;
+    scheduleWindowResize();
+  }, [showPreview, scheduleWindowResize]);
+
+  const { previewByPath } = useFilePreview(visibleResults, safeSelected);
+  const previewForSelected = selectedResult ? previewByPath[selectedResult.path] : undefined;
+  const previewLoading = isPreviewable(selectedResult) && !previewForSelected;
+  const menuItems = useMemo(
+    () => (selectedResult ? buildSecondaryActions(selectedResult) : []),
+    [selectedResult],
+  );
   const fileSearchDiagHint = (() => {
     if (!fileDiagnostics) return null;
     const d = fileDiagnostics;
@@ -763,17 +1126,19 @@ export function CommandPalette() {
     return null;
   })();
 
-  const searchFooterHint = copiedPath
-    ? `Copied path: ${copiedPath}`
-    : timedOutProviders.length > 0 && !fileDiagnostics
-      ? `Timed out: ${timedOutProviders.join(", ")}`
-      : fileSearchDiagHint ?? (
-          selectedMetadata?.preview
-            ? selectedMetadata.preview
-            : selectedMetadata?.size_bytes !== undefined
-              ? `${selectedMetadata.size_bytes.toLocaleString()} bytes`
-              : "↑↓ 選擇"
-        );
+  const searchFooterHint = copyHint
+    ? copyHint
+    : copiedPath
+      ? `Copied path: ${copiedPath}`
+      : timedOutProviders.length > 0 && !fileDiagnostics
+        ? `Timed out: ${timedOutProviders.join(", ")}`
+        : fileSearchDiagHint ?? (
+            selectedMetadata?.preview
+              ? selectedMetadata.preview
+              : selectedMetadata?.size_bytes !== undefined
+                ? `${selectedMetadata.size_bytes.toLocaleString()} bytes`
+                : "↑↓ 選擇"
+          );
 
   const terminalOnExit = () => {
     // Move focus to container first so terminal becoming display:none
@@ -792,13 +1157,15 @@ export function CommandPalette() {
     setResults([]);
     requestAnimationFrame(() => inputRef.current?.focus());
     void keepLauncherOpen();
+    // containerRef is a stable ref object from useWindowResize — omitting is intentional.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [setQuery]);
 
   const handlePanelCommandResult = useCallback((result: BuiltinCommandResult) => {
     setCmdResult(result);
     setResults([]);
     activeSearchRequestRef.current = "";
-    void dispatch("search.cancel").catch(() => {});
+    void dispatch(IPC.SEARCH_CANCEL).catch(() => {});
   }, [dispatch]);
 
   // BUG-12: passed to every panel so Escape inside textarea/input can close the panel
@@ -826,7 +1193,7 @@ export function CommandPalette() {
           <div
             className={`flex items-center bg-gray-900/95 backdrop-blur-md shadow-2xl ${
               hasResults || hasCmdSuggestions || cmdResult || isArgsPhase
-              || liveTranslationPanel
+              || liveTranslationPanel || pipelineRunning || pipelineResult
                 ? "rounded-t-xl border-b border-gray-700/50"
                 : "rounded-xl"
             }`}
@@ -843,6 +1210,13 @@ export function CommandPalette() {
               value={query}
               onChange={(e) => void handleQueryChange(e.target.value)}
               onKeyDown={onKeyDown}
+              // Bug-fix 2026-05-19 (round 2) — switched from
+              // onCompositionStart/Update/End (IME-only, did not cover English
+              // typing reported by user) to onFocus + per-keydown throttle
+              // (lastGuardRef) inside onKeyDown above. onFocus covers initial
+              // mount + post-Esc re-focus; throttled onKeyDown covers every
+              // subsequent keystroke regardless of IME state.
+              onFocus={() => void keepLauncherOpen()}
               placeholder={
                 mode === "command"
                   ? "輸入指令… 試試 /help 或 /setting"
@@ -865,54 +1239,229 @@ export function CommandPalette() {
             </div>
           </div>
 
-          {/* Search results */}
-          {hasResults && (
+          {/* ONBOARD.1.C — empty-state CTA: search mode, non-empty query, zero raw results */}
+          {mode === "search" && query.trim() !== "" && results.length === 0 && !pipelineRunning && !pipelineResult && (
             <div className="bg-gray-900/95 backdrop-blur-md rounded-b-xl shadow-2xl overflow-hidden">
-              <ul className="max-h-[352px] overflow-y-auto py-1">
-                {results.map((r, i) => {
-                  const badge = KIND_BADGE[r.kind] ?? KIND_BADGE.file;
-                  const icon = r.icon_key ? iconsByKey[r.icon_key] : null;
-                  return (
-                    <li
-                      key={r.path}
-                      ref={(el) => { if (i === selected && el) el.scrollIntoView({ block: "nearest" }); }}
-                      onMouseDown={() => void launchResult(r)}
-                      onMouseEnter={() => setSelected(i)}
-                      className={`flex items-center gap-2 px-4 py-2.5 cursor-pointer text-sm transition-colors ${
-                        i === selected ? "bg-blue-600/70 text-white" : "text-gray-300 hover:bg-white/8"
-                      }`}
-                    >
-                      {icon ? (
-                        <img
-                          src={icon.data_url}
-                          alt=""
-                          className="h-6 w-6 shrink-0 rounded"
-                          draggable={false}
-                        />
-                      ) : (
-                        <span className={`shrink-0 rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${badge.cls}`}>
-                          {badge.label}
-                        </span>
-                      )}
-                      <span className={`truncate font-medium${hasEncodingError(r.title ?? r.name) ? " text-gray-500 italic" : ""}`}>
-                        {hasEncodingError(r.title ?? r.name) ? "(無法解碼的名稱)" : (r.title ?? r.name)}
-                      </span>
-                      {Boolean(r.secondary_action_count) && (
-                        <span className="shrink-0 text-[10px] text-gray-500">+{r.secondary_action_count}</span>
-                      )}
-                      {r.kind !== "app" && (
-                        <span className="ml-auto shrink-0 max-w-[220px] truncate text-xs text-gray-500">
-                          {hasEncodingError(r.subtitle ?? r.path) ? "(無法解碼的路徑)" : (r.subtitle ?? r.path)}
-                        </span>
-                      )}
-                    </li>
-                  );
-                })}
-              </ul>
-              <div className="border-t border-gray-700/50 px-4 py-1.5 text-[11px] text-gray-600 flex justify-between">
-                <span className="min-w-0 max-w-[320px] truncate">{searchFooterHint}</span><span>Enter 開啟</span><span>Shift+Enter 次要動作</span>
+              <div className="px-4 py-3 text-sm text-gray-400">
+                <div className="mb-2">No results for <span className="font-mono text-gray-300">{query}</span>.</div>
+                <div className="flex flex-wrap gap-2 text-xs">
+                  <button
+                    type="button"
+                    onClick={() => void execCommand("note", `create ${query}`)}
+                    className="rounded bg-sky-600/30 px-2 py-1 text-sky-200 ring-1 ring-sky-600/40 hover:bg-sky-600/50"
+                  >
+                    Create note &quot;{query}&quot;
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => { setQuery("/help"); }}
+                    className="rounded bg-gray-800/60 px-2 py-1 text-gray-300 ring-1 ring-gray-700/40 hover:bg-gray-800"
+                  >
+                    Try /help
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => { setQuery("/setting"); }}
+                    className="rounded bg-gray-800/60 px-2 py-1 text-gray-300 ring-1 ring-gray-700/40 hover:bg-gray-800"
+                  >
+                    Open /setting
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => void execCommand("onboard")}
+                    className="rounded bg-gray-800/60 px-2 py-1 text-gray-300 ring-1 ring-gray-700/40 hover:bg-gray-800"
+                  >
+                    Replay /onboard
+                  </button>
+                </div>
               </div>
             </div>
+          )}
+
+          {/* Search results — show chip bar whenever raw results exist so the user can always clear filters */}
+          {mode === "search" && results.length > 0 && visibleResults.length === 0 && (
+            <div className="relative bg-gray-900/95 backdrop-blur-md rounded-b-xl shadow-2xl overflow-hidden">
+              <FilterChips active={activeFilters} onChange={setActiveFilters} />
+              <div className="px-4 py-3 text-sm text-gray-400">
+                Filter hides all {results.length} results.
+                <button
+                  type="button"
+                  onClick={() => setActiveFilters(new Set())}
+                  className="ml-2 text-sky-300 hover:text-sky-200 underline"
+                >
+                  Clear filter
+                </button>
+              </div>
+            </div>
+          )}
+          {hasResults && (
+            <div className={`bg-gray-900/95 backdrop-blur-md rounded-b-xl shadow-2xl ${secondaryMenuOpen ? "overflow-visible" : "overflow-hidden"}`}>
+              <FilterChips active={activeFilters} onChange={setActiveFilters} />
+              <div className={showPreview ? "grid grid-cols-[1fr_320px]" : ""}>
+                {/* Left column — result list + secondary menu overlay anchored here */}
+                <div className={`relative min-w-0 ${secondaryMenuOpen ? "min-h-[384px]" : ""}`}>
+                  <ul className="max-h-[352px] overflow-y-auto py-1">
+                    {visibleResults.map((r, i) => {
+                      const badge = KIND_BADGE[r.kind] ?? KIND_BADGE.file;
+                      const icon = r.icon_key ? iconsByKey[r.icon_key] : null;
+                      return (
+                        <li
+                          key={r.path}
+                          ref={(el) => { if (i === safeSelected && el) el.scrollIntoView({ block: "nearest" }); }}
+                          onMouseDown={() => void launchResult(r)}
+                          onMouseEnter={(e) => {
+                            setSelected(i);
+                            if (!showRankBreakdown) return;
+                            const rect = e.currentTarget.getBoundingClientRect();
+                            if (hoverTimerRef.current) clearTimeout(hoverTimerRef.current);
+                            hoverTimerRef.current = setTimeout(() => {
+                              setHover({ index: i, rect });
+                            }, 400);
+                          }}
+                          onMouseLeave={() => {
+                            if (hoverTimerRef.current) {
+                              clearTimeout(hoverTimerRef.current);
+                              hoverTimerRef.current = null;
+                            }
+                            setHover(null);
+                          }}
+                          className={`flex items-center gap-2 px-4 py-2.5 cursor-pointer text-sm transition-colors ${
+                            i === safeSelected ? "bg-blue-600/70 text-white" : "text-gray-300 hover:bg-white/8"
+                          }`}
+                        >
+                          {icon ? (
+                            <img
+                              src={icon.data_url}
+                              alt=""
+                              className="h-6 w-6 shrink-0 rounded"
+                              draggable={false}
+                            />
+                          ) : (
+                            <span className={`shrink-0 rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${badge.cls}`}>
+                              {badge.label}
+                            </span>
+                          )}
+                          <span className={`truncate font-medium${hasEncodingError(r.title ?? r.name) ? " text-gray-500 italic" : ""}`}>
+                            {hasEncodingError(r.title ?? r.name) ? "(無法解碼的名稱)" : (r.title ?? r.name)}
+                          </span>
+                          {Boolean(r.secondary_action_count) && (
+                            <span className="shrink-0 text-[10px] text-gray-500">+{r.secondary_action_count}</span>
+                          )}
+                          {r.kind !== "app" && (
+                            <span className="ml-auto shrink-0 max-w-[220px] truncate text-xs text-gray-500">
+                              {hasEncodingError(r.subtitle ?? r.path) ? "(無法解碼的路徑)" : (r.subtitle ?? r.path)}
+                            </span>
+                          )}
+                        </li>
+                      );
+                    })}
+                  </ul>
+
+                  {/* LAUNCH.1.A — Secondary action menu overlay (keyboard-driven, anchored to left column) */}
+                  {secondaryMenuOpen && selectedResult && menuItems.length > 0 && (
+                    <SecondaryActionMenu
+                      result={selectedResult}
+                      items={menuItems}
+                      focusedIndex={menuFocusedIndex}
+                      onSelect={(id) => void handleSecondaryAction(id, selectedResult)}
+                      onHoverEnabled={setMenuFocusedIndex}
+                      pendingConfirmId={pendingConfirm}
+                      inlineInput={inlineInput}
+                      onInlineInputChange={(value) =>
+                        setInlineInput((prev) => (prev ? { ...prev, value } : prev))
+                      }
+                      onInlineInputKeyDown={(e) => {
+                        if (e.key === "Enter") {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          if (inlineInput && selectedResult) {
+                            void handleSecondaryAction(inlineInput.for, selectedResult);
+                          }
+                        } else if (e.key === "Escape") {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          setInlineInput(null);
+                          setPendingConfirm(null);
+                        }
+                      }}
+                    />
+                  )}
+                </div>
+
+                {/* LAUNCH.1.C — right preview column */}
+                {showPreview && (
+                  <div className={`${secondaryMenuOpen ? "h-[384px]" : "max-h-[352px]"} border-l border-gray-700/50 bg-gray-950/40`}>
+                    <PreviewPane
+                      result={selectedResult}
+                      preview={previewForSelected}
+                      loading={previewLoading}
+                    />
+                  </div>
+                )}
+              </div>
+
+              {/* LAUNCH.1.A — Show metadata expanded view (toggled from action menu, spans both columns) */}
+              {expandedMetadata && selectedResult && (
+                <div className="border-t border-gray-700/50 px-4 py-2 text-xs text-gray-400 bg-gray-950/60">
+                  <div className="mb-1 flex items-center justify-between">
+                    <span className="text-[10px] uppercase tracking-wider text-gray-500">Metadata</span>
+                    <span className="text-[10px] text-gray-600">Esc 收起</span>
+                  </div>
+                  <div className="grid grid-cols-[max-content_1fr] gap-x-3 gap-y-0.5 font-mono">
+                    <span className="text-gray-500">path</span>
+                    <span className="truncate text-gray-300">{selectedResult.path}</span>
+                    {selectedMetadata?.size_bytes !== undefined && (
+                      <>
+                        <span className="text-gray-500">size</span>
+                        <span className="text-gray-300">{selectedMetadata.size_bytes.toLocaleString()} bytes</span>
+                      </>
+                    )}
+                    {selectedMetadata?.modified_ms !== undefined && (
+                      <>
+                        <span className="text-gray-500">modified</span>
+                        <span className="text-gray-300">{new Date(selectedMetadata.modified_ms).toLocaleString()}</span>
+                      </>
+                    )}
+                    {selectedMetadata?.is_dir !== undefined && (
+                      <>
+                        <span className="text-gray-500">type</span>
+                        <span className="text-gray-300">{selectedMetadata.is_dir ? "folder" : "file"}</span>
+                      </>
+                    )}
+                    {selectedMetadata?.preview && (
+                      <>
+                        <span className="text-gray-500">preview</span>
+                        <span className="text-gray-300 whitespace-pre-wrap break-words">{selectedMetadata.preview}</span>
+                      </>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              <div className="border-t border-gray-700/50 px-4 py-1.5 text-[11px] text-gray-600 flex justify-between gap-2">
+                <span className="min-w-0 flex-1 truncate">{searchFooterHint}</span>
+                <span className="shrink-0">Enter 開啟</span>
+                <span className="shrink-0">Shift+Enter 次要</span>
+                <span className="shrink-0">→ Actions</span>
+              </div>
+            </div>
+          )}
+
+          {/* LAUNCH.1.E — rank tooltip (rendered last so it overlays everything) */}
+          <RankTooltip
+            breakdown={hover ? visibleResults[hover.index]?.score_breakdown : undefined}
+            anchorRect={hover ? hover.rect : null}
+            visible={hover !== null}
+          />
+
+          {/* ONBOARD.1.A — first-run tour overlay (conditional mount resets step) */}
+          {onboardingOpen && (
+            <OnboardingTour onClose={() => setOnboardingOpen(false)} />
+          )}
+
+          {/* ONBOARD.1.B — `?` cheatsheet overlay */}
+          {cheatsheetOpen && (
+            <CheatsheetOverlay onClose={() => setCheatsheetOpen(false)} />
           )}
 
           {/* Command suggestions */}
@@ -987,6 +1536,44 @@ export function CommandPalette() {
                 onRunCommandResult={handlePanelCommandResult}
               />
             </Suspense>
+          )}
+
+          {/* Pipeline running indicator */}
+          {pipelineRunning && (
+            <div className="bg-gray-900/95 backdrop-blur-md rounded-b-xl shadow-2xl px-4 py-3">
+              <span className="text-sm text-blue-400 animate-pulse">Pipeline running…</span>
+            </div>
+          )}
+
+          {/* Pipeline execution result */}
+          {!pipelineRunning && pipelineResult && (
+            <div className="bg-gray-900/95 backdrop-blur-md rounded-b-xl shadow-2xl overflow-hidden">
+              <ul className="py-1">
+                {pipelineResult.actions.map((stage) => (
+                  <li key={stage.index} className="flex items-start gap-2 px-4 py-1.5 text-sm">
+                    <span className={`shrink-0 font-mono text-xs mt-0.5 ${
+                      stage.status === "completed" ? "text-emerald-400" : "text-red-400"
+                    }`}>
+                      {stage.status === "completed" ? "✓" : "✗"}
+                    </span>
+                    <span className="font-mono text-gray-400 shrink-0">{stage.route}</span>
+                    {stage.error && (
+                      <span className="text-red-400 truncate">{stage.error}</span>
+                    )}
+                  </li>
+                ))}
+                {pipelineResult.log.status === "failed" && pipelineResult.log.error && pipelineResult.actions.length === 0 && (
+                  <li className="px-4 py-1.5 text-sm text-red-400">{pipelineResult.log.error}</li>
+                )}
+              </ul>
+              <div className="border-t border-gray-700/50 px-4 py-1.5 text-[11px] text-gray-600 flex justify-between">
+                <span className={pipelineResult.log.status === "completed" ? "text-emerald-600" : "text-red-600"}>
+                  {pipelineResult.log.status}
+                </span>
+                <span>{pipelineResult.log.action_count} stages</span>
+                <span>Esc 清除</span>
+              </div>
+            </div>
           )}
         </div>
       </div>

@@ -1,7 +1,18 @@
+---
+type: architecture_spec
+status: active
+priority: p1
+updated: 2026-05-18
+context_policy: retrieve_only
+owner: project
+---
+
 # Keynova 系統架構
 
+> Retrieval policy: 只在實作、除錯、架構決策相關需求時擷取「最小必要段落」，不要整份注入 prompt。
+
 **版本：** 1.0  
-**最後更新：** 2026-05-10  
+**最後更新：** 2026-05-13  
 **相關 ADR：** `docs/adr/`
 
 ---
@@ -28,7 +39,8 @@ Keynova 是以鍵盤為核心的生產力啟動器，採用 **Tauri 2.x + React 
 │  Layer 4: Business Logic (Handlers → Managers)      │
 │  launcher, hotkey, terminal, mouse, search,         │
 │  ai, agent, note, workspace, translation,           │
-│  model, system_control, nvim, automation, plugin    │
+│  model, system_control, nvim, automation, plugin,   │
+│  feature (lazy-activation gate)                     │
 ├─────────────────────────────────────────────────────┤
 │  Layer 5: Indexer / Storage                         │
 │  tantivy_index, system_indexer, knowledge_store     │
@@ -119,6 +131,9 @@ src-tauri/src/
 │   ├── search_registry.rs
 │   ├── observability.rs
 │   ├── plugin_runtime.rs
+│   ├── preview.rs         # LAUNCH.1.C: bounded read + classify_path + guess_image_mime (shared by file.preview + learning_material)
+│   ├── dev_utils.rs       # UTIL.2: uuid/nanoid/pw/hash/b64/url/json/regex/jwt/color/cron pure-fn computations
+│   ├── process_lookup.rs  # UTIL.2.J: find_process_by_port + kill_pid (Windows netstat+tasklist / Unix lsof)
 │   └── ipc_error.rs
 ├── handlers/              # CommandHandler 實作（每個 namespace 一個）
 │   ├── agent/             # Agent handler 子模組
@@ -128,7 +143,10 @@ src-tauri/src/
 │   ├── terminal.rs / note.rs / workspace.rs
 │   ├── system_control.rs / system_monitoring.rs
 │   ├── builtin_cmd.rs / calculator.rs / setting.rs
+│   ├── dev_utils_cmd.rs        # UTIL.2.A–J: 15 inline BuiltinCommand wrappers incl. killport two-phase confirm
 │   ├── nvim.rs / automation.rs / plugin.rs
+│   ├── learning_material.rs  # FEAT.11: scan/preview/export_note/export_markdown
+│   ├── file.rs               # LAUNCH.1.A/B/C: file.* secondary actions (reveal/open_with/open_as_text/rename/move/delete/hash/preview); destructive ops gated by two-phase confirm; preview returns bounded text 4 KB / image metadata / binary metadata
 │   └── mod.rs
 ├── managers/              # 業務邏輯（純 Rust，無 Tauri 依賴）
 │   ├── ai_manager.rs / model_manager.rs
@@ -138,11 +156,13 @@ src-tauri/src/
 │   ├── terminal_manager.rs / note_manager.rs / workspace_manager.rs
 │   ├── calculator_manager.rs / translation_manager.rs
 │   ├── portable_nvim_manager.rs / sandbox_manager.rs
+│   ├── learning_material_manager.rs  # FEAT.11: metadata scanner, classifier, preview
 │   └── mod.rs
 ├── models/                # 共用資料結構（serde）
 │   ├── action.rs / agent.rs / app.rs / builtin_command.rs
 │   ├── hotkey.rs / plugin.rs / search_result.rs
 │   ├── settings_schema.rs / terminal.rs / workflow.rs
+│   ├── learning_material.rs  # FEAT.11: MaterialClass, MaterialCandidate, ReviewReport
 │   └── mod.rs
 ├── platform/              # 平台特定程式碼（條件編譯）
 │   ├── windows.rs / linux.rs / macos.rs
@@ -355,7 +375,17 @@ nvim_bin = ""         # 空白則 detect → portable 下載
 
 ```
 SearchHandler
+    │ (fast path: sync, returns first batch on IPC thread)
+    ├── fast_results() → app + non-file results
     │
+    │ (slow path: async, emits "search.results.chunk" event)
+    ▼
+SearchService (single worker thread, Condvar slot)
+    │  At most one task pending, one running.
+    │  Submitting a new task cancels the previous via Arc<AtomicBool>.
+    ▼
+file_results_bounded()
+    │  Hard timeout (800 ms) + cancel token checks.
     ▼
 SearchManager
     ├── AppManager      → 系統應用程式列表（OS API）
@@ -370,6 +400,8 @@ SearchManager
 **搜尋後端切換：**
 - `backend = "tantivy"`（跨平台，預設）
 - `backend = "everything"`（Windows 限定，使用 Everything SDK）
+
+**並發模型：** `SearchService` 確保每次只有一個背景檔案搜尋執行（PERF.2）。快速打字連發的多個請求會依序取消前一個，只執行最新一個。
 
 搜尋結果統一包裝為 `SearchResult { label, detail, action_ref, … }`，前端透過 `ActionRef` 執行後續動作。
 
@@ -404,6 +436,13 @@ KnowledgeStore: agent_audit 寫入 SQLite
 
 **AgentObservationPolicy** 控制哪些工具輸出可以被加入觀察（防止資訊洩漏）。
 
+**AgentArchiveSink** (Phase 7a, 2026-05-16)：`AgentRuntime::insert_run` 以 FIFO cap（預設 `agent.run_history_cap = 20`）限制 in-memory `runs`，溢出時透過 `AgentArchiveSink::archive(&AgentRun)` 寫入 `agent_archive` SQLite 表，並 emit `agent.run.archived` 事件。生產線（`app/state.rs`）注入 `KnowledgeStoreArchiveSink`；測試以 `NoopArchiveSink` 或 mock 替代。設計保持 runtime 不直接耦合 KnowledgeStore。
+
+**Approval streaming + cancel** (Phase 7a, 2026-05-16)：
+- `AiManager::chat_async` 接受 `cancel_flag: Option<Arc<AtomicBool>>` 與 `cancel_registry: Option<CancelRegistry>`；handler 註冊 per-request flag，`ai.cancel` 設旗並從 registry 移除；spawned thread 在 thread 起點與 `do_chat` 後 check flag，cancelled 時 rollback user message 並 emit `ai.response { cancelled:true }`。
+- `ai.stream_enabled` (default `true`) 切換到 streaming：三家 provider chunked HTTP，逐 chunk emit `ai.stream.chunk { request_id, delta }`，完成時照舊 emit `ai.response` 收尾。前端 `useAi` 維持單一 `pendingIdRef` guard，stray chunk 自動被丟棄。
+- `wait_for_react_approval` 達到 `agent.approval_timeout_secs`（default 300）時 mutate approval `status = "approval_timeout"` 並 emit `agent.approval.timeout`；approve(remember=true) 在 ReAct 下一個同 `tool_name` 的 gate 被短路為 `Approved`。
+
 ---
 
 ## 9. 擴展模式
@@ -432,3 +471,4 @@ KnowledgeStore: agent_audit 寫入 SQLite
 | Neovim portable | nvim-win64.zip | nvim-linux64.tar.gz | nvim-macos.tar.gz |
 
 平台特定程式碼透過 `#[cfg(target_os = "...")]` 隔離在 `platform/` 模組。
+

@@ -1,0 +1,11 @@
+#!/usr/bin/env sh
+set -eu
+
+echo "[pre-commit] docs sync"
+npm run -s docs:sync -- --staged
+
+echo "[pre-commit] stage docs"
+git add CLAUDE.md docs
+
+echo "[pre-commit] docs guard"
+npm run -s docs:guard -- --staged

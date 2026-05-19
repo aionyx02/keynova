@@ -152,7 +152,7 @@ fn download_with_progress(
         file.write_all(&buf[..n]).map_err(|e| format!("write: {e}"))?;
         downloaded += n as u64;
         if total > 0 {
-            let pct = ((downloaded * 100) / total).min(99) as u8;
+            let pct = downloaded.saturating_mul(100).checked_div(total).unwrap_or(0).min(99) as u8;
             if pct != last_pct {
                 last_pct = pct;
                 emit_progress(emit, "downloading", pct);

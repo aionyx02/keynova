@@ -1,5 +1,7 @@
+use std::collections::HashMap;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use serde_json::{json, Value};
 
@@ -9,12 +11,27 @@ use crate::managers::ai_manager::{resolve_ai_runtime_config, AiManager, AiProvid
 use crate::managers::model_manager::ModelManager;
 use crate::managers::workspace_manager::WorkspaceManager;
 
-/// 處理 `ai.*` 指令：chat、clear_history、get_history、check_setup。
+const CHECK_SETUP_TTL: Duration = Duration::from_secs(300);
+
+struct SetupCache {
+    key: String,
+    result: Value,
+    at: Instant,
+}
+
+/// 處理 `ai.*` 指令：chat、clear_history、get_history、check_setup、unload。
 pub struct AiHandler {
     manager: Arc<AiManager>,
     config: Arc<Mutex<ConfigManager>>,
     workspace_manager: Arc<Mutex<WorkspaceManager>>,
     model_manager: Arc<ModelManager>,
+    setup_cache: Mutex<Option<SetupCache>>,
+    /// True while a chat request is in progress — rejects concurrent requests.
+    in_flight: Arc<AtomicBool>,
+    /// Per-request cancel tokens keyed by `request_id`. Entry inserted on `ai.chat`,
+    /// removed either by `ai.cancel` (after setting the flag) or by `chat_async`'s
+    /// completion path. Shared into the spawned chat thread for self-cleanup.
+    cancel_flags: Arc<Mutex<HashMap<String, Arc<AtomicBool>>>>,
 }
 
 impl AiHandler {
@@ -29,12 +46,23 @@ impl AiHandler {
             config,
             workspace_manager,
             model_manager,
+            setup_cache: Mutex::new(None),
+            in_flight: Arc::new(AtomicBool::new(false)),
+            cancel_flags: Arc::new(Mutex::new(HashMap::new())),
         }
     }
 
     fn get_ai_config(&self) -> Result<AiRuntimeConfig, String> {
         let cfg = self.config.lock().map_err(|e| e.to_string())?;
         resolve_ai_runtime_config(|key| cfg.get(key))
+    }
+
+    fn setup_cache_key(config: &AiRuntimeConfig) -> String {
+        match &config.provider {
+            AiProvider::Ollama { base_url, model } => format!("ollama:{}:{}", base_url, model),
+            AiProvider::Claude { model, .. } => format!("claude:{}", model),
+            AiProvider::OpenAI { base_url, model, .. } => format!("openai:{}:{}", base_url, model),
+        }
     }
 
     fn check_setup_impl(&self) -> Value {
@@ -50,6 +78,15 @@ impl AiHandler {
             });
         };
 
+        let cache_key = Self::setup_cache_key(&ai_config);
+        if let Ok(cache) = self.setup_cache.lock() {
+            if let Some(entry) = cache.as_ref() {
+                if entry.key == cache_key && entry.at.elapsed() < CHECK_SETUP_TTL {
+                    return entry.result.clone();
+                }
+            }
+        }
+
         let hardware = self.model_manager.detect_hardware();
         let recommended = self
             .model_manager
@@ -59,7 +96,7 @@ impl AiHandler {
             .map(|c| c.name)
             .unwrap_or_else(|| "qwen2.5:7b".into());
 
-        match &ai_config.provider {
+        let result = match &ai_config.provider {
             AiProvider::Ollama { base_url, model } => {
                 let (reachable, available, reason) =
                     check_ollama(base_url, model);
@@ -98,8 +135,35 @@ impl AiHandler {
                     "reason": if missing_key { "OpenAI API key is not set" } else { "" },
                 })
             }
+        };
+
+        if let Ok(mut cache) = self.setup_cache.lock() {
+            *cache = Some(SetupCache {
+                key: cache_key,
+                result: result.clone(),
+                at: Instant::now(),
+            });
         }
+        result
     }
+}
+
+/// Send keep_alive=0 to Ollama to unload the model from GPU/RAM.
+/// Fire-and-forget — errors are silently ignored.
+fn unload_ollama_model(base_url: &str, model: &str) {
+    let url = format!("{}/api/generate", base_url.trim_end_matches('/'));
+    let model = model.to_string();
+    std::thread::spawn(move || {
+        let client = reqwest::blocking::Client::builder()
+            .timeout(Duration::from_secs(5))
+            .build();
+        if let Ok(client) = client {
+            let _ = client
+                .post(&url)
+                .json(&serde_json::json!({ "model": model, "keep_alive": 0 }))
+                .send();
+        }
+    });
 }
 
 /// Returns `(reachable, model_available, reason)`.
@@ -167,6 +231,9 @@ impl CommandHandler for AiHandler {
                         );
                     }
                 }
+                if self.in_flight.compare_exchange(false, true, Ordering::SeqCst, Ordering::SeqCst).is_err() {
+                    return Err("另一個 AI 請求進行中，請等待回應後再試".into());
+                }
                 let request_id = payload
                     .get("request_id")
                     .and_then(Value::as_str)
@@ -179,23 +246,59 @@ impl CommandHandler for AiHandler {
                     .to_string();
 
                 let ai_config = self.get_ai_config()?;
+                let cancel_flag = Arc::new(AtomicBool::new(false));
+                if let Ok(mut flags) = self.cancel_flags.lock() {
+                    flags.insert(request_id.clone(), Arc::clone(&cancel_flag));
+                }
                 self.manager.chat_async(
                     request_id.clone(),
                     prompt,
                     ai_config.provider,
                     ai_config.max_tokens,
                     ai_config.timeout_secs,
+                    ai_config.ollama_keep_alive,
+                    Some(Arc::clone(&self.in_flight)),
+                    Some(cancel_flag),
+                    Some(Arc::clone(&self.cancel_flags)),
+                    ai_config.stream_enabled,
                 );
                 if let Ok(mut workspace) = self.workspace_manager.lock() {
                     workspace.record_ai_conversation(request_id.clone());
                 }
                 Ok(json!({ "status": "pending", "request_id": request_id }))
             }
+            "cancel" => {
+                let request_id = payload
+                    .get("request_id")
+                    .and_then(Value::as_str)
+                    .ok_or_else(|| "missing 'request_id'".to_string())?
+                    .to_string();
+                let removed = if let Ok(mut flags) = self.cancel_flags.lock() {
+                    flags.remove(&request_id)
+                } else {
+                    None
+                };
+                let cancelled = match removed {
+                    Some(flag) => {
+                        flag.store(true, Ordering::SeqCst);
+                        true
+                    }
+                    None => false,
+                };
+                Ok(json!({ "ok": true, "cancelled": cancelled, "request_id": request_id }))
+            }
             "clear_history" => {
                 self.manager.clear_history();
                 Ok(json!({ "ok": true }))
             }
             "get_history" => Ok(json!(self.manager.get_history())),
+            "unload" => {
+                let ai_config = self.get_ai_config()?;
+                if let AiProvider::Ollama { base_url, model } = &ai_config.provider {
+                    unload_ollama_model(base_url, model);
+                }
+                Ok(json!({ "ok": true }))
+            }
             _ => Err(format!("unknown ai command '{command}'")),
         }
     }

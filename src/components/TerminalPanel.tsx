@@ -3,23 +3,16 @@ import { Terminal } from "@xterm/xterm";
 import { FitAddon } from "@xterm/addon-fit";
 import "@xterm/xterm/css/xterm.css";
 import { listen } from "@tauri-apps/api/event";
-import { invoke } from "@tauri-apps/api/core";
+import { useIPC } from "../hooks/useIPC";
+import { useFeature } from "../context/FeatureContext";
 import { useTerminalTheme } from "../hooks/useTerminalTheme";
+import { IPC } from "../ipc/routes";
+import type { SettingEntry, TerminalOpenResponse } from "../ipc/types";
 import type { TerminalLaunchSpec } from "../types/terminal";
 
 interface OutputPayload {
   id: string;
   output: string;
-}
-
-interface OpenResponse {
-  id: string;
-  initial_output: string;
-}
-
-interface SettingEntry {
-  key: string;
-  value: string;
 }
 
 interface ConfigReloadedPayload {
@@ -33,6 +26,8 @@ interface Props {
 }
 
 export function TerminalPanel({ isActive, onExit, launchSpec = null }: Props) {
+  const { dispatch } = useIPC();
+  const { activate } = useFeature();
   const containerRef = useRef<HTMLDivElement>(null);
   const xtermRef = useRef<Terminal | null>(null);
   const fitAddonRef = useRef<FitAddon | null>(null);
@@ -40,6 +35,10 @@ export function TerminalPanel({ isActive, onExit, launchSpec = null }: Props) {
   const onExitRef = useRef(onExit);
   const launchKey = launchSpec?.launch_id ?? "shell";
   const isEditorSession = Boolean(launchSpec?.editor);
+
+  // Notify the feature gate on first mount so the backend can prewarm.
+  useEffect(() => { activate("terminal"); }, [activate]);
+
   useEffect(() => {
     onExitRef.current = onExit;
   }, [onExit]);
@@ -75,10 +74,7 @@ export function TerminalPanel({ isActive, onExit, launchSpec = null }: Props) {
       const fit = fitAddonRef.current;
       if (!xterm || !fit) return;
       fit.fit();
-      void invoke("cmd_dispatch", {
-        route: "terminal.resize",
-        payload: { id, rows: xterm.rows, cols: xterm.cols },
-      });
+      void dispatch(IPC.TERMINAL_RESIZE, { id, rows: xterm.rows, cols: xterm.cols });
     };
 
     const loadTerminalSettings = async () => {
@@ -86,10 +82,7 @@ export function TerminalPanel({ isActive, onExit, launchSpec = null }: Props) {
       let scrollback = termOpts.scrollback;
       if (window.__TAURI_INTERNALS__) {
         try {
-          const entries = await invoke<SettingEntry[]>("cmd_dispatch", {
-            route: "setting.list_all",
-            payload: null,
-          });
+          const entries = await dispatch<SettingEntry[]>(IPC.SETTING_LIST_ALL);
           const get = (k: string) => entries.find((e) => e.key === k)?.value;
           fontSize = parseInt(get("terminal.font_size") ?? "") || fontSize;
           scrollback = parseInt(get("terminal.scrollback_lines") ?? "") || scrollback;
@@ -159,10 +152,7 @@ export function TerminalPanel({ isActive, onExit, launchSpec = null }: Props) {
           return;
         }
         if (data === "\x1b[I") return;
-        void invoke("cmd_dispatch", {
-          route: "terminal.send",
-          payload: { id: sessionId, input: data },
-        });
+        void dispatch(IPC.TERMINAL_SEND, { id: sessionId, input: data });
       });
 
       try {
@@ -186,12 +176,11 @@ export function TerminalPanel({ isActive, onExit, launchSpec = null }: Props) {
         });
         if (cancelled) { unlistenOutput(); unlistenOutput = undefined; return; }
 
-        const resp = await invoke<OpenResponse>("cmd_dispatch", {
-          route: "terminal.open",
-          payload: { rows: xterm.rows, cols: xterm.cols, launch_spec: launchSpec },
+        const resp = await dispatch<TerminalOpenResponse>(IPC.TERMINAL_OPEN, {
+          rows: xterm.rows, cols: xterm.cols, launch_spec: launchSpec,
         });
         if (cancelled) {
-          void invoke("cmd_dispatch", { route: "terminal.close", payload: { id: resp.id } });
+          void dispatch(IPC.TERMINAL_CLOSE, { id: resp.id });
           return;
         }
 
@@ -224,7 +213,7 @@ export function TerminalPanel({ isActive, onExit, launchSpec = null }: Props) {
       unlistenOutput?.();
       unlistenConfig?.();
       if (sessionId) {
-        void invoke("cmd_dispatch", { route: "terminal.close", payload: { id: sessionId } });
+        void dispatch(IPC.TERMINAL_CLOSE, { id: sessionId });
       }
       const xterm = xtermRef.current;
       xtermRef.current = null;

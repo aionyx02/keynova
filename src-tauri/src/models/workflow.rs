@@ -24,7 +24,7 @@ pub enum WorkflowTrigger {
     TerminalOutputMatch { pattern: String },
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct WorkflowAction {
     pub route: String,
     #[serde(default)]

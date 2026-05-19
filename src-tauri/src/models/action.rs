@@ -112,6 +112,18 @@ pub enum ActionResult {
     Noop { reason: String },
 }
 
+/// Per-result score decomposition for LAUNCH.1.E rank tooltip.
+///
+/// `base` is the source-specific score (tantivy / app fuzzy / fixed const) before
+/// any rank memory boost; `recency_boost` and `frequency_boost` are derived from
+/// `SearchManager::rank_memory` and added back into `UiSearchItem.score`.
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
+pub struct ScoreBreakdown {
+    pub base: i64,
+    pub recency_boost: i64,
+    pub frequency_boost: i64,
+}
+
 /// Display-only search item sent over IPC.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct UiSearchItem {
@@ -129,4 +141,7 @@ pub struct UiSearchItem {
     pub kind: ResultKind,
     pub name: String,
     pub path: String,
+
+    #[serde(default)]
+    pub score_breakdown: ScoreBreakdown,
 }

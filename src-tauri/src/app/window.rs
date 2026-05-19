@@ -42,10 +42,22 @@ pub(crate) fn setup_main_window(app: &tauri::App) -> Result<(), Box<dyn std::err
             let _ = window_focused.emit("window-focused", ());
         }
         tauri::WindowEvent::Focused(false) => {
+            // Bug-fix 2026-05-19 (round 2) — 真根因不是 IME composition：使用者
+            // 回報英文打字、滑鼠不動、單純坐著都會觸發。WebView2 transparent
+            // window 在 Windows 11 任何 keystroke / accessibility subprocess
+            // 切換 / popup 都可能 emit 短暫 Focused(false) blip。先前的 400ms
+            // grace + 只 hook onComposition* 的 frontend guard 覆蓋不到英文
+            // typing path。
+            //
+            // 修法：grace 拉到 1500ms（覆蓋幾乎所有觀察到的 blip），配合 frontend
+            // 在 input onFocus + 每個 keydown（200ms throttle）主動把 launcher_focus_guard
+            // 更新成 2s TTL — 任何使用者互動都會把 guard 推到未來，sleep 完才
+            // 檢查 guard 時保證 guard 還有效 → 不 hide。真要 dismiss 用 Esc /
+            // Ctrl+K toggle / 等 1.5s 點別處兩種路徑。
             let window_blur = window_blur.clone();
             let blur_guard = Arc::clone(&blur_guard);
             tauri::async_runtime::spawn(async move {
-                tokio::time::sleep(Duration::from_millis(120)).await;
+                tokio::time::sleep(Duration::from_millis(1500)).await;
                 let should_keep_open = blur_guard
                     .lock()
                     .map(|mut guard| {

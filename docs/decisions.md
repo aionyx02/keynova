@@ -1,4 +1,15 @@
+---
+type: decision_index
+status: active
+priority: p1
+updated: 2026-05-18
+context_policy: retrieve_only
+owner: project
+---
+
 # docs/decisions.md — ADR Index
+
+> Retrieval policy: 先由 `docs/index.md` 判斷是否需要 ADR，再精準讀取對應單一 ADR 檔案。
 
 > 所有 ADR 已拆分為獨立檔案，存放於 `adr/`。
 > 本文件僅作為快速索引。完整內容請閱讀對應的 ADR 檔案。
@@ -55,6 +66,8 @@
 | [0025](adr/0025-web-search-providers.md) | Structured Agent Web Search Providers | 接受 | 2026-05-08 |
 | [0026](adr/0026-provider-driven-react-loop.md) | Provider-Driven ReAct Agent Loop | 接受 | 2026-05-08 |
 | [0027](adr/0027-generic-shell-sandbox.md) | Generic Shell Tool Sandbox Requirement | 接受（research，product 未解封）| 2026-05-09 |
+| [0028](adr/0028-learning-material-review-local-context.md) | Learning Material Review Local Context Boundary | 提議 | 2026-05-15 |
+| [0038](adr/0038-currency-online-rates.md) | Currency Online Rates Network Boundary | 提議 | 2026-05-18 |
 
 ---
 
@@ -63,3 +76,19 @@
 - Everything IPC 完整實作（`everything_ipc.rs` 目前為佔位符）— 見 ADR-006
 - ADR-027 product 解封：各平台剩餘工作（AppContainer / seccomp / App Sandbox entitlement）
 - TD.2 / TD.3 / TD.4 架構演進屆時需新增對應 ADR（見 tasks.md）
+
+## Post-FEAT.11 規劃 — 待起草 ADR (2026-05-15)
+
+下列 ADR 編號已預留給 Post-FEAT.11 Phase Proposal（見 `docs/tasks/backlog.md`）。實際 ADR 檔案於對應 track 進入規劃階段時新建。
+
+| 預留編號 | 預定標題 | 對應 Track |
+|------|------|------|
+| ADR-029 | Agent Tool Surface — Action Tools Boundary | AGENT.3 |
+| ADR-030 | OS-Level Selection Capture Boundary | AGENT.4 |
+| ADR-031 | Clipboard Capture Boundary | CLIP.1 |
+| ADR-032 | Text Expansion Trigger Boundary | SNIP.1 |
+| ADR-033 | Window Enumeration Boundary | WIN.1 |
+| ADR-034 | ScheduleManager — Local Cron-like Scheduler | UTIL.3 |
+| ADR-035 | External Provider Auth Boundary | DEV.1.C/D |
+| ADR-036 | Git-Backed Sync Boundary | SYNC.1.D/E/F |
+| ADR-037 | Inline AI Surfaces Boundary | AI.1 |

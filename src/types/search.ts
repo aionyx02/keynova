@@ -13,6 +13,13 @@ export interface ActionRef {
   generation: number;
 }
 
+/** LAUNCH.1.E — per-result score decomposition for the rank-explain tooltip. */
+export interface ScoreBreakdown {
+  base: number;
+  recency_boost: number;
+  frequency_boost: number;
+}
+
 export interface SearchResult {
   item_ref?: ActionRef;
   title?: string;
@@ -26,6 +33,28 @@ export interface SearchResult {
   name: string;
   path: string;
   score: number;
+  score_breakdown?: ScoreBreakdown;
+}
+
+/** LAUNCH.1.D — set of source-type filter chips applied client-side. */
+export type SourceFilter =
+  | "app"
+  | "file"
+  | "command"
+  | "note"
+  | "history"
+  | "model";
+
+/** LAUNCH.1.C — result of `file.preview` IPC. */
+export interface FilePreviewResult {
+  path: string;
+  kind: "text" | "image" | "binary";
+  size_bytes: number;
+  modified_ms?: number;
+  content?: string;
+  mime?: string;
+  truncated: boolean;
+  line_count?: number;
 }
 
 export interface SearchChunkDiagnostics {

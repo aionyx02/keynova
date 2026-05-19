@@ -232,13 +232,17 @@ impl SearchManager {
         }
     }
 
-    pub fn rank_boost(&self, source: &str, path: &str) -> i64 {
+    /// Returns `(recency_boost, frequency_boost)` for the given key.
+    ///
+    /// The UI surfaces these as `score_breakdown` so the user can see "why this
+    /// rank" (LAUNCH.1.E). Session-only — values reset on app restart.
+    pub fn rank_boost_breakdown(&self, source: &str, path: &str) -> (i64, i64) {
         let key = rank_key(source, path);
         let Ok(memory) = self.rank_memory.lock() else {
-            return 0;
+            return (0, 0);
         };
         let Some(entry) = memory.get(&key) else {
-            return 0;
+            return (0, 0);
         };
         let age_secs = now_secs().saturating_sub(entry.last_seen_secs);
         let recency = if age_secs < 60 * 60 {
@@ -250,7 +254,8 @@ impl SearchManager {
         } else {
             0
         };
-        recency + (entry.count.min(10) as i64 * 4)
+        let frequency = entry.count.min(10) as i64 * 4;
+        (recency, frequency)
     }
 
     pub fn cancel_generation(&self) -> u64 {
@@ -318,48 +323,56 @@ impl SearchManager {
             return Vec::new();
         }
         let q = query.to_lowercase();
+        let fetch_limit = existing_path_fetch_limit(limit);
 
         #[cfg(target_os = "windows")]
         {
             match backend {
                 SearchBackend::Everything => {
-                    crate::platform::windows::everything_search(query, limit as u32)
-                        .into_iter()
-                        .map(|(name, path, is_folder)| SearchResult {
-                            kind: if is_folder {
-                                ResultKind::Folder
-                            } else {
-                                ResultKind::File
-                            },
-                            score: file_name_match_score(&name, &q),
-                            name,
-                            path,
-                        })
-                        .collect()
+                    let results =
+                        crate::platform::windows::everything_search(query, fetch_limit as u32)
+                            .into_iter()
+                            .map(|(name, path, is_folder)| SearchResult {
+                                kind: if is_folder {
+                                    ResultKind::Folder
+                                } else {
+                                    ResultKind::File
+                                },
+                                score: file_name_match_score(&name, &q),
+                                name,
+                                path,
+                            })
+                            .collect();
+                    filter_existing_file_results(results, limit)
                 }
                 SearchBackend::AppCache | SearchBackend::Tantivy => {
                     if backend == SearchBackend::Tantivy {
                         if let Some(index_dir) = tantivy_index_dir {
-                            if let Ok(results) = tantivy_index::search(index_dir, query, limit) {
+                            if let Ok(results) =
+                                tantivy_index::search(index_dir, query, fetch_limit)
+                            {
+                                let results = filter_existing_file_results(results, limit);
                                 if !results.is_empty() {
                                     return results;
                                 }
                             }
                         }
                     }
-                    crate::platform::windows::scan_files_from_cache(query, limit)
-                        .into_iter()
-                        .map(|(name, path, is_folder)| SearchResult {
-                            kind: if is_folder {
-                                ResultKind::Folder
-                            } else {
-                                ResultKind::File
-                            },
-                            score: file_name_match_score(&name, &q),
-                            name,
-                            path,
-                        })
-                        .collect()
+                    let results =
+                        crate::platform::windows::scan_files_from_cache(query, fetch_limit)
+                            .into_iter()
+                            .map(|(name, path, is_folder)| SearchResult {
+                                kind: if is_folder {
+                                    ResultKind::Folder
+                                } else {
+                                    ResultKind::File
+                                },
+                                score: file_name_match_score(&name, &q),
+                                name,
+                                path,
+                            })
+                            .collect();
+                    filter_existing_file_results(results, limit)
                 }
             }
         }
@@ -368,7 +381,8 @@ impl SearchManager {
         {
             if backend == SearchBackend::Tantivy {
                 if let Some(index_dir) = tantivy_index_dir {
-                    if let Ok(results) = tantivy_index::search(index_dir, query, limit) {
+                    if let Ok(results) = tantivy_index::search(index_dir, query, fetch_limit) {
+                        let results = filter_existing_file_results(results, limit);
                         if !results.is_empty() {
                             return results;
                         }
@@ -376,20 +390,26 @@ impl SearchManager {
                 }
             }
             // Use native system indexer (mdfind / plocate / locate / ignore_walk)
-            crate::managers::system_indexer::search_system_index(query, &[], limit, tantivy_index_dir)
-                .hits
-                .into_iter()
-                .map(|hit| SearchResult {
-                    kind: if hit.is_dir {
-                        ResultKind::Folder
-                    } else {
-                        ResultKind::File
-                    },
-                    score: hit.score,
-                    name: hit.name,
-                    path: hit.path,
-                })
-                .collect()
+            let results = crate::managers::system_indexer::search_system_index(
+                query,
+                &[],
+                fetch_limit,
+                tantivy_index_dir,
+            )
+            .hits
+            .into_iter()
+            .map(|hit| SearchResult {
+                kind: if hit.is_dir {
+                    ResultKind::Folder
+                } else {
+                    ResultKind::File
+                },
+                score: hit.score,
+                name: hit.name,
+                path: hit.path,
+            })
+            .collect();
+            filter_existing_file_results(results, limit)
         }
     }
 
@@ -451,6 +471,38 @@ fn trim_rank_memory(memory: &mut HashMap<String, SearchRankMemoryEntry>) {
     entries.sort_by_key(|(_, last_seen_secs)| *last_seen_secs);
     for (key, _) in entries.into_iter().take(memory.len().saturating_sub(512)) {
         memory.remove(&key);
+    }
+}
+
+fn existing_path_fetch_limit(limit: usize) -> usize {
+    limit.saturating_mul(4).min(1_000).max(limit)
+}
+
+fn filter_existing_file_results(results: Vec<SearchResult>, limit: usize) -> Vec<SearchResult> {
+    results
+        .into_iter()
+        .filter(search_result_path_exists)
+        .take(limit)
+        .collect()
+}
+
+fn search_result_path_exists(result: &SearchResult) -> bool {
+    match &result.kind {
+        ResultKind::File | ResultKind::Folder => {
+            path_matches_result_kind(&result.path, &result.kind)
+        }
+        _ => true,
+    }
+}
+
+fn path_matches_result_kind(path: &str, kind: &ResultKind) -> bool {
+    let Ok(metadata) = std::fs::metadata(path) else {
+        return false;
+    };
+    match kind {
+        ResultKind::File => metadata.is_file(),
+        ResultKind::Folder => metadata.is_dir(),
+        _ => true,
     }
 }
 
@@ -536,8 +588,126 @@ mod tests {
     fn rank_memory_boosts_recent_selection() {
         let app_manager = Arc::new(Mutex::new(AppManager::new()));
         let manager = SearchManager::new_with_config(app_manager, Some("app_cache"), None);
-        assert_eq!(manager.rank_boost("file", "C:/tmp/a.txt"), 0);
+        let (r0, f0) = manager.rank_boost_breakdown("file", "C:/tmp/a.txt");
+        assert_eq!((r0, f0), (0, 0));
         manager.record_selection("file", "C:/tmp/a.txt");
-        assert!(manager.rank_boost("file", "C:/tmp/a.txt") > 0);
+        let (r1, f1) = manager.rank_boost_breakdown("file", "C:/tmp/a.txt");
+        assert!(r1 + f1 > 0);
+    }
+
+    #[test]
+    fn rank_boost_breakdown_missing_entry_returns_zero() {
+        let app_manager = Arc::new(Mutex::new(AppManager::new()));
+        let manager = SearchManager::new_with_config(app_manager, Some("app_cache"), None);
+        assert_eq!(manager.rank_boost_breakdown("file", "C:/tmp/missing.txt"), (0, 0));
+    }
+
+    #[test]
+    fn rank_boost_breakdown_fresh_entry_yields_recency_and_frequency() {
+        let app_manager = Arc::new(Mutex::new(AppManager::new()));
+        let manager = SearchManager::new_with_config(app_manager, Some("app_cache"), None);
+        for _ in 0..3 {
+            manager.record_selection("file", "C:/tmp/a.txt");
+        }
+        let (recency, frequency) = manager.rank_boost_breakdown("file", "C:/tmp/a.txt");
+        assert_eq!(recency, 25, "fresh selection should give max recency");
+        assert_eq!(frequency, 12, "count=3 should give frequency = 3*4 = 12");
+    }
+
+    #[test]
+    fn rank_boost_breakdown_frequency_capped_at_ten() {
+        let app_manager = Arc::new(Mutex::new(AppManager::new()));
+        let manager = SearchManager::new_with_config(app_manager, Some("app_cache"), None);
+        for _ in 0..15 {
+            manager.record_selection("file", "C:/tmp/a.txt");
+        }
+        let (_, frequency) = manager.rank_boost_breakdown("file", "C:/tmp/a.txt");
+        assert_eq!(frequency, 40, "count.min(10) * 4 = 40 even with 15 selections");
+    }
+
+    #[test]
+    fn rank_boost_breakdown_decays_after_recency_windows() {
+        // Reaching into the rank_memory directly to forge an aged timestamp keeps
+        // this test deterministic without sleeping for hours of wall-clock time.
+        let app_manager = Arc::new(Mutex::new(AppManager::new()));
+        let manager = SearchManager::new_with_config(app_manager, Some("app_cache"), None);
+        manager.record_selection("file", "C:/tmp/a.txt");
+        {
+            let mut mem = manager.rank_memory.lock().unwrap();
+            let entry = mem.get_mut("file:C:/tmp/a.txt").unwrap();
+            entry.last_seen_secs = entry.last_seen_secs.saturating_sub(8 * 24 * 60 * 60);
+        }
+        let (recency, frequency) = manager.rank_boost_breakdown("file", "C:/tmp/a.txt");
+        assert_eq!(recency, 0, "8-day-old selection should give 0 recency");
+        assert_eq!(frequency, 4, "one selection should give frequency = 1*4 = 4");
+    }
+
+    #[test]
+    fn filter_existing_file_results_drops_missing_paths() {
+        let dir = tempfile::TempDir::new().unwrap();
+        let live_file = dir.path().join("live.md");
+        let live_folder = dir.path().join("folder");
+        std::fs::write(&live_file, "ok").unwrap();
+        std::fs::create_dir_all(&live_folder).unwrap();
+
+        let results = vec![
+            SearchResult {
+                kind: ResultKind::File,
+                name: "deleted.md".into(),
+                path: dir.path().join("deleted.md").display().to_string(),
+                score: 99,
+            },
+            SearchResult {
+                kind: ResultKind::File,
+                name: "live.md".into(),
+                path: live_file.display().to_string(),
+                score: 98,
+            },
+            SearchResult {
+                kind: ResultKind::Folder,
+                name: "folder".into(),
+                path: live_folder.display().to_string(),
+                score: 97,
+            },
+            SearchResult {
+                kind: ResultKind::Folder,
+                name: "wrong-kind".into(),
+                path: live_file.display().to_string(),
+                score: 96,
+            },
+        ];
+
+        let filtered = filter_existing_file_results(results, 10);
+        let names = filtered
+            .iter()
+            .map(|result| result.name.as_str())
+            .collect::<Vec<_>>();
+        assert_eq!(names, vec!["live.md", "folder"]);
+    }
+
+    #[test]
+    fn filter_existing_file_results_applies_limit_after_stale_drop() {
+        let dir = tempfile::TempDir::new().unwrap();
+        let live_file = dir.path().join("live.md");
+        std::fs::write(&live_file, "ok").unwrap();
+
+        let results = vec![
+            SearchResult {
+                kind: ResultKind::File,
+                name: "deleted.md".into(),
+                path: dir.path().join("deleted.md").display().to_string(),
+                score: 99,
+            },
+            SearchResult {
+                kind: ResultKind::File,
+                name: "live.md".into(),
+                path: live_file.display().to_string(),
+                score: 98,
+            },
+        ];
+
+        let filtered = filter_existing_file_results(results, 1);
+        assert_eq!(filtered.len(), 1);
+        assert_eq!(filtered[0].name, "live.md");
     }
 }

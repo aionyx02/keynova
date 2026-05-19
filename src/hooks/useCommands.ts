@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
-import { invoke } from "@tauri-apps/api/core";
+import { useIPC } from "./useIPC";
+import { IPC } from "../ipc/routes";
 import type { TerminalLaunchSpec } from "../types/terminal";
 
 export interface CommandMeta {
@@ -18,19 +19,14 @@ export interface BuiltinCommandResult {
   ui_type: CommandUiType;
 }
 
-async function ipcDispatch<T>(route: string, payload?: Record<string, unknown>): Promise<T> {
-  return invoke<T>("cmd_dispatch", { route, payload: payload ?? null });
-}
-
 export function useCommands() {
+  const { dispatch } = useIPC();
   const [all, setAll] = useState<CommandMeta[]>([]);
 
   useEffect(() => {
     if (!window.__TAURI_INTERNALS__) return;
-    ipcDispatch<CommandMeta[]>("cmd.list")
-      .then(setAll)
-      .catch(() => {});
-  }, []);
+    dispatch<CommandMeta[]>(IPC.CMD_LIST).then(setAll).catch(() => {});
+  }, [dispatch]);
 
   const filtered = useCallback(
     (input: string): CommandMeta[] => {
@@ -42,17 +38,17 @@ export function useCommands() {
   );
 
   const runCommand = useCallback(
-    async (name: string, args = ""): Promise<BuiltinCommandResult> => {
-      return ipcDispatch<BuiltinCommandResult>("cmd.run", { name, args });
+    (name: string, args = ""): Promise<BuiltinCommandResult> => {
+      return dispatch<BuiltinCommandResult>(IPC.CMD_RUN, { name, args });
     },
-    [],
+    [dispatch],
   );
 
   const suggestArgs = useCallback(
-    async (name: string, partial: string): Promise<string[]> => {
-      return ipcDispatch<string[]>("cmd.suggest_args", { name, partial });
+    (name: string, partial: string): Promise<string[]> => {
+      return dispatch<string[]>(IPC.CMD_SUGGEST_ARGS, { name, partial });
     },
-    [],
+    [dispatch],
   );
 
   return { all, filtered, runCommand, suggestArgs };

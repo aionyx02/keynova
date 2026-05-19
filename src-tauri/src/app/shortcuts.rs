@@ -147,4 +147,36 @@ pub(crate) fn setup_global_shortcuts(app: &tauri::AppHandle, reset_existing: boo
             eprintln!("[keynova] {shortcut} (workspace) registration failed: {e}");
         }
     }
+
+    // ── LAUNCH.2.B — workspace cycle (Ctrl+Alt+0 default). Note: spec defaulted
+    // to Ctrl+Alt+W but that conflicts with the mouse-cursor-up binding above,
+    // so we ship `Ctrl+Alt+0` (sits naturally next to workspace_1/2/3). Cycle
+    // emits a distinct `workspace-cycled` event so the frontend can clear the
+    // search query (direct 1/2/3 switches preserve per-workspace state).
+    let cycle_key = app
+        .state::<AppState>()
+        ._config_manager
+        .lock()
+        .map(|c| c.get("hotkeys.workspace_cycle").unwrap_or_else(|| "Ctrl+Alt+0".into()))
+        .unwrap_or_else(|_| "Ctrl+Alt+0".into());
+    let handle_cycle = app.clone();
+    if let Err(e) = gs.on_shortcut(cycle_key.as_str(), move |app_h, _, event| {
+        if event.state() != ShortcutState::Pressed {
+            return;
+        }
+        let payload = {
+            let state = app_h.state::<AppState>();
+            state._workspace_manager.lock().ok().and_then(|mut mgr| {
+                let next = (mgr.current().id + 1) % mgr.all().len();
+                mgr.switch_to(next).ok().map(|ws| json!(ws))
+            })
+        };
+        if let Some(payload) = payload {
+            if let Some(win) = handle_cycle.get_webview_window("main") {
+                let _ = win.emit("workspace-cycled", &payload);
+            }
+        }
+    }) {
+        eprintln!("[keynova] {cycle_key} (workspace_cycle) registration failed: {e}");
+    }
 }
