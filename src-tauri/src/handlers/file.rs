@@ -137,16 +137,28 @@ impl CommandHandler for FileHandler {
                     .map_err(|e| format!("invalid file.delete request: {e}"))?;
                 let path = trim_path(&req.path)?;
                 let target = PathBuf::from(&path);
-                let metadata = target
-                    .metadata()
-                    .map_err(|e| format!("cannot inspect path: {e}"))?;
+                trace_delete("request", &path, &format!("confirm={} raw_path={:?}", req.confirm, req.path));
+                let metadata = target.metadata().map_err(|e| {
+                    trace_delete("metadata_err", &path, &format!("{e}"));
+                    format!("cannot inspect path: {e}")
+                })?;
                 let kind = if metadata.is_dir() { "folder" } else { "file" };
                 let size: Option<u64> = if metadata.is_file() {
                     Some(metadata.len())
                 } else {
                     None
                 };
+                trace_delete(
+                    "metadata_ok",
+                    &path,
+                    &format!(
+                        "kind={kind} size={size:?} attrs={} symlink={}",
+                        file_attributes_string(&metadata),
+                        symlink_meta_summary(&target),
+                    ),
+                );
                 if !req.confirm {
+                    trace_delete("preview", &path, "returning preview JSON");
                     return Ok(json!({
                         "preview": true,
                         "path": path,
@@ -155,7 +167,12 @@ impl CommandHandler for FileHandler {
                         "destination": "recycle_bin",
                     }));
                 }
-                trash::delete(&target).map_err(|e| format!("delete failed: {e}"))?;
+                trace_delete("trash_invoke", &path, "calling trash::delete");
+                trash::delete(&target).map_err(|e| {
+                    trace_delete("trash_err", &path, &format!("{e}"));
+                    format!("delete failed: {e}")
+                })?;
+                trace_delete("trash_ok", &path, "trash::delete returned Ok");
                 // `trash` v5 on Windows wraps SHFileOperationW which is known to
                 // return Ok() without actually moving the file in some edge
                 // cases (file in use, Recycle Bin disabled on volume, network
@@ -163,6 +180,7 @@ impl CommandHandler for FileHandler {
                 // reporting success — otherwise the launcher hides the row
                 // (kill set) while the file silently remains on disk.
                 verify_path_removed(&target).map_err(|reason| {
+                    trace_delete("verify_err", &path, &reason);
                     format!(
                         "trash returned ok but {}. Possible causes: file is open in another app, \
                          Recycle Bin disabled on this volume, insufficient permissions, \
@@ -171,6 +189,7 @@ impl CommandHandler for FileHandler {
                         reason, path
                     )
                 })?;
+                trace_delete("verify_ok", &path, "post-trash symlink_metadata=NotFound");
                 Ok(json!({
                     "ok": true,
                     "path": path,
@@ -293,6 +312,64 @@ fn text_editor_for_platform() -> Option<&'static str> {
         Some("TextEdit")
     } else {
         None
+    }
+}
+
+/// Debug-only delete-flow tracer. Bug B 2026-05-19 — adds step-by-step
+/// `eprintln!` to stderr so a future user repro can be diagnosed without
+/// guessing. Format intentionally machine-parseable (`key=value`) so a user
+/// can paste a block and we can pattern-match. No-op in release builds.
+fn trace_delete(stage: &str, path: &str, detail: &str) {
+    #[cfg(debug_assertions)]
+    {
+        eprintln!("[keynova][file.delete] stage={stage} path={path:?} {detail}");
+    }
+    #[cfg(not(debug_assertions))]
+    {
+        let _ = (stage, path, detail);
+    }
+}
+
+/// Decode Windows `FILE_ATTRIBUTE_*` bits into a readable flag list. On
+/// non-Windows we fall back to a permissions debug string. Used purely for
+/// debug tracing — see `trace_delete`.
+#[cfg(target_os = "windows")]
+fn file_attributes_string(metadata: &fs::Metadata) -> String {
+    use std::os::windows::fs::MetadataExt;
+    let attrs = metadata.file_attributes();
+    let mut flags: Vec<&'static str> = Vec::new();
+    if attrs & 0x0000_0001 != 0 { flags.push("READONLY"); }
+    if attrs & 0x0000_0002 != 0 { flags.push("HIDDEN"); }
+    if attrs & 0x0000_0004 != 0 { flags.push("SYSTEM"); }
+    if attrs & 0x0000_0010 != 0 { flags.push("DIRECTORY"); }
+    if attrs & 0x0000_0020 != 0 { flags.push("ARCHIVE"); }
+    if attrs & 0x0000_0400 != 0 { flags.push("REPARSE_POINT"); }
+    if attrs & 0x0000_1000 != 0 { flags.push("OFFLINE"); }
+    if attrs & 0x0008_0000 != 0 { flags.push("PINNED"); }
+    if attrs & 0x0010_0000 != 0 { flags.push("UNPINNED"); }
+    if attrs & 0x0040_0000 != 0 { flags.push("RECALL_ON_DATA_ACCESS"); }
+    format!("0x{attrs:X}[{}]", flags.join("|"))
+}
+
+#[cfg(not(target_os = "windows"))]
+fn file_attributes_string(metadata: &fs::Metadata) -> String {
+    format!("perms={:?}", metadata.permissions())
+}
+
+/// Short summary of `symlink_metadata` for the trace log (vs `metadata`,
+/// follows-links). Helps distinguish "the path is a symlink/junction" cases.
+fn symlink_meta_summary(target: &Path) -> String {
+    match fs::symlink_metadata(target) {
+        Ok(m) => {
+            let t = m.file_type();
+            format!(
+                "ok(file={} dir={} symlink={})",
+                t.is_file(),
+                t.is_dir(),
+                t.is_symlink(),
+            )
+        }
+        Err(e) => format!("err({e})"),
     }
 }
 
@@ -540,6 +617,33 @@ mod tests {
             .expect("trash ok");
         assert_eq!(res["ok"], json!(true));
         assert!(!path.exists());
+    }
+
+    /// Bug B 2026-05-19 repro — exercises `delete` against a path supplied via
+    /// `KEYNOVA_REPRO_DELETE_PATH` env var. Used to test paths the standard
+    /// tempdir-based test can't reach: OneDrive-synced Desktop, network drives,
+    /// junction points, etc. Test prints the FileHandler reply and the post-
+    /// delete `symlink_metadata` result so a regression can be diagnosed
+    /// without needing the GUI. Always-ignored — run manually:
+    ///
+    ///   $env:KEYNOVA_REPRO_DELETE_PATH = "C:\Users\shawn\OneDrive\Desktop\foo.txt"
+    ///   cargo test --manifest-path src-tauri/Cargo.toml -- --ignored --nocapture repro_delete_path_from_env
+    #[test]
+    #[ignore = "manual repro driver, set KEYNOVA_REPRO_DELETE_PATH"]
+    fn repro_delete_path_from_env() {
+        let path = std::env::var("KEYNOVA_REPRO_DELETE_PATH")
+            .expect("set KEYNOVA_REPRO_DELETE_PATH to absolute path of a file you can lose");
+        let p = PathBuf::from(&path);
+        println!("[repro] target: {}", path);
+        println!("[repro] pre  Path::exists = {}", p.exists());
+        let pre_meta = fs::symlink_metadata(&p);
+        println!("[repro] pre  symlink_metadata: {:?}", pre_meta);
+        let res = handler().execute("delete", json!({ "path": path, "confirm": true }));
+        println!("[repro] FileHandler reply: {:?}", res);
+        let post_meta = fs::symlink_metadata(&p);
+        println!("[repro] post symlink_metadata: {:?}", post_meta);
+        println!("[repro] Path::exists post-call = {}", p.exists());
+        // Don't assert — we want raw observation. The user can inspect output.
     }
 
     // ── hash ─────────────────────────────────────────────────────────────────

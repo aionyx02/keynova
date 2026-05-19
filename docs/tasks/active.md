@@ -6,7 +6,7 @@ updated: 2026-05-19
 context_policy: always_retrievable
 owner: project
 tags: [feature-first, safety-first, performance, agent-ux]
-last_change: Bug A 真根因定位 — window auto-hide 對 IME composition focus blip 太敏感; 120ms→400ms + frontend onComposition* 撐住 guard
+last_change: Bug B 真根因定位 — B1=Explorer 不主動 refresh (非 launcher bug，hint 加 F5 提示)，B2=recentlyDeleted kill-set sticky (Set→Map+30s TTL，restore 後自然回來)。同時 Bug A round 2 grace 400→1500ms + Bug B UX 強化 + file.delete trace log
 ---
 
 # Active Tasks
@@ -56,6 +56,31 @@ See `docs/tasks/backlog.md` Post-FEAT.11 Phase Proposal 與 11 個 track section
 See `docs/tasks/blocked.md` Post-FEAT.11 Tracks Pending ADR 表。
 
 ## Recent Execution Notes
+
+- 2026-05-19: **Bug B 真根因定位 round 3 + B1/B2 修法**
+  - 使用者實測 + file.delete trace log 確認：**launcher 真的把檔案 trash 進 Recycle Bin**（trace 顯示 `stage=trash_ok → verify_ok`，`fs::symlink_metadata` 也是 NotFound）。原本以為「桌面內容沒刪除」是 launcher bug，其實分成兩個獨立子問題：
+  - **B1（cosmetic，非 launcher bug）**：Windows Explorer desktop view 不主動 refresh — `SHFileOperationW` 雖發 `SHCNE_DELETE` shell notification，但 OneDrive filter driver / 多 Explorer instance / Defender backlog 會吞掉或延遲，使 desktop icon view 沒重 enumerate。檔案實際已在 Recycle Bin，按 F5 即更新。Launcher 自己的 search row 即時消失（已驗證）。
+    - 修法（Option Y）：`CommandPalette.tsx` case `"delete"` 成功 hint 從 `"Moved to recycle bin"` 改 `"Moved to recycle bin · Press F5 on desktop if icon lingers"`，duration 1500→2500ms。零成本、誠實揭露 OS 行為。沒走 Option X（backend SHChangeNotify）— OneDrive driver 仍可能吞通知、複雜度不值得。
+  - **B2（launcher bug）**：使用者從 Recycle Bin 還原檔案後，launcher 搜尋找不到該檔。原因：`CommandPalette.tsx:193` 的 `recentlyDeleted: Set<string>` 只在 `handleQueryChange` / `workspace-switched` / `workspace-cycled` 三條 path 清。同一 query 下 restore 不會清，`visibleResults` 永遠把該 path 濾掉。
+    - 修法（Option A，純 frontend）：`recentlyDeleted` 改 `Map<string, number>`（path → `Date.now()` timestamp）+ 新增 `RECENTLY_DELETED_TTL_MS = 30_000` 常數。`refreshAfterFileMutation` 寫 timestamp、`visibleResults` 過濾時 `_killCutoff = Date.now() - TTL`，只擋 `killTs > _killCutoff` 的 entry。30s 後該 entry 自然被忽略，restore 的檔案重新可搜。`new Set()` → `new Map()` 在 3 處 clear 路徑同步改。
+  - **檔案變更**：`src/components/CommandPalette.tsx`（B1 hint + B2 Map TTL + 常數 + filter 邏輯）。
+  - **檢查**：`npx tsc --noEmit` 清、`npm run lint` 清（filter 內 `Date.now()` 加 `react-hooks/purity` inline disable）。Backend 未動，cargo test/clippy 仍維持先前 350/351 baseline。
+  - **不採用的方案**：Option X（backend SHChangeNotify）— OneDrive driver 可能吞通知、複雜度不值得；Option B（stream chunk 重驗 disk）— 需新 IPC，TTL 已足夠常見 case。
+  - **待使用者實測**：(1) Delete 後 desktop icon 殘留 → 看到 F5 hint → 按 F5 確認消失。(2) Delete → 開 Recycle Bin → 還原 → 等 30s → launcher 重新搜尋，restore 的檔案應出現。30s 內仍搜不到（by design）。
+
+- 2026-05-19: **Bugfix round 2 — Bug A 真根因修正 + Bug B UX 大聲對白**
+  - **Bug A 真根因再校正**：使用者澄清「英文打字也會被收起」→ 不是 IME composition，是 WebView2 transparent window 對任何 keystroke 都會 emit 短暫 `Focused(false)` blip（accessibility subprocess、popup、IME service 背景切換、DPI scaling、…）。先前 `62cc2d1` 的 onComposition* listener + 400ms grace 修法對英文 typing path **完全沒用**（英文不觸發 composition events）。
+  - 修法（後端 + 前端配套）：
+    - `src-tauri/src/app/window.rs:54`：grace `400ms → 1500ms`，覆蓋幾乎所有觀察到的 WebView2 blip。註解改寫，說明根因不是 IME-only。
+    - `src-tauri/src/app/dispatch.rs:300`：`cmd_keep_launcher_open_impl` 把 guard TTL `600ms → 2000ms`，> backend grace，配合 frontend renewal 保證 sleep 完檢查 guard 必有效。
+    - `src/components/CommandPalette.tsx`：拔掉 `onCompositionStart/Update/End`（IME-only，無法處理英文），改 `onFocus={() => void keepLauncherOpen()}` + 在 `onKeyDown` 頂端加 `lastGuardRef` 200ms throttle 的 `keepLauncherOpen()` renewal。任何 keystroke 都會把 guard 推到未來 2s，backend sleep 1.5s 後檢查 guard 必有效。
+  - **Bug B 真根因再校正**：使用者澄清按一次 Enter 就期待刪除 → 2-stage gate 的視覺訊號太弱，使用者根本沒注意到「下一個 Enter 才真執行」的 micro-banner。先前 `9dfd15b` 的 `verify_path_removed` + `recentlyDeletedRef` 都是下游 fix，沒解決 discoverability 問題。
+  - 修法（純 UX 加強，無 backend / 邏輯改動）：
+    - `src/components/SecondaryActionMenu.tsx`：focused destructive row 在 `pendingConfirmId` 命中時 label 動態改為 `⚠ Confirm <X>? Enter again · Esc cancel`，row 加 `animate-pulse border-l-4 border-red-400 bg-red-900/60 font-semibold` 視覺強對比；移除舊的下方 confirm banner div（一個強訊號勝過兩個競爭訊號）。
+    - `src/components/CommandPalette.tsx`：preview hint 三個（delete/rename/move）統一改為 `⚠ Press Enter again to <verb> <X> · ... · Esc cancel`，duration `3000 → 4000ms`。delete 訊息也帶上檔名 + size 給雙保險。
+  - **不變動（intentional）**：`verify_path_removed`、`recentlyDeleted` kill-set、Esc state machine、`window-focused` listener。
+  - **檢查**：`cargo test --manifest-path src-tauri/Cargo.toml` 350/351（pre-existing `note_lazyvim_missing_nvim_returns_inline_guidance` 不變）；`cargo clippy -- -D warnings` 清；`npx tsc --noEmit` 清；`npm run lint` 清（`react-hooks/purity` 在 onKeyDown 的 `Date.now()` 誤判，event handler 非 render path，inline disable）。
+  - **待使用者實測**：(1) Bug A：英文打字 30s + IME 中文 30s + 隨機按鍵交替，launcher 不該再自動收起；點別處 1.5s 後應正常收起。(2) Bug B：→ → Enter 後 Delete row 變紅色 pulse + 文字變 `⚠ Confirm Delete?...`，hint 顯示 `⚠ Press Enter again to delete ...`；再按 Enter row 才消失；Esc 取消正常。
 
 - 2026-05-19: **Bugfix — Bug A 真根因：IME composition focus blip 觸發 auto-hide**
   - 使用者澄清「閃退」實情：搜尋框打字打到一半 window 自己收起，需重按 Ctrl+K — **不是 renderer crash，是 launcher window auto-hide**。
