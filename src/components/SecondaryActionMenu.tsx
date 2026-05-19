@@ -49,11 +49,17 @@ export function SecondaryActionMenu({
           const isFocused = !it.disabled && enabledIdx === focusedIndex;
           const isPending = pendingConfirmId === it.id;
           const showInput = isFocused && inlineInput && inlineInput.for === it.id;
+          const isArmedDestructive = isFocused && isPending && isDestructive(it.id);
           const riskTint = it.risk === "high"
             ? "text-red-300"
             : it.risk === "medium"
               ? "text-amber-200"
               : "text-gray-300";
+          // Bug-fix 2026-05-19 (round 2) — Bug B 真根因：使用者按一次 Enter
+          // 就期待刪除，但 2-stage gate 的視覺訊號太弱（一條小紅色 banner 在
+          // row 底下）。改在 row 本身做大聲對白：label 動態變成 "⚠ Confirm
+          // <X>? Enter again · Esc cancel" + 紅色 bg + pulse 框，使用者不可能
+          // 漏看。drop 原本的 banner div（一致性 + 視覺乾淨）。
           return (
             <div
               key={it.id}
@@ -74,15 +80,21 @@ export function SecondaryActionMenu({
                 className={`flex min-h-[32px] items-center justify-between gap-3 px-3 py-1.5 text-sm transition-colors ${
                   it.disabled
                     ? "cursor-not-allowed text-gray-600"
-                    : isFocused
-                      ? `cursor-pointer bg-blue-600/70 text-white`
-                      : `cursor-pointer ${riskTint} hover:bg-white/8`
+                    : isArmedDestructive
+                      ? `cursor-pointer animate-pulse border-l-4 border-red-400 bg-red-900/60 font-semibold text-red-100`
+                      : isFocused
+                        ? `cursor-pointer bg-blue-600/70 text-white`
+                        : `cursor-pointer ${riskTint} hover:bg-white/8`
                 }`}
               >
-                <span className="truncate">{it.label}</span>
+                <span className="truncate">
+                  {isArmedDestructive
+                    ? `⚠ Confirm ${it.label}? Enter again · Esc cancel`
+                    : it.label}
+                </span>
                 {it.disabled && it.disabledReason ? (
                   <span className="shrink-0 text-[10px] text-gray-600">{it.disabledReason}</span>
-                ) : it.hint ? (
+                ) : it.hint && !isArmedDestructive ? (
                   <span className="shrink-0 text-[10px] text-gray-500">{it.hint}</span>
                 ) : null}
               </div>
@@ -103,11 +115,9 @@ export function SecondaryActionMenu({
                   </div>
                 </div>
               ) : null}
-              {isFocused && isPending && isDestructive(it.id) ? (
-                <div className="mx-2 mb-1 mt-0.5 rounded border border-red-500/70 bg-red-900/30 px-2 py-1 text-[11px] text-red-200">
-                  Confirm {it.label} — Enter / y = yes · Esc / n = cancel
-                </div>
-              ) : null}
+              {/* Banner removed 2026-05-19 (round 2) — folded the confirm
+                  signal into the row itself (see isArmedDestructive above).
+                  One loud signal beats two competing ones. */}
             </div>
           );
         })}

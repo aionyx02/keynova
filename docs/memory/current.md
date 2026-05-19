@@ -2,7 +2,7 @@
 type: working_memory
 status: active
 priority: p0
-updated: 2026-05-18
+updated: 2026-05-19
 context_policy: always_retrievable
 owner: project
 ---
@@ -31,6 +31,17 @@ owner: project
 - "Background Core < 100 MB" excludes active WebView, loaded local LLM model memory, PTY terminal sessions, monitoring streams, and index rebuild tasks.
 
 ## Last Confirmed Progress
+
+- 2026-05-19 Bug B 真根因 round 3：使用者實測 + file.delete trace 證明 launcher 真有 trash。「桌面內容沒刪除」拆兩個獨立子問題：
+  - **B1（非 launcher bug）**：Windows Explorer desktop view 不主動 refresh（`SHCNE_DELETE` 被 OneDrive / Defender / 多 Explorer instance 吞或延遲）。檔案在 Recycle Bin，按 F5 即更新。修法：`CommandPalette.tsx` success hint 加 `"· Press F5 on desktop if icon lingers"`，duration 1500→2500ms。
+  - **B2（launcher bug）**：restore 後搜不到。`recentlyDeleted` kill-set sticky。修法：`Set<string>` → `Map<string, number>` + 30s TTL；`new RECENTLY_DELETED_TTL_MS = 30_000` 常數；`visibleResults` 過濾改用 `killTs > Date.now() - TTL`。3 處 `new Set()` clear 改 `new Map()`。
+  - 檢查：tsc 清、lint 清（Date.now in filter eslint-disable）；backend 未動。
+
+- 2026-05-19 Bugfix round 2 — Bug A real root cause + Bug B UX:
+  - **Bug A**：先前定位 IME composition 不準。使用者澄清英文打字也會被收起 → 是 WebView2 transparent window 對任何 keystroke 都會 emit 短暫 `Focused(false)` blip。修法：`window.rs` grace `400ms→1500ms`、`dispatch.rs` keep-open guard TTL `600ms→2000ms`；frontend `CommandPalette.tsx` 拔 onComposition* listener，改 input `onFocus` + `onKeyDown` 200ms throttle 主動 renew guard。任何使用者互動都把 guard 推到未來 → backend sleep 完檢查必有效。
+  - **Bug B**：→ → Enter 後 row 沒消失的真根因不是後端 trash silent fail（已由 9dfd15b verify_path_removed 防住），而是 2-stage gate 對鍵盤使用者來說 visual 太弱。修法：`SecondaryActionMenu.tsx` focused destructive row 在 armed 時 label 動態改為 `⚠ Confirm <X>? Enter again · Esc cancel`，row 加 `animate-pulse + border-l-4 + bg-red-900/60`；移除舊 confirm banner（一個強訊號勝過兩個）。`CommandPalette.tsx` delete/rename/move 三個 preview hint 統一加 ⚠ 與 "Enter again"，duration 3000→4000ms。
+  - 檢查：cargo test 350/351（pre-existing nvim 不變）、clippy `-D warnings` 清、tsc 清、lint 清（一處 `react-hooks/purity` 在 event handler 內的 `Date.now()` inline disable）。
+  - 待使用者實測 30s 英文 / 30s IME / 點別處 1.5s 自動收起 / Delete row pulse + hint 兩條路徑。
 
 - 2026-05-18 Secondary action menu size fix: fixed `SecondaryActionMenu` at `390 x 360`, made its action body scrollable with focus auto-scroll, and reserved stable CommandPalette height while open so lower actions like `Delete` remain reachable. `npx tsc --noEmit` and `npm run lint` pass.
 - 2026-05-18 Search stale-path bugfix: `SearchManager::file_results_for_backend` filters missing or type-mismatched file/folder paths before display for APP_CACHE, Tantivy, Everything, and native indexer results. Added regression tests for stale-path removal and post-filter limit behavior; focused test + clippy pass. Full cargo test still has the known pre-existing `note_lazyvim_missing_nvim_returns_inline_guidance` failure.

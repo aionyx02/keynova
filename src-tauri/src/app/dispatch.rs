@@ -297,7 +297,9 @@ pub(crate) fn cmd_keep_launcher_open_impl(
     state: tauri::State<'_, AppState>,
 ) -> Result<(), IpcError> {
     if let Ok(mut guard) = state.launcher_focus_guard.lock() {
-        *guard = Some(Instant::now() + Duration::from_millis(600));
+        // 2000ms TTL > backend 1500ms grace — 配合 frontend 在每次 keydown
+        // (200ms throttle) renew guard，blur 後 sleep 完檢查時 guard 還有效。
+        *guard = Some(Instant::now() + Duration::from_millis(2000));
     }
     window
         .show()

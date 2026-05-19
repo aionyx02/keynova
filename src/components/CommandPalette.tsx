@@ -42,6 +42,12 @@ const TerminalPanel = React.lazy(() =>
   import("./TerminalPanel").then((m) => ({ default: m.TerminalPanel })),
 );
 
+// 2026-05-19 Bug B2 — TTL for `recentlyDeleted` kill-set. If user restores a
+// trashed file from Recycle Bin within this window, search still hides it;
+// after the window the kill-set entry is ignored and the restored file
+// reappears in results without needing a workspace switch.
+const RECENTLY_DELETED_TTL_MS = 30_000;
+
 interface ConfigReloadedPayload {
   changed_keys: string[];
 }
@@ -190,9 +196,21 @@ export function CommandPalette() {
   // merge, etc.) reintroduces it. Windows Everything still indexes Recycle
   // Bin entries, so without this set a just-trashed file resurrects on the
   // next chunk. Cleared on query change / workspace switch.
-  const [recentlyDeleted, setRecentlyDeleted] = useState<Set<string>>(() => new Set());
+  //
+  // 2026-05-19 Bug B2 fix — map to Date.now() timestamp + visibleResults
+  // applies a 30 s TTL. If user restores a file from Recycle Bin within the
+  // same launcher session, the kill-set entry naturally expires and the
+  // restored file becomes searchable again without a workspace switch.
+  const [recentlyDeleted, setRecentlyDeleted] = useState<Map<string, number>>(
+    () => new Map(),
+  );
 
   const inputRef = useRef<HTMLInputElement>(null);
+  // Bug-fix 2026-05-19 (round 2) — throttle for keepLauncherOpen() renewal
+  // on every keystroke. Backend launcher_focus_guard TTL is 2s; we refresh
+  // it at most every 200ms while user is interacting → guard always wins
+  // against the 1.5s Focused(false) grace, regardless of English/IME path.
+  const lastGuardRef = useRef<number>(0);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const argDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const copyResetRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -414,7 +432,7 @@ export function CommandPalette() {
       setCmdResult(null);
       setTimedOutProviders([]);
       activeSearchRequestRef.current = "";
-      setRecentlyDeleted(new Set());
+      setRecentlyDeleted(new Map());
       void dispatch(IPC.SEARCH_CANCEL).catch(() => {});
       requestAnimationFrame(() => inputRef.current?.focus());
     });
@@ -433,7 +451,7 @@ export function CommandPalette() {
       setCmdResult(null);
       setTimedOutProviders([]);
       activeSearchRequestRef.current = "";
-      setRecentlyDeleted(new Set());
+      setRecentlyDeleted(new Map());
       void dispatch(IPC.SEARCH_CANCEL).catch(() => {});
       requestAnimationFrame(() => inputRef.current?.focus());
     });
@@ -558,7 +576,7 @@ export function CommandPalette() {
     setArgSuggestions([]);
     // LAUNCH.1.B bugfix — typing a new query enters a fresh search context;
     // suppress-list is no longer relevant.
-    setRecentlyDeleted(new Set());
+    setRecentlyDeleted(new Map());
     const { mode: newMode, rawInput: ri } = parseInputMode(value);
     // Mount terminal on first "> " entry; avoids useEffect setState cascade
     if (newMode === "terminal") setTerminalMounted(true);
@@ -698,8 +716,8 @@ export function CommandPalette() {
    */
   function refreshAfterFileMutation(droppedPath: string) {
     setRecentlyDeleted((prev) => {
-      const next = new Set(prev);
-      next.add(droppedPath);
+      const next = new Map(prev);
+      next.set(droppedPath, Date.now());
       return next;
     });
     setSelected(0);
@@ -781,7 +799,7 @@ export function CommandPalette() {
             confirm,
           });
           if (!confirm) {
-            showHint(`Preview → ${res.target ?? inlineInput.value}`, 3000);
+            showHint(`⚠ Press Enter again to rename → ${res.target ?? inlineInput.value} · Esc cancel`, 4000);
             setPendingConfirm("rename");
           } else {
             showHint(`Renamed to ${inlineInput.value}`);
@@ -808,7 +826,7 @@ export function CommandPalette() {
             confirm,
           });
           if (!confirm) {
-            showHint(`Preview → ${res.target ?? inlineInput.value}`, 3000);
+            showHint(`⚠ Press Enter again to move → ${res.target ?? inlineInput.value} · Esc cancel`, 4000);
             setPendingConfirm("move");
           } else {
             showHint(`Moved to ${inlineInput.value}`);
@@ -832,10 +850,18 @@ export function CommandPalette() {
           }>(IPC.FILE_DELETE, { path: result.path, confirm });
           if (!confirm) {
             const sizeStr = res.size != null ? `${res.size} bytes` : "unknown size";
-            showHint(`Will move ${res.kind} (${sizeStr}) to ${res.destination}`, 3000);
+            const name = result.name || basenameFromPath(result.path);
+            showHint(
+              `⚠ Press Enter again to delete ${name} · ${sizeStr} → ${res.destination ?? "recycle bin"} · Esc cancel`,
+              4000,
+            );
             setPendingConfirm("delete");
           } else {
-            showHint("Moved to recycle bin");
+            // 2026-05-19 Bug B1 — Windows Explorer desktop view does not always
+            // re-enumerate on SHCNE_DELETE (OneDrive redirect, Defender scan,
+            // multi-instance Explorer). File IS in Recycle Bin; the icon may
+            // linger until F5. Hint surfaces that so user is not confused.
+            showHint("Moved to recycle bin · Press F5 on desktop if icon lingers", 2500);
             closeSecondaryMenu();
             refreshAfterFileMutation(result.path);
           }
@@ -881,6 +907,15 @@ export function CommandPalette() {
   }
 
   function onKeyDown(e: React.KeyboardEvent) {
+    // Bug-fix 2026-05-19 (round 2) — Bug A真根因：英文打字也會觸發
+    // WindowEvent::Focused(false) blip。每次 keydown 都 renew guard (200ms
+    // throttle) → backend grace 期內 guard 必有效 → 不 hide。
+    // eslint-disable-next-line react-hooks/purity -- event handler, not render path
+    const now = Date.now();
+    if (now - lastGuardRef.current > 200) {
+      lastGuardRef.current = now;
+      void keepLauncherOpen();
+    }
     // ONBOARD.1.B — `?` opens cheatsheet when input is empty, so it doesn't
     // collide with typing `?` as part of a query.
     if (e.key === "?" && query === "" && !secondaryMenuOpen && !cmdResult) {
@@ -1005,14 +1040,19 @@ export function CommandPalette() {
 
   // LAUNCH.1.D + LAUNCH.1.B bugfix — derived view:
   //   1. chip filter (file/note/app/command/history/model);
-  //   2. recently-deleted kill set so trashed paths can't reappear from
-  //      Everything's Recycle-Bin index via a streaming chunk or stale
-  //      response.
+  //   2. recently-deleted kill set with 30 s TTL so trashed paths can't
+  //      reappear from Everything's Recycle-Bin index via a streaming chunk
+  //      or stale response. TTL means a user-initiated restore from Recycle
+  //      Bin starts being searchable again ~30 s later, even without a
+  //      workspace switch / query change.
   // Filter is O(n) over a small list capped at launcher.max_results; no
   // useMemo needed and react-hooks/preserve-manual-memoization complains
   // when we add one.
+  // eslint-disable-next-line react-hooks/purity -- TTL check; stable within this render
+  const _killCutoff = Date.now() - RECENTLY_DELETED_TTL_MS;
   const visibleResults: SearchResult[] = results.filter((r) => {
-    if (recentlyDeleted.has(r.path)) return false;
+    const killTs = recentlyDeleted.get(r.path);
+    if (killTs !== undefined && killTs > _killCutoff) return false;
     if (activeFilters.size === 0) return true;
     if (r.kind === "folder") return activeFilters.has("file");
     return activeFilters.has(r.kind as SourceFilter);
@@ -1170,16 +1210,13 @@ export function CommandPalette() {
               value={query}
               onChange={(e) => void handleQueryChange(e.target.value)}
               onKeyDown={onKeyDown}
-              // Bug-fix 2026-05-19 — Windows IME composition window briefly
-              // takes keyboard focus while the user is typing Chinese / 注音
-              // / other IME-driven input. That blip fires WindowEvent::
-              // Focused(false) on the Tauri side and (without the guard) the
-              // launcher auto-hides mid-typing. Bump the keep-open guard at
-              // both ends of composition so the 400 ms backend grace period
-              // never elapses while the IME is mid-input.
-              onCompositionStart={() => void keepLauncherOpen()}
-              onCompositionUpdate={() => void keepLauncherOpen()}
-              onCompositionEnd={() => void keepLauncherOpen()}
+              // Bug-fix 2026-05-19 (round 2) — switched from
+              // onCompositionStart/Update/End (IME-only, did not cover English
+              // typing reported by user) to onFocus + per-keydown throttle
+              // (lastGuardRef) inside onKeyDown above. onFocus covers initial
+              // mount + post-Esc re-focus; throttled onKeyDown covers every
+              // subsequent keystroke regardless of IME state.
+              onFocus={() => void keepLauncherOpen()}
               placeholder={
                 mode === "command"
                   ? "輸入指令… 試試 /help 或 /setting"
