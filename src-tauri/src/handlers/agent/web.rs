@@ -7,15 +7,35 @@ use crate::models::agent::{ContextVisibility, GroundingSource};
 use super::formatting::{extract_backticked, extract_quoted, truncate};
 use super::safety::contains_any;
 
+/// Validate that a SearXNG base URL uses HTTPS or an explicit localhost HTTP address.
+/// Rejects bare HTTP to non-localhost hosts to prevent MITM on agent search traffic.
+pub(super) fn validate_searxng_url(url: &str) -> Result<(), String> {
+    let trimmed = url.trim();
+    if trimmed.is_empty() {
+        return Err("agent.searxng_url is required for web.search".into());
+    }
+    let lower = trimmed.to_lowercase();
+    if lower.starts_with("https://") {
+        return Ok(());
+    }
+    if lower.starts_with("http://localhost")
+        || lower.starts_with("http://127.0.0.1")
+        || lower.starts_with("http://[::1]")
+    {
+        return Ok(());
+    }
+    Err(format!(
+        "agent.searxng_url must use HTTPS or target localhost; '{trimmed}' is not allowed"
+    ))
+}
+
 pub(super) fn search_searxng(
     base_url: &str,
     query: &str,
     limit: usize,
     timeout_secs: u64,
 ) -> Result<Vec<GroundingSource>, String> {
-    if base_url.trim().is_empty() {
-        return Err("agent.searxng_url is required for web.search".into());
-    }
+    validate_searxng_url(base_url)?;
     let client = reqwest::blocking::Client::builder()
         .timeout(Duration::from_secs(timeout_secs.max(1)))
         .build()
@@ -548,4 +568,34 @@ pub(super) fn answer_workflow_plan(prompt: &str) -> Option<String> {
         "我會把這個任務拆成可執行工作流：\n\n1. 釐清目標與輸出：確認你要的最終結果、限制、是否需要網路或本機資料。\n2. 蒐集資料：優先用 read-only 本機搜尋/讀取；需要外部資訊時使用 web.search。\n3. 制定步驟：把任務拆成可驗證的小步驟，標記哪些是 read-only、哪些需要 approval。\n4. 執行安全步驟：read-only 步驟可直接完成；任何修改檔案、terminal、system/model 動作都會先請你批准。\n5. 回報結果：列出完成項、證據來源、失敗原因與下一步。\n\n目前任務：\n{}",
         prompt.trim()
     ))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn validate_searxng_url_accepts_https() {
+        assert!(validate_searxng_url("https://searxng.example.com").is_ok());
+        assert!(validate_searxng_url("  https://searxng.example.com/  ").is_ok());
+    }
+
+    #[test]
+    fn validate_searxng_url_accepts_localhost_http() {
+        assert!(validate_searxng_url("http://localhost:8888").is_ok());
+        assert!(validate_searxng_url("http://127.0.0.1:9000").is_ok());
+        assert!(validate_searxng_url("http://[::1]:8080").is_ok());
+    }
+
+    #[test]
+    fn validate_searxng_url_rejects_http_remote() {
+        assert!(validate_searxng_url("http://searxng.example.com").is_err());
+        assert!(validate_searxng_url("http://192.168.1.1:8888").is_err());
+    }
+
+    #[test]
+    fn validate_searxng_url_rejects_empty() {
+        assert!(validate_searxng_url("").is_err());
+        assert!(validate_searxng_url("   ").is_err());
+    }
 }

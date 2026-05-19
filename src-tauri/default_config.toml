@@ -1,9 +1,10 @@
 [hotkeys]
-app_launcher   = "Ctrl+K"
-mouse_control  = "Ctrl+Alt+M"
-workspace_1    = "Ctrl+Alt+1"
-workspace_2    = "Ctrl+Alt+2"
-workspace_3    = "Ctrl+Alt+3"
+app_launcher    = "Ctrl+K"
+mouse_control   = "Ctrl+Alt+M"
+workspace_1     = "Ctrl+Alt+1"
+workspace_2     = "Ctrl+Alt+2"
+workspace_3     = "Ctrl+Alt+3"
+workspace_cycle = "Ctrl+Alt+0"        # LAUNCH.2.B — cycles to next workspace + clears query
 
 [launcher]
 scan_paths = []          # 額外掃描路徑（空陣列代表僅掃描系統預設路徑）
@@ -15,6 +16,8 @@ backend = "auto"
 index_dir = ""
 exclude_dirs = "AppData,node_modules,.git,target,dist"
 max_file_results = 50
+preview_enabled = true        # LAUNCH.1.C — show right-side preview pane for selected file/folder/note
+show_rank_breakdown = true    # LAUNCH.1.E — show rank tooltip on result hover
 
 [terminal]
 default_shell = ""       # 空字串代表使用系統預設 shell
@@ -41,11 +44,13 @@ model = "qwen2.5:7b"
 claude_model = "claude-sonnet-4-6"
 ollama_url = "http://localhost:11434"
 ollama_timeout_secs = 120
+ollama_keep_alive = "5m"     # Ollama model keep-alive duration; set to "0s" to unload immediately
 openai_api_key = ""
 openai_base_url = "https://api.openai.com/v1"
 openai_model = "gpt-4o-mini"
 max_tokens = 4096
 timeout_secs = 30
+stream_enabled = true        # true: emit ai.stream.chunk events for token streaming UI; false: legacy single-shot
 
 [agent]
 web_search_provider = "disabled"
@@ -53,6 +58,9 @@ long_term_memory_opt_in = false
 searxng_url = ""
 web_search_api_key = ""
 web_search_timeout_secs = 8
+show_audit_by_default = false        # If true, Context audit section of agent runs is pre-expanded
+run_history_cap = 20                 # FIFO cap on in-memory agent runs; oldest evicted to agent_archive table
+approval_timeout_secs = 300          # Approval auto-times-out after N seconds; affects countdown pill in UI
 
 [translation]
 default_src = "auto"
@@ -74,3 +82,13 @@ ignore_duplicates = true
 enable_volume_control = true
 enable_brightness_control = true
 enable_wifi_info = true
+
+[performance]
+low_memory_mode = false      # true: skip terminal prewarm, defer startup indexing, shorten keep_alive
+
+[agent.local_context]
+enabled = false              # Must be true to allow learning material review scans
+max_scan_files = 500         # Maximum filesystem entries examined per scan
+max_preview_bytes = 4096     # Byte cap for per-file content previews
+max_depth = 4                # Maximum directory recursion depth
+extra_denylist = ""          # Comma-separated extra denylist patterns (merged with built-in defaults)

@@ -42,6 +42,14 @@ pub struct AgentAuditEntry {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AgentArchiveEntry {
+    pub run_id: String,
+    pub prompt: String,
+    pub status: String,
+    pub payload_json: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AgentMemoryEntry {
     pub id: String,
     pub scope: String,
@@ -63,6 +71,7 @@ pub enum DbRequest {
     WriteClipboardMetadata(ClipboardMetadataEntry),
     WriteClipboardMetadataBatch(Vec<ClipboardMetadataEntry>),
     WriteAgentAudit(AgentAuditEntry),
+    WriteAgentArchive(AgentArchiveEntry),
     WriteAgentMemory(AgentMemoryEntry),
     ReadActionStats {
         action_id: String,
@@ -128,6 +137,10 @@ impl KnowledgeStoreHandle {
 
     pub fn try_log_agent_audit(&self, entry: AgentAuditEntry) {
         self.try_send_fire_and_forget(DbRequest::WriteAgentAudit(entry));
+    }
+
+    pub fn try_archive_agent_run(&self, entry: AgentArchiveEntry) {
+        self.try_send_fire_and_forget(DbRequest::WriteAgentArchive(entry));
     }
 
     pub fn try_store_agent_memory(&self, entry: AgentMemoryEntry) {
@@ -283,6 +296,10 @@ fn handle_request(conn: &mut Connection, request: DbRequest) -> Result<WorkerSig
             insert_clipboard_metadata_batch(conn, &entries)?;
             Ok(WorkerSignal::Continue)
         }
+        DbRequest::WriteAgentArchive(entry) => {
+            insert_agent_archive(conn, &entry)?;
+            Ok(WorkerSignal::Continue)
+        }
         DbRequest::WriteAgentAudit(entry) => {
             insert_agent_audit(conn, &entry)?;
             Ok(WorkerSignal::Continue)
@@ -333,6 +350,7 @@ fn respond_error(request: DbRequest, error: String) {
         | DbRequest::WriteClipboardMetadata(_)
         | DbRequest::WriteClipboardMetadataBatch(_)
         | DbRequest::WriteAgentAudit(_)
+        | DbRequest::WriteAgentArchive(_)
         | DbRequest::WriteAgentMemory(_)
         | DbRequest::Shutdown => {}
     }
@@ -430,6 +448,13 @@ fn init_schema(conn: &Connection) -> Result<(), String> {
             summary TEXT NOT NULL,
             payload_json TEXT,
             created_at INTEGER NOT NULL DEFAULT (strftime('%s','now'))
+        );
+        CREATE TABLE IF NOT EXISTS agent_archive (
+            run_id TEXT PRIMARY KEY,
+            prompt TEXT NOT NULL,
+            status TEXT NOT NULL,
+            payload_json TEXT NOT NULL,
+            archived_at INTEGER NOT NULL DEFAULT (strftime('%s','now'))
         );
         CREATE TABLE IF NOT EXISTS agent_memories (
             id TEXT PRIMARY KEY,
@@ -590,6 +615,15 @@ fn insert_agent_audit(conn: &Connection, entry: &AgentAuditEntry) -> Result<(), 
             entry.summary,
             entry.payload_json
         ],
+    )
+    .map_err(|e| e.to_string())?;
+    Ok(())
+}
+
+fn insert_agent_archive(conn: &Connection, entry: &AgentArchiveEntry) -> Result<(), String> {
+    conn.execute(
+        "INSERT OR REPLACE INTO agent_archive (run_id, prompt, status, payload_json) VALUES (?1, ?2, ?3, ?4)",
+        params![entry.run_id, entry.prompt, entry.status, entry.payload_json],
     )
     .map_err(|e| e.to_string())?;
     Ok(())

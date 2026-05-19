@@ -19,7 +19,7 @@ crate-type = ["staticlib", "cdylib", "rlib"]
 tauri-build = { version = "2", features = [] }
 
 [dependencies]
-tauri = { version = "2", features = ["tray-icon"] }
+tauri = { version = "2", features = ["tray-icon", "protocol-asset"] }
 tauri-plugin-opener = "2"
 tauri-plugin-global-shortcut = "2"
 serde = { version = "1", features = ["derive"] }
@@ -41,6 +41,18 @@ rusqlite = { version = "0.32", features = ["bundled"] }
 tantivy = "0.26.1"
 dirs = "5"
 sysinfo = "0.30"
+trash = "5"
+sha2 = "0.10"
+sha1 = "0.10"
+md-5 = "0.10"
+base64 = "0.22"
+regex = "1"
+cron = "0.12"
+urlencoding = "2"
+rand = "0.8"
+
+[dev-dependencies]
+tempfile = "3"
 
 [target.'cfg(any(target_os = "macos", target_os = "windows", target_os = "linux"))'.dependencies]
 tauri-plugin-single-instance = "2"

@@ -1,7 +1,7 @@
-import { CommandPalette } from "./components/CommandPalette";
+import { AppContainer } from "./components/AppContainer";
 
 function App() {
-  return <CommandPalette />;
+  return <AppContainer />;
 }
 
 export default App;
