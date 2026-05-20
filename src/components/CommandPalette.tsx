@@ -1,5 +1,4 @@
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, Suspense } from "react";
-import { listen } from "@tauri-apps/api/event";
 import { invoke } from "@tauri-apps/api/core";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { revealItemInDir } from "@tauri-apps/plugin-opener";
@@ -21,6 +20,7 @@ import { useSearchStream } from "../features/command-palette/hooks/useSearchStre
 import { useCopyHint } from "../features/command-palette/hooks/useCopyHint";
 import { useSearchBackend } from "../features/command-palette/hooks/useSearchBackend";
 import { useLauncherSettings } from "../features/command-palette/hooks/useLauncherSettings";
+import { useWorkspaceLifecycle } from "../features/command-palette/hooks/useWorkspaceLifecycle";
 import {
   OnboardingTour,
   hasCompletedOnboarding,
@@ -40,7 +40,6 @@ import { IPC } from "../ipc/routes";
 import type { SearchResult, SourceFilter } from "../types/search";
 import type { ActionRef } from "../types/search";
 import type { BuiltinCommandResult } from "../hooks/useCommands";
-import type { WorkspaceState } from "../hooks/useWorkspace";
 
 const TerminalPanel = React.lazy(() =>
   import("./TerminalPanel").then((m) => ({ default: m.TerminalPanel })),
@@ -280,48 +279,17 @@ export function CommandPalette() {
     }
   }, [mode]);
 
-  useEffect(() => {
-    const unlisten = listen<void>("window-focused", () => {
-      if (modeRef.current === "terminal") return;
-      cancelSearch();
-      setQuery("");
-      clearSearchResults();
-      setCmdResult(null);
-      inputRef.current?.focus();
-    });
-    return () => { unlisten.then((fn) => fn()); };
-  }, [setQuery, cancelSearch, clearSearchResults]);
-
-  // 工作區切換：載入切換後的 query 並重置 UI 狀態
-  useEffect(() => {
-    if (!window.__TAURI_INTERNALS__) return;
-    const unlisten = listen<WorkspaceState>("workspace-switched", (event) => {
-      const ws = event.payload;
-      setQuery(ws.query ?? "");
-      clearSearchResults();
-      setCmdResult(null);
-      cancelSearch();
-      clearRecentlyDeleted();
-      requestAnimationFrame(() => inputRef.current?.focus());
-    });
-    return () => { unlisten.then((fn) => fn()); };
-  }, [setQuery, clearRecentlyDeleted, cancelSearch, clearSearchResults]);
-
-  // LAUNCH.2.B — workspace cycle (Ctrl+Alt+0 default): same reset as
-  // `workspace-switched` but the query is force-cleared rather than restored
-  // from the target workspace's saved state.
-  useEffect(() => {
-    if (!window.__TAURI_INTERNALS__) return;
-    const unlisten = listen<WorkspaceState>("workspace-cycled", () => {
-      setQuery("");
-      clearSearchResults();
-      setCmdResult(null);
-      cancelSearch();
-      clearRecentlyDeleted();
-      requestAnimationFrame(() => inputRef.current?.focus());
-    });
-    return () => { unlisten.then((fn) => fn()); };
-  }, [setQuery, clearRecentlyDeleted, cancelSearch, clearSearchResults]);
+  // window-focused / workspace-switched / workspace-cycled handled by hook;
+  // see its module comment for the per-event reset behavior.
+  useWorkspaceLifecycle({
+    modeRef,
+    inputRef,
+    setQuery,
+    setCmdResult,
+    clearSearchResults,
+    cancelSearch,
+    clearRecentlyDeleted,
+  });
 
   // ESC handler — registered once; reads always-current values via refs
   // so there is no stale-closure race between setCmdResult and effect re-run.
