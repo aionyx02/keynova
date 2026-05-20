@@ -8,4 +8,8 @@ echo "[pre-commit] stage docs"
 git add CLAUDE.md docs
 
 echo "[pre-commit] docs guard"
+npm run -s docs:guard-size
+npm run -s docs:guard-schema
+npm run -s docs:audit-frontmatter
+npm run -s docs:narrative-check
 npm run -s docs:guard -- --staged

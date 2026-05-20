@@ -1,9 +1,9 @@
 ---
-type: bug_followup_plan
+type: bug_followup
 status: active
-priority: p0
-updated: 2026-05-18
-context_policy: retrieve_when_planning
+priority: p2
+updated: 2026-05-20
+context_policy: on_demand
 owner: project
 tags: [bug, crash, delete, diagnosis]
 ---
