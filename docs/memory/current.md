@@ -11,20 +11,22 @@ owner: project
 
 ## Current Strategy
 
-- Keep the docs system retrieval-first: read the router, current memory, and active tasks before pulling any larger reference.
-- Keep always-retrievable project docs small and state-oriented.
-- Route execution history, debugging notes, and root-cause narratives to `docs/memory/sessions/`.
-- Use guard scripts to enforce document size, schema, and frontmatter policy instead of relying on manual discipline.
+- Treat Keynova as a keyboard-first workflow tool, not an AI chat product.
+- Make unified search/result handling the product spine.
+- Move AI from product core to a stateless capability layer exposed through inline action chips.
+- Keep the docs system retrieval-first: startup state stays small, and detailed plans live in on-demand task files.
 
 ## Current Focus
 
-- Docs governance v1 is the active workflow baseline.
+- P0 is the ADR-0029 / AI capability refactor track from `docs/tasks/refactor-ai-capability.md`.
+- Active execution order is `REF.0` through `REF.8`; `REF.4` and `REF.5` may overlap after schema boundaries are clear.
 - `current.md` and `active.md` are current-state indexes only.
-- `completed.md` is a compact archive index, with detail living in session logs.
-- `backlog.md` is on-demand planning context, not startup context.
+- `completed.md` remains a compact archive index, with detail living in session logs.
 
 ## Important Constraints
 
+- AI agents can draft ADRs as `proposed`; the developer must accept ADR-0029 before architecture-changing implementation begins.
+- Freeze new feature work before `REF.7` unless it is required by the refactor, fixes a P0 regression, or protects a documented safety boundary.
 - LLM-driven execution must stay approval-gated for risky or system-affecting actions.
 - Generic shell tool exposure stays blocked until the platform sandbox boundary is complete.
 - Background Core memory targets exclude active WebView, loaded local LLM model memory, PTY terminal sessions, monitoring streams, and index rebuild tasks.
@@ -32,6 +34,6 @@ owner: project
 
 ## Next Step
 
-- Use `npm run docs:new-session` before recording detailed work notes.
+- Start with `REF.0`: formalize ADR-0029 as `docs/adr/0029-ai-capability-layer.md` and update the decision index once the developer accepts it.
 - Run `npm run docs:refresh` before commit or handoff.
 - Treat guard failures as routing feedback: current state stays here; history goes to sessions.

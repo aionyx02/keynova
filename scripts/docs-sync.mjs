@@ -55,6 +55,15 @@ const DOC_REGISTRY = [
     purpose: "Current execution tasks",
   },
   {
+    path: "docs/tasks/refactor-ai-capability.md",
+    type: "task_plan",
+    status: "active",
+    priority: "p0",
+    contextPolicy: "on_demand",
+    owner: "project",
+    purpose: "P0 AI capability refactor batch plan",
+  },
+  {
     path: "docs/tasks/backlog.md",
     type: "task_index",
     status: "backlog",
