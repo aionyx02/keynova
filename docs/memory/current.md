@@ -34,6 +34,7 @@ owner: project
 
 ## Next Step
 
-- Start with `REF.0`: formalize ADR-0029 as `docs/adr/0029-ai-capability-layer.md` and update the decision index once the developer accepts it.
+- `REF.0` 已完成：ADR-0029 與衍生的 ADR-0030 均已接受，REF.1+ 解鎖。
+- 下一步是 `REF.1`：定義 `UnifiedResult` 共享 result/action 契約（Rust + TS + 三條來源的 shim）。
 - Run `npm run docs:refresh` before commit or handoff.
 - Treat guard failures as routing feedback: current state stays here; history goes to sessions.
