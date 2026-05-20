@@ -24,6 +24,12 @@ Keynova 的核心目標很直接：讓你少切視窗、少摸滑鼠、少在工
 
 目前最高優先級是 P0 架構重構：把舊的 chat-first agent 降級為 stateless inline capability，並把 unified search / unified result schema 變成產品主軸。未完成項目在本 README 皆標為「實現中」。
 
+## 早期測試階段（Beta）
+
+Keynova 目前正處於底層架構重構與快速迭代階段，程式碼幾乎每日更新。為了避免頻繁的手動下載打斷一般使用者的工作流，目前暫不提供預先編譯的安裝檔（Releases）。
+
+現階段強烈建議具備 Node.js / Rust 環境配置經驗的開發者，透過原始碼建置來搶先體驗。未來正式版本釋出時，將會提供完整的一鍵安裝與自動更新（Auto-updater）機制。
+
 ## Keynova 解決的問題
 
 | 問題                                               | Keynova 的方向                                                 | 狀態           |
@@ -112,6 +118,8 @@ jwt
 這代表 Keynova 不會試圖取代 ChatGPT 或 Claude 的長對話場景。它會把 AI 放在你正在工作的地方，幫你解釋錯誤、摘要內容、產生命令或補上下一步建議。
 
 ## 快速開始
+
+目前沒有預先編譯的 release installer。請從原始碼啟動或自行建置 release bundle。
 
 ### 環境需求
 
