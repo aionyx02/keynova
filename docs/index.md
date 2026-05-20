@@ -58,6 +58,7 @@ Use this file as the first lookup step. The goal is retrieval-first context, not
 | `docs/project.md` | `project_overview` | `active` | `always_retrievable` | Stable project facts |
 | `docs/tasks.md` | `task_index_root` | `active` | `on_demand` | Task index entry |
 | `docs/tasks/active.md` | `task_index` | `active` | `always_retrievable` | Current execution tasks |
+| `docs/tasks/refactor-ai-capability.md` | `task_plan` | `active` | `on_demand` | P0 AI capability refactor batch plan |
 | `docs/tasks/backlog.md` | `task_index` | `backlog` | `on_demand` | Future tasks and roadmap |
 | `docs/tasks/blocked.md` | `task_blockers` | `active` | `retrieve_when_planning` | Blocking and safety constraints |
 | `docs/tasks/completed.md` | `task_archive_index` | `archive` | `on_demand` | Compact completed task index |

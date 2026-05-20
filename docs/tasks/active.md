@@ -5,7 +5,7 @@ priority: p0
 updated: 2026-05-20
 context_policy: always_retrievable
 owner: project
-tags: [docs-governance, safety-first]
+tags: [refactor, ai-capability, search-first, p0]
 ---
 
 # Active Tasks
@@ -14,26 +14,35 @@ tags: [docs-governance, safety-first]
 
 ### P0
 
-- (empty; docs governance v1 is installed and awaiting normal use)
+- [ ] `REF.0` lock ADR-0029 as the governing decision for the AI capability refactor.
+- [ ] `REF.1` define `UnifiedResult` as the shared result/action contract.
+- [ ] `REF.2` split `CommandPalette.tsx` into feature-first hooks/components and regression-check Bug A/B paths.
+- [ ] `REF.3` split `handlers/agent/mod.rs` so lifecycle, local context, tool dispatch, and dev runner stop living in one module.
+- [ ] `REF.4` add the stateless AI capability layer for `explain`, `summarize`, and `fix_error`.
+- [ ] `REF.5` add workflow memory as a P0 differentiator, in parallel with `REF.4` after the schema boundary is clear.
+- [ ] `REF.6` switch the palette result list to consume `UnifiedResult` and remove embedded non-core surfaces from the hot path.
+- [ ] `REF.7` add quantitative gates, default `ai.legacy_agent = false`, and observe one release cycle.
+- [ ] `REF.8` after the observation window, physically remove deprecated agent/chat code and legacy flags.
+
+Detailed batch definitions, done criteria, non-goals, file map, and validation gates live in `docs/tasks/refactor-ai-capability.md`.
 
 ### P1
 
-- Review guard threshold fit after the first few commits.
-- Continue ADR-0029 planning when the developer accepts that track.
+- (empty; P0 refactor owns planning and execution priority)
 
 ### P2
 
-- Frozen until the active refactor track is accepted.
+- Only safety fixes or regressions that directly block the P0 refactor track.
 
 ## Strategy
 
-Keep active work as a compact queue. Put detailed implementation notes, bug narratives, command outputs, and root-cause writeups in `docs/memory/sessions/YYYY-MM-DD.md`.
+Keynova's active priority is now search-first workflow refactor: AI moves from product core to stateless capability layer, and unified search/result handling becomes the product spine.
 
-During refactor work, prefer one focused task at a time and update only the smallest state document needed.
+Until `REF.7` is complete, freeze new feature work unless it is required for the refactor, fixes a P0 regression, or protects a documented safety boundary.
+
+Keep `active.md` compact. Put batch-level task detail in `docs/tasks/refactor-ai-capability.md`, detailed implementation notes in `docs/memory/sessions/YYYY-MM-DD.md`, and future non-refactor ideas in `docs/tasks/backlog.md`.
 
 ## Next Phase Candidates
 
-- `LAUNCH.2.C` per-workspace quick actions.
-- `ONBOARD.1.D/E` re-engage prompt and hotkey guidance.
-- `NOTE.1` daily note, templates, backlinks, and launcher note driver.
-- ADR-gated tracks remain in `docs/tasks/blocked.md` until accepted.
+- After `REF.7`, revalidate parked feature tracks from `docs/tasks/backlog.md`.
+- After `REF.8`, refresh affected ADR statuses and architecture docs.

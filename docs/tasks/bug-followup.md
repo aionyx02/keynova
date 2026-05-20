@@ -10,6 +10,8 @@ tags: [bug, crash, delete, diagnosis]
 
 # Bug Follow-Up Plan — Launcher Crash + Delete No-Op
 
+> Current routing note: this file is now background and regression context. The active P0 execution path is `docs/tasks/refactor-ai-capability.md`; Bug A/B checks are folded into `REF.2` and `REF.7`, and unrelated feature follow-ups stay parked until the refactor gate reopens.
+
 > 兩個 critical bug 在 `feature/diagnostic-baseline-attempt` (9dfd15b) 上線了**診斷基建**，但**沒有真正解決使用者面感受的症狀**。本文件按優先序拆分後續工作，避免再陷入「猜+試」迴圈。
 
 ## 優先序
