@@ -1,9 +1,9 @@
 ---
 type: docs_index
 status: active
-priority: p0
-updated: 2026-05-19
-context_policy: always_retrievable
+priority: p1
+updated: 2026-05-20
+context_policy: on_demand
 owner: project
 ---
 
@@ -20,15 +20,15 @@ Use this file as the first lookup step. The goal is retrieval-first context, not
 1. `docs/index.md`
 2. `docs/memory/current.md`
 3. `docs/tasks/active.md`
-4. `docs/tasks/blocked.md` (only when needed)
-5. Additional files by intent
+4. Additional files by intent
 
 ## Retrieval Policy
 
 - Do not read all docs recursively.
 - Prefer smallest relevant heading section.
-- `completed` and `archive` files are historical context only.
-- If sources conflict: `tasks/active.md` + `memory/current.md` > `decisions` > `sessions/archive`.
+- Startup context should stay below the guard limits.
+- `completed`, `sessions`, and `archive` files are historical context only.
+- If sources conflict: `tasks/active.md` + `memory/current.md` > accepted ADRs > `sessions/archive`.
 
 ## Intent Routing
 
@@ -38,7 +38,7 @@ Use this file as the first lookup step. The goal is retrieval-first context, not
 | Implementation | `docs/tasks/active.md`, related `docs/architecture.md`, targeted code |
 | Security / permission | `docs/tasks/blocked.md`, `docs/security.md`, relevant ADR |
 | Testing / regression | `docs/testing.md`, `docs/tasks/active.md` |
-| Historical question | `docs/memory/sessions/*`, `docs/memory/archive/*` |
+| Historical question | `docs/tasks/completed.md`, `docs/memory/sessions/*`, `docs/memory/archive/*` |
 
 ## Context Budget (12k example)
 
@@ -54,24 +54,34 @@ Use this file as the first lookup step. The goal is retrieval-first context, not
 
 | Path | Type | Status | Context policy | Purpose |
 |---|---|---|---|---|
-| `docs/CLAUDE.md` | `agent_policy` | `active` | `always_retrievable` | ADR and governance policy |
+| `docs/CLAUDE.md` | `agent_policy` | `active` | `on_demand` | ADR and governance policy |
 | `docs/project.md` | `project_overview` | `active` | `always_retrievable` | Stable project facts |
-| `docs/tasks.md` | `task_index_root` | `active` | `always_retrievable` | Task index entry |
+| `docs/tasks.md` | `task_index_root` | `active` | `on_demand` | Task index entry |
 | `docs/tasks/active.md` | `task_index` | `active` | `always_retrievable` | Current execution tasks |
-| `docs/tasks/backlog.md` | `task_index` | `backlog` | `retrieve_when_planning` | Future tasks and roadmap |
+| `docs/tasks/backlog.md` | `task_index` | `backlog` | `on_demand` | Future tasks and roadmap |
 | `docs/tasks/blocked.md` | `task_blockers` | `active` | `retrieve_when_planning` | Blocking and safety constraints |
-| `docs/tasks/completed.md` | `task_history` | `completed` | `archive` | Completed historical records |
-| `docs/memory.md` | `memory_index_root` | `active` | `always_retrievable` | Memory index entry |
+| `docs/tasks/completed.md` | `task_archive_index` | `archive` | `on_demand` | Compact completed task index |
+| `docs/memory.md` | `memory_index_root` | `active` | `on_demand` | Memory index entry |
 | `docs/memory/current.md` | `working_memory` | `active` | `always_retrievable` | Current short-term working memory |
 | `docs/architecture.md` | `architecture_spec` | `active` | `retrieve_only` | System architecture reference |
-| `docs/security.md` | `security_policy` | `active` | `retrieve_when_planning` | Security and permission boundary |
+| `docs/security.md` | `security_policy` | `active` | `retrieve_only` | Security and permission boundary |
 | `docs/testing.md` | `testing_policy` | `active` | `retrieve_when_debugging` | Testing strategy and checks |
+| `docs/testing-edge-cases.md` | `testing_reference` | `active` | `retrieve_when_debugging` | Structured edge-case debugging matrix |
+| `docs/tasks/bug-followup.md` | `bug_followup` | `active` | `on_demand` | Bug follow-up notes |
 | `docs/decisions.md` | `decision_index` | `active` | `retrieve_only` | ADR index |
 
 ## Automation Commands
 
 ```bash
 npm run docs:sync
+npm run docs:guard-size
+npm run docs:guard-schema
+npm run docs:audit-frontmatter
+npm run docs:narrative-check
 npm run docs:guard
 npm run docs:refresh
+npm run docs:new-session
+npm run docs:extract-narrative -- docs/memory/current.md
+npm run docs:completed-regen
+npm run docs:archive-sessions
 ```

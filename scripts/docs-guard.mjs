@@ -9,11 +9,16 @@ const STAGED_ONLY = process.argv.includes("--staged");
 
 const KEY_STATE_DOCS = new Set([
   "docs/tasks/active.md",
-  "docs/tasks/backlog.md",
   "docs/tasks/blocked.md",
-  "docs/tasks/completed.md",
   "docs/memory/current.md",
+  "docs/architecture.md",
+  "docs/security.md",
+  "docs/testing.md",
+  "docs/testing-edge-cases.md",
+  "docs/decisions.md",
 ]);
+
+const KEY_STATE_PREFIXES = ["docs/memory/sessions/"];
 
 const REQUIRED_FRONTMATTER = [
   "CLAUDE.md",
@@ -30,6 +35,8 @@ const REQUIRED_FRONTMATTER = [
   "docs/architecture.md",
   "docs/security.md",
   "docs/testing.md",
+  "docs/testing-edge-cases.md",
+  "docs/tasks/bug-followup.md",
   "docs/decisions.md",
 ];
 
@@ -116,23 +123,25 @@ const added = getAddedFiles();
 const codeChanged = [...changed].some(
   (file) => file.startsWith("src/") || file.startsWith("src-tauri/"),
 );
-const stateDocsChanged = [...changed].some((file) => KEY_STATE_DOCS.has(file));
+const stateDocsChanged = [...changed].some(
+  (file) => KEY_STATE_DOCS.has(file) || KEY_STATE_PREFIXES.some((prefix) => file.startsWith(prefix)),
+);
 
 if (codeChanged && !stateDocsChanged) {
   console.error(
     "[docs-guard] Code changed under src/ or src-tauri/, but no project-state docs were updated.",
   );
   console.error(
-    "[docs-guard] Update at least one of: docs/tasks/{active,backlog,blocked,completed}.md or docs/memory/current.md",
+    "[docs-guard] Update current state, a matching reference doc, or docs/memory/sessions/YYYY-MM-DD.md.",
   );
   process.exit(1);
 }
 
-// ── Architecture doc sync ────────────────────────────────────────────────────
+// Architecture doc sync
 
 const archDocChanged = changed.has("docs/architecture.md");
 
-// Hard check: new module files added → architecture.md must be updated.
+// Hard check: new module files added require architecture.md updates.
 const newArchFiles = [...added].filter((file) =>
   ARCH_NEW_FILE_PREFIXES.some((prefix) => file.startsWith(prefix)),
 );
@@ -145,10 +154,10 @@ if (newArchFiles.length > 0 && !archDocChanged) {
   process.exit(1);
 }
 
-// Advisory: wiring files modified → remind but do not block.
+// Advisory: wiring files modified; remind but do not block.
 const wiringChanged = [...changed].filter((file) => ARCH_WIRING_FILES.has(file));
 if (wiringChanged.length > 0 && !archDocChanged) {
-  console.warn("[docs-guard] Advisory: architecture wiring file(s) modified — update docs/architecture.md if the change is significant:");
+  console.warn("[docs-guard] Advisory: architecture wiring file(s) modified; update docs/architecture.md if the change is significant:");
   for (const file of wiringChanged) {
     console.warn(`  ~ ${file}`);
   }
