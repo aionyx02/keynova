@@ -1,6 +1,6 @@
 import { useEffect, useRef } from "react";
-import type { SearchResult } from "../types/search";
-import { isDestructive, type SecondaryActionId, type SecondaryActionItem } from "../utils/secondaryActions";
+import type { SearchResult } from "../../types/search";
+import { isDestructive, type SecondaryActionId, type SecondaryActionItem } from "../../utils/secondaryActions";
 
 interface Props {
   result: SearchResult;

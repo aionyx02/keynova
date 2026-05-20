@@ -9,12 +9,12 @@ import { useSearchMetadata } from "../hooks/useSearchMetadata";
 import { useAppStore } from "../stores/appStore";
 import { parseInputMode } from "../hooks/useInputMode";
 import { useCommands } from "../hooks/useCommands";
-import { CommandSuggestions } from "./CommandSuggestions";
+import { CommandSuggestions } from "../features/command-palette/CommandSuggestions";
 import { PanelRegistry } from "./panel/PanelRegistry";
 import { WorkspaceIndicator } from "./WorkspaceIndicator";
-import { SecondaryActionMenu } from "./SecondaryActionMenu";
+import { SecondaryActionMenu } from "../features/command-palette/SecondaryActionMenu";
 import { CheatsheetOverlay } from "./CheatsheetOverlay";
-import { FilterChips, clearLegacyFilters, loadFilters } from "./FilterChips";
+import { FilterChips, clearLegacyFilters, loadFilters } from "../features/command-palette/FilterChips";
 import {
   OnboardingTour,
   hasCompletedOnboarding,
