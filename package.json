@@ -14,9 +14,11 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "check": "npm run lint && npm run build",
+    "test": "vitest run",
+    "test:watch": "vitest",
     "rust:test": "cargo test --manifest-path src-tauri/Cargo.toml",
     "rust:clippy": "cargo clippy --manifest-path src-tauri/Cargo.toml -- -D warnings",
-    "verify": "npm run docs:refresh && npm run check && npm run rust:test && npm run rust:clippy",
+    "verify": "npm run docs:refresh && npm run check && npm run test && npm run rust:test && npm run rust:clippy",
     "docs:sync": "node scripts/docs-sync.mjs",
     "docs:guard": "node scripts/docs-guard.mjs",
     "docs:guard-size": "node scripts/docs-guard-size.mjs",
@@ -45,6 +47,8 @@
   },
   "devDependencies": {
     "@tauri-apps/cli": "^2",
+    "@testing-library/dom": "^10.4.1",
+    "@testing-library/react": "^16.3.2",
     "@types/react": "^19.1.8",
     "@types/react-dom": "^19.1.6",
     "@typescript-eslint/eslint-plugin": "^8.59.1",
@@ -54,10 +58,12 @@
     "eslint": "^8.57.1",
     "eslint-config-prettier": "^10.1.8",
     "eslint-plugin-react-hooks": "^7.1.1",
+    "jsdom": "^25.0.1",
     "postcss": "^8.5.13",
     "prettier": "^3.8.3",
     "tailwindcss": "^3.4.19",
     "typescript": "~5.8.3",
-    "vite": "^7.0.4"
+    "vite": "^7.0.4",
+    "vitest": "^3.2.4"
   }
 }
