@@ -17,6 +17,7 @@ import { CheatsheetOverlay } from "./CheatsheetOverlay";
 import { FilterChips, clearLegacyFilters, loadFilters } from "../features/command-palette/FilterChips";
 import { useRecentlyDeleted } from "../features/command-palette/hooks/useRecentlyDeleted";
 import { usePipeline } from "../features/command-palette/hooks/usePipeline";
+import { useSearchStream } from "../features/command-palette/hooks/useSearchStream";
 import {
   OnboardingTour,
   hasCompletedOnboarding,
@@ -26,7 +27,6 @@ import { PreviewPane } from "./PreviewPane";
 import { RankTooltip } from "./RankTooltip";
 import { useFilePreview, isPreviewable } from "../hooks/useFilePreview";
 import { PALETTE_WIDTH_NARROW, PALETTE_WIDTH_WIDE } from "../hooks/useWindowResize";
-import { applySourceQuotas, mergeSearchResults, sortSearchResults } from "../utils/search";
 import {
   basenameFromPath,
   buildSecondaryActions,
@@ -35,7 +35,7 @@ import {
 } from "../utils/secondaryActions";
 import { IPC } from "../ipc/routes";
 import type { SearchBackendInfo, SettingEntry } from "../ipc/types";
-import type { SearchChunkDiagnostics, SearchChunkPayload, SearchErrorPayload, SearchResult, SourceFilter } from "../types/search";
+import type { SearchResult, SourceFilter } from "../types/search";
 import type { ActionRef } from "../types/search";
 import type { BuiltinCommandResult } from "../hooks/useCommands";
 import type { WorkspaceState } from "../hooks/useWorkspace";
@@ -106,8 +106,18 @@ export function CommandPalette() {
   const { query, setQuery, setLoading } = useAppStore();
   const { all, filtered, runCommand, suggestArgs } = useCommands();
 
-  const [results, setResults] = useState<SearchResult[]>([]);
-  const [selected, setSelected] = useState(0);
+  const {
+    results,
+    setResults,
+    selected,
+    setSelected,
+    timedOutProviders,
+    fileDiagnostics,
+    triggerSearch,
+    cancelSearch,
+    setSearchLimit,
+    clearResults: clearSearchResults,
+  } = useSearchStream({ dispatch, setLoading });
 
   // Command mode state
   const [selectedCmd, setSelectedCmd] = useState(0);
@@ -120,8 +130,6 @@ export function CommandPalette() {
   const [argSuggestions, setArgSuggestions] = useState<string[]>([]);
   const [selectedArg, setSelectedArg] = useState(0);
   const [searchBackend, setSearchBackend] = useState<SearchBackendInfo | null>(null);
-  const [timedOutProviders, setTimedOutProviders] = useState<string[]>([]);
-  const [fileDiagnostics, setFileDiagnostics] = useState<SearchChunkDiagnostics | null>(null);
   const [copiedPath, setCopiedPath] = useState<string | null>(null);
   const [copyHint, setCopyHint] = useState<string | null>(null);
   const {
@@ -187,12 +195,8 @@ export function CommandPalette() {
   // it at most every 200ms while user is interacting → guard always wins
   // against the 1.5s Focused(false) grace, regardless of English/IME path.
   const lastGuardRef = useRef<number>(0);
-  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const argDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const copyResetRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const searchIdRef = useRef(0);
-  const activeSearchRequestRef = useRef("");
-  const searchLimitRef = useRef(30);
 
   const { mode, rawInput } = parseInputMode(query);
 
@@ -271,7 +275,7 @@ export function CommandPalette() {
         const maxResults = entries.find((entry) => entry.key === "launcher.max_results")?.value;
         const parsed = Number.parseInt(maxResults ?? "", 10);
         if (Number.isFinite(parsed) && parsed > 0) {
-          searchLimitRef.current = parsed;
+          setSearchLimit(parsed);
         }
         const previewEnabledSetting = entries.find((entry) => entry.key === "search.preview_enabled")?.value;
         if (previewEnabledSetting !== undefined) {
@@ -306,44 +310,9 @@ export function CommandPalette() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  useEffect(() => {
-    if (!window.__TAURI_INTERNALS__) return;
-
-    const chunkListener = listen<SearchChunkPayload>("search-results-chunk", (event) => {
-      const payload = event.payload;
-      if (payload.request_id !== activeSearchRequestRef.current) return;
-      if (payload.timed_out_providers?.length) {
-        setTimedOutProviders(payload.timed_out_providers);
-      }
-      if (payload.diagnostics) {
-        setFileDiagnostics(payload.diagnostics);
-      }
-      if (payload.replace) {
-        // Final balanced batch from backend — replace results entirely.
-        // LAUNCH.1.B bugfix: deleted paths are filtered at render time via
-        // `visibleResults`, so the kill set doesn't need to live in this
-        // event handler.
-        setResults(applySourceQuotas(sortSearchResults(payload.items), searchLimitRef.current));
-      } else if (payload.items.length > 0) {
-        setResults((current) =>
-          mergeSearchResults(current, payload.items, searchLimitRef.current),
-        );
-      }
-      if (payload.done) {
-        setLoading(false);
-      }
-    });
-    const errorListener = listen<SearchErrorPayload>("search-results-error", (event) => {
-      if (event.payload.request_id !== activeSearchRequestRef.current) return;
-      setTimedOutProviders([]);
-      setLoading(false);
-    });
-
-    return () => {
-      chunkListener.then((fn) => fn());
-      errorListener.then((fn) => fn());
-    };
-  }, [setLoading]);
+  // Chunk + error listeners moved into useSearchStream; their bookkeeping
+  // (activeSearchRequestRef equality, replace/merge dispatch, done → setLoading)
+  // is identical inside the hook.
 
   useEffect(() => {
     if (!window.__TAURI_INTERNALS__) return;
@@ -385,17 +354,14 @@ export function CommandPalette() {
   useEffect(() => {
     const unlisten = listen<void>("window-focused", () => {
       if (modeRef.current === "terminal") return;
-      activeSearchRequestRef.current = "";
+      cancelSearch();
       setQuery("");
-      setResults([]);
-      setSelected(0);
+      clearSearchResults();
       setCmdResult(null);
-      setTimedOutProviders([]);
-      void dispatch(IPC.SEARCH_CANCEL).catch(() => {});
       inputRef.current?.focus();
     });
     return () => { unlisten.then((fn) => fn()); };
-  }, [dispatch, setQuery]);
+  }, [setQuery, cancelSearch, clearSearchResults]);
 
   // 工作區切換：載入切換後的 query 並重置 UI 狀態
   useEffect(() => {
@@ -403,17 +369,14 @@ export function CommandPalette() {
     const unlisten = listen<WorkspaceState>("workspace-switched", (event) => {
       const ws = event.payload;
       setQuery(ws.query ?? "");
-      setResults([]);
-      setSelected(0);
+      clearSearchResults();
       setCmdResult(null);
-      setTimedOutProviders([]);
-      activeSearchRequestRef.current = "";
+      cancelSearch();
       clearRecentlyDeleted();
-      void dispatch(IPC.SEARCH_CANCEL).catch(() => {});
       requestAnimationFrame(() => inputRef.current?.focus());
     });
     return () => { unlisten.then((fn) => fn()); };
-  }, [dispatch, setQuery, clearRecentlyDeleted]);
+  }, [setQuery, clearRecentlyDeleted, cancelSearch, clearSearchResults]);
 
   // LAUNCH.2.B — workspace cycle (Ctrl+Alt+0 default): same reset as
   // `workspace-switched` but the query is force-cleared rather than restored
@@ -422,17 +385,14 @@ export function CommandPalette() {
     if (!window.__TAURI_INTERNALS__) return;
     const unlisten = listen<WorkspaceState>("workspace-cycled", () => {
       setQuery("");
-      setResults([]);
-      setSelected(0);
+      clearSearchResults();
       setCmdResult(null);
-      setTimedOutProviders([]);
-      activeSearchRequestRef.current = "";
+      cancelSearch();
       clearRecentlyDeleted();
-      void dispatch(IPC.SEARCH_CANCEL).catch(() => {});
       requestAnimationFrame(() => inputRef.current?.focus());
     });
     return () => { unlisten.then((fn) => fn()); };
-  }, [dispatch, setQuery, clearRecentlyDeleted]);
+  }, [setQuery, clearRecentlyDeleted, cancelSearch, clearSearchResults]);
 
   // ESC handler — registered once; reads always-current values via refs
   // so there is no stale-closure race between setCmdResult and effect re-run.
@@ -466,21 +426,17 @@ export function CommandPalette() {
       }
 
       if (cmdResultRef.current !== null) {
-        activeSearchRequestRef.current = "";
+        cancelSearch();
         setCmdResult(null);
         clearPipeline();
         setQuery("");
-        setResults([]);
-        setTimedOutProviders([]);
-        void dispatch(IPC.SEARCH_CANCEL).catch(() => {});
+        clearSearchResults();
         requestAnimationFrame(() => inputRef.current?.focus());
       } else if (queryRef.current !== "") {
-        activeSearchRequestRef.current = "";
+        cancelSearch();
         setQuery("");
-        setResults([]);
-        setTimedOutProviders([]);
+        clearSearchResults();
         clearPipeline();
-        void dispatch(IPC.SEARCH_CANCEL).catch(() => {});
         inputRef.current?.focus();
       } else {
         void hideWindow();
@@ -539,44 +495,11 @@ export function CommandPalette() {
     // Mount terminal on first "> " entry; avoids useEffect setState cascade
     if (newMode === "terminal") setTerminalMounted(true);
     if (newMode !== "search" || ri.trim() === "") {
-      setResults([]);
-      setSelected(0);
-      setTimedOutProviders([]);
-      setFileDiagnostics(null);
-      activeSearchRequestRef.current = "";
-      if (debounceRef.current) clearTimeout(debounceRef.current);
-      void dispatch(IPC.SEARCH_CANCEL).catch(() => {});
+      clearSearchResults();
+      cancelSearch();
       return;
     }
-    if (debounceRef.current) clearTimeout(debounceRef.current);
-    debounceRef.current = setTimeout(async () => {
-      const reqId = ++searchIdRef.current;
-      const requestId = `search-${reqId}`;
-      activeSearchRequestRef.current = requestId;
-      setLoading(true);
-      setTimedOutProviders([]);
-      setFileDiagnostics(null);
-      try {
-        const data = await dispatch<SearchResult[]>(IPC.SEARCH_QUERY, {
-          query: ri,
-          limit: searchLimitRef.current,
-          stream: true,
-          request_id: requestId,
-          first_batch_limit: Math.min(20, searchLimitRef.current),
-        });
-        if (reqId !== searchIdRef.current) return;
-        setResults(sortSearchResults(data).slice(0, searchLimitRef.current));
-        setSelected(0);
-        if (data.length >= searchLimitRef.current) {
-          setLoading(false);
-        }
-      } catch {
-        if (reqId === searchIdRef.current) {
-          setResults([]);
-          setLoading(false);
-        }
-      }
-    }, 200);
+    triggerSearch(ri);
   }
 
   async function launchResult(result: SearchResult) {
@@ -1115,9 +1038,8 @@ export function CommandPalette() {
   const handlePanelCommandResult = useCallback((result: BuiltinCommandResult) => {
     setCmdResult(result);
     setResults([]);
-    activeSearchRequestRef.current = "";
-    void dispatch(IPC.SEARCH_CANCEL).catch(() => {});
-  }, [dispatch]);
+    cancelSearch();
+  }, [setResults, cancelSearch]);
 
   // BUG-12: passed to every panel so Escape inside textarea/input can close the panel
   const handlePanelClose = useCallback(() => {
@@ -1125,7 +1047,7 @@ export function CommandPalette() {
     setQuery("");
     setResults([]);
     requestAnimationFrame(() => inputRef.current?.focus());
-  }, [setQuery]);
+  }, [setQuery, setResults]);
 
   return (
     <div ref={containerRef} tabIndex={-1} className="w-full outline-none">
