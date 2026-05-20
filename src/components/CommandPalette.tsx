@@ -21,6 +21,8 @@ import { useCopyHint } from "../features/command-palette/hooks/useCopyHint";
 import { useSearchBackend } from "../features/command-palette/hooks/useSearchBackend";
 import { useLauncherSettings } from "../features/command-palette/hooks/useLauncherSettings";
 import { useWorkspaceLifecycle } from "../features/command-palette/hooks/useWorkspaceLifecycle";
+import { useSecondaryMenu } from "../features/command-palette/hooks/useSecondaryMenu";
+import { useEscapeKey } from "../features/command-palette/hooks/useEscapeKey";
 import {
   OnboardingTour,
   hasCompletedOnboarding,
@@ -141,16 +143,22 @@ export function CommandPalette() {
     clear: clearPipeline,
   } = usePipeline({ dispatch });
 
-  // LAUNCH.1.A — Secondary action menu state (keyboard-driven via onKeyDown below)
-  const [secondaryMenuOpen, setSecondaryMenuOpen] = useState(false);
-  const [menuFocusedIndex, setMenuFocusedIndex] = useState(0);
-  const [expandedMetadata, setExpandedMetadata] = useState(false);
-
-  // LAUNCH.1.B — two-phase confirm gate for destructive file ops.
+  // LAUNCH.1.A + LAUNCH.1.B — secondary menu state + two-phase confirm gate.
   // pendingConfirm: set after a dry-run dispatch; next Enter on the same action runs for real.
   // inlineInput: open for rename/move (need a target name/path).
-  const [pendingConfirm, setPendingConfirm] = useState<SecondaryActionId | null>(null);
-  const [inlineInput, setInlineInput] = useState<{ for: "rename" | "move"; value: string } | null>(null);
+  const {
+    secondaryMenuOpen,
+    setSecondaryMenuOpen,
+    menuFocusedIndex,
+    setMenuFocusedIndex,
+    expandedMetadata,
+    setExpandedMetadata,
+    pendingConfirm,
+    setPendingConfirm,
+    inlineInput,
+    setInlineInput,
+    closeSecondaryMenu,
+  } = useSecondaryMenu();
 
   // LAUNCH.1.D — source-type filter chips (multi-select, session-scoped).
   // Initial set is always empty: persistence across launches caused users to
@@ -291,71 +299,37 @@ export function CommandPalette() {
     clearRecentlyDeleted,
   });
 
-  // ESC handler — registered once; reads always-current values via refs
-  // so there is no stale-closure race between setCmdResult and effect re-run.
-  useEffect(() => {
-    function onKeyDown(e: KeyboardEvent) {
-      if (e.key !== "Escape") return;
-      if (isEditorTerminalResult(cmdResultRef.current)) return;
-      e.preventDefault();
-      e.stopPropagation();
-      e.stopImmediatePropagation();
-
-      // Highest priority: close secondary menu / collapse metadata first
-      if (secondaryMenuOpenRef.current) {
-        setSecondaryMenuOpen(false);
-        setMenuFocusedIndex(0);
-        setPendingConfirm(null);
-        setInlineInput(null);
-        return;
-      }
-      if (expandedMetadataRef.current) {
-        setExpandedMetadata(false);
-        return;
-      }
-
-      if (modeRef.current === "terminal") {
-        containerRef.current?.focus();
-        setQuery("");
-        requestAnimationFrame(() => inputRef.current?.focus());
-        void keepLauncherOpen();
-        return;
-      }
-
-      if (cmdResultRef.current !== null) {
-        cancelSearch();
-        setCmdResult(null);
-        clearPipeline();
-        setQuery("");
-        clearSearchResults();
-        requestAnimationFrame(() => inputRef.current?.focus());
-      } else if (queryRef.current !== "") {
-        cancelSearch();
-        setQuery("");
-        clearSearchResults();
-        clearPipeline();
-        inputRef.current?.focus();
-      } else {
-        void hideWindow();
-      }
-    }
-    window.addEventListener("keydown", onKeyDown, true);
-    return () => window.removeEventListener("keydown", onKeyDown, true);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [setQuery]); // stable Zustand setter — listener registered exactly once
+  // ESC priority chain handled by useEscapeKey; see its module comment for the
+  // ordered branches it consults.
+  useEscapeKey({
+    shouldIgnoreEscape: () => isEditorTerminalResult(cmdResultRef.current),
+    modeRef,
+    cmdResultRef,
+    queryRef,
+    secondaryMenuOpenRef,
+    expandedMetadataRef,
+    inputRef,
+    containerRef,
+    closeSecondaryMenu,
+    setExpandedMetadata,
+    setCmdResult,
+    setQuery,
+    clearPipeline,
+    clearSearchResults,
+    cancelSearch,
+    hideWindow,
+    keepLauncherOpen,
+  });
 
   // Close secondary menu / collapse metadata when result selection or list changes.
   useEffect(() => {
     if (secondaryMenuOpenRef.current) {
-      setSecondaryMenuOpen(false);
-      setMenuFocusedIndex(0);
-      setPendingConfirm(null);
-      setInlineInput(null);
+      closeSecondaryMenu();
     }
     if (expandedMetadataRef.current) {
       setExpandedMetadata(false);
     }
-  }, [results, selected]);
+  }, [results, selected, closeSecondaryMenu, setExpandedMetadata]);
 
   // Window sizing
   useEffect(() => {
@@ -456,13 +430,6 @@ export function CommandPalette() {
       // Plugin failure (e.g. missing permission, non-existent path) — surface in footer.
       flashCopyHint("Reveal failed", 1500);
     }
-  }
-
-  function closeSecondaryMenu() {
-    setSecondaryMenuOpen(false);
-    setMenuFocusedIndex(0);
-    setPendingConfirm(null);
-    setInlineInput(null);
   }
 
   /**
