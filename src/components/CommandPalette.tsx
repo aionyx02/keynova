@@ -15,6 +15,8 @@ import { WorkspaceIndicator } from "./WorkspaceIndicator";
 import { SecondaryActionMenu } from "../features/command-palette/SecondaryActionMenu";
 import { CheatsheetOverlay } from "./CheatsheetOverlay";
 import { FilterChips, clearLegacyFilters, loadFilters } from "../features/command-palette/FilterChips";
+import { useRecentlyDeleted } from "../features/command-palette/hooks/useRecentlyDeleted";
+import { usePipeline } from "../features/command-palette/hooks/usePipeline";
 import {
   OnboardingTour,
   hasCompletedOnboarding,
@@ -42,12 +44,6 @@ const TerminalPanel = React.lazy(() =>
   import("./TerminalPanel").then((m) => ({ default: m.TerminalPanel })),
 );
 
-// 2026-05-19 Bug B2 — TTL for `recentlyDeleted` kill-set. If user restores a
-// trashed file from Recycle Bin within this window, search still hides it;
-// after the window the kill-set entry is ignored and the restored file
-// reappears in results without needing a workspace switch.
-const RECENTLY_DELETED_TTL_MS = 30_000;
-
 interface ConfigReloadedPayload {
   changed_keys: string[];
 }
@@ -56,24 +52,6 @@ interface SecondaryAction {
   action_ref: ActionRef;
   label: string;
   risk: "low" | "medium" | "high";
-}
-
-interface PipelineStageResult {
-  index: number;
-  route: string;
-  status: string;
-  output?: unknown;
-  error?: string;
-}
-
-interface PipelineReport {
-  log: {
-    workflow_name: string;
-    status: string;
-    action_count: number;
-    error?: string;
-  };
-  actions: PipelineStageResult[];
 }
 
 function isEditorTerminalResult(result: BuiltinCommandResult | null) {
@@ -146,8 +124,12 @@ export function CommandPalette() {
   const [fileDiagnostics, setFileDiagnostics] = useState<SearchChunkDiagnostics | null>(null);
   const [copiedPath, setCopiedPath] = useState<string | null>(null);
   const [copyHint, setCopyHint] = useState<string | null>(null);
-  const [pipelineResult, setPipelineResult] = useState<PipelineReport | null>(null);
-  const [pipelineRunning, setPipelineRunning] = useState(false);
+  const {
+    pipelineResult,
+    pipelineRunning,
+    runPipeline,
+    clear: clearPipeline,
+  } = usePipeline({ dispatch });
 
   // LAUNCH.1.A — Secondary action menu state (keyboard-driven via onKeyDown below)
   const [secondaryMenuOpen, setSecondaryMenuOpen] = useState(false);
@@ -190,20 +172,14 @@ export function CommandPalette() {
   // is empty or non-search mode; otherwise typing `?` flows into the input).
   const [cheatsheetOpen, setCheatsheetOpen] = useState(false);
 
-  // LAUNCH.1.B bugfix — paths the user just deleted/moved/renamed. Used as a
-  // render-time kill set so a deleted file can never display, regardless of
-  // which `setResults` callsite (initial debounce response, stream chunk,
-  // merge, etc.) reintroduces it. Windows Everything still indexes Recycle
-  // Bin entries, so without this set a just-trashed file resurrects on the
-  // next chunk. Cleared on query change / workspace switch.
-  //
-  // 2026-05-19 Bug B2 fix — map to Date.now() timestamp + visibleResults
-  // applies a 30 s TTL. If user restores a file from Recycle Bin within the
-  // same launcher session, the kill-set entry naturally expires and the
-  // restored file becomes searchable again without a workspace switch.
-  const [recentlyDeleted, setRecentlyDeleted] = useState<Map<string, number>>(
-    () => new Map(),
-  );
+  // Bug B kill-set extracted to `useRecentlyDeleted`. The hook keeps render-time
+  // deleted-path semantics + 30 s TTL; see its module comment for full rationale.
+  // Destructure to stable callback identities so effect deps don't re-register.
+  const {
+    markDeleted: markPathDeleted,
+    clear: clearRecentlyDeleted,
+    isDeleted: isPathRecentlyDeleted,
+  } = useRecentlyDeleted();
 
   const inputRef = useRef<HTMLInputElement>(null);
   // Bug-fix 2026-05-19 (round 2) — throttle for keepLauncherOpen() renewal
@@ -432,12 +408,12 @@ export function CommandPalette() {
       setCmdResult(null);
       setTimedOutProviders([]);
       activeSearchRequestRef.current = "";
-      setRecentlyDeleted(new Map());
+      clearRecentlyDeleted();
       void dispatch(IPC.SEARCH_CANCEL).catch(() => {});
       requestAnimationFrame(() => inputRef.current?.focus());
     });
     return () => { unlisten.then((fn) => fn()); };
-  }, [dispatch, setQuery]);
+  }, [dispatch, setQuery, clearRecentlyDeleted]);
 
   // LAUNCH.2.B — workspace cycle (Ctrl+Alt+0 default): same reset as
   // `workspace-switched` but the query is force-cleared rather than restored
@@ -451,12 +427,12 @@ export function CommandPalette() {
       setCmdResult(null);
       setTimedOutProviders([]);
       activeSearchRequestRef.current = "";
-      setRecentlyDeleted(new Map());
+      clearRecentlyDeleted();
       void dispatch(IPC.SEARCH_CANCEL).catch(() => {});
       requestAnimationFrame(() => inputRef.current?.focus());
     });
     return () => { unlisten.then((fn) => fn()); };
-  }, [dispatch, setQuery]);
+  }, [dispatch, setQuery, clearRecentlyDeleted]);
 
   // ESC handler — registered once; reads always-current values via refs
   // so there is no stale-closure race between setCmdResult and effect re-run.
@@ -492,8 +468,7 @@ export function CommandPalette() {
       if (cmdResultRef.current !== null) {
         activeSearchRequestRef.current = "";
         setCmdResult(null);
-        setPipelineResult(null);
-        setPipelineRunning(false);
+        clearPipeline();
         setQuery("");
         setResults([]);
         setTimedOutProviders([]);
@@ -504,8 +479,7 @@ export function CommandPalette() {
         setQuery("");
         setResults([]);
         setTimedOutProviders([]);
-        setPipelineResult(null);
-        setPipelineRunning(false);
+        clearPipeline();
         void dispatch(IPC.SEARCH_CANCEL).catch(() => {});
         inputRef.current?.focus();
       } else {
@@ -550,33 +524,17 @@ export function CommandPalette() {
   ]);
 
 
-  async function runPipeline(text: string) {
-    setPipelineRunning(true);
-    setPipelineResult(null);
-    try {
-      const report = await dispatch<PipelineReport>("automation.execute_pipeline", { text });
-      setPipelineResult(report);
-    } catch (err) {
-      setPipelineResult({
-        log: { workflow_name: "pipeline", status: "failed", action_count: 0, error: String(err) },
-        actions: [],
-      });
-    } finally {
-      setPipelineRunning(false);
-    }
-  }
-
   function handleQueryChange(value: string) {
     setQuery(value);
     setCmdResult(null);
     setCopiedPath(null);
-    setPipelineResult(null);
+    clearPipeline();
     setSelectedCmd(0);
     setSelectedArg(0);
     setArgSuggestions([]);
     // LAUNCH.1.B bugfix — typing a new query enters a fresh search context;
     // suppress-list is no longer relevant.
-    setRecentlyDeleted(new Map());
+    clearRecentlyDeleted();
     const { mode: newMode, rawInput: ri } = parseInputMode(value);
     // Mount terminal on first "> " entry; avoids useEffect setState cascade
     if (newMode === "terminal") setTerminalMounted(true);
@@ -715,11 +673,7 @@ export function CommandPalette() {
    * Cleared on next query change / workspace switch.
    */
   function refreshAfterFileMutation(droppedPath: string) {
-    setRecentlyDeleted((prev) => {
-      const next = new Map(prev);
-      next.set(droppedPath, Date.now());
-      return next;
-    });
+    markPathDeleted(droppedPath);
     setSelected(0);
   }
 
@@ -1048,11 +1002,8 @@ export function CommandPalette() {
   // Filter is O(n) over a small list capped at launcher.max_results; no
   // useMemo needed and react-hooks/preserve-manual-memoization complains
   // when we add one.
-  // eslint-disable-next-line react-hooks/purity -- TTL check; stable within this render
-  const _killCutoff = Date.now() - RECENTLY_DELETED_TTL_MS;
   const visibleResults: SearchResult[] = results.filter((r) => {
-    const killTs = recentlyDeleted.get(r.path);
-    if (killTs !== undefined && killTs > _killCutoff) return false;
+    if (isPathRecentlyDeleted(r.path)) return false;
     if (activeFilters.size === 0) return true;
     if (r.kind === "folder") return activeFilters.has("file");
     return activeFilters.has(r.kind as SourceFilter);
