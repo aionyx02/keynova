@@ -1,4 +1,4 @@
-import type { SourceFilter } from "../types/search";
+import type { SourceFilter } from "../../types/search";
 
 interface ChipSpec {
   kind: SourceFilter;

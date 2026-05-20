@@ -10,4 +10,5 @@ pub mod plugin;
 pub mod search_result;
 pub mod settings_schema;
 pub mod terminal;
+pub mod unified_result;
 pub mod workflow;

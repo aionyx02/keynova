@@ -1,4 +1,4 @@
-import type { CommandMeta } from "../hooks/useCommands";
+import type { CommandMeta } from "../../hooks/useCommands";
 
 interface Props {
   commands: CommandMeta[];

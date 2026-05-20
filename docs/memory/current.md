@@ -34,7 +34,7 @@ owner: project
 
 ## Next Step
 
-- `REF.0` 已完成：ADR-0029 與衍生的 ADR-0030 均已接受，REF.1+ 解鎖。
-- 下一步是 `REF.1`：定義 `UnifiedResult` 共享 result/action 契約（Rust + TS + 三條來源的 shim）。
+- `REF.0` / `REF.1` 已完成。
+- 下一步是 `REF.2`：把 `CommandPalette.tsx` 拆成 `src/features/command-palette/` 下的 feature-first hooks/components，並對 Bug A/B 路徑做回歸檢查。
 - Run `npm run docs:refresh` before commit or handoff.
 - Treat guard failures as routing feedback: current state stays here; history goes to sessions.

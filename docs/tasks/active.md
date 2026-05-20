@@ -15,7 +15,7 @@ tags: [refactor, ai-capability, search-first, p0]
 ### P0
 
 - [x] `REF.0` lock ADR-0029 as the governing decision for the AI capability refactor.
-- [ ] `REF.1` define `UnifiedResult` as the shared result/action contract.
+- [x] `REF.1` define `UnifiedResult` as the shared result/action contract.
 - [ ] `REF.2` split `CommandPalette.tsx` into feature-first hooks/components and regression-check Bug A/B paths.
 - [ ] `REF.3` split `handlers/agent/mod.rs` so lifecycle, local context, tool dispatch, and dev runner stop living in one module.
 - [ ] `REF.4` add the stateless AI capability layer for `explain`, `summarize`, and `fix_error`.
