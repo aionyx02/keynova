@@ -18,6 +18,9 @@ import { FilterChips, clearLegacyFilters, loadFilters } from "../features/comman
 import { useRecentlyDeleted } from "../features/command-palette/hooks/useRecentlyDeleted";
 import { usePipeline } from "../features/command-palette/hooks/usePipeline";
 import { useSearchStream } from "../features/command-palette/hooks/useSearchStream";
+import { useCopyHint } from "../features/command-palette/hooks/useCopyHint";
+import { useSearchBackend } from "../features/command-palette/hooks/useSearchBackend";
+import { useLauncherSettings } from "../features/command-palette/hooks/useLauncherSettings";
 import {
   OnboardingTour,
   hasCompletedOnboarding,
@@ -34,7 +37,6 @@ import {
   type SecondaryActionId,
 } from "../utils/secondaryActions";
 import { IPC } from "../ipc/routes";
-import type { SearchBackendInfo, SettingEntry } from "../ipc/types";
 import type { SearchResult, SourceFilter } from "../types/search";
 import type { ActionRef } from "../types/search";
 import type { BuiltinCommandResult } from "../hooks/useCommands";
@@ -43,10 +45,6 @@ import type { WorkspaceState } from "../hooks/useWorkspace";
 const TerminalPanel = React.lazy(() =>
   import("./TerminalPanel").then((m) => ({ default: m.TerminalPanel })),
 );
-
-interface ConfigReloadedPayload {
-  changed_keys: string[];
-}
 
 interface SecondaryAction {
   action_ref: ActionRef;
@@ -129,9 +127,14 @@ export function CommandPalette() {
   // Arg suggestions state (shown when user types space after an exact command match)
   const [argSuggestions, setArgSuggestions] = useState<string[]>([]);
   const [selectedArg, setSelectedArg] = useState(0);
-  const [searchBackend, setSearchBackend] = useState<SearchBackendInfo | null>(null);
-  const [copiedPath, setCopiedPath] = useState<string | null>(null);
-  const [copyHint, setCopyHint] = useState<string | null>(null);
+  const { searchBackend } = useSearchBackend({ dispatch });
+  const {
+    copiedPath,
+    copyHint,
+    flashCopiedPath,
+    flashCopyHint,
+    clear: clearCopyHint,
+  } = useCopyHint();
   const {
     pipelineResult,
     pipelineRunning,
@@ -162,8 +165,10 @@ export function CommandPalette() {
   }, []);
 
   // LAUNCH.1.C/E — settings as state (consumed during render to gate UI).
-  const [previewEnabled, setPreviewEnabled] = useState(true);
-  const [showRankBreakdown, setShowRankBreakdown] = useState(true);
+  const { previewEnabled, showRankBreakdown } = useLauncherSettings({
+    dispatch,
+    onMaxResultsChange: setSearchLimit,
+  });
 
   // LAUNCH.1.C — dynamic palette width: 640 normally, 960 when preview pane visible.
   const paletteWidthRef = useRef<number>(PALETTE_WIDTH_NARROW);
@@ -196,7 +201,6 @@ export function CommandPalette() {
   // against the 1.5s Focused(false) grace, regardless of English/IME path.
   const lastGuardRef = useRef<number>(0);
   const argDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const copyResetRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const { mode, rawInput } = parseInputMode(query);
 
@@ -257,92 +261,17 @@ export function CommandPalette() {
 
   useEffect(() => {
     return () => {
-      if (copyResetRef.current) {
-        clearTimeout(copyResetRef.current);
-      }
       if (hoverTimerRef.current) {
         clearTimeout(hoverTimerRef.current);
       }
     };
   }, []);
 
-  useEffect(() => {
-    if (!window.__TAURI_INTERNALS__) return;
-
-    async function refreshLauncherSettings() {
-      try {
-        const entries = await dispatch<SettingEntry[]>(IPC.SETTING_LIST_ALL);
-        const maxResults = entries.find((entry) => entry.key === "launcher.max_results")?.value;
-        const parsed = Number.parseInt(maxResults ?? "", 10);
-        if (Number.isFinite(parsed) && parsed > 0) {
-          setSearchLimit(parsed);
-        }
-        const previewEnabledSetting = entries.find((entry) => entry.key === "search.preview_enabled")?.value;
-        if (previewEnabledSetting !== undefined) {
-          setPreviewEnabled(previewEnabledSetting !== "false");
-        }
-        const showRankSetting = entries.find((entry) => entry.key === "search.show_rank_breakdown")?.value;
-        if (showRankSetting !== undefined) {
-          setShowRankBreakdown(showRankSetting !== "false");
-        }
-      } catch {
-        // keep current search limit
-      }
-    }
-
-    void refreshLauncherSettings();
-    const unlisten = listen<ConfigReloadedPayload>("config-reloaded", (event) => {
-      const keys = event.payload.changed_keys;
-      if (
-        keys.length === 0 ||
-        keys.includes("launcher.max_results") ||
-        keys.includes("search.preview_enabled") ||
-        keys.includes("search.show_rank_breakdown")
-      ) {
-        void refreshLauncherSettings();
-      }
-    });
-
-    return () => {
-      unlisten.then((fn) => fn());
-    };
-    // dispatch is intentionally omitted — useIPC returns a fresh wrapper each render.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
 
   // Chunk + error listeners moved into useSearchStream; their bookkeeping
   // (activeSearchRequestRef equality, replace/merge dispatch, done → setLoading)
   // is identical inside the hook.
 
-  useEffect(() => {
-    if (!window.__TAURI_INTERNALS__) return;
-
-    async function refreshSearchBackend() {
-      try {
-        const info = await dispatch<SearchBackendInfo>(IPC.SEARCH_BACKEND);
-        setSearchBackend(info);
-      } catch {
-        setSearchBackend(null);
-      }
-    }
-
-    void refreshSearchBackend();
-    const unlisten = listen<ConfigReloadedPayload>("config-reloaded", (event) => {
-      if (
-        event.payload.changed_keys.length === 0 ||
-        event.payload.changed_keys.includes("search.backend") ||
-        event.payload.changed_keys.includes("search.index_dir")
-      ) {
-        void refreshSearchBackend();
-      }
-    });
-
-    return () => {
-      unlisten.then((fn) => fn());
-    };
-    // dispatch is intentionally omitted — useIPC returns a fresh wrapper each render.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
 
   useEffect(() => {
     if (mode !== "terminal") {
@@ -483,7 +412,7 @@ export function CommandPalette() {
   function handleQueryChange(value: string) {
     setQuery(value);
     setCmdResult(null);
-    setCopiedPath(null);
+    clearCopyHint();
     clearPipeline();
     setSelectedCmd(0);
     setSelectedArg(0);
@@ -536,28 +465,18 @@ export function CommandPalette() {
     if (!isCopyableLocationResult(result)) return;
     try {
       await navigator.clipboard.writeText(result.path);
-      setCopiedPath(result.path);
-      setCopyHint(null);
-      if (copyResetRef.current) {
-        clearTimeout(copyResetRef.current);
-      }
-      copyResetRef.current = setTimeout(() => setCopiedPath(null), 1200);
+      flashCopiedPath(result.path);
     } catch {
-      setCopiedPath(null);
+      clearCopyHint();
     }
   }
 
   async function copyText(text: string, hint: string) {
     try {
       await navigator.clipboard.writeText(text);
-      setCopiedPath(null);
-      setCopyHint(hint);
-      if (copyResetRef.current) {
-        clearTimeout(copyResetRef.current);
-      }
-      copyResetRef.current = setTimeout(() => setCopyHint(null), 1200);
+      flashCopyHint(hint);
     } catch {
-      setCopyHint(null);
+      clearCopyHint();
     }
   }
 
@@ -567,9 +486,7 @@ export function CommandPalette() {
       await revealItemInDir(result.path);
     } catch {
       // Plugin failure (e.g. missing permission, non-existent path) — surface in footer.
-      setCopyHint("Reveal failed");
-      if (copyResetRef.current) clearTimeout(copyResetRef.current);
-      copyResetRef.current = setTimeout(() => setCopyHint(null), 1500);
+      flashCopyHint("Reveal failed", 1500);
     }
   }
 
@@ -601,10 +518,7 @@ export function CommandPalette() {
   }
 
   function showHint(message: string, durationMs = 1500) {
-    setCopiedPath(null);
-    setCopyHint(message);
-    if (copyResetRef.current) clearTimeout(copyResetRef.current);
-    copyResetRef.current = setTimeout(() => setCopyHint(null), durationMs);
+    flashCopyHint(message, durationMs);
   }
 
   async function handleSecondaryAction(id: SecondaryActionId, result: SearchResult) {
