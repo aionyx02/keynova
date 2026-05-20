@@ -12,21 +12,20 @@ tags: [security, approval, shell, blockers, refactor]
 
 ## ADR-0029 Refactor Gate
 
-Status: planning-active, implementation-gated
+Status: accepted (2026-05-20); REF.1+ implementation unlocked
 
 Reason:
-- The active P0 refactor changes architecture, UI approval ownership, AI provider call shape, result schema, and legacy agent retirement.
-- AI agents may draft ADR-0029 as `proposed`, but cannot mark it accepted.
+- ADR-0029 and derived ADR-0030 accepted by developer; AI capability layer refactor governs REF.1–REF.8 implementation.
+- `AGENT.3` and `AI.1` remain superseded.
 
 Do not:
-- Implement architecture-changing parts of `REF.1` through `REF.8` before the developer accepts ADR-0029.
 - Implement `AGENT.3` or `AI.1` as separate tracks; they are superseded by the ADR-0029 / AI capability refactor.
 - Add new product features before `REF.7` unless they are required by the refactor or fix a P0 regression.
+- Change ADR-0029 / ADR-0030 status or scope without a new ADR (per governance §3).
 
 Allowed:
-- Draft and revise ADR-0029.
-- Add task planning, file maps, validation criteria, and non-runtime scaffolding.
-- Add pure type sketches or tests only if they do not activate runtime behavior or change public contracts before acceptance.
+- Implement REF.1–REF.8 in the order defined by `docs/tasks/refactor-ai-capability.md`.
+- Draft v2-style follow-up ADRs when capability schema needs extending (e.g., risk tag category × severity → new ADR per ADR-0030 §9).
 
 ## Generic Shell Tool
 
