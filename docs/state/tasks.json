@@ -9,6 +9,7 @@
     "suggestion_source": "docs/state/workbench-suggestions.json",
     "generated_outputs": [
       "docs/state/tasks.json",
+      "docs/state/tasks-summary.json",
       "docs/workbench/tasks.html"
     ],
     "conflict_rule": "markdown_wins",

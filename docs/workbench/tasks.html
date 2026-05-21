@@ -389,6 +389,7 @@
     "suggestion_source": "docs/state/workbench-suggestions.json",
     "generated_outputs": [
       "docs/state/tasks.json",
+      "docs/state/tasks-summary.json",
       "docs/workbench/tasks.html"
     ],
     "conflict_rule": "markdown_wins",
@@ -957,6 +958,11 @@
 
     function currentDecisionPayload() {
       const selectedTask = state.tasks.find((task) => task.id === selectedTaskId);
+      const baselineOrder = state.tasks.map((task) => task.id);
+      const proposedOrder = orderedTasks.map((task) => task.id);
+      const orderDiff = proposedOrder
+        .map((id, to) => ({ id, from: baselineOrder.indexOf(id), to }))
+        .filter((item) => item.from !== item.to);
       return {
         authority: "proposal_only",
         source: "docs/workbench/tasks.html",
@@ -966,7 +972,9 @@
           : "使用者尚未按下確認目前決策。不要實作 runtime 變更，也不要改權威 Markdown；只能更新建議池或預覽，並等待使用者確認後貼回 proposal。",
         selected_task: selectedTaskId,
         selected_task_impact: selectedTask ? selectedTask.impact : null,
-        proposed_order: orderedTasks.map((task) => task.id),
+        proposed_order: proposedOrder,
+        order_changed: orderDiff.length > 0,
+        order_diff: orderDiff,
         confirmed_answers: selectedAnswers,
         suggestion_source: state.authority.suggestion_source,
         ui_layout_choice: selectedLayout,

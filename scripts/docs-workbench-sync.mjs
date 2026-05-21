@@ -7,6 +7,7 @@ import { ROOT, parseFrontmatter, repoPath } from "./docs-utils.mjs";
 const ACTIVE_TASKS = "docs/tasks/active.md";
 const REFACTOR_PLAN = "docs/tasks/refactor-ai-capability.md";
 const STATE_TARGET = "docs/state/tasks.json";
+const SUMMARY_TARGET = "docs/state/tasks-summary.json";
 const SUGGESTIONS_SOURCE = "docs/state/workbench-suggestions.json";
 const WORKBENCH_TARGET = "docs/workbench/tasks.html";
 const ADR_TEMPLATE_TARGET = "docs/workbench/adr-preview-template.html";
@@ -356,7 +357,7 @@ function buildState() {
     authority: {
       markdown_sources: [ACTIVE_TASKS, REFACTOR_PLAN],
       suggestion_source: SUGGESTIONS_SOURCE,
-      generated_outputs: [STATE_TARGET, WORKBENCH_TARGET],
+      generated_outputs: [STATE_TARGET, SUMMARY_TARGET, WORKBENCH_TARGET],
       conflict_rule: "markdown_wins",
       lifecycle: "shadow_state",
     },
@@ -418,6 +419,67 @@ function buildState() {
     },
     suggestions,
     tasks,
+  };
+}
+
+function buildSummary(state) {
+  const questions = state.suggestions.questions.map((question) => ({
+    id: question.id,
+    title: question.title,
+    type: question.type,
+    default: question.default,
+    options: question.options.map((option) => ({
+      id: option.id,
+      label: option.label,
+      impact: option.impact,
+    })),
+  }));
+
+  return {
+    schema_version: state.schema_version,
+    generated_by: state.generated_by,
+    authority: {
+      markdown_sources: state.authority.markdown_sources,
+      suggestion_source: state.authority.suggestion_source,
+      conflict_rule: state.authority.conflict_rule,
+      lifecycle: state.authority.lifecycle,
+      full_state: STATE_TARGET,
+      workbench: WORKBENCH_TARGET,
+    },
+    workflow: {
+      name: state.workflow.name,
+      zh_name: state.workflow.zh_name,
+      current_task: state.workflow.current_task,
+      progress: state.workflow.progress,
+      rules: state.workflow.rules,
+      expected_outcomes: state.workflow.expected_outcomes.map((outcome) => ({
+        title: outcome.title,
+        body: outcome.body,
+      })),
+      ui_layout_options: state.workflow.ui_layout_options.map((option) => ({
+        id: option.id,
+        label: option.label,
+        best_for: option.best_for,
+        tradeoff: option.tradeoff,
+      })),
+    },
+    suggestion_questions: questions,
+    suggestion_cards: state.suggestions.suggestion_cards.map((card) => ({
+      id: card.id,
+      title: card.title,
+      applies_to: card.applies_to,
+      recommended_options: card.recommended_options,
+    })),
+    tasks: state.tasks.map((task) => ({
+      id: task.id,
+      title: task.title,
+      priority: task.priority,
+      status: task.status,
+      summary: task.summary,
+      depends_on: task.depends_on,
+      parallel_with: task.parallel_with,
+      impact: task.impact,
+    })),
   };
 }
 
@@ -674,6 +736,11 @@ function renderTasksHtml(state) {
 
     function currentDecisionPayload() {
       const selectedTask = state.tasks.find((task) => task.id === selectedTaskId);
+      const baselineOrder = state.tasks.map((task) => task.id);
+      const proposedOrder = orderedTasks.map((task) => task.id);
+      const orderDiff = proposedOrder
+        .map((id, to) => ({ id, from: baselineOrder.indexOf(id), to }))
+        .filter((item) => item.from !== item.to);
       return {
         authority: "proposal_only",
         source: "docs/workbench/tasks.html",
@@ -683,7 +750,9 @@ function renderTasksHtml(state) {
           : "使用者尚未按下確認目前決策。不要實作 runtime 變更，也不要改權威 Markdown；只能更新建議池或預覽，並等待使用者確認後貼回 proposal。",
         selected_task: selectedTaskId,
         selected_task_impact: selectedTask ? selectedTask.impact : null,
-        proposed_order: orderedTasks.map((task) => task.id),
+        proposed_order: proposedOrder,
+        order_changed: orderDiff.length > 0,
+        order_diff: orderDiff,
         confirmed_answers: selectedAnswers,
         suggestion_source: state.authority.suggestion_source,
         ui_layout_choice: selectedLayout,
@@ -1315,6 +1384,11 @@ function renderDecisionWorkbenchHtml(state) {
 
     function currentDecisionPayload() {
       const selectedTask = state.tasks.find((task) => task.id === selectedTaskId);
+      const baselineOrder = state.tasks.map((task) => task.id);
+      const proposedOrder = orderedTasks.map((task) => task.id);
+      const orderDiff = proposedOrder
+        .map((id, to) => ({ id, from: baselineOrder.indexOf(id), to }))
+        .filter((item) => item.from !== item.to);
       return {
         authority: "proposal_only",
         source: "docs/workbench/tasks.html",
@@ -1324,7 +1398,9 @@ function renderDecisionWorkbenchHtml(state) {
           : "使用者尚未按下確認目前決策。不要實作 runtime 變更，也不要改權威 Markdown；只能更新建議池或預覽，並等待使用者確認後貼回 proposal。",
         selected_task: selectedTaskId,
         selected_task_impact: selectedTask ? selectedTask.impact : null,
-        proposed_order: orderedTasks.map((task) => task.id),
+        proposed_order: proposedOrder,
+        order_changed: orderDiff.length > 0,
+        order_diff: orderDiff,
         confirmed_answers: selectedAnswers,
         suggestion_source: state.authority.suggestion_source,
         ui_layout_choice: selectedLayout,
@@ -1731,12 +1807,15 @@ function renderAdrTemplateHtml() {
 }
 
 const state = buildState();
+const summary = buildSummary(state);
 const stateChanged = writeIfChanged(STATE_TARGET, `${JSON.stringify(state, null, 2)}\n`);
+const summaryChanged = writeIfChanged(SUMMARY_TARGET, `${JSON.stringify(summary, null, 2)}\n`);
 const workbenchChanged = writeIfChanged(WORKBENCH_TARGET, renderDecisionWorkbenchHtml(state));
 const adrTemplateChanged = writeIfChanged(ADR_TEMPLATE_TARGET, renderAdrTemplateHtml());
 
 const changed = [
   stateChanged ? STATE_TARGET : null,
+  summaryChanged ? SUMMARY_TARGET : null,
   workbenchChanged ? WORKBENCH_TARGET : null,
   adrTemplateChanged ? ADR_TEMPLATE_TARGET : null,
 ].filter(Boolean);
