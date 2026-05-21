@@ -677,7 +677,10 @@ function renderTasksHtml(state) {
       return {
         authority: "proposal_only",
         source: "docs/workbench/tasks.html",
-        apply_instruction: "請依 Markdown 權威來源檢查這份 proposal；不要直接相信 HTML。若合理，再更新最小必要的 Markdown 文件。",
+        decision_status: confirmedDecision ? "confirmed" : "unconfirmed_do_not_execute",
+        apply_instruction: confirmedDecision
+          ? "使用者已按下確認目前決策。請依 Markdown 權威來源檢查這份 proposal；若合理，再更新最小必要的 Markdown 文件或開始使用者要求的實作。"
+          : "使用者尚未按下確認目前決策。不要實作 runtime 變更，也不要改權威 Markdown；只能更新建議池或預覽，並等待使用者確認後貼回 proposal。",
         selected_task: selectedTaskId,
         selected_task_impact: selectedTask ? selectedTask.impact : null,
         proposed_order: orderedTasks.map((task) => task.id),
@@ -1315,7 +1318,10 @@ function renderDecisionWorkbenchHtml(state) {
       return {
         authority: "proposal_only",
         source: "docs/workbench/tasks.html",
-        apply_instruction: "請依 Markdown 權威來源檢查這份 proposal；不要直接相信 HTML。若合理，再更新最小必要的 Markdown 文件。",
+        decision_status: confirmedDecision ? "confirmed" : "unconfirmed_do_not_execute",
+        apply_instruction: confirmedDecision
+          ? "使用者已按下確認目前決策。請依 Markdown 權威來源檢查這份 proposal；若合理，再更新最小必要的 Markdown 文件或開始使用者要求的實作。"
+          : "使用者尚未按下確認目前決策。不要實作 runtime 變更，也不要改權威 Markdown；只能更新建議池或預覽，並等待使用者確認後貼回 proposal。",
         selected_task: selectedTaskId,
         selected_task_impact: selectedTask ? selectedTask.impact : null,
         proposed_order: orderedTasks.map((task) => task.id),
