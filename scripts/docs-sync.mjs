@@ -337,6 +337,7 @@ ${mapRows}
 \`\`\`bash
 npm run docs:sync
 npm run docs:workbench-sync
+npm run docs:workbench-guard
 npm run docs:guard-size
 npm run docs:guard-schema
 npm run docs:audit-frontmatter

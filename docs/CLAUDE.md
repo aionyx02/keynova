@@ -114,6 +114,7 @@ Size discipline:
 
 - Markdown remains authoritative for agent instructions, task status, ADR status, and conflict resolution.
 - Workbench files must not be treated as startup context or mandatory retrieval targets.
+- For AI planning context, prefer `docs/state/tasks-summary.json`; read `docs/state/tasks.json` only when full scope, non-goals, or done criteria are needed, and read HTML only when debugging the workbench itself.
 - If Markdown, JSON, and HTML disagree, follow Markdown first and regenerate the workbench.
 - Do not block P0 implementation only because a workbench view is missing or stale; run `npm run docs:workbench-sync` or `npm run docs:refresh` to refresh it.
 - Generate or refresh concrete workbench previews when the user is choosing an ADR direction, task order, or UI layout.
@@ -127,6 +128,7 @@ Size discipline:
 
 ```bash
 npm run docs:workbench-sync
+npm run docs:workbench-guard
 npm run docs:sync
 npm run docs:guard-size
 npm run docs:guard-schema
