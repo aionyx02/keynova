@@ -2,7 +2,7 @@
 type: agent_policy
 status: active
 priority: p1
-updated: 2026-05-20
+updated: 2026-05-21
 context_policy: on_demand
 owner: project
 ---
@@ -108,11 +108,24 @@ Size discipline:
 - If an edit would exceed a limit, move narrative to a session file first.
 - When in doubt, default to `docs/memory/sessions/YYYY-MM-DD.md`.
 
+## 5c. Workbench Shadow State Rule
+
+`docs/state/*` and `docs/workbench/*` are generated convenience views for planning, sorting, ADR previews, and UI simulation.
+
+- Markdown remains authoritative for agent instructions, task status, ADR status, and conflict resolution.
+- Workbench files must not be treated as startup context or mandatory retrieval targets.
+- If Markdown, JSON, and HTML disagree, follow Markdown first and regenerate the workbench.
+- Do not block P0 implementation only because a workbench view is missing or stale; run `npm run docs:workbench-sync` or `npm run docs:refresh` to refresh it.
+- Generate or refresh concrete workbench previews when the user is choosing an ADR direction, task order, or UI layout.
+- Put AI-generated suggestions and user-confirmation questions in `docs/state/workbench-suggestions.json`; the generated HTML should expose them as user-confirmed options, preferably checkboxes or radio choices.
+- When the user returns a proposal copied from HTML, validate it against Markdown first, then update only the smallest matching Markdown source.
+
 ## 6. Auto-Update Guardrail
 
 `docs:refresh` runs metadata sync and the docs guard suite:
 
 ```bash
+npm run docs:workbench-sync
 npm run docs:sync
 npm run docs:guard-size
 npm run docs:guard-schema

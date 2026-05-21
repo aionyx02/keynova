@@ -29,7 +29,8 @@
     "docs:extract-narrative": "node scripts/docs-extract-narrative.mjs",
     "docs:completed-regen": "node scripts/docs-completed-regen.mjs",
     "docs:archive-sessions": "node scripts/docs-archive-sessions.mjs",
-    "docs:refresh": "npm run docs:sync && npm run docs:guard-size && npm run docs:guard-schema && npm run docs:audit-frontmatter && npm run docs:narrative-check && npm run docs:guard",
+    "docs:workbench-sync": "node scripts/docs-workbench-sync.mjs",
+    "docs:refresh": "npm run docs:workbench-sync && npm run docs:sync && npm run docs:guard-size && npm run docs:guard-schema && npm run docs:audit-frontmatter && npm run docs:narrative-check && npm run docs:guard",
     "hooks:install": "node scripts/install-githooks.mjs",
     "prepare": "npm run hooks:install"
   },

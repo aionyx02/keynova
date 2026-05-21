@@ -2,7 +2,7 @@
 type: docs_index
 status: active
 priority: p1
-updated: 2026-05-20
+updated: 2026-05-21
 context_policy: on_demand
 owner: project
 ---
@@ -75,6 +75,7 @@ Use this file as the first lookup step. The goal is retrieval-first context, not
 
 ```bash
 npm run docs:sync
+npm run docs:workbench-sync
 npm run docs:guard-size
 npm run docs:guard-schema
 npm run docs:audit-frontmatter

@@ -1,0 +1,120 @@
+{
+  "schema_version": 1,
+  "source": "ai_editable",
+  "updated_by": "AI",
+  "guidance": "AI 有新的流程、排版、ADR 或風險建議時，先加到這裡；docs:workbench-sync 會自動渲染到 HTML，使用者勾選後再回寫 Markdown。",
+  "questions": [
+    {
+      "id": "ref2_layout_direction",
+      "title": "REF.2 期間要偏向哪種 Command Palette 排版？",
+      "help": "這題主要決定 UI mock 的採用方向；正式實作仍以 REF.2 不改行為為前提。",
+      "type": "single",
+      "default": "compact-list",
+      "options": [
+        {
+          "id": "compact-list",
+          "label": "緊湊清單",
+          "impact": "最保守，較不容易打斷 REF.2 拆分與 Bug A/B regression。"
+        },
+        {
+          "id": "split-preview",
+          "label": "左右預覽",
+          "impact": "較接近 REF.6 的目標，但建議先停留在 mock，不急著進 runtime。"
+        },
+        {
+          "id": "action-table",
+          "label": "動作表格",
+          "impact": "資訊量最高，適合後續 UnifiedResult 穩定後再評估。"
+        }
+      ]
+    },
+    {
+      "id": "ref2_split_priority",
+      "title": "REF.2 拆分時要優先保護哪些路徑？",
+      "help": "可以多選；AI 會依勾選結果安排檢查順序與測試重點。",
+      "type": "multiple",
+      "default": [
+        "focus_ime",
+        "delete_verify"
+      ],
+      "options": [
+        {
+          "id": "focus_ime",
+          "label": "Launcher focus / IME",
+          "impact": "保護 Bug A 類回歸，避免視窗焦點、輸入法、Escape 行為被拆分影響。"
+        },
+        {
+          "id": "delete_verify",
+          "label": "Delete verification",
+          "impact": "保護 Bug B 類回歸，避免最近刪除、確認流程或狀態重置被拆壞。"
+        },
+        {
+          "id": "keyboard_nav",
+          "label": "鍵盤導覽",
+          "impact": "確保上下選取、Enter、Escape、secondary menu 不因 hook 拆分漂移。"
+        },
+        {
+          "id": "visual_baseline",
+          "label": "視覺 baseline",
+          "impact": "要求拆分後畫面密度與狀態呈現維持目前使用感。"
+        }
+      ]
+    },
+    {
+      "id": "ai_suggestion_policy",
+      "title": "AI 建議要以什麼方式進入正式流程？",
+      "help": "這題決定 AI 後續看到 proposal 時的預設處理方式。",
+      "type": "multiple",
+      "default": [
+        "preview_first",
+        "markdown_after_confirm"
+      ],
+      "options": [
+        {
+          "id": "preview_first",
+          "label": "先更新 HTML 預覽",
+          "impact": "AI 先把想法放進 workbench，讓你勾選確認後再動正式文件。"
+        },
+        {
+          "id": "markdown_after_confirm",
+          "label": "確認後才更新 Markdown",
+          "impact": "保持 Markdown 權威，避免 AI 建議直接污染 active/current。"
+        },
+        {
+          "id": "session_log_trace",
+          "label": "保留 session log 軌跡",
+          "impact": "重要決策脈絡進 session log，不塞進 current.md 或 active.md。"
+        }
+      ]
+    }
+  ],
+  "suggestion_cards": [
+    {
+      "id": "ref2-first-pass",
+      "title": "建議先用保守 UI mock 配合 REF.2",
+      "applies_to": [
+        "REF.2"
+      ],
+      "body": "REF.2 的核心價值是降低 CommandPalette 複雜度，不是改 UI。建議先用緊湊清單做 baseline，再把左右預覽與動作表格留作 REF.6 評估。",
+      "recommended_options": [
+        "compact-list",
+        "focus_ime",
+        "delete_verify",
+        "preview_first"
+      ]
+    },
+    {
+      "id": "proposal-loop",
+      "title": "建議採用 proposal loop",
+      "applies_to": [
+        "workflow"
+      ],
+      "body": "AI 的新想法先進 workbench-suggestions.json，HTML 自動更新；你勾選後複製 proposal 回對話，AI 再驗證並更新最小 Markdown。",
+      "recommended_options": [
+        "preview_first",
+        "markdown_after_confirm",
+        "session_log_trace"
+      ]
+    }
+  ]
+}
