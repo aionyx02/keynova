@@ -119,6 +119,7 @@ Size discipline:
 - Generate or refresh concrete workbench previews when the user is choosing an ADR direction, task order, or UI layout.
 - Put AI-generated suggestions and user-confirmation questions in `docs/state/workbench-suggestions.json`; the generated HTML should expose them as user-confirmed options, preferably checkboxes or radio choices.
 - When the user returns a proposal copied from HTML, validate it against Markdown first, then update only the smallest matching Markdown source.
+- If a task is decision-gated by the workbench and no confirmed proposal or explicit user approval has been provided, do not implement runtime changes or rewrite authoritative Markdown. Only update the suggestion pool or generated preview, then wait for the user's confirmed proposal.
 
 ## 6. Auto-Update Guardrail
 
