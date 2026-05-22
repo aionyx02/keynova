@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, Suspense } from "react";
+import React, { useEffect, useRef, useState, Suspense } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { useIPC } from "../hooks/useIPC";
@@ -16,6 +16,7 @@ import { EmptyFilterState } from "../features/command-palette/EmptyFilterState";
 import { PipelineStatusRow } from "../features/command-palette/PipelineStatusRow";
 import { ArgsSuggestionsList } from "../features/command-palette/ArgsSuggestionsList";
 import { SearchResultsList } from "../features/command-palette/SearchResultsList";
+import { CommandResultArea } from "../features/command-palette/CommandResultArea";
 import { useRecentlyDeleted } from "../features/command-palette/hooks/useRecentlyDeleted";
 import { usePipeline } from "../features/command-palette/hooks/usePipeline";
 import { useSearchStream } from "../features/command-palette/hooks/useSearchStream";
@@ -30,16 +31,17 @@ import { usePalettePanels } from "../features/command-palette/hooks/usePalettePa
 import { useSearchFooterHint } from "../features/command-palette/hooks/useSearchFooterHint";
 import { useFileActions } from "../features/command-palette/hooks/useFileActions";
 import { useKeyboardNav } from "../features/command-palette/hooks/useKeyboardNav";
-import {
-  OnboardingTour,
-  hasCompletedOnboarding,
-  resetOnboarding,
-} from "./OnboardingTour";
+import { useTerminalControl } from "../features/command-palette/hooks/useTerminalControl";
+import { useExecCommand } from "../features/command-palette/hooks/useExecCommand";
+import { useDerivedView } from "../features/command-palette/hooks/useDerivedView";
+import { usePaletteRefs } from "../features/command-palette/hooks/usePaletteRefs";
+import { useQueryChange } from "../features/command-palette/hooks/useQueryChange";
+import { usePaletteEffects } from "../features/command-palette/hooks/usePaletteEffects";
+import { useRankHover } from "../features/command-palette/hooks/useRankHover";
+import { OnboardingTour, hasCompletedOnboarding } from "./OnboardingTour";
 import { RankTooltip } from "./RankTooltip";
-import { useFilePreview, isPreviewable } from "../hooks/useFilePreview";
-import { PALETTE_WIDTH_NARROW, PALETTE_WIDTH_WIDE } from "../hooks/useWindowResize";
-import { buildSecondaryActions } from "../utils/secondaryActions";
-import type { SearchResult, SourceFilter } from "../types/search";
+import { PALETTE_WIDTH_NARROW } from "../hooks/useWindowResize";
+import type { SourceFilter } from "../types/search";
 import type { BuiltinCommandResult } from "../hooks/useCommands";
 
 const TerminalPanel = React.lazy(() =>
@@ -147,10 +149,7 @@ export function CommandPalette() {
   // LAUNCH.1.C — dynamic palette width: 640 normally, 960 when preview pane visible.
   const paletteWidthRef = useRef<number>(PALETTE_WIDTH_NARROW);
 
-  // LAUNCH.1.E — rank tooltip hover state. `rect` is captured at the moment the
-  // hover delay fires so subsequent renders can read it without touching a ref.
-  const [hover, setHover] = useState<{ index: number; rect: DOMRect } | null>(null);
-  const hoverTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const { hover, start: startRankHover, end: endRankHover, hoverTimerRef } = useRankHover();
 
   // ONBOARD.1.A — first-run tour overlay state.
   const [onboardingOpen, setOnboardingOpen] = useState(() => !hasCompletedOnboarding());
@@ -172,26 +171,13 @@ export function CommandPalette() {
 
   const { mode, rawInput } = parseInputMode(query);
 
-  // Refs always hold the latest values — read inside the ESC handler
-  // to avoid stale closures when the listener is registered only once.
-  const modeRef = useRef(mode);
-  const cmdResultRef = useRef(cmdResult);
-  const queryRef = useRef(query);
-  const secondaryMenuOpenRef = useRef(secondaryMenuOpen);
-  const expandedMetadataRef = useRef(expandedMetadata);
-  useLayoutEffect(() => {
-    modeRef.current = mode;
-    cmdResultRef.current = cmdResult;
-    queryRef.current = query;
-    secondaryMenuOpenRef.current = secondaryMenuOpen;
-    expandedMetadataRef.current = expandedMetadata;
-  });
+  const { modeRef, cmdResultRef, queryRef, secondaryMenuOpenRef, expandedMetadataRef } =
+    usePaletteRefs({ mode, cmdResult, query, secondaryMenuOpen, expandedMetadata });
 
   const { containerRef, scheduleWindowResize } = useWindowResize(modeRef, cmdResultRef, paletteWidthRef);
   const { metadataByPath, iconsByKey } = useSearchMetadata(results, selected);
 
-
-  // Split rawInput into command name and trailing args (Minecraft-style)
+  // Split rawInput into command name and trailing args (Minecraft-style).
   const spaceIdx = rawInput.search(/\s/);
   const cmdName = spaceIdx === -1 ? rawInput : rawInput.slice(0, spaceIdx);
   const cmdArgs = spaceIdx === -1 ? "" : rawInput.slice(spaceIdx + 1).trim();
@@ -205,31 +191,6 @@ export function CommandPalette() {
     setSelectedArg,
   } = useArgSuggestions({ mode, cmdName, cmdArgs, spaceIdx, all, suggestArgs });
   const cmdSuggestions = mode === "command" ? filtered(cmdName) : [];
-
-  useEffect(() => {
-    inputRef.current?.focus();
-  }, []);
-
-  useEffect(() => {
-    return () => {
-      if (hoverTimerRef.current) {
-        clearTimeout(hoverTimerRef.current);
-      }
-    };
-  }, []);
-
-
-  // Chunk + error listeners moved into useSearchStream; their bookkeeping
-  // (activeSearchRequestRef equality, replace/merge dispatch, done → setLoading)
-  // is identical inside the hook.
-
-
-  useEffect(() => {
-    if (mode !== "terminal") {
-      const raf = requestAnimationFrame(() => { inputRef.current?.focus(); });
-      return () => cancelAnimationFrame(raf);
-    }
-  }, [mode]);
 
   // window-focused / workspace-switched / workspace-cycled handled by hook;
   // see its module comment for the per-event reset behavior.
@@ -265,57 +226,20 @@ export function CommandPalette() {
     keepLauncherOpen,
   });
 
-  // Close secondary menu / collapse metadata when result selection or list changes.
-  useEffect(() => {
-    if (secondaryMenuOpenRef.current) {
-      closeSecondaryMenu();
-    }
-    if (expandedMetadataRef.current) {
-      setExpandedMetadata(false);
-    }
-  }, [results, selected, closeSecondaryMenu, setExpandedMetadata]);
-
-  // Window sizing
-  useEffect(() => {
-    scheduleWindowResize();
-  }, [
-    scheduleWindowResize,
-    mode,
-    query,
-    results.length,
-    activeFilters,
-    cmdSuggestions.length,
-    cmdResult,
-    argSuggestions.length,
-    expandedMetadata,
-    secondaryMenuOpen,
-    menuFocusedIndex,
-    pendingConfirm,
-    inlineInput,
-  ]);
-
-
-  function handleQueryChange(value: string) {
-    setQuery(value);
-    setCmdResult(null);
-    clearCopyHint();
-    clearPipeline();
-    setSelectedCmd(0);
-    setSelectedArg(0);
-    setArgSuggestions([]);
-    // LAUNCH.1.B bugfix — typing a new query enters a fresh search context;
-    // suppress-list is no longer relevant.
-    clearRecentlyDeleted();
-    const { mode: newMode, rawInput: ri } = parseInputMode(value);
-    // Mount terminal on first "> " entry; avoids useEffect setState cascade
-    if (newMode === "terminal") setTerminalMounted(true);
-    if (newMode !== "search" || ri.trim() === "") {
-      clearSearchResults();
-      cancelSearch();
-      return;
-    }
-    triggerSearch(ri);
-  }
+  const handleQueryChange = useQueryChange({
+    setQuery,
+    setCmdResult,
+    clearCopyHint,
+    clearPipeline,
+    setSelectedCmd,
+    setSelectedArg,
+    setArgSuggestions,
+    clearRecentlyDeleted,
+    setTerminalMounted,
+    clearSearchResults,
+    cancelSearch,
+    triggerSearch,
+  });
 
   const {
     launchResult,
@@ -340,51 +264,42 @@ export function CommandPalette() {
     setPendingConfirm,
   });
 
-  async function execCommand(name: string, args = "") {
-    try {
-      // ONBOARD.1.A — `/onboard` re-triggers the tour without going through
-      // the builtin command result UI: clear the localStorage flag, open the
-      // overlay, and skip rendering a Panel/Inline result.
-      if (name === "onboard") {
-        resetOnboarding();
-        setQuery("");
-        setOnboardingOpen(true);
-        return;
-      }
-      const result = await runCommand(name, args);
-      setCmdResult(result);
-    } catch {
-      // ignore
-    }
-  }
-
-  // LAUNCH.1.D + LAUNCH.1.B bugfix — derived view:
-  //   1. chip filter (file/note/app/command/history/model);
-  //   2. recently-deleted kill set with 30 s TTL so trashed paths can't
-  //      reappear from Everything's Recycle-Bin index via a streaming chunk
-  //      or stale response. TTL means a user-initiated restore from Recycle
-  //      Bin starts being searchable again ~30 s later, even without a
-  //      workspace switch / query change.
-  // Filter is O(n) over a small list capped at launcher.max_results; no
-  // useMemo needed and react-hooks/preserve-manual-memoization complains
-  // when we add one.
-  const visibleResults: SearchResult[] = results.filter((r) => {
-    if (isPathRecentlyDeleted(r.path)) return false;
-    if (activeFilters.size === 0) return true;
-    if (r.kind === "folder") return activeFilters.has("file");
-    return activeFilters.has(r.kind as SourceFilter);
+  const execCommand = useExecCommand({
+    runCommand,
+    setQuery,
+    setCmdResult,
+    setOnboardingOpen,
   });
 
-  // Read-side clamp so a stale `selected` (e.g. after filter toggle shrinks the
-  // list) doesn't index past the array. User input via ArrowDown/Up already
-  // clamps against `visibleResults.length` so no state-sync effect is needed.
-  const safeSelected = visibleResults.length === 0
-    ? 0
-    : Math.min(selected, visibleResults.length - 1);
-
-  const hasResults = visibleResults.length > 0 && mode === "search";
-  const hasCmdSuggestions = cmdSuggestions.length > 0 && mode === "command" && !cmdResult && !isArgsPhase;
-  const hasArgSuggestions = isArgsPhase && argSuggestions.length > 0 && !cmdResult;
+  const {
+    visibleResults,
+    safeSelected,
+    hasResults,
+    hasCmdSuggestions,
+    hasArgSuggestions,
+    selectedResult,
+    selectedMetadata,
+    showPreview,
+    previewForSelected,
+    previewLoading,
+    menuItems,
+  } = useDerivedView({
+    results,
+    selected,
+    mode,
+    activeFilters,
+    isPathRecentlyDeleted,
+    cmdSuggestionsCount: cmdSuggestions.length,
+    cmdResult,
+    isArgsPhase,
+    argSuggestionsCount: argSuggestions.length,
+    previewEnabled,
+    metadataByPath,
+    secondaryMenuOpenRef,
+    expandedMetadataRef,
+    closeSecondaryMenu,
+    setExpandedMetadata,
+  });
 
   const {
     liveTranslationPanel,
@@ -393,33 +308,27 @@ export function CommandPalette() {
     terminalLaunchSpec,
     panelKey,
   } = usePalettePanels({ mode, cmdName, cmdArgs, spaceIdx, cmdResult });
-  const selectedResult = visibleResults[safeSelected] ?? null;
-  const selectedMetadata = selectedResult ? metadataByPath[selectedResult.path] : null;
 
-  // LAUNCH.1.C — preview pane only renders for previewable kinds. The palette
-  // window expands to PALETTE_WIDTH_WIDE while this is true and snaps back
-  // otherwise; useWindowResize reads `paletteWidthRef.current` each tick.
-  const showPreview =
-    previewEnabled &&
-    !!selectedResult &&
-    (selectedResult.kind === "file" ||
-      selectedResult.kind === "folder" ||
-      selectedResult.kind === "note") &&
-    mode === "search" &&
-    visibleResults.length > 0;
+  usePaletteEffects({
+    inputRef,
+    hoverTimerRef,
+    paletteWidthRef,
+    showPreview,
+    mode,
+    scheduleWindowResize,
+    query,
+    resultsLength: results.length,
+    activeFilters,
+    cmdSuggestionsLength: cmdSuggestions.length,
+    cmdResult,
+    argSuggestionsLength: argSuggestions.length,
+    expandedMetadata,
+    secondaryMenuOpen,
+    menuFocusedIndex,
+    pendingConfirm,
+    inlineInput,
+  });
 
-  useEffect(() => {
-    paletteWidthRef.current = showPreview ? PALETTE_WIDTH_WIDE : PALETTE_WIDTH_NARROW;
-    scheduleWindowResize();
-  }, [showPreview, scheduleWindowResize]);
-
-  const { previewByPath } = useFilePreview(visibleResults, safeSelected);
-  const previewForSelected = selectedResult ? previewByPath[selectedResult.path] : undefined;
-  const previewLoading = isPreviewable(selectedResult) && !previewForSelected;
-  const menuItems = useMemo(
-    () => (selectedResult ? buildSecondaryActions(selectedResult) : []),
-    [selectedResult],
-  );
   const searchFooterHint = useSearchFooterHint({
     copyHint,
     copiedPath,
@@ -428,40 +337,20 @@ export function CommandPalette() {
     selectedMetadata,
   });
 
-  const terminalOnExit = () => {
-    // Move focus to container first so terminal becoming display:none
-    // doesn't shift focus to document.body and risk hiding the window
-    containerRef.current?.focus();
-    setQuery("");
-    requestAnimationFrame(() => inputRef.current?.focus());
-    // Keep window open asynchronously — fire and forget
-    void keepLauncherOpen();
-  };
-
-  const terminalCommandOnExit = useCallback(() => {
-    containerRef.current?.focus();
-    setCmdResult(null);
-    setQuery("");
-    setResults([]);
-    requestAnimationFrame(() => inputRef.current?.focus());
-    void keepLauncherOpen();
-    // containerRef is a stable ref object from useWindowResize — omitting is intentional.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [setQuery]);
-
-  const handlePanelCommandResult = useCallback((result: BuiltinCommandResult) => {
-    setCmdResult(result);
-    setResults([]);
-    cancelSearch();
-  }, [setResults, cancelSearch]);
-
-  // BUG-12: passed to every panel so Escape inside textarea/input can close the panel
-  const handlePanelClose = useCallback(() => {
-    setCmdResult(null);
-    setQuery("");
-    setResults([]);
-    requestAnimationFrame(() => inputRef.current?.focus());
-  }, [setQuery, setResults]);
+  const {
+    terminalOnExit,
+    terminalCommandOnExit,
+    handlePanelCommandResult,
+    handlePanelClose,
+  } = useTerminalControl({
+    containerRef,
+    inputRef,
+    setQuery,
+    setCmdResult,
+    setResults,
+    cancelSearch,
+    keepLauncherOpen,
+  });
 
   const { onKeyDown } = useKeyboardNav({
     mode,
@@ -552,19 +441,8 @@ export function CommandPalette() {
               onSelectIndex={setSelected}
               onLaunch={(r) => void launchResult(r)}
               showRankBreakdown={showRankBreakdown}
-              onHoverStart={(i, rect) => {
-                if (hoverTimerRef.current) clearTimeout(hoverTimerRef.current);
-                hoverTimerRef.current = setTimeout(() => {
-                  setHover({ index: i, rect });
-                }, 400);
-              }}
-              onHoverEnd={() => {
-                if (hoverTimerRef.current) {
-                  clearTimeout(hoverTimerRef.current);
-                  hoverTimerRef.current = null;
-                }
-                setHover(null);
-              }}
+              onHoverStart={startRankHover}
+              onHoverEnd={endRankHover}
               activeFilters={activeFilters}
               onChangeFilters={setActiveFilters}
               secondaryMenuOpen={secondaryMenuOpen}
@@ -628,17 +506,6 @@ export function CommandPalette() {
             />
           )}
 
-          {/* Args phase: syntax hint bar */}
-          {isArgsPhase && exactCmd && !cmdResult && (
-            <div className="bg-gray-900/95 backdrop-blur-md px-4 py-1.5 text-xs text-gray-500 border-t border-gray-700/30">
-              <span className="text-blue-400">/{exactCmd.name}</span>
-              {exactCmd.args_hint && (
-                <span className="ml-1 font-mono text-gray-600">{exactCmd.args_hint}</span>
-              )}
-              <span className="ml-3 text-gray-700">Tab 填入 · Enter 執行</span>
-            </div>
-          )}
-
           {hasArgSuggestions && (
             <ArgsSuggestionsList
               cmdName={cmdName}
@@ -649,35 +516,18 @@ export function CommandPalette() {
             />
           )}
 
-          {/* Inline command result */}
-          {cmdResult?.ui_type.type === "Inline" && cmdResult.text && (
-            <div className="bg-gray-900/95 backdrop-blur-md rounded-b-xl shadow-2xl px-4 py-3">
-              <pre className="text-sm text-gray-300 whitespace-pre-wrap leading-relaxed">{cmdResult.text}</pre>
-            </div>
-          )}
-
-          {/* Terminal command result */}
-          {terminalLaunchSpec && (
-            <Suspense fallback={<div className="h-[360px] bg-gray-900/95 rounded-b-xl" />}>
-              <TerminalPanel
-                isActive={true}
-                onExit={terminalCommandOnExit}
-                launchSpec={terminalLaunchSpec}
-              />
-            </Suspense>
-          )}
-
-          {/* Panel command result */}
-          {PanelComponent && (
-            <Suspense fallback={<div className="h-16 bg-gray-900/95 rounded-b-xl" />}>
-              <PanelComponent
-                key={panelKey}
-                onClose={handlePanelClose}
-                initialArgs={panelInitialArgs}
-                onRunCommandResult={handlePanelCommandResult}
-              />
-            </Suspense>
-          )}
+          <CommandResultArea
+            exactCmd={exactCmd}
+            isArgsPhase={isArgsPhase}
+            cmdResult={cmdResult}
+            terminalLaunchSpec={terminalLaunchSpec}
+            PanelComponent={PanelComponent}
+            panelKey={panelKey}
+            panelInitialArgs={panelInitialArgs}
+            onTerminalCommandExit={terminalCommandOnExit}
+            onPanelClose={handlePanelClose}
+            onPanelCommandResult={handlePanelCommandResult}
+          />
 
           <PipelineStatusRow running={pipelineRunning} result={pipelineResult} />
         </div>
