@@ -140,6 +140,13 @@ src-tauri/src/
 │   └── ipc_error.rs
 ├── handlers/              # CommandHandler 實作（每個 namespace 一個）
 │   ├── agent/             # Agent handler 子模組
+│   │   ├── mod.rs              # AgentHandler struct + CommandHandler dispatch + remaining helpers (REF.3 in progress)
+│   │   ├── lifecycle.rs        # REF.3: start_run / start_react_run / start_heuristic_run / approve_run / reject_run / memory_refs
+│   │   ├── filesystem.rs       # filesystem-search + read helpers
+│   │   ├── formatting.rs       # prompt audit / plan / describe / suggested_note_name / re-export of core/grounding helpers
+│   │   ├── intent.rs           # should_run_local_search + capability/time direct-answer
+│   │   ├── safety.rs           # sanitize_external_query / long_term_memory_opt_in / looks_sensitive_path / resolve_readable_path
+│   │   └── web.rs              # web-search provider abstraction (duckduckgo + tavily + searxng + github trending)
 │   ├── ai.rs / model.rs / translation.rs
 │   ├── launcher.rs / search.rs / history.rs
 │   ├── hotkey.rs / mouse.rs
