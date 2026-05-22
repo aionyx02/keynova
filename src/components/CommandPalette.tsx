@@ -9,7 +9,6 @@ import { useAppStore } from "../stores/appStore";
 import { parseInputMode } from "../hooks/useInputMode";
 import { useCommands } from "../hooks/useCommands";
 import { CommandSuggestions } from "../features/command-palette/CommandSuggestions";
-import { PanelRegistry } from "./panel/PanelRegistry";
 import { CheatsheetOverlay } from "./CheatsheetOverlay";
 import { clearLegacyFilters, loadFilters } from "../features/command-palette/FilterChips";
 import { PaletteInputBar } from "../features/command-palette/PaletteInputBar";
@@ -27,6 +26,9 @@ import { useLauncherSettings } from "../features/command-palette/hooks/useLaunch
 import { useWorkspaceLifecycle } from "../features/command-palette/hooks/useWorkspaceLifecycle";
 import { useSecondaryMenu } from "../features/command-palette/hooks/useSecondaryMenu";
 import { useEscapeKey } from "../features/command-palette/hooks/useEscapeKey";
+import { useArgSuggestions } from "../features/command-palette/hooks/useArgSuggestions";
+import { usePalettePanels } from "../features/command-palette/hooks/usePalettePanels";
+import { useSearchFooterHint } from "../features/command-palette/hooks/useSearchFooterHint";
 import {
   OnboardingTour,
   hasCompletedOnboarding,
@@ -113,9 +115,6 @@ export function CommandPalette() {
   // Mount terminal once and keep it alive; only toggle visibility via CSS
   const [terminalMounted, setTerminalMounted] = useState(false);
 
-  // Arg suggestions state (shown when user types space after an exact command match)
-  const [argSuggestions, setArgSuggestions] = useState<string[]>([]);
-  const [selectedArg, setSelectedArg] = useState(0);
   const { searchBackend } = useSearchBackend({ dispatch });
   const {
     copiedPath,
@@ -195,7 +194,6 @@ export function CommandPalette() {
   // it at most every 200ms while user is interacting → guard always wins
   // against the 1.5s Focused(false) grace, regardless of English/IME path.
   const lastGuardRef = useRef<number>(0);
-  const argDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const { mode, rawInput } = parseInputMode(query);
 
@@ -223,32 +221,15 @@ export function CommandPalette() {
   const cmdName = spaceIdx === -1 ? rawInput : rawInput.slice(0, spaceIdx);
   const cmdArgs = spaceIdx === -1 ? "" : rawInput.slice(spaceIdx + 1).trim();
 
-  const cmdSuggestions = useMemo(
-    () => (mode === "command" ? filtered(cmdName) : []),
-    [mode, cmdName, filtered],
-  );
-
-  // Args phase: user typed a space after a known command name
-  const exactCmd = mode === "command" && spaceIdx !== -1
-    ? (all.find((c) => c.name === cmdName) ?? null)
-    : null;
-  const isArgsPhase = exactCmd !== null;
-
-  // Fetch arg suggestions whenever the args phase is active and cmdArgs changes.
-  // Clearing on phase exit is handled in handleQueryChange to avoid synchronous setState in effect.
-  useEffect(() => {
-    if (!isArgsPhase || !exactCmd) return;
-    if (argDebounceRef.current) clearTimeout(argDebounceRef.current);
-    argDebounceRef.current = setTimeout(() => {
-      suggestArgs(exactCmd.name, cmdArgs)
-        .then((results) => { setArgSuggestions(results); setSelectedArg(0); })
-        .catch(() => {});
-    }, 150);
-    return () => {
-      if (argDebounceRef.current) clearTimeout(argDebounceRef.current);
-    };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isArgsPhase, exactCmd?.name, cmdArgs]);
+  const {
+    exactCmd,
+    isArgsPhase,
+    argSuggestions,
+    setArgSuggestions,
+    selectedArg,
+    setSelectedArg,
+  } = useArgSuggestions({ mode, cmdName, cmdArgs, spaceIdx, all, suggestArgs });
+  const cmdSuggestions = mode === "command" ? filtered(cmdName) : [];
 
   useEffect(() => {
     inputRef.current?.focus();
@@ -780,26 +761,13 @@ export function CommandPalette() {
   const hasCmdSuggestions = cmdSuggestions.length > 0 && mode === "command" && !cmdResult && !isArgsPhase;
   const hasArgSuggestions = isArgsPhase && argSuggestions.length > 0 && !cmdResult;
 
-  const liveTranslationPanel =
-    mode === "command" && cmdName === "tr" && spaceIdx !== -1 && !cmdResult;
-
-  // Resolve panel component if cmd result is a Panel type, or stream /tr args live.
-  const activePanelName =
-    cmdResult?.ui_type.type === "Panel"
-      ? (cmdResult.ui_type.value ?? "")
-      : liveTranslationPanel
-        ? "translation"
-        : "";
-  const PanelComponent = activePanelName ? (PanelRegistry[activePanelName] ?? null) : null;
-  const panelInitialArgs =
-    cmdResult?.ui_type.type === "Panel"
-      ? cmdResult.text
-      : liveTranslationPanel
-        ? cmdArgs
-        : "";
-  const terminalLaunchSpec =
-    cmdResult?.ui_type.type === "Terminal" ? cmdResult.ui_type.value : null;
-  const panelKey = `${cmdResult ? "command" : "live"}:${activePanelName}:${panelInitialArgs}`;
+  const {
+    liveTranslationPanel,
+    PanelComponent,
+    panelInitialArgs,
+    terminalLaunchSpec,
+    panelKey,
+  } = usePalettePanels({ mode, cmdName, cmdArgs, spaceIdx, cmdResult });
   const selectedResult = visibleResults[safeSelected] ?? null;
   const selectedMetadata = selectedResult ? metadataByPath[selectedResult.path] : null;
 
@@ -827,29 +795,13 @@ export function CommandPalette() {
     () => (selectedResult ? buildSecondaryActions(selectedResult) : []),
     [selectedResult],
   );
-  const fileSearchDiagHint = (() => {
-    if (!fileDiagnostics) return null;
-    const d = fileDiagnostics;
-    if (d.timed_out) return `File search: provider timed out after 800ms`;
-    if (d.fallback_reason) return `File search: ${d.fallback_reason}`;
-    const hidden = d.pre_balance_count - d.returned_count;
-    if (hidden > 0) return `File search: ${d.returned_count} shown, ${hidden} hidden by display limit`;
-    return null;
-  })();
-
-  const searchFooterHint = copyHint
-    ? copyHint
-    : copiedPath
-      ? `Copied path: ${copiedPath}`
-      : timedOutProviders.length > 0 && !fileDiagnostics
-        ? `Timed out: ${timedOutProviders.join(", ")}`
-        : fileSearchDiagHint ?? (
-            selectedMetadata?.preview
-              ? selectedMetadata.preview
-              : selectedMetadata?.size_bytes !== undefined
-                ? `${selectedMetadata.size_bytes.toLocaleString()} bytes`
-                : "↑↓ 選擇"
-          );
+  const searchFooterHint = useSearchFooterHint({
+    copyHint,
+    copiedPath,
+    timedOutProviders,
+    fileDiagnostics,
+    selectedMetadata,
+  });
 
   const terminalOnExit = () => {
     // Move focus to container first so terminal becoming display:none
