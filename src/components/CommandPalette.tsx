@@ -10,10 +10,14 @@ import { parseInputMode } from "../hooks/useInputMode";
 import { useCommands } from "../hooks/useCommands";
 import { CommandSuggestions } from "../features/command-palette/CommandSuggestions";
 import { PanelRegistry } from "./panel/PanelRegistry";
-import { WorkspaceIndicator } from "./WorkspaceIndicator";
 import { SecondaryActionMenu } from "../features/command-palette/SecondaryActionMenu";
 import { CheatsheetOverlay } from "./CheatsheetOverlay";
 import { FilterChips, clearLegacyFilters, loadFilters } from "../features/command-palette/FilterChips";
+import { PaletteInputBar } from "../features/command-palette/PaletteInputBar";
+import { EmptyStateCTA } from "../features/command-palette/EmptyStateCTA";
+import { EmptyFilterState } from "../features/command-palette/EmptyFilterState";
+import { PipelineStatusRow } from "../features/command-palette/PipelineStatusRow";
+import { ArgsSuggestionsList } from "../features/command-palette/ArgsSuggestionsList";
 import { useRecentlyDeleted } from "../features/command-palette/hooks/useRecentlyDeleted";
 import { usePipeline } from "../features/command-palette/hooks/usePipeline";
 import { useSearchStream } from "../features/command-palette/hooks/useSearchStream";
@@ -911,110 +915,41 @@ export function CommandPalette() {
 
       <div style={{ display: mode === "terminal" ? "none" : "block" }}>
         <div className="flex flex-col">
-          {/* Input bar */}
-          <div
-            className={`flex items-center bg-gray-900/95 backdrop-blur-md shadow-2xl ${
-              hasResults || hasCmdSuggestions || cmdResult || isArgsPhase
-              || liveTranslationPanel || pipelineRunning || pipelineResult
-                ? "rounded-t-xl border-b border-gray-700/50"
-                : "rounded-xl"
-            }`}
-          >
-            {mode === "command" ? (
-              <span className="ml-4 mr-2 text-sm font-bold text-blue-400 select-none">/</span>
-            ) : (
-              <svg className="ml-4 mr-2 h-4 w-4 shrink-0 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-4.35-4.35M17 11A6 6 0 1 1 5 11a6 6 0 0 1 12 0z" />
-              </svg>
+          <PaletteInputBar
+            mode={mode}
+            query={query}
+            inputRef={inputRef}
+            onQueryChange={(value) => void handleQueryChange(value)}
+            onKeyDown={onKeyDown}
+            onFocus={() => void keepLauncherOpen()}
+            searchBackend={searchBackend}
+            hasContentBelow={Boolean(
+              hasResults
+                || hasCmdSuggestions
+                || cmdResult
+                || isArgsPhase
+                || liveTranslationPanel
+                || pipelineRunning
+                || pipelineResult,
             )}
-            <input
-              ref={inputRef}
-              value={query}
-              onChange={(e) => void handleQueryChange(e.target.value)}
-              onKeyDown={onKeyDown}
-              // Bug-fix 2026-05-19 (round 2) — switched from
-              // onCompositionStart/Update/End (IME-only, did not cover English
-              // typing reported by user) to onFocus + per-keydown throttle
-              // (lastGuardRef) inside onKeyDown above. onFocus covers initial
-              // mount + post-Esc re-focus; throttled onKeyDown covers every
-              // subsequent keystroke regardless of IME state.
-              onFocus={() => void keepLauncherOpen()}
-              placeholder={
-                mode === "command"
-                  ? "輸入指令… 試試 /help 或 /setting"
-                  : "搜尋應用程式、檔案或資料夾… 輸入 > 進入終端"
-              }
-              className="flex-1 bg-transparent py-4 text-base text-gray-100 placeholder-gray-500 outline-none"
-              spellCheck={false}
-              autoComplete="off"
-            />
-            {searchBackend && mode === "search" && (
-              <span
-                title={`configured=${searchBackend.configured}, everything=${searchBackend.everything_available}, tantivy=${searchBackend.tantivy_available}, cache=${searchBackend.file_cache_entries}, tantivy_docs=${searchBackend.tantivy_index_entries}, index=${searchBackend.tantivy_index_dir}`}
-                className="mr-2 hidden shrink-0 rounded border border-gray-700/70 bg-gray-950/70 px-2 py-1 text-[10px] font-semibold uppercase text-gray-400 sm:inline-flex"
-              >
-                {searchBackend.active}
-              </span>
-            )}
-            <div className="pr-3">
-              <WorkspaceIndicator />
-            </div>
-          </div>
+          />
 
-          {/* ONBOARD.1.C — empty-state CTA: search mode, non-empty query, zero raw results */}
           {mode === "search" && query.trim() !== "" && results.length === 0 && !pipelineRunning && !pipelineResult && (
-            <div className="bg-gray-900/95 backdrop-blur-md rounded-b-xl shadow-2xl overflow-hidden">
-              <div className="px-4 py-3 text-sm text-gray-400">
-                <div className="mb-2">No results for <span className="font-mono text-gray-300">{query}</span>.</div>
-                <div className="flex flex-wrap gap-2 text-xs">
-                  <button
-                    type="button"
-                    onClick={() => void execCommand("note", `create ${query}`)}
-                    className="rounded bg-sky-600/30 px-2 py-1 text-sky-200 ring-1 ring-sky-600/40 hover:bg-sky-600/50"
-                  >
-                    Create note &quot;{query}&quot;
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => { setQuery("/help"); }}
-                    className="rounded bg-gray-800/60 px-2 py-1 text-gray-300 ring-1 ring-gray-700/40 hover:bg-gray-800"
-                  >
-                    Try /help
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => { setQuery("/setting"); }}
-                    className="rounded bg-gray-800/60 px-2 py-1 text-gray-300 ring-1 ring-gray-700/40 hover:bg-gray-800"
-                  >
-                    Open /setting
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => void execCommand("onboard")}
-                    className="rounded bg-gray-800/60 px-2 py-1 text-gray-300 ring-1 ring-gray-700/40 hover:bg-gray-800"
-                  >
-                    Replay /onboard
-                  </button>
-                </div>
-              </div>
-            </div>
+            <EmptyStateCTA
+              query={query}
+              onCreateNote={() => void execCommand("note", `create ${query}`)}
+              onJumpHelp={() => { setQuery("/help"); }}
+              onJumpSetting={() => { setQuery("/setting"); }}
+              onReplayOnboard={() => void execCommand("onboard")}
+            />
           )}
 
-          {/* Search results — show chip bar whenever raw results exist so the user can always clear filters */}
           {mode === "search" && results.length > 0 && visibleResults.length === 0 && (
-            <div className="relative bg-gray-900/95 backdrop-blur-md rounded-b-xl shadow-2xl overflow-hidden">
-              <FilterChips active={activeFilters} onChange={setActiveFilters} />
-              <div className="px-4 py-3 text-sm text-gray-400">
-                Filter hides all {results.length} results.
-                <button
-                  type="button"
-                  onClick={() => setActiveFilters(new Set())}
-                  className="ml-2 text-sky-300 hover:text-sky-200 underline"
-                >
-                  Clear filter
-                </button>
-              </div>
-            </div>
+            <EmptyFilterState
+              activeFilters={activeFilters}
+              onChangeFilters={setActiveFilters}
+              totalResults={results.length}
+            />
           )}
           {hasResults && (
             <div className={`bg-gray-900/95 backdrop-blur-md rounded-b-xl shadow-2xl ${secondaryMenuOpen ? "overflow-visible" : "overflow-hidden"}`}>
@@ -1207,27 +1142,14 @@ export function CommandPalette() {
             </div>
           )}
 
-          {/* Args suggestions dropdown */}
           {hasArgSuggestions && (
-            <div className="bg-gray-900/95 backdrop-blur-md rounded-b-xl shadow-2xl overflow-hidden">
-              <ul className="max-h-[220px] overflow-y-auto py-1">
-                {argSuggestions.map((arg, i) => (
-                  <li
-                    key={arg}
-                    onMouseDown={() => { setQuery(`/${cmdName} ${arg} `); setSelectedArg(i); }}
-                    onMouseEnter={() => setSelectedArg(i)}
-                    className={`flex items-center gap-2 px-4 py-2 cursor-pointer text-sm font-mono transition-colors ${
-                      i === selectedArg ? "bg-blue-600/70 text-white" : "text-gray-300 hover:bg-white/8"
-                    }`}
-                  >
-                    {arg}
-                  </li>
-                ))}
-              </ul>
-              <div className="border-t border-gray-700/50 px-4 py-1.5 text-[11px] text-gray-600 flex justify-between">
-                <span>↑↓ 選擇</span><span>Tab 填入</span><span>Enter 執行</span>
-              </div>
-            </div>
+            <ArgsSuggestionsList
+              cmdName={cmdName}
+              suggestions={argSuggestions}
+              selectedIndex={selectedArg}
+              onSelect={(arg, i) => { setQuery(`/${cmdName} ${arg} `); setSelectedArg(i); }}
+              onHover={setSelectedArg}
+            />
           )}
 
           {/* Inline command result */}
@@ -1260,43 +1182,7 @@ export function CommandPalette() {
             </Suspense>
           )}
 
-          {/* Pipeline running indicator */}
-          {pipelineRunning && (
-            <div className="bg-gray-900/95 backdrop-blur-md rounded-b-xl shadow-2xl px-4 py-3">
-              <span className="text-sm text-blue-400 animate-pulse">Pipeline running…</span>
-            </div>
-          )}
-
-          {/* Pipeline execution result */}
-          {!pipelineRunning && pipelineResult && (
-            <div className="bg-gray-900/95 backdrop-blur-md rounded-b-xl shadow-2xl overflow-hidden">
-              <ul className="py-1">
-                {pipelineResult.actions.map((stage) => (
-                  <li key={stage.index} className="flex items-start gap-2 px-4 py-1.5 text-sm">
-                    <span className={`shrink-0 font-mono text-xs mt-0.5 ${
-                      stage.status === "completed" ? "text-emerald-400" : "text-red-400"
-                    }`}>
-                      {stage.status === "completed" ? "✓" : "✗"}
-                    </span>
-                    <span className="font-mono text-gray-400 shrink-0">{stage.route}</span>
-                    {stage.error && (
-                      <span className="text-red-400 truncate">{stage.error}</span>
-                    )}
-                  </li>
-                ))}
-                {pipelineResult.log.status === "failed" && pipelineResult.log.error && pipelineResult.actions.length === 0 && (
-                  <li className="px-4 py-1.5 text-sm text-red-400">{pipelineResult.log.error}</li>
-                )}
-              </ul>
-              <div className="border-t border-gray-700/50 px-4 py-1.5 text-[11px] text-gray-600 flex justify-between">
-                <span className={pipelineResult.log.status === "completed" ? "text-emerald-600" : "text-red-600"}>
-                  {pipelineResult.log.status}
-                </span>
-                <span>{pipelineResult.log.action_count} stages</span>
-                <span>Esc 清除</span>
-              </div>
-            </div>
-          )}
+          <PipelineStatusRow running={pipelineRunning} result={pipelineResult} />
         </div>
       </div>
     </div>
