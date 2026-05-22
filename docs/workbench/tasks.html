@@ -343,6 +343,7 @@
       <section class="panel">
         <h2>AI 建議與手動確認</h2>
         <p class="note">AI 後續有新建議會先放進建議池；你可以在這裡用勾選確認，多題答案會一起進右側 proposal。</p>
+        <p class="note">When AI detects a decision-gated choice, it should remind you to use this workbench or give direct approval before implementation continues.</p>
         <div class="suggestion-grid" id="suggestionCards"></div>
         <div class="question-grid" id="questionCards"></div>
       </section>
@@ -390,6 +391,7 @@
     "generated_outputs": [
       "docs/state/tasks.json",
       "docs/state/tasks-summary.json",
+      "docs/state/decision-summary.json",
       "docs/workbench/tasks.html"
     ],
     "conflict_rule": "markdown_wins",
@@ -567,6 +569,21 @@
           "preview_first",
           "markdown_after_confirm",
           "session_log_trace"
+        ]
+      },
+      {
+        "id": "decision-reminder",
+        "title": "AI should remind before gated decisions",
+        "applies_to": [
+          "workflow",
+          "ADR",
+          "UI",
+          "risk"
+        ],
+        "body": "When AI detects an ADR direction, task-order change, UI layout choice, safety tradeoff, or other decision-gated change, it should explicitly remind the user to review docs/workbench/tasks.html or give direct approval before implementation continues.",
+        "recommended_options": [
+          "preview_first",
+          "markdown_after_confirm"
         ]
       }
     ]

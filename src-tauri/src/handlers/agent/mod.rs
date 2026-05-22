@@ -10,6 +10,7 @@ use uuid::Uuid;
 
 use crate::core::agent_runtime::{ReactLoopConfig, ToolDispatch};
 use crate::core::config_manager::ConfigManager;
+use crate::core::local_context::LocalContextSearcher;
 use crate::core::{
     prepare_observation, AgentAuditEntry, AgentMemoryEntry, AgentObservationPolicy, AgentRuntime,
     BuiltinCommandRegistry, CommandHandler, CommandResult, KnowledgeStoreHandle,
@@ -1206,134 +1207,6 @@ impl AgentHandler {
     }
 }
 
-
-// ─── Shared Local Context Searcher ──────────────────────────────────────────
-
-/// Shared search implementation used by both the heuristic path (AgentHandler)
-/// and the ReAct dispatch path (ReactDispatchState).
-struct LocalContextSearcher {
-    workspace_manager: Arc<Mutex<WorkspaceManager>>,
-    note_manager: Arc<Mutex<NoteManager>>,
-    history_manager: Arc<Mutex<HistoryManager>>,
-    builtin_registry: Arc<Mutex<BuiltinCommandRegistry>>,
-    model_manager: Arc<ModelManager>,
-}
-
-impl LocalContextSearcher {
-    fn push_workspace_source(&self, sources: &mut Vec<GroundingSource>) {
-        let Ok(workspace) = self.workspace_manager.lock() else {
-            return;
-        };
-        let current = workspace.current();
-        let snippet = format!(
-            "name={}, mode={}, panel={}, recent_files={}, notes={}",
-            current.name,
-            current.mode,
-            current.panel.as_deref().unwrap_or("none"),
-            current.recent_files.len(),
-            current.note_ids.len()
-        );
-        sources.push(source(
-            format!("workspace:{}", current.id),
-            "workspace",
-            current.name.clone(),
-            snippet,
-            0.92,
-            ContextVisibility::PublicContext,
-        ));
-    }
-
-    fn push_command_sources(
-        &self,
-        query: &str,
-        sources: &mut Vec<GroundingSource>,
-    ) -> Result<(), String> {
-        let registry = self.builtin_registry.lock().map_err(|e| e.to_string())?;
-        for meta in registry.list().into_iter().filter(|meta| {
-            query.is_empty()
-                || meta.name.contains(query)
-                || meta.description.to_lowercase().contains(query)
-        }) {
-            sources.push(source(
-                format!("command:{}", meta.name),
-                "command",
-                format!("/{}", meta.name),
-                meta.description.to_string(),
-                0.84,
-                ContextVisibility::PublicContext,
-            ));
-        }
-        Ok(())
-    }
-
-    fn push_note_sources(
-        &self,
-        query: &str,
-        sources: &mut Vec<GroundingSource>,
-    ) -> Result<(), String> {
-        let notes = self.note_manager.lock().map_err(|e| e.to_string())?;
-        for note in notes.list() {
-            let content = notes.get(&note.name).unwrap_or_default();
-            let searchable = format!("{} {}", note.name, content).to_lowercase();
-            if !query.is_empty() && !searchable.contains(query) {
-                continue;
-            }
-            let snippet = truncate(&content.replace('\n', " "), 160);
-            sources.push(visibility_filtered_source(
-                format!("note:{}", note.name),
-                "note",
-                note.name,
-                if snippet.is_empty() {
-                    format!("{} bytes", note.size_bytes)
-                } else {
-                    snippet
-                },
-                0.78,
-            ));
-        }
-        Ok(())
-    }
-
-    fn push_history_sources(
-        &self,
-        query: &str,
-        sources: &mut Vec<GroundingSource>,
-    ) -> Result<(), String> {
-        let history = self.history_manager.lock().map_err(|e| e.to_string())?;
-        for entry in history.search(query) {
-            sources.push(visibility_filtered_source(
-                format!("history:{}", entry.id),
-                "history",
-                entry.content_type.clone(),
-                truncate(&entry.content.replace('\n', " "), 160),
-                if entry.pinned { 0.7 } else { 0.62 },
-            ));
-        }
-        Ok(())
-    }
-
-    fn push_model_sources(&self, query: &str, sources: &mut Vec<GroundingSource>) {
-        let hardware = crate::managers::model_manager::HardwareInfo {
-            ram_mb: 0,
-            vram_mb: 0,
-        };
-        for model in self
-            .model_manager
-            .catalog_fast(&hardware)
-            .into_iter()
-            .filter(|model| query.is_empty() || model.name.to_lowercase().contains(query))
-        {
-            sources.push(source(
-                format!("model:{}", model.name),
-                "model",
-                model.name,
-                model.rating,
-                0.68,
-                ContextVisibility::PublicContext,
-            ));
-        }
-    }
-}
 
 // ─── ReAct Tool Dispatch ─────────────────────────────────────────────────────
 

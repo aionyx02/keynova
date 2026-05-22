@@ -2,7 +2,7 @@
 type: agent_policy
 status: active
 priority: p1
-updated: 2026-05-21
+updated: 2026-05-22
 context_policy: on_demand
 owner: project
 ---
@@ -114,10 +114,16 @@ Size discipline:
 
 - Markdown remains authoritative for agent instructions, task status, ADR status, and conflict resolution.
 - Workbench files must not be treated as startup context or mandatory retrieval targets.
-- For AI planning context, prefer `docs/state/tasks-summary.json`; read `docs/state/tasks.json` only when full scope, non-goals, or done criteria are needed, and read HTML only when debugging the workbench itself.
+- For AI planning context, prefer `docs/state/tasks-summary.json`.
+- `docs/state/tasks-summary.json` should stay compact: current task, progress, open-task order, and references only. Do not duplicate suggestion catalogs, UI layout options, or full impact narratives there. Keep it under 6 KB.
+- For decision-reminder and decision-gate checks, prefer `docs/state/decision-summary.json` so AI does not need to read `docs/workbench/tasks.html`.
+- `docs/state/decision-summary.json` should stay under 3 KB and contain only gating/reminder essentials.
+- Read `docs/state/tasks.json` only when full scope, non-goals, or done criteria are needed, and read HTML only when debugging the workbench itself or when the user explicitly asks to inspect it.
 - If Markdown, JSON, and HTML disagree, follow Markdown first and regenerate the workbench.
 - Do not block P0 implementation only because a workbench view is missing or stale; run `npm run docs:workbench-sync` or `npm run docs:refresh` to refresh it.
 - Generate or refresh concrete workbench previews when the user is choosing an ADR direction, task order, or UI layout.
+- When AI detects a decision-bearing moment (ADR direction, task order, UI layout, risky approval gate, or other decision-gated change), it must proactively remind the user to use `docs/workbench/tasks.html` or provide explicit approval before implementation continues.
+- The reminder must name the decision, explain why it is gated, and state the next action: refresh/open the workbench, confirm the proposal, or reply with direct approval.
 - Put AI-generated suggestions and user-confirmation questions in `docs/state/workbench-suggestions.json`; the generated HTML should expose them as user-confirmed options, preferably checkboxes or radio choices.
 - When the user returns a proposal copied from HTML, validate it against Markdown first, then update only the smallest matching Markdown source.
 - If a task is decision-gated by the workbench and no confirmed proposal or explicit user approval has been provided, do not implement runtime changes or rewrite authoritative Markdown. Only update the suggestion pool or generated preview, then wait for the user's confirmed proposal.
