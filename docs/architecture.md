@@ -2,7 +2,7 @@
 type: architecture_spec
 status: active
 priority: p1
-updated: 2026-05-18
+updated: 2026-05-22
 context_policy: retrieve_only
 owner: project
 ---
@@ -134,6 +134,8 @@ src-tauri/src/
 │   ├── preview.rs         # LAUNCH.1.C: bounded read + classify_path + guess_image_mime (shared by file.preview + learning_material)
 │   ├── dev_utils.rs       # UTIL.2: uuid/nanoid/pw/hash/b64/url/json/regex/jwt/color/cron pure-fn computations
 │   ├── process_lookup.rs  # UTIL.2.J: find_process_by_port + kill_pid (Windows netstat+tasklist / Unix lsof)
+│   ├── grounding.rs       # REF.3: GroundingSource construction helpers (source/visibility_filtered_source/truncate/contains_any/parse_visibility); shared by agent path and upcoming ai_capability layer
+│   ├── local_context.rs   # REF.3: LocalContextSearcher — workspace/command/note/history/model source aggregation; reusable by ai_capability (REF.4)
 │   └── ipc_error.rs
 ├── handlers/              # CommandHandler 實作（每個 namespace 一個）
 │   ├── agent/             # Agent handler 子模組

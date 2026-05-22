@@ -3,6 +3,10 @@ use std::sync::{Arc, Mutex};
 
 use crate::core::config_manager::ConfigManager;
 
+// `contains_any` now lives in `crate::core::grounding`; re-export so existing
+// `super::safety::contains_any` callers in the agent submodules keep working.
+pub(super) use crate::core::grounding::contains_any;
+
 pub(super) fn sanitize_external_query(query: &str) -> Result<String, String> {
     let trimmed = query.trim();
     if trimmed.is_empty() {
@@ -29,10 +33,6 @@ pub(super) fn sanitize_external_query(query: &str) -> Result<String, String> {
         }
     }
     Ok(trimmed.to_string())
-}
-
-pub(super) fn contains_any(haystack: &str, needles: &[&str]) -> bool {
-    needles.iter().any(|needle| haystack.contains(needle))
 }
 
 pub(super) fn long_term_memory_opt_in(config: &Arc<Mutex<ConfigManager>>) -> bool {

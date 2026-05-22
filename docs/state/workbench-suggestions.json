@@ -115,6 +115,21 @@
         "markdown_after_confirm",
         "session_log_trace"
       ]
+    },
+    {
+      "id": "decision-reminder",
+      "title": "AI should remind before gated decisions",
+      "applies_to": [
+        "workflow",
+        "ADR",
+        "UI",
+        "risk"
+      ],
+      "body": "When AI detects an ADR direction, task-order change, UI layout choice, safety tradeoff, or other decision-gated change, it should explicitly remind the user to review docs/workbench/tasks.html or give direct approval before implementation continues.",
+      "recommended_options": [
+        "preview_first",
+        "markdown_after_confirm"
+      ]
     }
   ]
 }
