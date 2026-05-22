@@ -29,6 +29,7 @@ import { useArgSuggestions } from "../features/command-palette/hooks/useArgSugge
 import { usePalettePanels } from "../features/command-palette/hooks/usePalettePanels";
 import { useSearchFooterHint } from "../features/command-palette/hooks/useSearchFooterHint";
 import { useFileActions } from "../features/command-palette/hooks/useFileActions";
+import { useKeyboardNav } from "../features/command-palette/hooks/useKeyboardNav";
 import {
   OnboardingTour,
   hasCompletedOnboarding,
@@ -67,14 +68,6 @@ async function keepLauncherOpen() {
       // non-Tauri env: no-op
     }
   }
-}
-
-function isCopyableLocationResult(result: SearchResult | null) {
-  return result?.kind === "app" || result?.kind === "file" || result?.kind === "folder";
-}
-
-function isCopyShortcut(e: React.KeyboardEvent) {
-  return (e.ctrlKey || e.metaKey) && !e.altKey && e.key.toLowerCase() === "c";
 }
 
 export function CommandPalette() {
@@ -176,11 +169,6 @@ export function CommandPalette() {
   } = useRecentlyDeleted();
 
   const inputRef = useRef<HTMLInputElement>(null);
-  // Bug-fix 2026-05-19 (round 2) — throttle for keepLauncherOpen() renewal
-  // on every keystroke. Backend launcher_focus_guard TTL is 2s; we refresh
-  // it at most every 200ms while user is interacting → guard always wins
-  // against the 1.5s Focused(false) grace, regardless of English/IME path.
-  const lastGuardRef = useRef<number>(0);
 
   const { mode, rawInput } = parseInputMode(query);
 
@@ -370,138 +358,6 @@ export function CommandPalette() {
     }
   }
 
-  function onKeyDown(e: React.KeyboardEvent) {
-    // Bug-fix 2026-05-19 (round 2) — Bug A真根因：英文打字也會觸發
-    // WindowEvent::Focused(false) blip。每次 keydown 都 renew guard (200ms
-    // throttle) → backend grace 期內 guard 必有效 → 不 hide。
-    // eslint-disable-next-line react-hooks/purity -- event handler, not render path
-    const now = Date.now();
-    if (now - lastGuardRef.current > 200) {
-      lastGuardRef.current = now;
-      void keepLauncherOpen();
-    }
-    // ONBOARD.1.B — `?` opens cheatsheet when input is empty, so it doesn't
-    // collide with typing `?` as part of a query.
-    if (e.key === "?" && query === "" && !secondaryMenuOpen && !cmdResult) {
-      e.preventDefault();
-      setCheatsheetOpen(true);
-      return;
-    }
-    if (mode === "search") {
-      // Menu open: route arrows/Enter/Left to menu actions; let typed text fall through.
-      if (secondaryMenuOpen) {
-        const r = visibleResults[safeSelected] ?? null;
-        const enabled = r ? buildSecondaryActions(r).filter((it) => !it.disabled) : [];
-        if (e.key === "ArrowDown") {
-          e.preventDefault();
-          setMenuFocusedIndex((i) => Math.min(i + 1, Math.max(enabled.length - 1, 0)));
-          return;
-        }
-        if (e.key === "ArrowUp") {
-          e.preventDefault();
-          setMenuFocusedIndex((i) => Math.max(i - 1, 0));
-          return;
-        }
-        if (e.key === "Tab") {
-          e.preventDefault();
-          setMenuFocusedIndex((i) => {
-            const next = e.shiftKey ? i - 1 : i + 1;
-            const max = Math.max(enabled.length - 1, 0);
-            return Math.min(Math.max(next, 0), max);
-          });
-          return;
-        }
-        if (e.key === "Enter") {
-          e.preventDefault();
-          const item = enabled[menuFocusedIndex];
-          if (item && r) void handleSecondaryAction(item.id, r);
-          return;
-        }
-        if (e.key === "ArrowLeft") {
-          // Only close menu if input caret is at start; otherwise let cursor move.
-          const target = e.currentTarget as HTMLInputElement;
-          if (target.selectionStart === 0 && target.selectionEnd === 0) {
-            e.preventDefault();
-            closeSecondaryMenu();
-            return;
-          }
-        }
-        // Other keys fall through to input.
-      }
-      if (isCopyShortcut(e)) {
-        const target = e.currentTarget as HTMLInputElement;
-        if (target.selectionStart !== target.selectionEnd) return;
-        const r = visibleResults[safeSelected] ?? null;
-        if (isCopyableLocationResult(r)) {
-          e.preventDefault();
-          void copyResultLocation(r);
-          return;
-        }
-      }
-      // Open secondary menu when cursor at end of input and a result is selected.
-      if (!secondaryMenuOpen && (e.key === "ArrowRight" || e.key === "Tab")) {
-        const target = e.currentTarget as HTMLInputElement;
-        const atEnd = target.selectionStart === target.value.length
-          && target.selectionEnd === target.value.length;
-        const r = visibleResults[safeSelected] ?? null;
-        if (atEnd && r) {
-          e.preventDefault();
-          setSecondaryMenuOpen(true);
-          setMenuFocusedIndex(0);
-          return;
-        }
-      }
-      if (e.key === "ArrowDown") { e.preventDefault(); setSelected((i) => Math.min(i + 1, visibleResults.length - 1)); }
-      else if (e.key === "ArrowUp") { e.preventDefault(); setSelected((i) => Math.max(i - 1, 0)); }
-      else if (e.key === "Enter") {
-        e.preventDefault();
-        if (query.includes("|")) {
-          void runPipeline(query);
-          return;
-        }
-        const r = visibleResults[safeSelected];
-        if (r) {
-          if (e.shiftKey) void runFirstSecondary(r);
-          else void launchResult(r);
-        }
-      }
-    } else if (mode === "command") {
-      if (e.key === "ArrowDown") {
-        e.preventDefault();
-        if (isArgsPhase) setSelectedArg((i) => Math.min(i + 1, argSuggestions.length - 1));
-        else setSelectedCmd((i) => Math.min(i + 1, cmdSuggestions.length - 1));
-      } else if (e.key === "ArrowUp") {
-        e.preventDefault();
-        if (isArgsPhase) {
-          setSelectedArg((i) => Math.max(i - 1, 0));
-        } else {
-          // At index 0 or already unselected (-1): deselect all (visual cursor
-          // returns to the input bar). Prevents the 0↔-1 oscillation that
-          // occurred when Math.max(-2, 0) kept snapping back to 0.
-          setSelectedCmd((i) => (i <= 0 ? -1 : i - 1));
-        }
-      } else if (e.key === "Tab") {
-        e.preventDefault();
-        if (isArgsPhase && argSuggestions.length > 0) {
-          // Fill in the selected config key and add a trailing space for value input
-          const arg = argSuggestions[selectedArg];
-          if (arg) setQuery(`/${cmdName} ${arg} `);
-        } else if (!isArgsPhase) {
-          const cmd = cmdSuggestions[selectedCmd];
-          if (cmd) setQuery("/" + cmd.name);
-        }
-      } else if (e.key === "Enter") {
-        e.preventDefault();
-        if (isArgsPhase) {
-          void execCommand(cmdName, cmdArgs);
-        } else {
-          const cmd = cmdSuggestions[selectedCmd];
-          if (cmd) void execCommand(cmd.name, cmdArgs);
-        }
-      }
-    }
-  }
-
   // LAUNCH.1.D + LAUNCH.1.B bugfix — derived view:
   //   1. chip filter (file/note/app/command/history/model);
   //   2. recently-deleted kill set with 30 s TTL so trashed paths can't
@@ -606,6 +462,38 @@ export function CommandPalette() {
     setResults([]);
     requestAnimationFrame(() => inputRef.current?.focus());
   }, [setQuery, setResults]);
+
+  const { onKeyDown } = useKeyboardNav({
+    mode,
+    query,
+    cmdResult,
+    visibleResults,
+    safeSelected,
+    setSelected,
+    secondaryMenuOpen,
+    setSecondaryMenuOpen,
+    menuFocusedIndex,
+    setMenuFocusedIndex,
+    closeSecondaryMenu,
+    setCheatsheetOpen,
+    cmdName,
+    cmdArgs,
+    cmdSuggestions,
+    selectedCmd,
+    setSelectedCmd,
+    isArgsPhase,
+    argSuggestions,
+    selectedArg,
+    setSelectedArg,
+    setQuery,
+    copyResultLocation,
+    handleSecondaryAction,
+    launchResult,
+    runFirstSecondary,
+    runPipeline,
+    execCommand,
+    keepLauncherOpen,
+  });
 
   return (
     <div ref={containerRef} tabIndex={-1} className="w-full outline-none">
