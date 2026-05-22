@@ -2,7 +2,7 @@
 type: working_memory
 status: active
 priority: p0
-updated: 2026-05-20
+updated: 2026-05-22
 context_policy: always_retrievable
 owner: project
 ---
@@ -34,7 +34,7 @@ owner: project
 
 ## Next Step
 
-- `REF.0` / `REF.1` 已完成。
-- 下一步是 `REF.2`：把 `CommandPalette.tsx` 拆成 `src/features/command-palette/` 下的 feature-first hooks/components，並對 Bug A/B 路徑做回歸檢查。
+- `REF.0` / `REF.1` / `REF.2` 已完成。`CommandPalette.tsx` 從 1304 → 537 行 (-59%)，Bug A/B 回歸 2026-05-22 通過；<250 / <400 line 目標延到 `REF.6` 處理（見 `project_ref2_p5_landing` memory）。
+- 下一步是 `REF.3`：拆 `src-tauri/src/handlers/agent/mod.rs`，把 lifecycle / local context / tool dispatch / dev runner 分開，並把 `LocalContextSearcher` 移到 `core/local_context.rs`、dev command runner 移到 `core/dev_runner.rs`。
 - Run `npm run docs:refresh` before commit or handoff.
 - Treat guard failures as routing feedback: current state stays here; history goes to sessions.

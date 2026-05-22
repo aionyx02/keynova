@@ -2,7 +2,7 @@
 type: task_index
 status: active
 priority: p0
-updated: 2026-05-20
+updated: 2026-05-22
 context_policy: always_retrievable
 owner: project
 tags: [refactor, ai-capability, search-first, p0]
@@ -16,7 +16,7 @@ tags: [refactor, ai-capability, search-first, p0]
 
 - [x] `REF.0` lock ADR-0029 as the governing decision for the AI capability refactor.
 - [x] `REF.1` define `UnifiedResult` as the shared result/action contract.
-- [ ] `REF.2` split `CommandPalette.tsx` into feature-first hooks/components and regression-check Bug A/B paths.
+- [x] `REF.2` split `CommandPalette.tsx` into feature-first hooks/components and regression-check Bug A/B paths.
 - [ ] `REF.3` split `handlers/agent/mod.rs` so lifecycle, local context, tool dispatch, and dev runner stop living in one module.
 - [ ] `REF.4` add the stateless AI capability layer for `explain`, `summarize`, and `fix_error`.
 - [ ] `REF.5` add workflow memory as a P0 differentiator, in parallel with `REF.4` after the schema boundary is clear.
