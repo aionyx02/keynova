@@ -145,6 +145,7 @@ src-tauri/src/
 │   │   ├── planning.rs         # REF.3 (deprecated, ADR-0029): plan_approvals / detect_planned_action / plan_* draft detectors / execute_planned_action — removed in REF.8
 │   │   ├── answers.rs          # REF.3 (deprecated, ADR-0029): direct_local_answer + answer_filesystem_search / answer_file_read / answer_project_type_summary / answer_github_trending / answer_web_search — removed in REF.8
 │   │   ├── sources.rs          # REF.3: sources_for_prompt / run_tool / filesystem_search_roots_for_prompt / filesystem_search_sources / filesystem_read_source / local_searcher / keynova_search / push_setting_schema_sources / web_search / log_audit / build_context_bundle
+│   │   ├── tools.rs            # REF.3: ReactDispatchState + all dispatch_* (keynova/filesystem/web/git.status/dev.cargo_test/check/npm.build/lint/explain_compiler_error/learning_material_review) + AgentHandler::build_react_dispatch
 │   │   ├── filesystem.rs       # filesystem-search + read helpers
 │   │   ├── formatting.rs       # prompt audit / plan / describe / suggested_note_name / re-export of core/grounding helpers
 │   │   ├── intent.rs           # should_run_local_search + capability/time direct-answer
