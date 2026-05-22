@@ -2,7 +2,7 @@
 type: architecture_spec
 status: active
 priority: p1
-updated: 2026-05-22
+updated: 2026-05-23
 context_policy: retrieve_only
 owner: project
 ---
@@ -144,6 +144,7 @@ src-tauri/src/
 │   │   ├── lifecycle.rs        # REF.3: start_run / start_react_run / start_heuristic_run / approve_run / reject_run / memory_refs
 │   │   ├── planning.rs         # REF.3 (deprecated, ADR-0029): plan_approvals / detect_planned_action / plan_* draft detectors / execute_planned_action — removed in REF.8
 │   │   ├── answers.rs          # REF.3 (deprecated, ADR-0029): direct_local_answer + answer_filesystem_search / answer_file_read / answer_project_type_summary / answer_github_trending / answer_web_search — removed in REF.8
+│   │   ├── sources.rs          # REF.3: sources_for_prompt / run_tool / filesystem_search_roots_for_prompt / filesystem_search_sources / filesystem_read_source / local_searcher / keynova_search / push_setting_schema_sources / web_search / log_audit / build_context_bundle
 │   │   ├── filesystem.rs       # filesystem-search + read helpers
 │   │   ├── formatting.rs       # prompt audit / plan / describe / suggested_note_name / re-export of core/grounding helpers
 │   │   ├── intent.rs           # should_run_local_search + capability/time direct-answer
