@@ -142,6 +142,7 @@ src-tauri/src/
 │   ├── agent/             # Agent handler 子模組
 │   │   ├── mod.rs              # AgentHandler struct + CommandHandler dispatch + remaining helpers (REF.3 in progress)
 │   │   ├── lifecycle.rs        # REF.3: start_run / start_react_run / start_heuristic_run / approve_run / reject_run / memory_refs
+│   │   ├── planning.rs         # REF.3 (deprecated, ADR-0029): plan_approvals / detect_planned_action / plan_* draft detectors / execute_planned_action — removed in REF.8
 │   │   ├── filesystem.rs       # filesystem-search + read helpers
 │   │   ├── formatting.rs       # prompt audit / plan / describe / suggested_note_name / re-export of core/grounding helpers
 │   │   ├── intent.rs           # should_run_local_search + capability/time direct-answer
