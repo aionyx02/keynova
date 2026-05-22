@@ -10,14 +10,14 @@ import { parseInputMode } from "../hooks/useInputMode";
 import { useCommands } from "../hooks/useCommands";
 import { CommandSuggestions } from "../features/command-palette/CommandSuggestions";
 import { PanelRegistry } from "./panel/PanelRegistry";
-import { SecondaryActionMenu } from "../features/command-palette/SecondaryActionMenu";
 import { CheatsheetOverlay } from "./CheatsheetOverlay";
-import { FilterChips, clearLegacyFilters, loadFilters } from "../features/command-palette/FilterChips";
+import { clearLegacyFilters, loadFilters } from "../features/command-palette/FilterChips";
 import { PaletteInputBar } from "../features/command-palette/PaletteInputBar";
 import { EmptyStateCTA } from "../features/command-palette/EmptyStateCTA";
 import { EmptyFilterState } from "../features/command-palette/EmptyFilterState";
 import { PipelineStatusRow } from "../features/command-palette/PipelineStatusRow";
 import { ArgsSuggestionsList } from "../features/command-palette/ArgsSuggestionsList";
+import { SearchResultsList } from "../features/command-palette/SearchResultsList";
 import { useRecentlyDeleted } from "../features/command-palette/hooks/useRecentlyDeleted";
 import { usePipeline } from "../features/command-palette/hooks/usePipeline";
 import { useSearchStream } from "../features/command-palette/hooks/useSearchStream";
@@ -32,7 +32,6 @@ import {
   hasCompletedOnboarding,
   resetOnboarding,
 } from "./OnboardingTour";
-import { PreviewPane } from "./PreviewPane";
 import { RankTooltip } from "./RankTooltip";
 import { useFilePreview, isPreviewable } from "../hooks/useFilePreview";
 import { PALETTE_WIDTH_NARROW, PALETTE_WIDTH_WIDE } from "../hooks/useWindowResize";
@@ -80,21 +79,6 @@ async function keepLauncherOpen() {
     }
   }
 }
-
-const KIND_BADGE: Record<string, { label: string; cls: string }> = {
-  app: { label: "App", cls: "bg-violet-500/30 text-violet-300" },
-  file: { label: "File", cls: "bg-sky-500/30 text-sky-300" },
-  folder: { label: "Dir", cls: "bg-amber-500/30 text-amber-300" },
-  command: { label: "Cmd", cls: "bg-emerald-500/30 text-emerald-300" },
-  note: { label: "Note", cls: "bg-teal-500/30 text-teal-300" },
-  history: { label: "Hist", cls: "bg-zinc-500/30 text-zinc-300" },
-  model: { label: "AI", cls: "bg-fuchsia-500/30 text-fuchsia-300" },
-};
-
-function hasEncodingError(s: string | undefined | null): boolean {
-  return typeof s === "string" && s.includes("�");
-}
-
 
 function isCopyableLocationResult(result: SearchResult | null) {
   return result?.kind === "app" || result?.kind === "file" || result?.kind === "folder";
@@ -952,156 +936,60 @@ export function CommandPalette() {
             />
           )}
           {hasResults && (
-            <div className={`bg-gray-900/95 backdrop-blur-md rounded-b-xl shadow-2xl ${secondaryMenuOpen ? "overflow-visible" : "overflow-hidden"}`}>
-              <FilterChips active={activeFilters} onChange={setActiveFilters} />
-              <div className={showPreview ? "grid grid-cols-[1fr_320px]" : ""}>
-                {/* Left column — result list + secondary menu overlay anchored here */}
-                <div className={`relative min-w-0 ${secondaryMenuOpen ? "min-h-[384px]" : ""}`}>
-                  <ul className="max-h-[352px] overflow-y-auto py-1">
-                    {visibleResults.map((r, i) => {
-                      const badge = KIND_BADGE[r.kind] ?? KIND_BADGE.file;
-                      const icon = r.icon_key ? iconsByKey[r.icon_key] : null;
-                      return (
-                        <li
-                          key={r.path}
-                          ref={(el) => { if (i === safeSelected && el) el.scrollIntoView({ block: "nearest" }); }}
-                          onMouseDown={() => void launchResult(r)}
-                          onMouseEnter={(e) => {
-                            setSelected(i);
-                            if (!showRankBreakdown) return;
-                            const rect = e.currentTarget.getBoundingClientRect();
-                            if (hoverTimerRef.current) clearTimeout(hoverTimerRef.current);
-                            hoverTimerRef.current = setTimeout(() => {
-                              setHover({ index: i, rect });
-                            }, 400);
-                          }}
-                          onMouseLeave={() => {
-                            if (hoverTimerRef.current) {
-                              clearTimeout(hoverTimerRef.current);
-                              hoverTimerRef.current = null;
-                            }
-                            setHover(null);
-                          }}
-                          className={`flex items-center gap-2 px-4 py-2.5 cursor-pointer text-sm transition-colors ${
-                            i === safeSelected ? "bg-blue-600/70 text-white" : "text-gray-300 hover:bg-white/8"
-                          }`}
-                        >
-                          {icon ? (
-                            <img
-                              src={icon.data_url}
-                              alt=""
-                              className="h-6 w-6 shrink-0 rounded"
-                              draggable={false}
-                            />
-                          ) : (
-                            <span className={`shrink-0 rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${badge.cls}`}>
-                              {badge.label}
-                            </span>
-                          )}
-                          <span className={`truncate font-medium${hasEncodingError(r.title ?? r.name) ? " text-gray-500 italic" : ""}`}>
-                            {hasEncodingError(r.title ?? r.name) ? "(無法解碼的名稱)" : (r.title ?? r.name)}
-                          </span>
-                          {Boolean(r.secondary_action_count) && (
-                            <span className="shrink-0 text-[10px] text-gray-500">+{r.secondary_action_count}</span>
-                          )}
-                          {r.kind !== "app" && (
-                            <span className="ml-auto shrink-0 max-w-[220px] truncate text-xs text-gray-500">
-                              {hasEncodingError(r.subtitle ?? r.path) ? "(無法解碼的路徑)" : (r.subtitle ?? r.path)}
-                            </span>
-                          )}
-                        </li>
-                      );
-                    })}
-                  </ul>
-
-                  {/* LAUNCH.1.A — Secondary action menu overlay (keyboard-driven, anchored to left column) */}
-                  {secondaryMenuOpen && selectedResult && menuItems.length > 0 && (
-                    <SecondaryActionMenu
-                      result={selectedResult}
-                      items={menuItems}
-                      focusedIndex={menuFocusedIndex}
-                      onSelect={(id) => void handleSecondaryAction(id, selectedResult)}
-                      onHoverEnabled={setMenuFocusedIndex}
-                      pendingConfirmId={pendingConfirm}
-                      inlineInput={inlineInput}
-                      onInlineInputChange={(value) =>
-                        setInlineInput((prev) => (prev ? { ...prev, value } : prev))
-                      }
-                      onInlineInputKeyDown={(e) => {
-                        if (e.key === "Enter") {
-                          e.preventDefault();
-                          e.stopPropagation();
-                          if (inlineInput && selectedResult) {
-                            void handleSecondaryAction(inlineInput.for, selectedResult);
-                          }
-                        } else if (e.key === "Escape") {
-                          e.preventDefault();
-                          e.stopPropagation();
-                          setInlineInput(null);
-                          setPendingConfirm(null);
-                        }
-                      }}
-                    />
-                  )}
-                </div>
-
-                {/* LAUNCH.1.C — right preview column */}
-                {showPreview && (
-                  <div className={`${secondaryMenuOpen ? "h-[384px]" : "max-h-[352px]"} border-l border-gray-700/50 bg-gray-950/40`}>
-                    <PreviewPane
-                      result={selectedResult}
-                      preview={previewForSelected}
-                      loading={previewLoading}
-                    />
-                  </div>
-                )}
-              </div>
-
-              {/* LAUNCH.1.A — Show metadata expanded view (toggled from action menu, spans both columns) */}
-              {expandedMetadata && selectedResult && (
-                <div className="border-t border-gray-700/50 px-4 py-2 text-xs text-gray-400 bg-gray-950/60">
-                  <div className="mb-1 flex items-center justify-between">
-                    <span className="text-[10px] uppercase tracking-wider text-gray-500">Metadata</span>
-                    <span className="text-[10px] text-gray-600">Esc 收起</span>
-                  </div>
-                  <div className="grid grid-cols-[max-content_1fr] gap-x-3 gap-y-0.5 font-mono">
-                    <span className="text-gray-500">path</span>
-                    <span className="truncate text-gray-300">{selectedResult.path}</span>
-                    {selectedMetadata?.size_bytes !== undefined && (
-                      <>
-                        <span className="text-gray-500">size</span>
-                        <span className="text-gray-300">{selectedMetadata.size_bytes.toLocaleString()} bytes</span>
-                      </>
-                    )}
-                    {selectedMetadata?.modified_ms !== undefined && (
-                      <>
-                        <span className="text-gray-500">modified</span>
-                        <span className="text-gray-300">{new Date(selectedMetadata.modified_ms).toLocaleString()}</span>
-                      </>
-                    )}
-                    {selectedMetadata?.is_dir !== undefined && (
-                      <>
-                        <span className="text-gray-500">type</span>
-                        <span className="text-gray-300">{selectedMetadata.is_dir ? "folder" : "file"}</span>
-                      </>
-                    )}
-                    {selectedMetadata?.preview && (
-                      <>
-                        <span className="text-gray-500">preview</span>
-                        <span className="text-gray-300 whitespace-pre-wrap break-words">{selectedMetadata.preview}</span>
-                      </>
-                    )}
-                  </div>
-                </div>
-              )}
-
-              <div className="border-t border-gray-700/50 px-4 py-1.5 text-[11px] text-gray-600 flex justify-between gap-2">
-                <span className="min-w-0 flex-1 truncate">{searchFooterHint}</span>
-                <span className="shrink-0">Enter 開啟</span>
-                <span className="shrink-0">Shift+Enter 次要</span>
-                <span className="shrink-0">→ Actions</span>
-              </div>
-            </div>
+            <SearchResultsList
+              visibleResults={visibleResults}
+              safeSelected={safeSelected}
+              iconsByKey={iconsByKey}
+              onSelectIndex={setSelected}
+              onLaunch={(r) => void launchResult(r)}
+              showRankBreakdown={showRankBreakdown}
+              onHoverStart={(i, rect) => {
+                if (hoverTimerRef.current) clearTimeout(hoverTimerRef.current);
+                hoverTimerRef.current = setTimeout(() => {
+                  setHover({ index: i, rect });
+                }, 400);
+              }}
+              onHoverEnd={() => {
+                if (hoverTimerRef.current) {
+                  clearTimeout(hoverTimerRef.current);
+                  hoverTimerRef.current = null;
+                }
+                setHover(null);
+              }}
+              activeFilters={activeFilters}
+              onChangeFilters={setActiveFilters}
+              secondaryMenuOpen={secondaryMenuOpen}
+              selectedResult={selectedResult}
+              menuItems={menuItems}
+              menuFocusedIndex={menuFocusedIndex}
+              pendingConfirm={pendingConfirm}
+              inlineInput={inlineInput}
+              onSecondaryAction={(id, r) => void handleSecondaryAction(id, r)}
+              onMenuFocus={setMenuFocusedIndex}
+              onInlineInputChange={(value) =>
+                setInlineInput((prev) => (prev ? { ...prev, value } : prev))
+              }
+              onInlineInputKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  if (inlineInput && selectedResult) {
+                    void handleSecondaryAction(inlineInput.for, selectedResult);
+                  }
+                } else if (e.key === "Escape") {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  setInlineInput(null);
+                  setPendingConfirm(null);
+                }
+              }}
+              showPreview={showPreview}
+              previewForSelected={previewForSelected}
+              previewLoading={previewLoading}
+              expandedMetadata={expandedMetadata}
+              selectedMetadata={selectedMetadata}
+              footerHint={searchFooterHint}
+            />
           )}
 
           {/* LAUNCH.1.E — rank tooltip (rendered last so it overlays everything) */}
