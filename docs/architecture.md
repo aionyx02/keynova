@@ -136,6 +136,7 @@ src-tauri/src/
 │   ├── process_lookup.rs  # UTIL.2.J: find_process_by_port + kill_pid (Windows netstat+tasklist / Unix lsof)
 │   ├── grounding.rs       # REF.3: GroundingSource construction helpers (source/visibility_filtered_source/truncate/contains_any/parse_visibility); shared by agent path and upcoming ai_capability layer
 │   ├── local_context.rs   # REF.3: LocalContextSearcher — workspace/command/note/history/model source aggregation; reusable by ai_capability (REF.4)
+│   ├── dev_runner.rs      # REF.3: bounded read-only dev command runner (run_bounded_dev_cmd / extract_compiler_errors / bound_output_n); reserved for fix_error capability (REF.4)
 │   └── ipc_error.rs
 ├── handlers/              # CommandHandler 實作（每個 namespace 一個）
 │   ├── agent/             # Agent handler 子模組
