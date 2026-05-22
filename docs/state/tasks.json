@@ -19,11 +19,11 @@
   "workflow": {
     "name": "P0 Refactor: AI Capability Layer And Unified Search",
     "zh_name": "P0 重構：AI 能力層與統一搜尋主線",
-    "current_task": "REF.3",
+    "current_task": "REF.4",
     "progress": {
-      "done": 3,
+      "done": 4,
       "total": 9,
-      "percent": 33
+      "percent": 44
     },
     "rules": [
       "Markdown remains the authority.",
@@ -314,7 +314,7 @@
       "id": "REF.3",
       "title": "Agent Handler Module Split",
       "priority": "P0",
-      "status": "open",
+      "status": "done",
       "summary": "split `handlers/agent/mod.rs` so lifecycle, local context, tool dispatch, and dev runner stop living in one module",
       "depends_on": [
         "REF.2"

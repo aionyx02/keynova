@@ -8,6 +8,7 @@ const ACTIVE_TASKS = "docs/tasks/active.md";
 const REFACTOR_PLAN = "docs/tasks/refactor-ai-capability.md";
 const STATE_TARGET = "docs/state/tasks.json";
 const SUMMARY_TARGET = "docs/state/tasks-summary.json";
+const DECISION_SUMMARY_TARGET = "docs/state/decision-summary.json";
 const SUGGESTIONS_SOURCE = "docs/state/workbench-suggestions.json";
 const WORKBENCH_TARGET = "docs/workbench/tasks.html";
 const ADR_TEMPLATE_TARGET = "docs/workbench/adr-preview-template.html";
@@ -303,6 +304,13 @@ function defaultSuggestions() {
         body: "AI 的新想法先進 workbench-suggestions.json，HTML 自動更新；你勾選後複製 proposal 回對話，AI 再驗證並更新最小 Markdown。",
         recommended_options: ["preview_first", "markdown_after_confirm", "session_log_trace"],
       },
+      {
+        id: "decision-reminder",
+        title: "AI should remind before gated decisions",
+        applies_to: ["workflow", "ADR", "UI", "risk"],
+        body: "When AI detects an ADR direction, task-order change, UI layout choice, safety tradeoff, or other decision-gated change, it should explicitly remind the user to review docs/workbench/tasks.html or give direct approval before implementation continues.",
+        recommended_options: ["preview_first", "markdown_after_confirm"],
+      },
     ],
   };
 }
@@ -357,7 +365,7 @@ function buildState() {
     authority: {
       markdown_sources: [ACTIVE_TASKS, REFACTOR_PLAN],
       suggestion_source: SUGGESTIONS_SOURCE,
-      generated_outputs: [STATE_TARGET, SUMMARY_TARGET, WORKBENCH_TARGET],
+      generated_outputs: [STATE_TARGET, SUMMARY_TARGET, DECISION_SUMMARY_TARGET, WORKBENCH_TARGET],
       conflict_rule: "markdown_wins",
       lifecycle: "shadow_state",
     },
@@ -423,28 +431,28 @@ function buildState() {
 }
 
 function buildSummary(state) {
-  const questions = state.suggestions.questions.map((question) => ({
-    id: question.id,
-    title: question.title,
-    type: question.type,
-    default: question.default,
-    options: question.options.map((option) => ({
-      id: option.id,
-      label: option.label,
-      impact: option.impact,
-    })),
-  }));
+  const openTasks = state.tasks.filter((task) => task.status !== "done");
+  const completedTaskIds = state.tasks
+    .filter((task) => task.status === "done")
+    .map((task) => task.id);
 
   return {
     schema_version: state.schema_version,
     generated_by: state.generated_by,
     authority: {
       markdown_sources: state.authority.markdown_sources,
-      suggestion_source: state.authority.suggestion_source,
       conflict_rule: state.authority.conflict_rule,
       lifecycle: state.authority.lifecycle,
       full_state: STATE_TARGET,
-      workbench: WORKBENCH_TARGET,
+      decision_summary: DECISION_SUMMARY_TARGET,
+    },
+    usage: {
+      purpose: "low_token_planning_snapshot",
+      keep_compact: true,
+      read_full_state_when: [
+        "scope, non-goals, or done criteria are needed",
+        "task impact or detailed notes are needed",
+      ],
     },
     workflow: {
       name: state.workflow.name,
@@ -452,25 +460,12 @@ function buildSummary(state) {
       current_task: state.workflow.current_task,
       progress: state.workflow.progress,
       rules: state.workflow.rules,
-      expected_outcomes: state.workflow.expected_outcomes.map((outcome) => ({
-        title: outcome.title,
-        body: outcome.body,
-      })),
-      ui_layout_options: state.workflow.ui_layout_options.map((option) => ({
-        id: option.id,
-        label: option.label,
-        best_for: option.best_for,
-        tradeoff: option.tradeoff,
-      })),
     },
-    suggestion_questions: questions,
-    suggestion_cards: state.suggestions.suggestion_cards.map((card) => ({
-      id: card.id,
-      title: card.title,
-      applies_to: card.applies_to,
-      recommended_options: card.recommended_options,
-    })),
-    tasks: state.tasks.map((task) => ({
+    decision_gate: {
+      reminder_required: true,
+      source: DECISION_SUMMARY_TARGET,
+    },
+    open_tasks: openTasks.map((task) => ({
       id: task.id,
       title: task.title,
       priority: task.priority,
@@ -478,8 +473,70 @@ function buildSummary(state) {
       summary: task.summary,
       depends_on: task.depends_on,
       parallel_with: task.parallel_with,
-      impact: task.impact,
     })),
+    completed_task_ids: completedTaskIds,
+  };
+}
+
+function buildDecisionSummary(state) {
+  const reminderCard = state.suggestions.suggestion_cards.find((card) => card.id === "decision-reminder");
+  const suggestionPolicy = state.suggestions.questions.find((question) => question.id === "ai_suggestion_policy");
+  const currentTask = state.tasks.find((task) => task.id === state.workflow.current_task) || null;
+
+  return {
+    schema_version: state.schema_version,
+    generated_by: state.generated_by,
+    authority: {
+      markdown_sources: state.authority.markdown_sources,
+      conflict_rule: state.authority.conflict_rule,
+      lifecycle: state.authority.lifecycle,
+      full_state: STATE_TARGET,
+      summary: SUMMARY_TARGET,
+      workbench: WORKBENCH_TARGET,
+    },
+    usage: {
+      purpose: "low_token_decision_gate_check",
+      prefer_this_file: true,
+      avoid_html_by_default: true,
+      read_html_only_when: [
+        "debugging the workbench itself",
+        "the user explicitly asks to inspect the rendered HTML",
+      ],
+    },
+    decision_reminder: {
+      required: true,
+      trigger_kinds: [
+        "ADR direction",
+        "task order",
+        "UI layout",
+        "risky approval gate",
+        "other decision-gated runtime or Markdown change",
+      ],
+      reminder_must_include: [
+        "decision name",
+        "why it is gated",
+        "next action",
+      ],
+      next_actions: [
+        "refresh/open docs/workbench/tasks.html",
+        "confirm and return the proposal",
+        "reply with direct approval",
+      ],
+      block_implementation_without_confirmation: true,
+      default_policy_options: suggestionPolicy?.default || [],
+      source_card: reminderCard
+        ? {
+            id: reminderCard.id,
+            title: reminderCard.title,
+            applies_to: reminderCard.applies_to,
+          }
+        : null,
+    },
+    workflow: {
+      current_task: state.workflow.current_task,
+      current_task_summary: currentTask?.summary || null,
+      progress: state.workflow.progress,
+    },
   };
 }
 
@@ -1280,6 +1337,7 @@ function renderDecisionWorkbenchHtml(state) {
       <section class="panel">
         <h2>AI 建議與手動確認</h2>
         <p class="note">AI 後續有新建議會先放進建議池；你可以在這裡用勾選確認，多題答案會一起進右側 proposal。</p>
+        <p class="note">When AI detects a decision-gated choice, it should remind you to use this workbench or give direct approval before implementation continues.</p>
         <div class="suggestion-grid" id="suggestionCards"></div>
         <div class="question-grid" id="questionCards"></div>
       </section>
@@ -1808,14 +1866,17 @@ function renderAdrTemplateHtml() {
 
 const state = buildState();
 const summary = buildSummary(state);
+const decisionSummary = buildDecisionSummary(state);
 const stateChanged = writeIfChanged(STATE_TARGET, `${JSON.stringify(state, null, 2)}\n`);
 const summaryChanged = writeIfChanged(SUMMARY_TARGET, `${JSON.stringify(summary, null, 2)}\n`);
+const decisionSummaryChanged = writeIfChanged(DECISION_SUMMARY_TARGET, `${JSON.stringify(decisionSummary, null, 2)}\n`);
 const workbenchChanged = writeIfChanged(WORKBENCH_TARGET, renderDecisionWorkbenchHtml(state));
 const adrTemplateChanged = writeIfChanged(ADR_TEMPLATE_TARGET, renderAdrTemplateHtml());
 
 const changed = [
   stateChanged ? STATE_TARGET : null,
   summaryChanged ? SUMMARY_TARGET : null,
+  decisionSummaryChanged ? DECISION_SUMMARY_TARGET : null,
   workbenchChanged ? WORKBENCH_TARGET : null,
   adrTemplateChanged ? ADR_TEMPLATE_TARGET : null,
 ].filter(Boolean);

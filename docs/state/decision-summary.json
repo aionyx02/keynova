@@ -57,12 +57,12 @@
     }
   },
   "workflow": {
-    "current_task": "REF.3",
-    "current_task_summary": "split `handlers/agent/mod.rs` so lifecycle, local context, tool dispatch, and dev runner stop living in one module",
+    "current_task": "REF.4",
+    "current_task_summary": "add the stateless AI capability layer for `explain`, `summarize`, and `fix_error`",
     "progress": {
-      "done": 3,
+      "done": 4,
       "total": 9,
-      "percent": 33
+      "percent": 44
     }
   }
 }

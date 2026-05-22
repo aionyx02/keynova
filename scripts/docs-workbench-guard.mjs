@@ -7,8 +7,11 @@ import { ROOT, repoPath } from "./docs-utils.mjs";
 
 const TASKS_STATE = "docs/state/tasks.json";
 const SUMMARY_STATE = "docs/state/tasks-summary.json";
+const DECISION_SUMMARY_STATE = "docs/state/decision-summary.json";
 const SUGGESTIONS_STATE = "docs/state/workbench-suggestions.json";
 const WORKBENCH_HTML = "docs/workbench/tasks.html";
+const MAX_TASKS_SUMMARY_BYTES = 6_000;
+const MAX_DECISION_SUMMARY_BYTES = 3_000;
 
 const errors = [];
 
@@ -27,6 +30,15 @@ function readText(relPath) {
   } catch (error) {
     errors.push(`Unable to read ${relPath}: ${error.message}`);
     return "";
+  }
+}
+
+function fileSize(relPath) {
+  try {
+    return fs.statSync(path.join(ROOT, relPath)).size;
+  } catch (error) {
+    errors.push(`Unable to stat ${relPath}: ${error.message}`);
+    return 0;
   }
 }
 
@@ -75,18 +87,64 @@ function validateSuggestions(suggestions) {
 function validateTaskState(state, summary) {
   if (!state || !summary) return;
   requireUniqueIds(state.tasks, TASKS_STATE, "task");
+  const expectedOpenTasks = state.tasks.filter((task) => task.status !== "done");
+  const expectedCompletedTaskIds = state.tasks.filter((task) => task.status === "done").map((task) => task.id);
 
   if (summary.authority?.full_state !== TASKS_STATE) {
     errors.push(`${SUMMARY_STATE}: authority.full_state must point to ${TASKS_STATE}.`);
   }
-  if (summary.authority?.workbench !== WORKBENCH_HTML) {
-    errors.push(`${SUMMARY_STATE}: authority.workbench must point to ${WORKBENCH_HTML}.`);
+  if (summary.authority?.decision_summary !== DECISION_SUMMARY_STATE) {
+    errors.push(`${SUMMARY_STATE}: authority.decision_summary must point to ${DECISION_SUMMARY_STATE}.`);
+  }
+  if (summary.usage?.keep_compact !== true) {
+    errors.push(`${SUMMARY_STATE}: usage.keep_compact must be true.`);
   }
   if (summary.workflow?.current_task !== state.workflow?.current_task) {
     errors.push(`${SUMMARY_STATE}: workflow.current_task does not match ${TASKS_STATE}.`);
   }
-  if ((summary.tasks || []).length !== (state.tasks || []).length) {
-    errors.push(`${SUMMARY_STATE}: task count does not match ${TASKS_STATE}.`);
+  if (summary.decision_gate?.source !== DECISION_SUMMARY_STATE) {
+    errors.push(`${SUMMARY_STATE}: decision_gate.source must point to ${DECISION_SUMMARY_STATE}.`);
+  }
+  if ((summary.open_tasks || []).length !== expectedOpenTasks.length) {
+    errors.push(`${SUMMARY_STATE}: open task count does not match ${TASKS_STATE}.`);
+  }
+  if ((summary.completed_task_ids || []).length !== expectedCompletedTaskIds.length) {
+    errors.push(`${SUMMARY_STATE}: completed task count does not match ${TASKS_STATE}.`);
+  }
+  if (fileSize(SUMMARY_STATE) > MAX_TASKS_SUMMARY_BYTES) {
+    errors.push(`${SUMMARY_STATE}: must stay under ${MAX_TASKS_SUMMARY_BYTES} bytes to remain a low-token snapshot.`);
+  }
+}
+
+function validateDecisionSummary(state, decisionSummary) {
+  if (!state || !decisionSummary) return;
+
+  if (decisionSummary.authority?.full_state !== TASKS_STATE) {
+    errors.push(`${DECISION_SUMMARY_STATE}: authority.full_state must point to ${TASKS_STATE}.`);
+  }
+  if (decisionSummary.authority?.summary !== SUMMARY_STATE) {
+    errors.push(`${DECISION_SUMMARY_STATE}: authority.summary must point to ${SUMMARY_STATE}.`);
+  }
+  if (decisionSummary.authority?.workbench !== WORKBENCH_HTML) {
+    errors.push(`${DECISION_SUMMARY_STATE}: authority.workbench must point to ${WORKBENCH_HTML}.`);
+  }
+  if (decisionSummary.usage?.prefer_this_file !== true) {
+    errors.push(`${DECISION_SUMMARY_STATE}: usage.prefer_this_file must be true.`);
+  }
+  if (decisionSummary.usage?.avoid_html_by_default !== true) {
+    errors.push(`${DECISION_SUMMARY_STATE}: usage.avoid_html_by_default must be true.`);
+  }
+  if (decisionSummary.decision_reminder?.required !== true) {
+    errors.push(`${DECISION_SUMMARY_STATE}: decision_reminder.required must be true.`);
+  }
+  if (decisionSummary.decision_reminder?.block_implementation_without_confirmation !== true) {
+    errors.push(`${DECISION_SUMMARY_STATE}: decision_reminder.block_implementation_without_confirmation must be true.`);
+  }
+  if (decisionSummary.workflow?.current_task !== state.workflow?.current_task) {
+    errors.push(`${DECISION_SUMMARY_STATE}: workflow.current_task does not match ${TASKS_STATE}.`);
+  }
+  if (fileSize(DECISION_SUMMARY_STATE) > MAX_DECISION_SUMMARY_BYTES) {
+    errors.push(`${DECISION_SUMMARY_STATE}: must stay under ${MAX_DECISION_SUMMARY_BYTES} bytes to remain a low-token gate summary.`);
   }
 }
 
@@ -184,10 +242,12 @@ async function validateHtml(state, suggestions) {
 
 const tasksState = readJson(TASKS_STATE);
 const summaryState = readJson(SUMMARY_STATE);
+const decisionSummaryState = readJson(DECISION_SUMMARY_STATE);
 const suggestionsState = readJson(SUGGESTIONS_STATE);
 
 validateSuggestions(suggestionsState);
 validateTaskState(tasksState, summaryState);
+validateDecisionSummary(tasksState, decisionSummaryState);
 await validateHtml(tasksState, suggestionsState);
 
 if (errors.length > 0) {
