@@ -2,7 +2,7 @@
 type: working_memory
 status: active
 priority: p0
-updated: 2026-05-22
+updated: 2026-05-23
 context_policy: always_retrievable
 owner: project
 ---
@@ -34,7 +34,7 @@ owner: project
 
 ## Next Step
 
-- `REF.0` / `REF.1` / `REF.2` 已完成。`CommandPalette.tsx` 從 1304 → 537 行 (-59%)，Bug A/B 回歸 2026-05-22 通過；<250 / <400 line 目標延到 `REF.6` 處理（見 `project_ref2_p5_landing` memory）。
-- 下一步是 `REF.3`：拆 `src-tauri/src/handlers/agent/mod.rs`，把 lifecycle / local context / tool dispatch / dev runner 分開，並把 `LocalContextSearcher` 移到 `core/local_context.rs`、dev command runner 移到 `core/dev_runner.rs`。
+- `REF.0` / `REF.1` / `REF.2` / `REF.3` 已完成。`handlers/agent/mod.rs` 從 2406 → 615 行 (-74%)，已遠低於 `<600` 觀察期目標。拆出 `core/grounding.rs` + `core/local_context.rs` + `core/dev_runner.rs`（reusable by REF.4）以及 `handlers/agent/{lifecycle, planning, answers, sources, tools}.rs`（planning + answers 標記為 deprecated、待 REF.8 移除）。
+- 下一步是 `REF.4`：新增 `core/ai_capability/` 與 `handlers/ai_capability.rs`，把 `explain` / `summarize` / `fix_error` 三個能力做成 stateless single-step 呼叫，並把現有 `core/local_context` + `core/dev_runner` 接進去。`REF.5`（workflow memory）可在 `REF.4` schema 穩定後並行。
 - Run `npm run docs:refresh` before commit or handoff.
 - Treat guard failures as routing feedback: current state stays here; history goes to sessions.

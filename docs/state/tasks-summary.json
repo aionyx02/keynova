@@ -22,11 +22,11 @@
   "workflow": {
     "name": "P0 Refactor: AI Capability Layer And Unified Search",
     "zh_name": "P0 重構：AI 能力層與統一搜尋主線",
-    "current_task": "REF.3",
+    "current_task": "REF.4",
     "progress": {
-      "done": 3,
+      "done": 4,
       "total": 9,
-      "percent": 33
+      "percent": 44
     },
     "rules": [
       "Markdown remains the authority.",
@@ -39,17 +39,6 @@
     "source": "docs/state/decision-summary.json"
   },
   "open_tasks": [
-    {
-      "id": "REF.3",
-      "title": "Agent Handler Module Split",
-      "priority": "P0",
-      "status": "open",
-      "summary": "split `handlers/agent/mod.rs` so lifecycle, local context, tool dispatch, and dev runner stop living in one module",
-      "depends_on": [
-        "REF.2"
-      ],
-      "parallel_with": []
-    },
     {
       "id": "REF.4",
       "title": "Stateless AI Capability Layer",
@@ -112,6 +101,7 @@
   "completed_task_ids": [
     "REF.0",
     "REF.1",
-    "REF.2"
+    "REF.2",
+    "REF.3"
   ]
 }
