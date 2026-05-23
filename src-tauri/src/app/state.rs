@@ -11,9 +11,11 @@ use crate::core::{
     KnowledgeStoreHandle,
 };
 use crate::models::agent::AgentRun;
+use crate::core::local_context::LocalContextSearcher;
 use crate::handlers::{
     agent::{AgentHandler, AgentHandlerDeps},
     ai::AiHandler,
+    ai_capability::{AiCapabilityHandler, AiCapabilityHandlerDeps},
     automation::AutomationHandler,
     builtin_cmd::{
         AiCommand, BuiltinCmdHandler, CalCommand, DownCommand, HelpCommand, HistoryCommand,
@@ -357,6 +359,19 @@ fn build_command_router(
         model_manager: Arc::clone(&bundle.model_manager),
         knowledge_store: knowledge_store.clone(),
         tantivy_index_dir: agent_tantivy_dir,
+    })));
+    router.register(Arc::new(AiCapabilityHandler::new(AiCapabilityHandlerDeps {
+        ai: Arc::clone(&bundle.ai_manager),
+        config: Arc::clone(&bundle.config_manager),
+        local_context: LocalContextSearcher {
+            workspace_manager: Arc::clone(&bundle.workspace_manager),
+            note_manager: Arc::clone(&bundle.note_manager),
+            history_manager: Arc::clone(&bundle.history_manager),
+            builtin_registry: Arc::clone(&builtin_registry),
+            model_manager: Arc::clone(&bundle.model_manager),
+        },
+        knowledge_store: knowledge_store.clone(),
+        event_bus: Arc::new(event_bus.clone()),
     })));
     router.register(Arc::new(SystemMonitoringHandler::new(Arc::new(
         event_bus.clone(),

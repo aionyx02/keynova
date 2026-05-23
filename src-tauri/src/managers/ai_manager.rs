@@ -497,6 +497,55 @@ impl AiManager {
             }
         });
     }
+
+    /// Blocking single-shot chat used by stateless `core/ai_capability` calls.
+    ///
+    /// Does NOT read or mutate `self.history` — capability execution is
+    /// stateless per ADR-0029 §4. The caller passes a fully-assembled prompt;
+    /// the provider sees exactly one user turn.
+    pub fn chat_sync(
+        &self,
+        prompt: &str,
+        provider: &AiProvider,
+        max_tokens: u32,
+        timeout_secs: u64,
+        keep_alive: &str,
+    ) -> Result<String, String> {
+        let messages = [AiMessage {
+            role: "user".into(),
+            content: prompt.to_string(),
+        }];
+        do_chat(provider, max_tokens, timeout_secs, keep_alive, &messages)
+    }
+
+    /// Streaming single-shot chat for capabilities. `on_chunk(delta)` fires per
+    /// provider chunk; `cancel()` is polled cooperatively. Returns the
+    /// accumulated reply. Like `chat_sync`, does not touch `self.history`.
+    #[allow(clippy::too_many_arguments)]
+    pub fn chat_sync_stream(
+        &self,
+        prompt: &str,
+        provider: &AiProvider,
+        max_tokens: u32,
+        timeout_secs: u64,
+        keep_alive: &str,
+        on_chunk: &dyn Fn(&str),
+        cancel: &dyn Fn() -> bool,
+    ) -> Result<String, String> {
+        let messages = [AiMessage {
+            role: "user".into(),
+            content: prompt.to_string(),
+        }];
+        do_chat_stream(
+            provider,
+            max_tokens,
+            timeout_secs,
+            keep_alive,
+            &messages,
+            on_chunk,
+            cancel,
+        )
+    }
 }
 
 fn do_chat(

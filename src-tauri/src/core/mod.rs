@@ -1,6 +1,7 @@
 pub mod action_registry;
 pub mod agent_observation;
 pub mod agent_runtime;
+pub mod ai_capability;
 pub mod automation_engine;
 pub mod builtin_command_registry;
 pub mod command_router;
