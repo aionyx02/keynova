@@ -22,4 +22,5 @@ pub mod system_control;
 pub mod system_monitoring;
 pub mod terminal;
 pub mod translation;
+pub mod workflow_memory;
 pub mod workspace;

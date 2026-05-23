@@ -34,8 +34,8 @@ owner: project
 
 ## Next Step
 
-- `REF.0` / `REF.1` / `REF.2` / `REF.3` / `REF.4` 已完成。新增的 `core/ai_capability/` 提供 stateless single-step `explain` / `summarize` / `fix_error`，由 `handlers/ai_capability.rs` 以 `capability.*` IPC 暴露；前端 hook 在 `src/features/ai-capability/`。本批未動 `CommandPalette.tsx`、未動 `agent_runtime.rs`、`ai.legacy_agent` 預設仍為 `true`。
-- 下一步可並行兩條：(a) `REF.5` workflow memory（knowledge DB schema v4 + `core/workflow_memory.rs`），把 `record` / `suggest` 立起來，capability schema 已預留 `context_hash` optional 入口；(b) `REF.6` 把 `CommandPalette` 切到消費 `UnifiedResult`，把 capability `ActionChip` 掛到結果列熱路徑。
-- Live Ollama smoke 已對 `explain` + `fix_error` 跑過（model `qwen2.5:0.5b` cold-start single sample，4.6–5.0s；pipeline 通），ADR-0029 §8 對 `qwen2.5:7b` 的正式 P50/P95 reading 仍待下次：先 `ollama pull qwen2.5:7b`，再 warm-up 後連跑 5 次取中位數，記到 session log；超出 800ms 不視為 blocker（REF.7 才量化）。
+- `REF.0` / `REF.1` / `REF.2` / `REF.3` / `REF.4` / `REF.5` 已完成。`REF.5` 落地 knowledge DB schema v4 `workflow_history` table、`core/workflow_memory.rs`（`compute_context_hash` / `record` / `suggest`）、`handlers/workflow_memory.rs`（`workflow.recent` + `workflow.suggest` IPC）與前端 `src/features/workflow-memory/`（`useRecentWorkflows` / `useSuggestedWorkflows` hooks）。Record hook 掛在 `cmd_dispatch_impl` Ok branch + `run_action_command` 成功 branch，allowlist 為 `action.run` / `cmd.run` / `capability.call`。Migration 自動備份；未動 `CommandPalette.tsx`。
+- 下一步是 `REF.6`：把 `CommandPalette` 切到消費 `UnifiedResult`、把 `ActionChip` 立為一級觸發、移除嵌入式 `AiPanel` / `TerminalPanel` 熱路徑掛點，並把 REF.4 `useCapability` + REF.5 `useSuggestedWorkflows` 真正掛到 palette。`<250` 行目標仍延到 REF.6 配合。
+- Live Ollama smoke 已對 `explain` + `fix_error` 跑過（model `qwen2.5:0.5b` cold-start single sample，4.6–5.0s；pipeline 通），ADR-0029 §8 對 `qwen2.5:7b` 的正式 P50/P95 reading 仍待下次。
 - Run `npm run docs:refresh` before commit or handoff.
 - Treat guard failures as routing feedback: current state stays here; history goes to sessions.

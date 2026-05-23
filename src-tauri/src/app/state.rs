@@ -45,6 +45,7 @@ use crate::handlers::{
     system_monitoring::SystemMonitoringHandler,
     terminal::TerminalHandler,
     translation::TranslationHandler,
+    workflow_memory::{WorkflowMemoryHandler, WorkflowMemoryHandlerDeps},
     workspace::WorkspaceHandler,
 };
 use crate::managers::{
@@ -383,6 +384,10 @@ fn build_command_router(
     )));
     router.register(Arc::new(AutomationHandler));
     router.register(Arc::new(PluginHandler));
+    router.register(Arc::new(WorkflowMemoryHandler::new(WorkflowMemoryHandlerDeps {
+        store: knowledge_store.clone(),
+        workspace_manager: Arc::clone(&bundle.workspace_manager),
+    })));
     router
 }
 
