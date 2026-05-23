@@ -20,7 +20,7 @@ tags: [refactor, ai-capability, search-first, p0]
 - [x] `REF.3` split `handlers/agent/mod.rs` so lifecycle, local context, tool dispatch, and dev runner stop living in one module.
 - [x] `REF.4` add the stateless AI capability layer for `explain`, `summarize`, and `fix_error`.
 - [x] `REF.5` add workflow memory as a P0 differentiator, in parallel with `REF.6` prep after the schema boundary is clear.
-- [ ] `REF.6` switch the palette result list to consume `UnifiedResult` and remove embedded non-core surfaces from the hot path.
+- [ ] `REF.6` switch the palette result list to consume `UnifiedResult` and remove embedded non-core surfaces from the hot path. **REF.6.A in progress** (inline AI MVP — `UnifiedResult` wire + `ActionChip` render + `Ctrl+E` explain); REF.6.B/C pending. See `docs/tasks/refactor-ai-capability.md`.
 - [ ] `REF.7` add quantitative gates, default `ai.legacy_agent = false`, and observe one release cycle.
 - [ ] `REF.8` after the observation window, physically remove deprecated agent/chat code and legacy flags.
 
