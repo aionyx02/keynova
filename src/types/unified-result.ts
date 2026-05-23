@@ -73,6 +73,8 @@ export interface SourceMetadata {
   tags?: string[];
   modified_ms?: number;
   size_bytes?: number;
+  /** REF.6.A — count of hidden actions reachable via Tab / secondary menu. */
+  secondary_action_count?: number;
 }
 
 /** Unified result/action contract (REF.1). */

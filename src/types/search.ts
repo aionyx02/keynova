@@ -34,6 +34,8 @@ export interface SearchResult {
   path: string;
   score: number;
   score_breakdown?: ScoreBreakdown;
+  /** REF.6.A — id of the originating UnifiedResult so callers can map back. */
+  unified_id?: string;
 }
 
 /** LAUNCH.1.D — set of source-type filter chips applied client-side. */
@@ -72,7 +74,8 @@ export interface SearchChunkPayload {
   request_id: string;
   generation: number;
   chunk_index: number;
-  items: SearchResult[];
+  /** REF.6.A — wire format is `UnifiedResult` after the backend conversion shim. */
+  items: import("./unified-result").UnifiedResult[];
   done: boolean;
   /** True on the final balanced batch — frontend should replace results entirely. */
   replace?: boolean;

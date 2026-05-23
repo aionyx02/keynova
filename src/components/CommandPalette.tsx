@@ -43,6 +43,9 @@ import { RankTooltip } from "./RankTooltip";
 import { PALETTE_WIDTH_NARROW } from "../hooks/useWindowResize";
 import type { SourceFilter } from "../types/search";
 import type { BuiltinCommandResult } from "../hooks/useCommands";
+import { unifiedToLegacy } from "../utils/search";
+import { useCapability } from "../features/ai-capability/hooks/useCapability";
+import { InlineCapabilityReply } from "../features/command-palette/InlineCapabilityReply";
 
 const TerminalPanel = React.lazy(() =>
   import("./TerminalPanel").then((m) => ({ default: m.TerminalPanel })),
@@ -89,6 +92,35 @@ export function CommandPalette() {
     setSearchLimit,
     clearResults: clearSearchResults,
   } = useSearchStream({ dispatch, setLoading });
+
+  // REF.6.A — palette wire format is `UnifiedResult[]`; existing hooks
+  // (useDerivedView, useFileActions, useKeyboardNav, useSearchMetadata,
+  // useFilePreview, etc.) still consume the legacy `SearchResult` shape.
+  // Derive the legacy view once per `results` change and pass it down;
+  // `SearchResultsList` and the inline-AI surface consume the canonical
+  // `UnifiedResult[]` directly.
+  const legacyResults = React.useMemo(
+    () => results.map(unifiedToLegacy),
+    [results],
+  );
+
+  // REF.6.A — inline AI capability: streamed `explain` reply rendered below
+  // the result list. Chip click + Ctrl+E both route through `handleExplain`.
+  const explain = useCapability({ dispatch, id: "explain" });
+  const [explainOpen, setExplainOpen] = useState(false);
+  const handleExplain = React.useCallback(
+    (text: string) => {
+      const trimmed = text.trim();
+      if (!trimmed) return;
+      setExplainOpen(true);
+      void explain.run({ text: trimmed }, { stream: true });
+    },
+    [explain],
+  );
+  const cancelExplain = React.useCallback(() => {
+    void explain.cancel();
+    setExplainOpen(false);
+  }, [explain]);
 
   // Command mode state
   const [selectedCmd, setSelectedCmd] = useState(0);
@@ -175,7 +207,7 @@ export function CommandPalette() {
     usePaletteRefs({ mode, cmdResult, query, secondaryMenuOpen, expandedMetadata });
 
   const { containerRef, scheduleWindowResize } = useWindowResize(modeRef, cmdResultRef, paletteWidthRef);
-  const { metadataByPath, iconsByKey } = useSearchMetadata(results, selected);
+  const { metadataByPath, iconsByKey } = useSearchMetadata(legacyResults, selected);
 
   // Split rawInput into command name and trailing args (Minecraft-style).
   const spaceIdx = rawInput.search(/\s/);
@@ -284,7 +316,7 @@ export function CommandPalette() {
     previewLoading,
     menuItems,
   } = useDerivedView({
-    results,
+    results: legacyResults,
     selected,
     mode,
     activeFilters,
@@ -300,6 +332,19 @@ export function CommandPalette() {
     closeSecondaryMenu,
     setExpandedMetadata,
   });
+
+  // REF.6.A — parallel `UnifiedResult[]` for `SearchResultsList` chip
+  // rendering. Filter the canonical `results` via `unified_id` set so the
+  // visible rows stay 1-to-1 with the legacy filtered view (kill-set +
+  // active filters).
+  const visibleUnified = React.useMemo(() => {
+    const keep = new Set(
+      visibleResults
+        .map((r) => r.unified_id)
+        .filter((id): id is string => typeof id === "string"),
+    );
+    return results.filter((u) => keep.has(u.id));
+  }, [results, visibleResults]);
 
   const {
     liveTranslationPanel,
@@ -381,6 +426,8 @@ export function CommandPalette() {
     runFirstSecondary,
     runPipeline,
     execCommand,
+    onExplain: handleExplain,
+    explainLoading: explain.isLoading,
     keepLauncherOpen,
   });
 
@@ -436,10 +483,13 @@ export function CommandPalette() {
           {hasResults && (
             <SearchResultsList
               visibleResults={visibleResults}
+              unifiedVisible={visibleUnified}
               safeSelected={safeSelected}
               iconsByKey={iconsByKey}
               onSelectIndex={setSelected}
               onLaunch={(r) => void launchResult(r)}
+              onExplain={handleExplain}
+              explainLoading={explain.isLoading}
               showRankBreakdown={showRankBreakdown}
               onHoverStart={startRankHover}
               onHoverEnd={endRankHover}
@@ -476,6 +526,17 @@ export function CommandPalette() {
               expandedMetadata={expandedMetadata}
               selectedMetadata={selectedMetadata}
               footerHint={searchFooterHint}
+            />
+          )}
+
+          {/* REF.6.A — Inline AI streaming reply. Mounts below the result list
+              once the user has triggered an explain call. */}
+          {explainOpen && (
+            <InlineCapabilityReply
+              text={explain.streamText}
+              isLoading={explain.isLoading}
+              error={explain.error}
+              onCancel={cancelExplain}
             />
           )}
 

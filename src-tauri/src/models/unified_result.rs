@@ -159,6 +159,12 @@ pub struct SourceMetadata {
     pub modified_ms: Option<u64>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub size_bytes: Option<u64>,
+    /// REF.6.A — preserves the legacy `UiSearchItem.secondary_action_count`
+    /// signal ("press Tab to see more") on the palette row without
+    /// requiring backend to materialise every hidden action as an
+    /// `ActionChip`. Additive per ADR-0030 §4 evolution rule.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub secondary_action_count: Option<u32>,
 }
 
 /// Unified result/action contract (REF.1).
@@ -247,8 +253,9 @@ impl From<BuiltinCommandResult> for UnifiedResult {
 }
 
 /// Convert the current IPC-crossing `UiSearchItem` into a `UnifiedResult`.
-/// REF.6 will replace `UiSearchItem` consumption; until then this is the path
-/// that preserves existing action references and rank metadata.
+/// REF.6.A: this is now the production conversion path used by
+/// `SearchHandler` before emitting search responses; legacy `UiSearchItem`
+/// stays internal to `base_results_to_ui_items`.
 impl From<UiSearchItem> for UnifiedResult {
     fn from(item: UiSearchItem) -> Self {
         let primary_action_chip = ActionChip {
@@ -258,6 +265,12 @@ impl From<UiSearchItem> for UnifiedResult {
             confirm: ConfirmRequirement::none(),
             hotkey_hint: None,
             primary: true,
+        };
+
+        let secondary_action_count = if item.secondary_action_count > 0 {
+            Some(item.secondary_action_count as u32)
+        } else {
+            None
         };
 
         UnifiedResult {
@@ -277,7 +290,10 @@ impl From<UiSearchItem> for UnifiedResult {
                 workflow_boost: 0,
             },
             context_hash: None,
-            source_metadata: SourceMetadata::default(),
+            source_metadata: SourceMetadata {
+                secondary_action_count,
+                ..SourceMetadata::default()
+            },
         }
     }
 }
@@ -413,6 +429,30 @@ mod tests {
         assert!(!chip.confirm.requires_confirmation);
         assert_eq!(u.rank.score, 100);
         assert_eq!(u.rank.breakdown.base, 80);
+        // REF.6.A: secondary_action_count == 0 must serialize as None so
+        // skip_serializing_if drops the field from the wire format.
+        assert_eq!(u.source_metadata.secondary_action_count, None);
+    }
+
+    #[test]
+    fn ui_search_item_shim_populates_secondary_action_count() {
+        let item = UiSearchItem {
+            item_ref: ActionRef::new("res-2", None, 1),
+            title: "Foo.txt".to_string(),
+            subtitle: "/tmp/foo.txt".to_string(),
+            source: "file".to_string(),
+            score: 50,
+            icon_key: None,
+            primary_action: ActionRef::new("act-2", None, 1),
+            primary_action_label: "Open".to_string(),
+            secondary_action_count: 3,
+            kind: ResultKind::File,
+            name: "Foo.txt".to_string(),
+            path: "/tmp/foo.txt".to_string(),
+            score_breakdown: ScoreBreakdown::default(),
+        };
+        let u: UnifiedResult = item.into();
+        assert_eq!(u.source_metadata.secondary_action_count, Some(3));
     }
 
     #[test]
