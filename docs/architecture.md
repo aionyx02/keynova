@@ -147,6 +147,7 @@ src-tauri/src/
 │   │   │   ├── summarize.rs         # pure text transform; audit=false; risk=none
 │   │   │   └── fix_error.rs         # raw_output OR allowlisted dev re-run via dev_runner; "apply" variant rejected as UnsupportedAction in v1; audit=true; risk=none
 │   │   └── live_tests.rs       # cfg(feature="live-ai"), #[ignore]: live Ollama qwen2.5:7b smoke tests (P50/P95 print to stdout for REF.7)
+│   ├── workflow_memory.rs # REF.5: workflow_history (schema v4) record + suggest + compute_context_hash + digest_payload. Heuristic recency-only ranking; coarse hash(workspace_id, mode, panel).
 │   └── ipc_error.rs
 ├── handlers/              # CommandHandler 實作（每個 namespace 一個）
 │   ├── agent/             # Agent handler 子模組
@@ -163,6 +164,7 @@ src-tauri/src/
 │   │   └── web.rs              # web-search provider abstraction (duckduckgo + tavily + searxng + github trending)
 │   ├── ai.rs / model.rs / translation.rs
 │   ├── ai_capability.rs       # REF.4: capability.* IPC (list/call/cancel). Async worker via thread::spawn; per-request cancel flag; emits capability.response + (when stream=true) capability.stream.chunk events.
+│   ├── workflow_memory.rs     # REF.5: workflow.* IPC (recent/suggest). Synchronous read via KnowledgeStoreHandle::recent_workflows_blocking; suggest resolves context_hash server-side.
 │   ├── launcher.rs / search.rs / history.rs
 │   ├── hotkey.rs / mouse.rs
 │   ├── terminal.rs / note.rs / workspace.rs

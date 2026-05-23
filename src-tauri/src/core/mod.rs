@@ -19,6 +19,7 @@ pub mod plugin_runtime;
 pub mod preview;
 pub mod process_lookup;
 pub mod search_registry;
+pub mod workflow_memory;
 pub mod workflow_pipeline;
 
 pub use action_registry::{ActionArena, ActionRegistry};

@@ -19,11 +19,11 @@
   "workflow": {
     "name": "P0 Refactor: AI Capability Layer And Unified Search",
     "zh_name": "P0 重構：AI 能力層與統一搜尋主線",
-    "current_task": "REF.5",
+    "current_task": "REF.6",
     "progress": {
-      "done": 5,
+      "done": 6,
       "total": 9,
-      "percent": 56
+      "percent": 67
     },
     "rules": [
       "Markdown remains the authority.",
@@ -385,7 +385,7 @@
       "id": "REF.5",
       "title": "Workflow Memory",
       "priority": "P0",
-      "status": "open",
+      "status": "done",
       "summary": "add workflow memory as a P0 differentiator, in parallel with `REF.6` prep after the schema boundary is clear",
       "depends_on": [
         "REF.1"

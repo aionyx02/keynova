@@ -57,12 +57,12 @@
     }
   },
   "workflow": {
-    "current_task": "REF.5",
-    "current_task_summary": "add workflow memory as a P0 differentiator, in parallel with `REF.6` prep after the schema boundary is clear",
+    "current_task": "REF.6",
+    "current_task_summary": "switch the palette result list to consume `UnifiedResult` and remove embedded non-core surfaces from the hot path",
     "progress": {
-      "done": 5,
+      "done": 6,
       "total": 9,
-      "percent": 56
+      "percent": 67
     }
   }
 }
