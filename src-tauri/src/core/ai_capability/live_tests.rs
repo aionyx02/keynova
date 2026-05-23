@@ -1,15 +1,20 @@
-//! REF.4 live integration tests against a local Ollama daemon (`qwen2.5:7b`).
+//! REF.4 live integration tests against a local Ollama daemon.
 //!
 //! Gated by the `live-ai` cargo feature AND `#[ignore]` so they only run
 //! when the developer explicitly opts in:
 //!
 //! ```bash
-//! cargo test --features live-ai -- --ignored ai_capability_live
+//! cargo test --features live-ai -- --ignored ai_capability_live --nocapture
 //! ```
 //!
-//! Tests print the observed latency in milliseconds; ADR-0029 §8 target is
-//! P50 < 800 ms. Any gap is recorded in the session log rather than failing
-//! the test — REF.7 owns the quantitative gate.
+//! Model defaults to ADR-0029 §8's `qwen2.5:7b` target. Override via the
+//! `KEYNOVA_LIVE_AI_MODEL` env var when smoke-testing against a smaller
+//! local model (e.g. `qwen2.5:0.5b`); the recorded latency is then a
+//! lower bound, not the canonical P50 reading.
+//!
+//! Tests print the observed latency in milliseconds; the 800 ms P50 target
+//! is recorded in the session log rather than asserted here — REF.7 owns
+//! the quantitative gate.
 
 use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
@@ -21,11 +26,15 @@ use crate::core::ai_capability::{
 };
 use crate::managers::ai_manager::{AiManager, AiProvider, AiRuntimeConfig};
 
+fn live_ai_model() -> String {
+    std::env::var("KEYNOVA_LIVE_AI_MODEL").unwrap_or_else(|_| "qwen2.5:7b".into())
+}
+
 fn runtime_for_ollama() -> AiRuntimeConfig {
     AiRuntimeConfig {
         provider: AiProvider::Ollama {
             base_url: "http://localhost:11434".into(),
-            model: "qwen2.5:7b".into(),
+            model: live_ai_model(),
         },
         max_tokens: 512,
         timeout_secs: 60,
@@ -64,7 +73,10 @@ fn ai_capability_live_explain_returns_text() {
     let resp = ai_capability::call_capability(req, &deps_with_chat(build_chat()))
         .expect("explain should succeed against live Ollama");
     let elapsed_ms = started.elapsed().as_millis();
-    println!("[ai_capability_live] explain latency = {elapsed_ms} ms");
+    println!(
+        "[ai_capability_live] model={} explain latency = {elapsed_ms} ms",
+        live_ai_model()
+    );
     match resp.output {
         CapabilityOutput::Text { text } => assert!(!text.trim().is_empty(), "got empty reply"),
         _ => panic!("expected text output"),
@@ -86,7 +98,10 @@ fn ai_capability_live_fix_error_explains_compiler_error() {
     let resp = ai_capability::call_capability(req, &deps_with_chat(build_chat()))
         .expect("fix_error should succeed against live Ollama");
     let elapsed_ms = started.elapsed().as_millis();
-    println!("[ai_capability_live] fix_error latency = {elapsed_ms} ms");
+    println!(
+        "[ai_capability_live] model={} fix_error latency = {elapsed_ms} ms",
+        live_ai_model()
+    );
     match resp.output {
         CapabilityOutput::Text { text } => assert!(!text.trim().is_empty(), "got empty reply"),
         _ => panic!("expected text output"),
