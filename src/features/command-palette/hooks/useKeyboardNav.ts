@@ -62,6 +62,10 @@ export interface UseKeyboardNavDeps {
   runFirstSecondary: (r: SearchResult) => Promise<void>;
   runPipeline: (text: string) => Promise<void>;
   execCommand: (name: string, args?: string) => Promise<void>;
+  /** REF.6.A — Ctrl+E triggers inline AI explain on the focused result. */
+  onExplain: (text: string) => void;
+  /** REF.6.A — gate Ctrl+E while a capability call is in flight. */
+  explainLoading: boolean;
   // Bug A focus-guard renewal (must be invoked on every keydown, throttled).
   keepLauncherOpen: () => Promise<void> | void;
 }
@@ -94,6 +98,24 @@ export function useKeyboardNav(deps: UseKeyboardNavDeps) {
       }
 
       if (deps.mode === "search") {
+        // REF.6.A — Ctrl+E triggers inline AI explain on the focused row.
+        // Routed before the secondary-menu branch so the chord works whether
+        // the menu is open or not. Keeps Alt-free + Shift-free so it doesn't
+        // collide with text input.
+        if (
+          (e.ctrlKey || e.metaKey) &&
+          !e.altKey &&
+          !e.shiftKey &&
+          e.key.toLowerCase() === "e"
+        ) {
+          const r = deps.visibleResults[deps.safeSelected] ?? null;
+          if (r && !deps.explainLoading) {
+            e.preventDefault();
+            deps.onExplain(r.title ?? r.name);
+            return;
+          }
+        }
+
         // Menu open: route arrows/Enter/Left to menu actions; let typed text fall through.
         if (deps.secondaryMenuOpen) {
           const r = deps.visibleResults[deps.safeSelected] ?? null;

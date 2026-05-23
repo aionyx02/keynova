@@ -34,8 +34,8 @@ owner: project
 
 ## Next Step
 
-- `REF.0` / `REF.1` / `REF.2` / `REF.3` / `REF.4` / `REF.5` 已完成。`REF.5` 落地 knowledge DB schema v4 `workflow_history` table、`core/workflow_memory.rs`（`compute_context_hash` / `record` / `suggest`）、`handlers/workflow_memory.rs`（`workflow.recent` + `workflow.suggest` IPC）與前端 `src/features/workflow-memory/`（`useRecentWorkflows` / `useSuggestedWorkflows` hooks）。Record hook 掛在 `cmd_dispatch_impl` Ok branch + `run_action_command` 成功 branch，allowlist 為 `action.run` / `cmd.run` / `capability.call`。Migration 自動備份；未動 `CommandPalette.tsx`。
-- 下一步是 `REF.6`：把 `CommandPalette` 切到消費 `UnifiedResult`、把 `ActionChip` 立為一級觸發、移除嵌入式 `AiPanel` / `TerminalPanel` 熱路徑掛點，並把 REF.4 `useCapability` + REF.5 `useSuggestedWorkflows` 真正掛到 palette。`<250` 行目標仍延到 REF.6 配合。
-- Live Ollama smoke 已對 `explain` + `fix_error` 跑過（model `qwen2.5:0.5b` cold-start single sample，4.6–5.0s；pipeline 通），ADR-0029 §8 對 `qwen2.5:7b` 的正式 P50/P95 reading 仍待下次。
+- `REF.0` / `REF.1` / `REF.2` / `REF.3` / `REF.4` / `REF.5` / `REF.6.A` 已完成。`REF.6.A` 把 `search.query` wire format 切到 `UnifiedResult[]`（後端在 `SearchHandler` emit 邊界用 `From<UiSearchItem>` shim 轉），前端 `useSearchStream` + `utils/search` helpers + `SearchResultsList` 全部消費 UnifiedResult；每個 result row 永久顯示 Explain `ActionChip`、`Ctrl+E` 觸發 `useCapability("explain")`、`InlineCapabilityReply` 串流在結果列下方。`SourceMetadata.secondary_action_count: Option<u32>` 為加性 schema 變更（ADR-0030 §4）。`CommandPalette.tsx` god-component 暫不壓行數（化簡目標 drop per [[feedback-task-persistence]]）。
+- 下一步是 `REF.6.B`：從 palette hot path 移除嵌入式 `AiPanel` / `TerminalPanel` mount，把 `AiPanel` 降級為 legacy fallback；之後 `REF.6.C` 把 destructive secondary actions 切到 `ConfirmRequirement` 驅動。
+- Live Ollama smoke 對 `explain` + `fix_error` 已通（`qwen2.5:0.5b` cold-start 4.6–5.0s），ADR-0029 §8 對 `qwen2.5:7b` 的正式 P50/P95 reading 仍待下次。
 - Run `npm run docs:refresh` before commit or handoff.
 - Treat guard failures as routing feedback: current state stays here; history goes to sessions.

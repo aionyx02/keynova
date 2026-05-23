@@ -18,14 +18,15 @@
 import { useCallback } from "react";
 
 import type { BuiltinCommandResult } from "../../../hooks/useCommands";
-import type { SearchResult } from "../../../types/search";
+import type { UnifiedResult } from "../../../types/unified-result";
 
 interface Deps {
   containerRef: React.RefObject<HTMLDivElement | null>;
   inputRef: React.RefObject<HTMLInputElement | null>;
   setQuery: (q: string) => void;
   setCmdResult: (result: BuiltinCommandResult | null) => void;
-  setResults: (next: SearchResult[]) => void;
+  /** REF.6.A — see useFileActions.UseFileActionsDeps.setResults. */
+  setResults: React.Dispatch<React.SetStateAction<UnifiedResult[]>>;
   cancelSearch: () => void;
   keepLauncherOpen: () => Promise<void> | void;
 }

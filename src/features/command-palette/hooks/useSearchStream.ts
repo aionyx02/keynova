@@ -30,12 +30,12 @@ import type {
   SearchChunkDiagnostics,
   SearchChunkPayload,
   SearchErrorPayload,
-  SearchResult,
 } from "../../../types/search";
+import type { UnifiedResult } from "../../../types/unified-result";
 import {
   applySourceQuotas,
-  mergeSearchResults,
-  sortSearchResults,
+  mergeUnifiedResults,
+  sortUnifiedResults,
 } from "../../../utils/search";
 
 const DEFAULT_SEARCH_LIMIT = 30;
@@ -48,8 +48,8 @@ export interface UseSearchStreamDeps {
 }
 
 export interface UseSearchStream {
-  results: SearchResult[];
-  setResults: React.Dispatch<React.SetStateAction<SearchResult[]>>;
+  results: UnifiedResult[];
+  setResults: React.Dispatch<React.SetStateAction<UnifiedResult[]>>;
   selected: number;
   setSelected: React.Dispatch<React.SetStateAction<number>>;
   timedOutProviders: string[];
@@ -72,7 +72,7 @@ export function useSearchStream({
   dispatch,
   setLoading,
 }: UseSearchStreamDeps): UseSearchStream {
-  const [results, setResults] = useState<SearchResult[]>([]);
+  const [results, setResults] = useState<UnifiedResult[]>([]);
   const [selected, setSelected] = useState(0);
   const [timedOutProviders, setTimedOutProviders] = useState<string[]>([]);
   const [fileDiagnostics, setFileDiagnostics] =
@@ -106,11 +106,11 @@ export function useSearchStream({
           // `visibleResults`, so the kill set doesn't need to live in this
           // event handler.
           setResults(
-            applySourceQuotas(sortSearchResults(payload.items), searchLimitRef.current),
+            applySourceQuotas(sortUnifiedResults(payload.items), searchLimitRef.current),
           );
         } else if (payload.items.length > 0) {
           setResults((current) =>
-            mergeSearchResults(current, payload.items, searchLimitRef.current),
+            mergeUnifiedResults(current, payload.items, searchLimitRef.current),
           );
         }
         if (payload.done) {
@@ -169,7 +169,7 @@ export function useSearchStream({
         setTimedOutProviders([]);
         setFileDiagnostics(null);
         try {
-          const data = await dispatch<SearchResult[]>(IPC.SEARCH_QUERY, {
+          const data = await dispatch<UnifiedResult[]>(IPC.SEARCH_QUERY, {
             query: rawInput,
             limit: searchLimitRef.current,
             stream: true,
@@ -177,7 +177,7 @@ export function useSearchStream({
             first_batch_limit: Math.min(FIRST_BATCH_CAP, searchLimitRef.current),
           });
           if (reqId !== searchIdRef.current) return;
-          setResults(sortSearchResults(data).slice(0, searchLimitRef.current));
+          setResults(sortUnifiedResults(data).slice(0, searchLimitRef.current));
           setSelected(0);
           if (data.length >= searchLimitRef.current) {
             setLoading(false);

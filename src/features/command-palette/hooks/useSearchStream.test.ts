@@ -3,15 +3,17 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { DispatchFn } from "../../../context/IPCContext";
 import { IPC } from "../../../ipc/routes";
-import type { SearchResult } from "../../../types/search";
+import type { UnifiedResult } from "../../../types/unified-result";
 import { useSearchStream } from "./useSearchStream";
 
-function makeResult(name: string, score = 100): SearchResult {
+function makeResult(name: string, score = 100): UnifiedResult {
   return {
-    kind: "file",
-    name,
-    path: `/tmp/${name}`,
-    score,
+    id: `file:/tmp/${name}`,
+    source: { type: "file", kind: "file", path: `/tmp/${name}` },
+    title: name,
+    subtitle: `/tmp/${name}`,
+    actions: [],
+    rank: { score },
   };
 }
 
@@ -27,7 +29,7 @@ function recordingDispatch(impl?: (route: string, payload: unknown) => unknown):
   const calls: DispatchCall[] = [];
   const dispatch = (async (route: string, payload?: unknown) => {
     calls.push({ route, payload });
-    return impl ? impl(route, payload) : ([] as SearchResult[]);
+    return impl ? impl(route, payload) : ([] as UnifiedResult[]);
   }) as unknown as DispatchFn;
   return { dispatch, calls };
 }
@@ -150,7 +152,7 @@ describe("useSearchStream", () => {
   });
 
   it("dispatch success writes results sorted and trimmed to limit", async () => {
-    const fakeData: SearchResult[] = [
+    const fakeData: UnifiedResult[] = [
       makeResult("low", 10),
       makeResult("high", 90),
       makeResult("mid", 50),
@@ -164,9 +166,9 @@ describe("useSearchStream", () => {
       await vi.advanceTimersByTimeAsync(200);
     });
     expect(result.current.results.length).toBe(2);
-    // Highest scores first after sortSearchResults.
-    expect(result.current.results[0].score).toBeGreaterThanOrEqual(
-      result.current.results[1].score,
+    // Highest scores first after sortUnifiedResults (rank.score desc).
+    expect(result.current.results[0].rank?.score ?? 0).toBeGreaterThanOrEqual(
+      result.current.results[1].rank?.score ?? 0,
     );
   });
 

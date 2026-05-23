@@ -1,5 +1,11 @@
 // Vitest setup — runs once per test worker before any test file loads.
-//
-// Currently a placeholder; add @testing-library/jest-dom matchers here if
-// future tests need toBeInTheDocument() etc. Kept as a separate file so
-// vitest.config.ts can reference it without inlining.
+
+// jsdom does not implement `Element.scrollIntoView`; SearchResultsList calls
+// it on each focused row ref. Polyfill as a no-op so component tests can
+// mount the list without crashing.
+if (typeof Element !== "undefined" && !("scrollIntoView" in Element.prototype)) {
+  Object.defineProperty(Element.prototype, "scrollIntoView", {
+    value: () => {},
+    writable: true,
+  });
+}

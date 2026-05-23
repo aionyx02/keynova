@@ -165,6 +165,7 @@ src-tauri/src/
 │   ├── ai.rs / model.rs / translation.rs
 │   ├── ai_capability.rs       # REF.4: capability.* IPC (list/call/cancel). Async worker via thread::spawn; per-request cancel flag; emits capability.response + (when stream=true) capability.stream.chunk events.
 │   ├── workflow_memory.rs     # REF.5: workflow.* IPC (recent/suggest). Synchronous read via KnowledgeStoreHandle::recent_workflows_blocking; suggest resolves context_hash server-side.
+│   ├── search.rs              # REF.6.A: search.query IPC now emits UnifiedResult[] (via to_unified_results helper). UiSearchItem stays internal; conversion happens at sync return, stream-init batch, and emit_search_chunk boundaries.
 │   ├── launcher.rs / search.rs / history.rs
 │   ├── hotkey.rs / mouse.rs
 │   ├── terminal.rs / note.rs / workspace.rs

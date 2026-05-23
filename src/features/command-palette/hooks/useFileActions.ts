@@ -18,6 +18,7 @@ import { revealItemInDir } from "@tauri-apps/plugin-opener";
 import type { DispatchFn } from "../../../context/IPCContext";
 import { IPC } from "../../../ipc/routes";
 import type { ActionRef, SearchResult } from "../../../types/search";
+import type { UnifiedResult } from "../../../types/unified-result";
 import type { BuiltinCommandResult } from "../../../hooks/useCommands";
 import {
   basenameFromPath,
@@ -50,7 +51,9 @@ export interface UseFileActionsDeps {
   flashCopyHint: (hint: string, durationMs?: number) => void;
   clearCopyHint: () => void;
   setQuery: (q: string) => void;
-  setResults: (next: SearchResult[]) => void;
+  /** REF.6.A — palette state now holds `UnifiedResult[]`; this hook only ever
+   * clears results, so the prop matches the canonical setter signature. */
+  setResults: React.Dispatch<React.SetStateAction<UnifiedResult[]>>;
   setCmdResult: (result: BuiltinCommandResult | null) => void;
   setSelected: React.Dispatch<React.SetStateAction<number>>;
   markPathDeleted: (path: string) => void;

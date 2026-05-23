@@ -19,6 +19,15 @@ use crate::managers::{
 };
 use crate::models::action::{Action, ScoreBreakdown, UiSearchItem};
 use crate::models::search_result::{ResultKind, SearchResult};
+use crate::models::unified_result::UnifiedResult;
+
+/// REF.6.A — convert internal `UiSearchItem` rows into the wire format the
+/// palette consumes (`UnifiedResult`). Keeps `UiSearchItem` as the
+/// computation type inside `SearchHandler` while standardising the IPC
+/// boundary.
+fn to_unified_results(items: Vec<UiSearchItem>) -> Vec<UnifiedResult> {
+    items.into_iter().map(UnifiedResult::from).collect()
+}
 
 const DEFAULT_FIRST_BATCH_LIMIT: usize = 30;
 
@@ -215,11 +224,11 @@ impl SearchHandler {
         };
         let mut results = self.base_results_to_ui_items(base_results, &session)?;
         if !self.is_generation_current(generation)? {
-            return Ok(json!(Vec::<UiSearchItem>::new()));
+            return Ok(json!(Vec::<UnifiedResult>::new()));
         }
         self.append_non_file_results(&query, &plan, &session, &mut results)?;
         if !self.is_generation_current(generation)? {
-            return Ok(json!(Vec::<UiSearchItem>::new()));
+            return Ok(json!(Vec::<UnifiedResult>::new()));
         }
         Self::apply_workspace_filter(&mut results, workspace_root.as_deref());
         sort_balanced_truncate(&mut results, plan.display_limit);
@@ -230,7 +239,7 @@ impl SearchHandler {
             results.len(),
             started.elapsed(),
         );
-        serde_json::to_value(results).map_err(|e| e.to_string())
+        serde_json::to_value(to_unified_results(results)).map_err(|e| e.to_string())
     }
 
     fn execute_stream_query(
@@ -294,7 +303,7 @@ impl SearchHandler {
             });
         }
 
-        serde_json::to_value(first_batch).map_err(|e| e.to_string())
+        serde_json::to_value(to_unified_results(first_batch)).map_err(|e| e.to_string())
     }
 
     fn run_stream_worker(&self, request: StreamWorkerRequest) {
@@ -465,13 +474,17 @@ impl SearchHandler {
     }
 
     fn emit_search_chunk(&self, chunk: SearchChunk) {
+        // REF.6.A — palette consumes `UnifiedResult`; convert at the event-
+        // bus emit boundary so the worker's internal `UiSearchItem`
+        // computation type doesn't need to change.
+        let items = to_unified_results(chunk.items);
         let _ = self.event_bus.publish(AppEvent::new(
             "search.results.chunk",
             json!({
                 "request_id": chunk.request_id,
                 "generation": chunk.generation,
                 "chunk_index": chunk.chunk_index,
-                "items": chunk.items,
+                "items": items,
                 "done": chunk.done,
                 "replace": chunk.replace,
                 "timed_out_providers": chunk.timed_out_providers,

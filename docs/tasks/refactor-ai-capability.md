@@ -173,9 +173,9 @@ Done:
 
 Sub-slices (sequencing inside REF.6):
 
-#### REF.6.A - Inline AI MVP (UnifiedResult + ActionChip + explain)
+#### REF.6.A - Inline AI MVP (UnifiedResult + ActionChip + explain) — DONE 2026-05-23
 
-Active sub-slice. Lands the user-visible inline AI surface on top of
+Landed sub-slice. Lands the user-visible inline AI surface on top of
 `UnifiedResult`, without touching `AiPanel` / `TerminalPanel` / legacy
 secondary-menu flows.
 
