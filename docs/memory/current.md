@@ -36,6 +36,6 @@ owner: project
 
 - `REF.0` / `REF.1` / `REF.2` / `REF.3` / `REF.4` 已完成。新增的 `core/ai_capability/` 提供 stateless single-step `explain` / `summarize` / `fix_error`，由 `handlers/ai_capability.rs` 以 `capability.*` IPC 暴露；前端 hook 在 `src/features/ai-capability/`。本批未動 `CommandPalette.tsx`、未動 `agent_runtime.rs`、`ai.legacy_agent` 預設仍為 `true`。
 - 下一步可並行兩條：(a) `REF.5` workflow memory（knowledge DB schema v4 + `core/workflow_memory.rs`），把 `record` / `suggest` 立起來，capability schema 已預留 `context_hash` optional 入口；(b) `REF.6` 把 `CommandPalette` 切到消費 `UnifiedResult`，把 capability `ActionChip` 掛到結果列熱路徑。
-- Live Ollama latency reading 對 REF.4 三個 capability 尚未在本機跑過；下次需在 `cargo test --features live-ai -- --ignored ai_capability_live` 下記錄 P50/P95，超出 800ms 不視為 blocker（REF.7 才量化）。
+- Live Ollama smoke 已對 `explain` + `fix_error` 跑過（model `qwen2.5:0.5b` cold-start single sample，4.6–5.0s；pipeline 通），ADR-0029 §8 對 `qwen2.5:7b` 的正式 P50/P95 reading 仍待下次：先 `ollama pull qwen2.5:7b`，再 warm-up 後連跑 5 次取中位數，記到 session log；超出 800ms 不視為 blocker（REF.7 才量化）。
 - Run `npm run docs:refresh` before commit or handoff.
 - Treat guard failures as routing feedback: current state stays here; history goes to sessions.
