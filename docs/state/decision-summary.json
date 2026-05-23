@@ -57,12 +57,12 @@
     }
   },
   "workflow": {
-    "current_task": "REF.4",
-    "current_task_summary": "add the stateless AI capability layer for `explain`, `summarize`, and `fix_error`",
+    "current_task": "REF.5",
+    "current_task_summary": "add workflow memory as a P0 differentiator, in parallel with `REF.6` prep after the schema boundary is clear",
     "progress": {
-      "done": 4,
+      "done": 5,
       "total": 9,
-      "percent": 44
+      "percent": 56
     }
   }
 }

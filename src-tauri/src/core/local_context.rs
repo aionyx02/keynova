@@ -16,6 +16,7 @@ use crate::managers::{
 };
 use crate::models::agent::{ContextVisibility, GroundingSource};
 
+#[derive(Clone)]
 pub struct LocalContextSearcher {
     pub workspace_manager: Arc<Mutex<WorkspaceManager>>,
     pub note_manager: Arc<Mutex<NoteManager>>,

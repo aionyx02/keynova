@@ -134,9 +134,19 @@ src-tauri/src/
 │   ├── preview.rs         # LAUNCH.1.C: bounded read + classify_path + guess_image_mime (shared by file.preview + learning_material)
 │   ├── dev_utils.rs       # UTIL.2: uuid/nanoid/pw/hash/b64/url/json/regex/jwt/color/cron pure-fn computations
 │   ├── process_lookup.rs  # UTIL.2.J: find_process_by_port + kill_pid (Windows netstat+tasklist / Unix lsof)
-│   ├── grounding.rs       # REF.3: GroundingSource construction helpers (source/visibility_filtered_source/truncate/contains_any/parse_visibility); shared by agent path and upcoming ai_capability layer
-│   ├── local_context.rs   # REF.3: LocalContextSearcher — workspace/command/note/history/model source aggregation; reusable by ai_capability (REF.4)
-│   ├── dev_runner.rs      # REF.3: bounded read-only dev command runner (run_bounded_dev_cmd / extract_compiler_errors / bound_output_n); reserved for fix_error capability (REF.4)
+│   ├── grounding.rs       # REF.3: GroundingSource construction helpers (source/visibility_filtered_source/truncate/contains_any/parse_visibility); shared by agent path and ai_capability layer
+│   ├── local_context.rs   # REF.3: LocalContextSearcher — workspace/command/note/history/model source aggregation; consumed by ai_capability (REF.4)
+│   ├── dev_runner.rs      # REF.3: bounded read-only dev command runner (run_bounded_dev_cmd / extract_compiler_errors / bound_output_n); consumed by fix_error capability (REF.4)
+│   ├── ai_capability/     # REF.4: stateless single-shot capability layer (ADR-0029). call_capability(req, deps) dispatched on a compile-time enum match.
+│   │   ├── mod.rs              # public entry + match on CapabilityId
+│   │   ├── registry.rs         # CapabilityId::{Explain,Summarize,FixError} + static CapabilityMeta {audit, accepts_context_hash} per ADR-0030 §4
+│   │   ├── contract.rs         # CapabilityRequest/Response/Output/Error/Deps; ChatProvider trait (test-stubbable); AiManagerChatProvider production adapter
+│   │   ├── prompt.rs           # CAPABILITY_PROMPT_BUDGET_CHARS=1400; build_prompt drops context block on overrun; maybe_audit gated by CapabilityMeta.audit
+│   │   ├── capabilities/       # one file per capability
+│   │   │   ├── explain.rs           # local_context-grounded explanation; audit=true; risk=none
+│   │   │   ├── summarize.rs         # pure text transform; audit=false; risk=none
+│   │   │   └── fix_error.rs         # raw_output OR allowlisted dev re-run via dev_runner; "apply" variant rejected as UnsupportedAction in v1; audit=true; risk=none
+│   │   └── live_tests.rs       # cfg(feature="live-ai"), #[ignore]: live Ollama qwen2.5:7b smoke tests (P50/P95 print to stdout for REF.7)
 │   └── ipc_error.rs
 ├── handlers/              # CommandHandler 實作（每個 namespace 一個）
 │   ├── agent/             # Agent handler 子模組
@@ -152,6 +162,7 @@ src-tauri/src/
 │   │   ├── safety.rs           # sanitize_external_query / long_term_memory_opt_in / looks_sensitive_path / resolve_readable_path
 │   │   └── web.rs              # web-search provider abstraction (duckduckgo + tavily + searxng + github trending)
 │   ├── ai.rs / model.rs / translation.rs
+│   ├── ai_capability.rs       # REF.4: capability.* IPC (list/call/cancel). Async worker via thread::spawn; per-request cancel flag; emits capability.response + (when stream=true) capability.stream.chunk events.
 │   ├── launcher.rs / search.rs / history.rs
 │   ├── hotkey.rs / mouse.rs
 │   ├── terminal.rs / note.rs / workspace.rs

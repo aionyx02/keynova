@@ -1,5 +1,6 @@
 pub mod agent;
 pub mod ai;
+pub mod ai_capability;
 pub mod automation;
 pub mod builtin_cmd;
 pub mod calculator;
