@@ -2,7 +2,7 @@
 type: task_plan
 status: active
 priority: p0
-updated: 2026-05-20
+updated: 2026-05-23
 context_policy: on_demand
 owner: project
 tags: [refactor, ai-capability, unified-result, workflow-memory, search-first]
@@ -170,6 +170,56 @@ Done:
 - UI scenarios 4.1 through 4.5 from the design doc work.
 - Palette layout stays stable except for explicit preview expansion.
 - Search, builtin command, file action, note, and model workflows do not regress.
+
+Sub-slices (sequencing inside REF.6):
+
+#### REF.6.A - Inline AI MVP (UnifiedResult + ActionChip + explain)
+
+Active sub-slice. Lands the user-visible inline AI surface on top of
+`UnifiedResult`, without touching `AiPanel` / `TerminalPanel` / legacy
+secondary-menu flows.
+
+Primary goals (must land):
+- `search.query` wire format is `UnifiedResult[]` (sync + stream initial
+  batch + chunk event).
+- `SearchResultsList` consumes `UnifiedResult` and renders an "Explain"
+  `ActionChip` on each row (always visible; disabled when the focused
+  row's capability call is in-flight).
+- `Ctrl+E` on a focused row triggers `useCapability("explain")` and a
+  new `InlineCapabilityReply` panel streams the response below the
+  result list.
+- Bug A focus race + Bug B kill-set paths remain green by manual smoke.
+
+Simplification-only goals (drop if they don't serve the inline-AI
+outcome):
+- Pushing `CommandPalette.tsx` toward `< 250` lines.
+- Renaming TS `SearchResult` type to disambiguate from Rust's.
+- Refactoring `applySourceQuotas` into a shared helper.
+- Extracting `ActionChipBar` into `src/shared/`.
+
+Schema (additive, ADR-0030 §4 evolution rule):
+- `SourceMetadata.secondary_action_count: Option<u32>` populated from
+  `UiSearchItem.secondary_action_count` via the existing
+  `From<UiSearchItem>` shim in `src-tauri/src/models/unified_result.rs`.
+
+Verification:
+- `cargo clippy --lib -- -D warnings` + `cargo test --lib` green.
+- `npm run test` + `npm run lint` green; new chip + reply tests added.
+- `npm run tauri dev` smoke: Ctrl+E streams reply; Esc cancels; Bug A/B
+  flows unaffected.
+
+#### REF.6.B - Remove AiPanel / TerminalPanel hot-path mount
+
+Pending. Strip embedded `AiPanel` and `TerminalPanel` mounts from
+`CommandPalette.tsx`; keep `AiPanel` reachable as legacy fallback only.
+Collapse pipeline output to a compact status row.
+
+#### REF.6.C - UI approval confirmation reads ConfirmRequirement
+
+Pending. Switch destructive action UX from the existing two-phase
+secondary-menu gate to reading `ActionChip.confirm.requires_confirmation`
+from `UnifiedResult` actions. SecondaryActionMenu may stay as a
+rendering surface but loses the local confirm state machine.
 
 ### REF.7 - Quantitative Gates And Legacy Default Off
 
