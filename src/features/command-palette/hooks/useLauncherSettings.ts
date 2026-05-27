@@ -24,6 +24,7 @@ const WATCHED_KEYS: ReadonlyArray<string> = [
   "launcher.max_results",
   "search.preview_enabled",
   "search.show_rank_breakdown",
+  "launcher.show_capability_hint",
 ];
 
 export interface UseLauncherSettingsDeps {
@@ -35,6 +36,8 @@ export interface UseLauncherSettingsDeps {
 export interface UseLauncherSettings {
   previewEnabled: boolean;
   showRankBreakdown: boolean;
+  /** REF.6.B — toggles the empty-palette capability hint line. */
+  showCapabilityHint: boolean;
 }
 
 export function useLauncherSettings({
@@ -43,6 +46,7 @@ export function useLauncherSettings({
 }: UseLauncherSettingsDeps): UseLauncherSettings {
   const [previewEnabled, setPreviewEnabled] = useState(true);
   const [showRankBreakdown, setShowRankBreakdown] = useState(true);
+  const [showCapabilityHint, setShowCapabilityHint] = useState(true);
 
   useEffect(() => {
     if (!window.__TAURI_INTERNALS__) return;
@@ -62,6 +66,10 @@ export function useLauncherSettings({
         const rank = entries.find((e) => e.key === "search.show_rank_breakdown")?.value;
         if (rank !== undefined) {
           setShowRankBreakdown(rank !== "false");
+        }
+        const hint = entries.find((e) => e.key === "launcher.show_capability_hint")?.value;
+        if (hint !== undefined) {
+          setShowCapabilityHint(hint !== "false");
         }
       } catch {
         // keep current values
@@ -85,5 +93,5 @@ export function useLauncherSettings({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  return { previewEnabled, showRankBreakdown };
+  return { previewEnabled, showRankBreakdown, showCapabilityHint };
 }

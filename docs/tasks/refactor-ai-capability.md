@@ -2,7 +2,7 @@
 type: task_plan
 status: active
 priority: p0
-updated: 2026-05-23
+updated: 2026-05-27
 context_policy: on_demand
 owner: project
 tags: [refactor, ai-capability, unified-result, workflow-memory, search-first]
@@ -10,7 +10,7 @@ tags: [refactor, ai-capability, unified-result, workflow-memory, search-first]
 
 # P0 Refactor: AI Capability Layer And Unified Search
 
-Source: `C:\Users\shawn\Downloads\Keynova_Refactor_Plan_v1-2.docx`
+Source: `Keynova_Refactor_Plan_v1-2.docx` (repo root). Anchors below cite docx sections.
 
 Goal: reposition Keynova as a keyboard-first workflow tool. Unified search is the product spine; AI becomes a stateless capability invoked inline from result rows and workflow surfaces.
 
@@ -22,304 +22,385 @@ Goal: reposition Keynova as a keyboard-first workflow tool. Unified search is th
 - Keep legacy agent/chat code behind `ai.legacy_agent` during the compatibility window; physical removal waits for `REF.8`.
 - Do not implement architecture-changing code until ADR-0029 is accepted by the developer.
 
+## Re-planning Note (2026-05-27)
+
+Re-aligned the post-REF.6.A queue against the docx. Three decisions diverge from
+the docx literal text and are intentional:
+
+- `CommandPalette.tsx` size: docx Step 2 done = `< 250`. Current landing is 598
+  lines; we keep that and drop the `< 250` hard gate per
+  [[project-ref2-p5-landing]] + [[feedback-task-persistence]] (simplification-only
+  goals do not block closure). Treated as documented deviation, not a regression.
+- `AiPanel.tsx`: docx §3.5/§4.6 says delete entirely. We split into two phases —
+  REF.6.G removes from palette hot path + flag-guards as legacy fallback; REF.8
+  decides physical deletion after the observation cycle. Authority for staged
+  removal: ADR-0029 §2.5 Rollback (parallel + flag, 2 release cycles).
+- **Inline AI invocation pattern**: docx §4.1–4.5 mockups use per-row chips +
+  auto-detection (NL heuristic / terminal regex / empty-state mount). Developer
+  redirected to **prefix-keyword** pattern: type `explain <q>` / `summarize <t>` /
+  `cmd <intent>` / `fix <error>` / `next` in the palette; capability mode owns
+  the result area; no row chips and no auto-detect. REF.6.A's per-row Explain
+  chip and `Ctrl+E` are removed in REF.6.B. Wire format (`UnifiedResult`) is
+  retained for non-AI action data. Authority: see [[feedback-inline-ai-prefix]].
+  Details in `docs/tasks/refactor-ai-capability-ui-spec.md`.
+
 ## Batch Plan
 
-### REF.0 - ADR-0029 Decision Lock
+### REF.0 - ADR-0029 Decision Lock — DONE
 
-Priority: P0
+### REF.1 - Unified Result Schema — DONE
 
-Scope:
-- Create `docs/adr/0029-ai-capability-layer.md` from the plan's ADR draft.
-- State that AI moves from product core to capability layer.
-- State that independent chat-first `AiPanel` is removed from the target architecture.
-- State that autonomous multi-step ReAct is replaced by stateless single-step capability calls.
-- State that backend approval state becomes UI-owned confirmation over backend risk tags.
-- Mark ADR-0011, ADR-0016, ADR-0022, ADR-0023, ADR-0024, ADR-0026, and planned ADR-0037 as affected.
+### REF.2 - Command Palette Feature Split — DONE (with documented deviation)
 
-Non-goals:
-- Do not change runtime code.
-- Do not mark ADR-0029 accepted without developer action.
-- Do not amend affected ADRs yet; only mark impact.
+Landed at 598 lines (docx target was `< 250`). `< 250` is now treated as
+aspirational; do not reopen as a standalone simplification batch. Behavior and
+Bug A/B regression checks passed.
 
-Done:
-- ADR-0029 exists as proposed/accepted per developer decision.
-- `docs/decisions.md` references ADR-0029.
-- Active tasks reflect this plan as P0.
+### REF.3 - Agent Handler Module Split — DONE
 
-### REF.1 - Unified Result Schema
+`handlers/agent/mod.rs` currently 616 lines (docx observation target `< 600`).
+Micro-overshoot accepted; revisit only if REF.6.B/D extraction creates room for
+free trimming.
 
-Priority: P0
+### REF.4 - Stateless AI Capability Layer — PARTIALLY DONE
 
-Scope:
-- Add backend shared result types for `UnifiedResult`, `ResultSource`, `ActionChip`, `ConfirmRequirement`, `PreviewPayload`, `RankSignals`, and source metadata.
-- Add matching frontend TypeScript types.
-- Add conversion shims from existing search, builtin command, and file/action results.
-- Keep old `SearchResult` and `BuiltinCommandResult` as deprecated compatibility types.
+Three capabilities landed: `explain`, `summarize`, `fix_error`. The remaining
+docx Step 4 capabilities — `gen_command`, `suggest_next` — are intentionally
+deferred to REF.6.C so they ship together with their UI scenes (4.4 / 4.5),
+which need workflow memory wiring (REF.5) already in place.
 
-Non-goals:
-- Do not switch `CommandPalette` consumption yet.
-- Do not delete old result models.
+Live Ollama smoke against `qwen2.5:0.5b` cold-start: 4.6–5.0 s for `explain` /
+`fix_error`. Formal P50/P95 reading on `qwen2.5:7b` remains pending until REF.7
+bench scripts exist.
 
-Done:
-- Rust checks and TypeScript checks pass.
-- Three existing result producers can emit or convert to `UnifiedResult`.
-- UI scenarios in the design doc are represented by the schema.
+### REF.5 - Workflow Memory — DONE
 
-### REF.2 - Command Palette Feature Split
+Schema v4 `workflow_history` + `record` / `suggest` entry points landed. No
+`suggest_next` capability wiring yet (that is REF.6.C / REF.6.E scope).
 
-Priority: P0
+### REF.6 - Search Box As Pure Dispatcher (in progress)
 
-Scope:
-- Create `src/features/command-palette/`.
-- Split `CommandPalette.tsx` into feature hooks/components while preserving behavior.
-- Prioritize `useSearchStream`, `usePipeline`, and `useRecentlyDeleted` because they touch Bug A/B state.
-- Move `CommandSuggestions`, `FilterChips`, and `SecondaryActionMenu` under the command-palette feature.
-- Keep shared primitives in `src/shared/components/` only when reused outside the feature.
+Docx anchor: §3.1, §3.5, §4.1–4.6, Step 6 of §5.
 
-Non-goals:
-- Do not switch to consuming `UnifiedResult`; that waits for `REF.6`.
-- Do not remove `AiPanel`.
+Sub-batches below. Each is independently shippable; sequence reflects
+dependency, not priority.
 
-Done:
-- `CommandPalette.tsx` is under 250 lines.
-- Extracted hooks have focused tests.
-- Bug A launcher/focus regression and Bug B delete verification flows are manually checked after the split.
-- Visual and keyboard behavior match the pre-split baseline.
+#### REF.6.A — Inline AI MVP — DONE 2026-05-23
 
-### REF.3 - Agent Handler Module Split
+`search.query` returns `UnifiedResult[]`; every result row carries an `Explain`
+`ActionChip`; `Ctrl+E` triggers `useCapability("explain")`; streaming reply
+renders below the focused row via `InlineCapabilityReply`. Schema additive
+change: `SourceMetadata.secondary_action_count: Option<u32>`.
 
-Priority: P0
+#### REF.6.B — Prefix dispatcher + `explain` / `summarize` end-to-end — DONE (unit-level)
 
-Scope:
-- Split `handlers/agent/mod.rs` so lifecycle stays separate from tool dispatch, local context, dev command running, and intent answer helpers.
-- Move `LocalContextSearcher` to `core/local_context.rs`.
-- Move dev command runner logic to `core/dev_runner.rs` for later `fix_error` capability use.
-- Move or isolate risk/safety helpers so `REF.4` can reuse them.
-- Mark intent-answer modules deprecated where they only support chat-first behavior.
+Full UI contract in `docs/tasks/refactor-ai-capability-ui-spec.md` §1–3 + §9.
 
-Non-goals:
-- Do not remove `agent_runtime.rs` yet.
-- Do not change legacy ReAct behavior except where required by safe extraction.
-
-Done:
-- `handlers/agent/mod.rs` is under 600 lines during the observation phase.
-- Existing agent tests still pass.
-- Approval state coupling is explicit and isolated.
-
-### REF.4 - Stateless AI Capability Layer
-
-Priority: P0
-
-Scope:
-- Add `core/ai_capability/` with a single public call entry.
-- Add compile-time capability registry, resolver, typed payload/result contracts, and risk tagging.
-- Implement `explain`, `summarize`, and `fix_error` first.
-- Add `handlers/ai_capability.rs` IPC entry.
-- Add frontend `src/features/ai-capability/` hooks and inline UI surfaces.
-- Preserve prompt audit per call.
-
-Non-goals:
-- Do not allow capability functions to call follow-up capabilities.
-- Do not keep session memory inside capability execution.
-- Do not delete `agent_runtime.rs` yet.
-- Keep `ai.legacy_agent` default true until `REF.7`.
-
-Done:
-- Each initial capability has unit and integration coverage.
-- Inline explain and terminal fix-error scenarios work.
-- Ollama `qwen2.5:7b` AI inline P50 latency is under 800 ms or the gap is documented before `REF.7`.
-
-### REF.5 - Workflow Memory
-
-Priority: P0
-
-Parallelism:
-- May run alongside `REF.4` after `REF.1` schema shape is stable.
-
-Scope:
-- Add knowledge DB schema v4 with `workflow_history`.
-- Add `core/workflow_memory.rs` with `record` and `suggest` entry points.
-- Add frontend `src/features/workflow-memory/` for recent workflows.
-- Use `context_hash` and heuristic ranking before considering embeddings.
-
-Non-goals:
-- Do not connect `suggest_next` capability until the capability layer exists.
-- Do not add broad local-content scanning.
-
-Done:
-- Migration is additive and has rollback guidance.
-- Recent workflow suggestions work without AI.
-- Workflow memory gives unified search differentiation without slowing cold open.
-
-### REF.6 - Search Box As Pure Dispatcher
-
-Priority: P0
-
-Scope:
-- Switch `CommandPalette` result rendering to consume `UnifiedResult`.
-- Treat `ActionChip` as the first-class action model.
-- Remove embedded `AiPanel` and `TerminalPanel` mounts from the palette hot path.
-- Collapse pipeline output to a compact status row.
-- Make UI approval confirmation read `ConfirmRequirement` and risk tags from results.
-
-Non-goals:
-- Do not delete old backend compatibility types yet.
-- Do not physically remove legacy agent code yet.
-
-Done:
-- UI scenarios 4.1 through 4.5 from the design doc work.
-- Palette layout stays stable except for explicit preview expansion.
-- Search, builtin command, file action, note, and model workflows do not regress.
-
-Sub-slices (sequencing inside REF.6):
-
-#### REF.6.A - Inline AI MVP (UnifiedResult + ActionChip + explain) — DONE 2026-05-23
-
-Landed sub-slice. Lands the user-visible inline AI surface on top of
-`UnifiedResult`, without touching `AiPanel` / `TerminalPanel` / legacy
-secondary-menu flows.
-
-Primary goals (must land):
-- `search.query` wire format is `UnifiedResult[]` (sync + stream initial
-  batch + chunk event).
-- `SearchResultsList` consumes `UnifiedResult` and renders an "Explain"
-  `ActionChip` on each row (always visible; disabled when the focused
-  row's capability call is in-flight).
-- `Ctrl+E` on a focused row triggers `useCapability("explain")` and a
-  new `InlineCapabilityReply` panel streams the response below the
-  result list.
-- Bug A focus race + Bug B kill-set paths remain green by manual smoke.
-
-Simplification-only goals (drop if they don't serve the inline-AI
-outcome):
-- Pushing `CommandPalette.tsx` toward `< 250` lines.
-- Renaming TS `SearchResult` type to disambiguate from Rust's.
-- Refactoring `applySourceQuotas` into a shared helper.
-- Extracting `ActionChipBar` into `src/shared/`.
-
-Schema (additive, ADR-0030 §4 evolution rule):
-- `SourceMetadata.secondary_action_count: Option<u32>` populated from
-  `UiSearchItem.secondary_action_count` via the existing
-  `From<UiSearchItem>` shim in `src-tauri/src/models/unified_result.rs`.
+Landed:
+- `parseCapabilityPrefix` parser (only `explain` / `summarize` wired this
+  batch; `cmd` / `fix` / `next` fall through to search until REF.6.D/.E/.F).
+- `usePaletteMode` hook + `useCapabilityStream` (300 ms debounce + cancel-
+  on-rerun + projected timing).
+- `CapabilityAnswerCard` (header `✨ <label> · <latency>`, Markdown body,
+  `[Copy md]` + `[Save to note]` footer chips with auto-name
+  `<Label>: <first 40 chars>` via existing `note.save` IPC).
+- `CapabilityResultArea` dispatcher; mounted in palette via
+  `key={paletteMode.id}` on capability swap.
+- `CapabilityHintLine` rendered above empty palette; gated by new
+  `launcher.show_capability_hint` setting (default true) added to
+  `useLauncherSettings` `WATCHED_KEYS`.
+- `useEscapeKey` extended with capability-cancel branch — first Esc cancels
+  stream (body shows `Cancelled.`), second Esc falls through to clear query.
+- `usePaletteRefs` extended with `capabilityModeRef` /
+  `capabilityStreamingRef` to keep the single-mount Esc listener free of
+  stale closures.
+- REF.6.A row chip + `onExplain` plumbing + `Ctrl+E` binding +
+  `InlineCapabilityReply` component removed cleanly.
 
 Verification:
-- `cargo clippy --lib -- -D warnings` + `cargo test --lib` green.
-- `npm run test` + `npm run lint` green; new chip + reply tests added.
-- `npm run tauri dev` smoke: Ctrl+E streams reply; Esc cancels; Bug A/B
-  flows unaffected.
+- 101 / 102 vitest tests pass (1 intentional skip on the placeholder
+  `SearchResultsList.test.tsx`). `npm run lint` clean.
+- `cargo test --lib` shows one unrelated pre-existing failure
+  (`handlers::builtin_cmd::tests::note_lazyvim_missing_nvim_returns_inline_guidance`)
+  on the base branch — not blocking REF.6.B.
 
-#### REF.6.B - Remove AiPanel / TerminalPanel hot-path mount
+Pending (handoff to manual smoke before commit):
+- `npm run tauri dev`: type `explain rust hashmap remove` → answer streams
+  in card within ~5 s on cold model.
+- Backspacing past `explain ` returns to search results in the same frame.
+- Esc twice clears prefix in two stages (cancel → clear).
+- Bug A focus race + Bug B delete-verify still pass.
 
-Pending. Strip embedded `AiPanel` and `TerminalPanel` mounts from
-`CommandPalette.tsx`; keep `AiPanel` reachable as legacy fallback only.
-Collapse pipeline output to a compact status row.
+#### REF.6.C — Complete capability set: gen_command + suggest_next (docx §3.2)
 
-#### REF.6.C - UI approval confirmation reads ConfirmRequirement
+Scope:
+- Backend `core/ai_capability/gen_command.rs`: typed payload
+  `{ intent: String, ctx: GenCommandCtx }` → `{ command: String, confidence: f32,
+  rationale: String }`. Registry + risk tag + audit per existing pattern.
+- Backend `core/ai_capability/suggest_next.rs`: typed payload
+  `{ ctx: SuggestNextCtx }` → `Vec<SuggestedNextAction>`. Reads
+  `workflow_memory::suggest` and re-ranks with capability heuristic.
+- Frontend types + `useGenCommand` / `useSuggestNext` hooks.
+- `handlers/ai_capability.rs` exposes both via IPC.
 
-Pending. Switch destructive action UX from the existing two-phase
-secondary-menu gate to reading `ActionChip.confirm.requires_confirmation`
-from `UnifiedResult` actions. SecondaryActionMenu may stay as a
-rendering surface but loses the local confirm state machine.
+Non-goals:
+- No UI surface wiring (that is REF.6.E / REF.6.F).
+- No autonomous chain — capabilities still single-step.
+
+Done:
+- 5 / 5 capabilities live behind one `call_capability` entry.
+- Unit tests cover typed payload contracts.
+- Live Ollama smoke green for both new capabilities.
+
+#### REF.6.D — `fix <error>` prefix wired to `CapabilityAnswerCard`
+
+Spec: ui-spec §9 REF.6.D.
+
+Scope:
+- Add `fix` to the prefix parser (`fix <raw error text>`).
+- Reuse `CapabilityAnswerCard`; no new card component.
+- When capability output contains a structured diff hint, render a small
+  inline diff section above the markdown body.
+
+Non-goals:
+- No terminal auto-detect / regex watcher.
+- No apply-patch action in v1; user copies fix manually.
+- No 5-minute blacklist.
+
+Done:
+- Pasting a cargo error after `fix ` streams a usable fix suggestion within
+  5 s on cold model.
+- Switching to and from `fix` prefix is instant.
+
+#### REF.6.E — `next` prefix + `CapabilityListCard`
+
+Spec: ui-spec §9 REF.6.E.
+
+Scope:
+- Add `next` (zero-arg) to the prefix parser.
+- Add `CapabilityListCard` rendering a navigable list of
+  `SuggestedNextAction` items.
+- Wire `suggest_next` capability output.
+- Extract row-navigation keyboard handling into a shared hook reusable by
+  `SearchResultsList`.
+
+Non-goals:
+- No automatic empty-state mounting (docx §4.4 split dropped).
+- No mixed ranking with workflow_memory raw data — that data is the input
+  to the suggester.
+
+Done:
+- Typing `next` returns ranked suggestions within 1 s warm cache.
+- Arrow keys + Enter dispatch each suggestion via its `action_ref`.
+- Empty result handled gracefully (`No recent workflows`).
+
+#### REF.6.F — `cmd <intent>` prefix + `CapabilityCommandCard`
+
+Spec: ui-spec §9 REF.6.F.
+
+Scope:
+- Add `cmd` to the prefix parser.
+- Add `CapabilityCommandCard` (structured command + confidence + rationale
+  + `[↵ Run]` / `[Edit before]` / `[Copy]` chips).
+- Wire `gen_command` capability.
+- Confidence display: `low` dims `[Run]` and requires explicit Tab focus;
+  `high` auto-focuses `[Run]`.
+
+Non-goals:
+- No NL-query auto-detection (prefix is the only entry).
+- No multi-step plan output.
+
+Done:
+- `cmd 把當前 branch 上 commit 推到 origin` returns `git push origin HEAD`-
+  shaped card within 1 s warm cache.
+- `[Edit before]` returns command into palette input (prefix stripped).
+- Low-confidence card does not auto-focus `[Run]`.
+
+#### REF.6.G — Remove panels from hot path + UI-owned approval
+
+Scope:
+- Remove `AiPanel` and `TerminalPanel` mounts from `CommandPalette.tsx` hot
+  path. `AiPanel` stays in the codebase, reachable only when
+  `ai.legacy_agent = true` (legacy fallback route).
+- Collapse pipeline output to a compact status row in the result list.
+- Wire destructive `ActionChip.confirm` (`Once` / `TwoStage`) into a UI-layer
+  confirm hook. `SecondaryActionMenu` becomes a rendering surface only; its
+  local two-phase state machine is removed.
+- Backend stops emitting backend-side approval state for any path reachable
+  from `UnifiedResult`; risk tags + `ConfirmRequirement` are sufficient.
+
+Non-goals:
+- Do not delete `AiPanel.tsx` source (deletion candidate moves to REF.8 per
+  user decision 2026-05-27).
+- Do not change agent_runtime approval for `ai.legacy_agent = true` path.
+
+Done:
+- Palette no longer mounts `AiPanel` or `TerminalPanel` when
+  `ai.legacy_agent = false`.
+- Destructive action UX (delete file, run command with side effects) routes
+  through `ConfirmRequirement`, not backend state polling.
+- Manual regression: Bug B delete verification still requires two confirms.
+
+#### REF.6.H — Feature-first directory migration (docx §3.5, §6.1)
+
+Scope:
+- Move remaining `src/components/*.tsx` panels to `src/features/<feature>/`:
+  `calculator`, `history` (simplified to source-filter view), `learning`,
+  `mouse-control`, `notes`, `nvim`, `settings`, `system`, `system-monitor`,
+  `terminal`, `translation`.
+- Consolidate `ModelDownloadPanel` + `ModelListPanel` + `ModelRemovePanel`
+  into `src/features/model-manager/ModelManagerPanel.tsx` (single entry, three
+  internal tabs/views).
+- Establish `src/shared/{components,hooks,types}` for cross-feature reuse:
+  `PreviewPane`, `RankTooltip`, `Markdown`, `ErrorBoundary`,
+  `CheatsheetOverlay`, `OnboardingTour`, `WorkspaceIndicator`.
+- Keep `FloatingWindow` and `AppContainer` where they are (app-level shell).
+
+Non-goals:
+- No behavioral changes during the move.
+- Do not rename internal exports in a way that breaks deep imports outside
+  the moved file.
+
+Done:
+- `src/components/` contains only `FloatingWindow.tsx`, `AppContainer.tsx`,
+  and `AiPanel.tsx` (legacy fallback, slated for REF.8).
+- All test files + imports update; `npm run test` and `npm run lint` green.
+
+#### REF.6.I — ADR-0030 template slimming (docx §9.2 push back 2)
+
+Scope:
+- Draft `docs/adr/0030-adr-template-slim.md` proposing the 4-section template:
+  `Context` / `Decision` / `Consequences` / `Rollback`.
+- Move `Alternatives` to PR description guidance; move `Validation` /
+  `Implementation` tracking to task files.
+- Status `proposed` only; awaits developer acceptance.
+
+Non-goals:
+- Do not retroactively rewrite existing ADRs.
+- Do not modify ADR-0029 or any accepted ADR.
+
+Done:
+- ADR-0030 file exists with `status: proposed`.
+- `docs/decisions.md` indexes it.
 
 ### REF.7 - Quantitative Gates And Legacy Default Off
 
 Priority: P0
 
 Scope:
-- Add performance bench scripts and CI-friendly file-size gates.
+- Add performance bench scripts and CI-friendly file-size gates (per docx §8).
 - Default `ai.legacy_agent = false`.
 - Keep legacy agent/chat available behind the flag for one release cycle.
 - Run manual regression for Bug A/B class race conditions.
 - Update release notes and docs for the new AI interaction model.
+- Take formal P50 / P95 reading on `qwen2.5:7b` (the deferred ADR-0029 §8
+  measurement).
 
 Non-goals:
 - Do not physically remove legacy agent/chat code during the observation cycle.
 
 Done:
-- `CommandPalette.tsx` < 250 lines.
-- `handlers/agent/mod.rs` < 600 lines during observation.
+- `handlers/agent/mod.rs` ≤ 616 lines (current) or trimmed below `< 600`.
 - `agent_runtime.rs` < 400 lines during observation or justified pending removal.
-- AI inline P50 < 800 ms and P95 < 1500 ms.
+- AI inline P50 < 800 ms and P95 < 1500 ms on `qwen2.5:7b`.
 - Palette cold open < 200 ms and warm open < 50 ms.
 - Search first chunk P50 < 80 ms.
-- Idle RSS < 150 MB after 10 minutes and < 200 MB after 1 hour, excluding documented budget exceptions.
+- Idle RSS < 150 MB after 10 minutes and < 200 MB after 1 hour, excluding
+  documented budget exceptions.
 - One release cycle completes without P0 regression reports.
+
+Note: `CommandPalette.tsx < 250` is *not* a REF.7 gate (per re-planning note
+above). The 598-line landing is accepted.
 
 ### REF.8 - Physical Removal
 
 Priority: P0 after observation
 
 Scope:
-- Delete chat-first `AiPanel` code and remove palette links to it.
-- Delete or shrink `agent_runtime.rs` to the remaining archival/audit surface.
+- Decide AiPanel deletion based on observation-cycle telemetry. If
+  `ai.legacy_agent = true` selection rate < 1% across the observation
+  window, delete `src/components/AiPanel.tsx` entirely. Otherwise retain as
+  flag-guarded escape hatch and remove the deletion task.
+- Delete or shrink `agent_runtime.rs` to the remaining archival/audit
+  surface.
 - Delete migrated `handlers/agent/` legacy content.
 - Remove `ai.legacy_agent`.
-- Mark superseded ADRs according to the accepted ADR-0029 outcome.
+- Mark superseded ADRs (0011 / 0016 / 0022 / 0026) according to the accepted
+  ADR-0029 outcome.
 
 Non-goals:
 - Do not remove audit log tables or historical user data.
 
 Done:
-- Refactor achieves at least 30% code reduction across frontend/backend target files.
-- Deprecated result and agent code paths are gone.
+- Refactor achieves at least 30% code reduction across frontend/backend
+  target files.
+- Deprecated result and agent code paths are gone (or retained with explicit
+  written justification).
 - Documentation and ADR indexes match the final state.
 
 ## File Map
 
 Frontend targets:
-- Split `src/components/CommandPalette.tsx` into `src/features/command-palette/`.
-- Delete target: `src/components/AiPanel.tsx` after observation.
-- Move command-palette support components: `CommandSuggestions`, `FilterChips`, `SecondaryActionMenu`.
-- Add `src/features/ai-capability/`.
-- Add `src/features/workflow-memory/`.
-- Consolidate model panels into `src/features/model-manager/` after hot-path refactor work is stable.
+- Split `src/components/CommandPalette.tsx` into `src/features/command-palette/` (DONE; 598 lines accepted).
+- AiPanel: REF.6.G removes from hot path; REF.8 decides physical deletion.
+- Add `src/features/ai-capability/` (DONE for 3 capabilities; extend in REF.6.C).
+- Add `src/features/workflow-memory/` (DONE).
+- Consolidate model panels into `src/features/model-manager/` (REF.6.H).
+- Migrate remaining `src/components/*.tsx` panels into `src/features/*` (REF.6.H).
 
 Backend targets:
-- Add shared result models under `src-tauri/src/models/` or the established local model namespace.
-- Add `src-tauri/src/core/ai_capability/`.
-- Add `src-tauri/src/core/workflow_memory.rs`.
-- Add `src-tauri/src/handlers/ai_capability.rs`.
-- Split `src-tauri/src/handlers/agent/mod.rs`.
-- Shrink then remove `src-tauri/src/core/agent_runtime.rs` after the observation window.
+- Shared result models (DONE).
+- `src-tauri/src/core/ai_capability/` (DONE for 3 capabilities; extend in REF.6.C).
+- `src-tauri/src/core/workflow_memory.rs` (DONE).
+- `src-tauri/src/handlers/ai_capability.rs` (DONE; extend in REF.6.C).
+- `src-tauri/src/handlers/agent/mod.rs` (DONE at 616; trim opportunistically).
+- Shrink then remove `src-tauri/src/core/agent_runtime.rs` after the observation
+  window (REF.8).
 
 ## Conflict Handling
 
 Superseded or parked work:
 - `AGENT.3` and `AI.1` are replaced by this refactor track.
-- `LAUNCH.2.C`, `ONBOARD.1.D/E`, `NOTE.1`, `UTIL.1.B-online`, and other feature tracks are parked until `REF.7`.
-- The old chat-first AI panel should not receive feature investment except compatibility fixes needed for the release-cycle fallback.
+- `LAUNCH.2.C`, `ONBOARD.1.D/E`, `NOTE.1`, `UTIL.1.B-online`, and other feature
+  tracks are parked until `REF.7`.
+- The old chat-first AI panel should not receive feature investment except
+  compatibility fixes needed for the release-cycle fallback.
 
 Still allowed:
 - P0 bug fixes that block current app use.
-- Safety fixes around approval, sandbox, privacy, or destructive file operations.
+- Safety fixes around approval, sandbox, privacy, or destructive file
+  operations.
 - Test scaffolding and benchmarks required by this plan.
 
 ## Validation Matrix
 
-Code size:
-- `CommandPalette.tsx`: 1582 lines to < 250.
-- `handlers/agent/mod.rs`: 2406 lines to < 600 during observation, then deleted or < 100.
-- `agent_runtime.rs`: 1891 lines to < 400 during observation, then deleted.
-- `AiPanel.tsx`: 979 lines to deleted after observation.
-- Any handler: < 600 lines.
-- Any component: < 400 lines.
+Code size (revised against docx for re-planning):
+- `CommandPalette.tsx`: 1582 → 598. `< 250` dropped per [[project-ref2-p5-landing]].
+- `handlers/agent/mod.rs`: 2406 → 616 (observation), then deleted or `< 100` (REF.8).
+- `agent_runtime.rs`: 1891 → `< 400` (observation, REF.7), then deleted (REF.8).
+- `AiPanel.tsx`: 979 → REF.6.G unmounts; REF.8 decides physical deletion.
+- Any handler: `< 600` (CI gate, REF.7).
+- Any component: `< 400` (CI gate, REF.7).
 
-Performance:
-- Palette cold open to first paint: < 200 ms.
-- Palette warm open to first paint: < 50 ms.
-- AI inline P50 with Ollama `qwen2.5:7b`: < 800 ms.
-- AI inline P95: < 1500 ms.
-- Search first chunk P50: < 80 ms.
-- App startup to ready: < 800 ms.
+Performance (REF.7):
+- Palette cold open to first paint: `< 200 ms`.
+- Palette warm open to first paint: `< 50 ms`.
+- AI inline P50 with Ollama `qwen2.5:7b`: `< 800 ms`.
+- AI inline P95: `< 1500 ms`.
+- Search first chunk P50: `< 80 ms`.
+- App startup to ready: `< 800 ms`.
 
-Memory:
-- Background RSS idle 10 min: < 150 MB.
-- Background RSS idle 1 hour: < 200 MB.
-- Budget excludes active WebView, loaded local model memory, PTY sessions, monitoring streams, and index rebuild tasks.
+Memory (REF.7):
+- Background RSS idle 10 min: `< 150 MB`.
+- Background RSS idle 1 hour: `< 200 MB`.
+- Budget excludes active WebView, loaded local model memory, PTY sessions,
+  monitoring streams, and index rebuild tasks.
 
 Functional:
-- Search, builtin commands, file actions, notes, terminal workflows, model management, and settings remain usable.
-- Bug A class launcher focus/IME race and Bug B delete verification paths receive manual regression coverage after `REF.2` and before `REF.7`.
+- Search, builtin commands, file actions, notes, terminal workflows, model
+  management, and settings remain usable.
+- Bug A class launcher focus/IME race and Bug B delete verification paths
+  receive manual regression coverage after each REF.6 sub-batch lands.
 
 Process:
 - No new feature PRs before `REF.7` without written exception.

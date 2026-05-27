@@ -14,6 +14,7 @@ import { useCallback } from "react";
 
 import { parseInputMode } from "../../../hooks/useInputMode";
 import type { BuiltinCommandResult } from "../../../hooks/useCommands";
+import { parseCapabilityPrefix } from "../utils/parseCapabilityPrefix";
 
 interface Deps {
   setQuery: (q: string) => void;
@@ -46,6 +47,14 @@ export function useQueryChange(deps: Deps) {
       const { mode: newMode, rawInput: ri } = parseInputMode(value);
       // Mount terminal on first "> " entry; avoids useEffect setState cascade.
       if (newMode === "terminal") deps.setTerminalMounted(true);
+      // REF.6.B — capability prefix takes over the result area; suppress
+      // search backend calls so the prefix body doesn't double-fire as a
+      // search query.
+      if (newMode === "search" && parseCapabilityPrefix(value)) {
+        deps.clearSearchResults();
+        deps.cancelSearch();
+        return;
+      }
       if (newMode !== "search" || ri.trim() === "") {
         deps.clearSearchResults();
         deps.cancelSearch();

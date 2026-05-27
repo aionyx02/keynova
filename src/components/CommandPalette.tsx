@@ -44,8 +44,10 @@ import { PALETTE_WIDTH_NARROW } from "../hooks/useWindowResize";
 import type { SourceFilter } from "../types/search";
 import type { BuiltinCommandResult } from "../hooks/useCommands";
 import { unifiedToLegacy } from "../utils/search";
-import { useCapability } from "../features/ai-capability/hooks/useCapability";
-import { InlineCapabilityReply } from "../features/command-palette/InlineCapabilityReply";
+import { usePaletteMode } from "../features/command-palette/hooks/usePaletteMode";
+import { useCapabilityStream } from "../features/ai-capability/hooks/useCapabilityStream";
+import { CapabilityResultArea } from "../features/command-palette/CapabilityResultArea";
+import { CapabilityHintLine } from "../features/command-palette/CapabilityHintLine";
 
 const TerminalPanel = React.lazy(() =>
   import("./TerminalPanel").then((m) => ({ default: m.TerminalPanel })),
@@ -104,24 +106,6 @@ export function CommandPalette() {
     [results],
   );
 
-  // REF.6.A — inline AI capability: streamed `explain` reply rendered below
-  // the result list. Chip click + Ctrl+E both route through `handleExplain`.
-  const explain = useCapability({ dispatch, id: "explain" });
-  const [explainOpen, setExplainOpen] = useState(false);
-  const handleExplain = React.useCallback(
-    (text: string) => {
-      const trimmed = text.trim();
-      if (!trimmed) return;
-      setExplainOpen(true);
-      void explain.run({ text: trimmed }, { stream: true });
-    },
-    [explain],
-  );
-  const cancelExplain = React.useCallback(() => {
-    void explain.cancel();
-    setExplainOpen(false);
-  }, [explain]);
-
   // Command mode state
   const [selectedCmd, setSelectedCmd] = useState(0);
   const [cmdResult, setCmdResult] = useState<BuiltinCommandResult | null>(null);
@@ -173,7 +157,7 @@ export function CommandPalette() {
   }, []);
 
   // LAUNCH.1.C/E — settings as state (consumed during render to gate UI).
-  const { previewEnabled, showRankBreakdown } = useLauncherSettings({
+  const { previewEnabled, showRankBreakdown, showCapabilityHint } = useLauncherSettings({
     dispatch,
     onMaxResultsChange: setSearchLimit,
   });
@@ -203,8 +187,36 @@ export function CommandPalette() {
 
   const { mode, rawInput } = parseInputMode(query);
 
-  const { modeRef, cmdResultRef, queryRef, secondaryMenuOpenRef, expandedMetadataRef } =
-    usePaletteRefs({ mode, cmdResult, query, secondaryMenuOpen, expandedMetadata });
+  // REF.6.B — prefix-keyword inline AI. When `paletteMode.kind === "capability"`,
+  // the result area is owned by `CapabilityResultArea` and search is gated off
+  // in `useQueryChange`. The stream hook lives here (not inside the card) so
+  // the global Esc handler can reach `stream.cancel` without imperative-handle
+  // wiring.
+  const paletteMode = usePaletteMode(query);
+  const capabilityStream = useCapabilityStream({
+    dispatch,
+    id: paletteMode.kind === "capability" ? paletteMode.id : "explain",
+    args: paletteMode.kind === "capability" ? paletteMode.args : null,
+  });
+
+  const {
+    modeRef,
+    cmdResultRef,
+    queryRef,
+    secondaryMenuOpenRef,
+    expandedMetadataRef,
+    capabilityModeRef,
+    capabilityStreamingRef,
+  } = usePaletteRefs({
+    mode,
+    cmdResult,
+    query,
+    secondaryMenuOpen,
+    expandedMetadata,
+    capabilityMode: paletteMode.kind === "capability",
+    capabilityStreaming:
+      capabilityStream.status === "pending" || capabilityStream.status === "streaming",
+  });
 
   const { containerRef, scheduleWindowResize } = useWindowResize(modeRef, cmdResultRef, paletteWidthRef);
   const { metadataByPath, iconsByKey } = useSearchMetadata(legacyResults, selected);
@@ -245,6 +257,9 @@ export function CommandPalette() {
     queryRef,
     secondaryMenuOpenRef,
     expandedMetadataRef,
+    capabilityModeRef,
+    capabilityStreamingRef,
+    onCapabilityCancel: capabilityStream.cancel,
     inputRef,
     containerRef,
     closeSecondaryMenu,
@@ -426,8 +441,6 @@ export function CommandPalette() {
     runFirstSecondary,
     runPipeline,
     execCommand,
-    onExplain: handleExplain,
-    explainLoading: explain.isLoading,
     keepLauncherOpen,
   });
 
@@ -463,7 +476,24 @@ export function CommandPalette() {
             )}
           />
 
-          {mode === "search" && query.trim() !== "" && results.length === 0 && !pipelineRunning && !pipelineResult && (
+          {paletteMode.kind === "capability" && (
+            <CapabilityResultArea
+              key={paletteMode.id}
+              id={paletteMode.id}
+              args={paletteMode.args}
+              stream={capabilityStream}
+              dispatch={dispatch}
+              onClose={() => setQuery("")}
+            />
+          )}
+
+          {/* REF.6.B — capability prefix discovery hint, shown on empty
+              palette so first-time users see the available prefixes. */}
+          {paletteMode.kind === "search" && mode === "search" && query === "" && (
+            <CapabilityHintLine visible={showCapabilityHint} />
+          )}
+
+          {paletteMode.kind === "search" && mode === "search" && query.trim() !== "" && results.length === 0 && !pipelineRunning && !pipelineResult && (
             <EmptyStateCTA
               query={query}
               onCreateNote={() => void execCommand("note", `create ${query}`)}
@@ -473,14 +503,14 @@ export function CommandPalette() {
             />
           )}
 
-          {mode === "search" && results.length > 0 && visibleResults.length === 0 && (
+          {paletteMode.kind === "search" && mode === "search" && results.length > 0 && visibleResults.length === 0 && (
             <EmptyFilterState
               activeFilters={activeFilters}
               onChangeFilters={setActiveFilters}
               totalResults={results.length}
             />
           )}
-          {hasResults && (
+          {paletteMode.kind === "search" && hasResults && (
             <SearchResultsList
               visibleResults={visibleResults}
               unifiedVisible={visibleUnified}
@@ -488,8 +518,6 @@ export function CommandPalette() {
               iconsByKey={iconsByKey}
               onSelectIndex={setSelected}
               onLaunch={(r) => void launchResult(r)}
-              onExplain={handleExplain}
-              explainLoading={explain.isLoading}
               showRankBreakdown={showRankBreakdown}
               onHoverStart={startRankHover}
               onHoverEnd={endRankHover}
@@ -526,17 +554,6 @@ export function CommandPalette() {
               expandedMetadata={expandedMetadata}
               selectedMetadata={selectedMetadata}
               footerHint={searchFooterHint}
-            />
-          )}
-
-          {/* REF.6.A — Inline AI streaming reply. Mounts below the result list
-              once the user has triggered an explain call. */}
-          {explainOpen && (
-            <InlineCapabilityReply
-              text={explain.streamText}
-              isLoading={explain.isLoading}
-              error={explain.error}
-              onCancel={cancelExplain}
             />
           )}
 

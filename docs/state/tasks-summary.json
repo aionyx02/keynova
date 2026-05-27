@@ -22,11 +22,11 @@
   "workflow": {
     "name": "P0 Refactor: AI Capability Layer And Unified Search",
     "zh_name": "P0 重構：AI 能力層與統一搜尋主線",
-    "current_task": "REF.6",
+    "current_task": "REF.4",
     "progress": {
-      "done": 6,
+      "done": 5,
       "total": 9,
-      "percent": 67
+      "percent": 56
     },
     "rules": [
       "Markdown remains the authority.",
@@ -40,11 +40,22 @@
   },
   "open_tasks": [
     {
+      "id": "REF.4",
+      "title": "Stateless AI Capability Layer — PARTIALLY DONE",
+      "priority": "P0",
+      "status": "planned",
+      "summary": "Stateless AI Capability Layer — PARTIALLY DONE",
+      "depends_on": [
+        "REF.3"
+      ],
+      "parallel_with": []
+    },
+    {
       "id": "REF.6",
-      "title": "Search Box As Pure Dispatcher",
+      "title": "Search Box As Pure Dispatcher (in progress)",
       "priority": "P0",
       "status": "open",
-      "summary": "switch the palette result list to consume `UnifiedResult` and remove embedded non-core surfaces from the hot path. **REF.6.A done** (inline AI MVP — `UnifiedResult` wire + `ActionChip` Explain on every row + `Ctrl+E` explain + `InlineCapabilityReply` stream panel); **REF.6.B pending** (remove `AiPanel` / `TerminalPanel` hot-path mount); **REF.6.C pending** (UI approval via `ConfirmRequirement`). See `docs/tasks/refactor-ai-capability.md`",
+      "summary": "search box = pure dispatcher. Sub-batches:",
       "depends_on": [
         "REF.4",
         "REF.5"
@@ -56,7 +67,7 @@
       "title": "Quantitative Gates And Legacy Default Off",
       "priority": "P0",
       "status": "open",
-      "summary": "add quantitative gates, default `ai.legacy_agent = false`, and observe one release cycle",
+      "summary": "quantitative gates, default `ai.legacy_agent = false`, observe one release cycle",
       "depends_on": [
         "REF.6"
       ],
@@ -67,7 +78,7 @@
       "title": "Physical Removal",
       "priority": "P0",
       "status": "open",
-      "summary": "after the observation window, physically remove deprecated agent/chat code and legacy flags",
+      "summary": "physical removal decision (AiPanel deletion, agent_runtime trim, flag removal)",
       "depends_on": [
         "REF.7"
       ],
@@ -79,7 +90,6 @@
     "REF.1",
     "REF.2",
     "REF.3",
-    "REF.4",
     "REF.5"
   ]
 }

@@ -52,11 +52,6 @@ interface Props {
   iconsByKey: Record<string, SearchIconAsset>;
   onSelectIndex: (index: number) => void;
   onLaunch: (result: SearchResult) => void;
-  /** REF.6.A — fired by the row's Explain chip and Ctrl+E. Receives the
-   * text payload (`title` or `subtitle`) to hand to `useCapability("explain")`. */
-  onExplain: (text: string) => void;
-  /** REF.6.A — true while the inline-AI call is in flight; chip disables. */
-  explainLoading: boolean;
   // Hover for rank tooltip (LAUNCH.1.E).
   showRankBreakdown: boolean;
   onHoverStart: (index: number, rect: DOMRect) => void;
@@ -92,8 +87,6 @@ export function SearchResultsList({
   iconsByKey,
   onSelectIndex,
   onLaunch,
-  onExplain,
-  explainLoading,
   showRankBreakdown,
   onHoverStart,
   onHoverEnd,
@@ -130,8 +123,6 @@ export function SearchResultsList({
               const badge = KIND_BADGE[r.kind] ?? KIND_BADGE.file;
               const icon = r.icon_key ? iconsByKey[r.icon_key] : null;
               const unified = unifiedVisible[i];
-              const explainText = unified?.title ?? r.title ?? r.name;
-              const chipDisabled = explainLoading && i === safeSelected;
               return (
                 <li
                   key={unified?.id ?? r.path}
@@ -184,28 +175,6 @@ export function SearchResultsList({
                         : (r.subtitle ?? r.path)}
                     </span>
                   )}
-                  {/* REF.6.A — Explain ActionChip. onMouseDown +
-                      preventDefault keeps focus on the palette input. */}
-                  <button
-                    type="button"
-                    onMouseDown={(e) => {
-                      e.preventDefault();
-                      e.stopPropagation();
-                      if (!chipDisabled) onExplain(explainText);
-                    }}
-                    disabled={chipDisabled}
-                    aria-label={`Explain ${explainText}`}
-                    title="Explain (Ctrl+E)"
-                    className={`ml-2 shrink-0 rounded-full border px-2 py-0.5 text-[10px] uppercase tracking-wide transition-colors ${
-                      chipDisabled
-                        ? "border-gray-600 text-gray-500 opacity-60 cursor-not-allowed"
-                        : i === safeSelected
-                          ? "border-blue-300/60 text-blue-50 hover:bg-blue-500/30"
-                          : "border-gray-600 text-gray-400 hover:border-blue-400/60 hover:text-blue-300"
-                    }`}
-                  >
-                    {chipDisabled ? "…" : "Explain"}
-                  </button>
                 </li>
               );
             })}

@@ -57,12 +57,12 @@
     }
   },
   "workflow": {
-    "current_task": "REF.6",
-    "current_task_summary": "switch the palette result list to consume `UnifiedResult` and remove embedded non-core surfaces from the hot path. **REF.6.A done** (inline AI MVP — `UnifiedResult` wire + `ActionChip` Explain on every row + `Ctrl+E` explain + `InlineCapabilityReply` stream panel); **REF.6.B pending** (remove `AiPanel` / `TerminalPanel` hot-path mount); **REF.6.C pending** (UI approval via `ConfirmRequirement`). See `docs/tasks/refactor-ai-capability.md`",
+    "current_task": "REF.4",
+    "current_task_summary": "Stateless AI Capability Layer — PARTIALLY DONE",
     "progress": {
-      "done": 6,
+      "done": 5,
       "total": 9,
-      "percent": 67
+      "percent": 56
     }
   }
 }
