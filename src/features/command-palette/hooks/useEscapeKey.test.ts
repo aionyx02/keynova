@@ -16,6 +16,8 @@ function makeDeps(overrides: Partial<UseEscapeKeyDeps> = {}): {
     queryRef: MutableRef<string>;
     secondaryMenuOpenRef: MutableRef<boolean>;
     expandedMetadataRef: MutableRef<boolean>;
+    capabilityModeRef: MutableRef<boolean>;
+    capabilityStreamingRef: MutableRef<boolean>;
     inputRef: MutableRef<HTMLInputElement | null>;
     containerRef: MutableRef<HTMLDivElement | null>;
   };
@@ -26,6 +28,8 @@ function makeDeps(overrides: Partial<UseEscapeKeyDeps> = {}): {
     queryRef: { current: "" },
     secondaryMenuOpenRef: { current: false },
     expandedMetadataRef: { current: false },
+    capabilityModeRef: { current: false },
+    capabilityStreamingRef: { current: false },
     inputRef: { current: null as HTMLInputElement | null },
     containerRef: { current: null as HTMLDivElement | null },
   };
@@ -40,6 +44,7 @@ function makeDeps(overrides: Partial<UseEscapeKeyDeps> = {}): {
     cancelSearch: vi.fn(),
     hideWindow: vi.fn(),
     keepLauncherOpen: vi.fn(),
+    onCapabilityCancel: vi.fn(),
   };
   const deps: UseEscapeKeyDeps = {
     shouldIgnoreEscape: spies.shouldIgnoreEscape,
@@ -48,6 +53,9 @@ function makeDeps(overrides: Partial<UseEscapeKeyDeps> = {}): {
     queryRef: refs.queryRef,
     secondaryMenuOpenRef: refs.secondaryMenuOpenRef,
     expandedMetadataRef: refs.expandedMetadataRef,
+    capabilityModeRef: refs.capabilityModeRef,
+    capabilityStreamingRef: refs.capabilityStreamingRef,
+    onCapabilityCancel: spies.onCapabilityCancel,
     inputRef: refs.inputRef,
     containerRef: refs.containerRef,
     closeSecondaryMenu: spies.closeSecondaryMenu,
@@ -164,6 +172,30 @@ describe("useEscapeKey", () => {
     expect(spies.hideWindow).toHaveBeenCalledTimes(1);
     expect(spies.setQuery).not.toHaveBeenCalled();
     expect(spies.cancelSearch).not.toHaveBeenCalled();
+  });
+
+  it("priority 3.5: capability streaming → cancel stream only (REF.6.B)", () => {
+    const { deps, spies, refs } = makeDeps();
+    refs.capabilityModeRef.current = true;
+    refs.capabilityStreamingRef.current = true;
+    refs.queryRef.current = "explain rust";
+    renderHook(() => useEscapeKey(deps));
+    fireEscape();
+    expect(spies.onCapabilityCancel).toHaveBeenCalledTimes(1);
+    // Should NOT also fall through to clearing the query.
+    expect(spies.setQuery).not.toHaveBeenCalled();
+    expect(spies.hideWindow).not.toHaveBeenCalled();
+  });
+
+  it("capability mode but not streaming → falls through to clear-query", () => {
+    const { deps, spies, refs } = makeDeps();
+    refs.capabilityModeRef.current = true;
+    refs.capabilityStreamingRef.current = false;
+    refs.queryRef.current = "explain rust";
+    renderHook(() => useEscapeKey(deps));
+    fireEscape();
+    expect(spies.onCapabilityCancel).not.toHaveBeenCalled();
+    expect(spies.setQuery).toHaveBeenCalledWith("");
   });
 
   it("unregisters the listener on unmount", () => {

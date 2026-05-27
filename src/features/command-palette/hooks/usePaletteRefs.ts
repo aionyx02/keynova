@@ -20,6 +20,10 @@ interface Deps {
   query: string;
   secondaryMenuOpen: boolean;
   expandedMetadata: boolean;
+  /** REF.6.B — true when `usePaletteMode` is in capability kind. */
+  capabilityMode: boolean;
+  /** REF.6.B — true when the capability stream is pending or streaming. */
+  capabilityStreaming: boolean;
 }
 
 interface UsePaletteRefs {
@@ -28,6 +32,8 @@ interface UsePaletteRefs {
   queryRef: React.RefObject<string>;
   secondaryMenuOpenRef: React.RefObject<boolean>;
   expandedMetadataRef: React.RefObject<boolean>;
+  capabilityModeRef: React.RefObject<boolean>;
+  capabilityStreamingRef: React.RefObject<boolean>;
 }
 
 export function usePaletteRefs(deps: Deps): UsePaletteRefs {
@@ -36,12 +42,24 @@ export function usePaletteRefs(deps: Deps): UsePaletteRefs {
   const queryRef = useRef(deps.query);
   const secondaryMenuOpenRef = useRef(deps.secondaryMenuOpen);
   const expandedMetadataRef = useRef(deps.expandedMetadata);
+  const capabilityModeRef = useRef(deps.capabilityMode);
+  const capabilityStreamingRef = useRef(deps.capabilityStreaming);
   useLayoutEffect(() => {
     modeRef.current = deps.mode;
     cmdResultRef.current = deps.cmdResult;
     queryRef.current = deps.query;
     secondaryMenuOpenRef.current = deps.secondaryMenuOpen;
     expandedMetadataRef.current = deps.expandedMetadata;
+    capabilityModeRef.current = deps.capabilityMode;
+    capabilityStreamingRef.current = deps.capabilityStreaming;
   });
-  return { modeRef, cmdResultRef, queryRef, secondaryMenuOpenRef, expandedMetadataRef };
+  return {
+    modeRef,
+    cmdResultRef,
+    queryRef,
+    secondaryMenuOpenRef,
+    expandedMetadataRef,
+    capabilityModeRef,
+    capabilityStreamingRef,
+  };
 }

@@ -2,7 +2,7 @@
 type: task_index
 status: active
 priority: p0
-updated: 2026-05-23
+updated: 2026-05-27
 context_policy: always_retrievable
 owner: project
 tags: [refactor, ai-capability, search-first, p0]
@@ -16,13 +16,22 @@ tags: [refactor, ai-capability, search-first, p0]
 
 - [x] `REF.0` lock ADR-0029 as the governing decision for the AI capability refactor.
 - [x] `REF.1` define `UnifiedResult` as the shared result/action contract.
-- [x] `REF.2` split `CommandPalette.tsx` into feature-first hooks/components and regression-check Bug A/B paths.
-- [x] `REF.3` split `handlers/agent/mod.rs` so lifecycle, local context, tool dispatch, and dev runner stop living in one module.
-- [x] `REF.4` add the stateless AI capability layer for `explain`, `summarize`, and `fix_error`.
-- [x] `REF.5` add workflow memory as a P0 differentiator, in parallel with `REF.6` prep after the schema boundary is clear.
-- [ ] `REF.6` switch the palette result list to consume `UnifiedResult` and remove embedded non-core surfaces from the hot path. **REF.6.A done** (inline AI MVP — `UnifiedResult` wire + `ActionChip` Explain on every row + `Ctrl+E` explain + `InlineCapabilityReply` stream panel); **REF.6.B pending** (remove `AiPanel` / `TerminalPanel` hot-path mount); **REF.6.C pending** (UI approval via `ConfirmRequirement`). See `docs/tasks/refactor-ai-capability.md`.
-- [ ] `REF.7` add quantitative gates, default `ai.legacy_agent = false`, and observe one release cycle.
-- [ ] `REF.8` after the observation window, physically remove deprecated agent/chat code and legacy flags.
+- [x] `REF.2` split `CommandPalette.tsx` (landed 598 lines; `< 250` dropped — see plan).
+- [x] `REF.3` split `handlers/agent/mod.rs` (landed 616 lines, observation target `< 600`).
+- [~] `REF.4` stateless AI capability layer — 3/5 capabilities live (`explain`, `summarize`, `fix_error`). `gen_command` + `suggest_next` deferred to `REF.6.C` so they ship with their UI scenes.
+- [x] `REF.5` workflow memory schema v4 + `record`/`suggest`.
+- [ ] `REF.6` search box = pure dispatcher. Sub-batches:
+  - [x] `REF.6.A` inline AI MVP wire format (UnifiedResult + capability stream); per-row chip + `Ctrl+E` ripped out in REF.6.B.
+  - [x] `REF.6.B` prefix dispatcher + `explain` / `summarize` end-to-end (`CapabilityAnswerCard`, `parseCapabilityPrefix`, `usePaletteMode`, `useCapabilityStream`, hint line). Unit tests green; manual `tauri dev` smoke pending.
+  - [ ] `REF.6.C` backend `gen_command` + `suggest_next` capabilities + IPC + hooks (no UI).
+  - [ ] `REF.6.D` `fix <error>` prefix wired to `CapabilityAnswerCard`.
+  - [ ] `REF.6.E` `next` prefix + `CapabilityListCard` for `suggest_next`.
+  - [ ] `REF.6.F` `cmd <intent>` prefix + `CapabilityCommandCard` for `gen_command`.
+  - [ ] `REF.6.G` remove `AiPanel` / `TerminalPanel` mounts from palette hot path; UI-owned `ConfirmRequirement`.
+  - [ ] `REF.6.H` feature-first directory migration for remaining panels + `src/shared/*` + model-manager consolidation (docx §3.5/§6.1).
+  - [ ] `REF.6.I` ADR-0030 (proposed) — ADR template slimming to 4 sections (docx §9.2).
+- [ ] `REF.7` quantitative gates, default `ai.legacy_agent = false`, observe one release cycle.
+- [ ] `REF.8` physical removal decision (AiPanel deletion, agent_runtime trim, flag removal).
 
 Detailed batch definitions, done criteria, non-goals, file map, and validation gates live in `docs/tasks/refactor-ai-capability.md`.
 
@@ -36,9 +45,9 @@ Detailed batch definitions, done criteria, non-goals, file map, and validation g
 
 ## Strategy
 
-Keynova's active priority is now search-first workflow refactor: AI moves from product core to stateless capability layer, and unified search/result handling becomes the product spine.
+Keynova's active priority is search-first workflow refactor: AI is a stateless capability layer invoked inline from unified result rows; AiPanel and chat-first surfaces leave the hot path.
 
-Until `REF.7` is complete, freeze new feature work unless it is required for the refactor, fixes a P0 regression, or protects a documented safety boundary.
+Until `REF.7` is complete, freeze new feature work unless required for the refactor, fixing a P0 regression, or protecting a documented safety boundary.
 
 Keep `active.md` compact. Put batch-level task detail in `docs/tasks/refactor-ai-capability.md`, detailed implementation notes in `docs/memory/sessions/YYYY-MM-DD.md`, and future non-refactor ideas in `docs/tasks/backlog.md`.
 
