@@ -446,12 +446,43 @@ export function CommandPalette() {
     keepLauncherOpen,
   });
 
+  const capabilityMode = paletteMode.kind === "capability" ? paletteMode : null;
+  const showCapabilityResult = capabilityMode !== null;
+  const showCapabilityHintLine =
+    paletteMode.kind === "search" && mode === "search" && query === "" && showCapabilityHint;
+  const showSearchEmptyState =
+    paletteMode.kind === "search" &&
+    mode === "search" &&
+    query.trim() !== "" &&
+    results.length === 0 &&
+    !pipelineRunning &&
+    !pipelineResult;
+  const showEmptyFilterState =
+    paletteMode.kind === "search" &&
+    mode === "search" &&
+    results.length > 0 &&
+    visibleResults.length === 0;
+  const hasPaletteContentBelow = Boolean(
+    hasResults ||
+      hasCmdSuggestions ||
+      hasArgSuggestions ||
+      cmdResult ||
+      isArgsPhase ||
+      liveTranslationPanel ||
+      pipelineRunning ||
+      pipelineResult ||
+      showCapabilityResult ||
+      showCapabilityHintLine ||
+      showSearchEmptyState ||
+      showEmptyFilterState,
+  );
+
   return (
     <div ref={containerRef} tabIndex={-1} className="w-full outline-none">
       {/* Terminal: mounted once on first visit, hidden via CSS when not active */}
       {terminalMounted && (
         <div style={{ display: mode === "terminal" ? "block" : "none" }}>
-          <Suspense fallback={<div className="h-[360px] bg-gray-900/95 rounded-xl" />}>
+          <Suspense fallback={<div className="kn-terminal-shell h-[410px]" />}>
             <TerminalPanel isActive={mode === "terminal"} onExit={terminalOnExit} />
           </Suspense>
         </div>
@@ -467,22 +498,14 @@ export function CommandPalette() {
             onKeyDown={onKeyDown}
             onFocus={() => void keepLauncherOpen()}
             searchBackend={searchBackend}
-            hasContentBelow={Boolean(
-              hasResults
-                || hasCmdSuggestions
-                || cmdResult
-                || isArgsPhase
-                || liveTranslationPanel
-                || pipelineRunning
-                || pipelineResult,
-            )}
+            hasContentBelow={hasPaletteContentBelow}
           />
 
-          {paletteMode.kind === "capability" && (
+          {capabilityMode && (
             <CapabilityResultArea
-              key={paletteMode.id}
-              id={paletteMode.id}
-              args={paletteMode.args}
+              key={capabilityMode.id}
+              id={capabilityMode.id}
+              args={capabilityMode.args}
               stream={capabilityStream}
               dispatch={dispatch}
               onClose={() => setQuery("")}
@@ -491,11 +514,11 @@ export function CommandPalette() {
 
           {/* REF.6.B — capability prefix discovery hint, shown on empty
               palette so first-time users see the available prefixes. */}
-          {paletteMode.kind === "search" && mode === "search" && query === "" && (
+          {showCapabilityHintLine && (
             <CapabilityHintLine visible={showCapabilityHint} />
           )}
 
-          {paletteMode.kind === "search" && mode === "search" && query.trim() !== "" && results.length === 0 && !pipelineRunning && !pipelineResult && (
+          {showSearchEmptyState && (
             <EmptyStateCTA
               query={query}
               onCreateNote={() => void execCommand("note", `create ${query}`)}
@@ -505,7 +528,7 @@ export function CommandPalette() {
             />
           )}
 
-          {paletteMode.kind === "search" && mode === "search" && results.length > 0 && visibleResults.length === 0 && (
+          {showEmptyFilterState && (
             <EmptyFilterState
               activeFilters={activeFilters}
               onChangeFilters={setActiveFilters}
