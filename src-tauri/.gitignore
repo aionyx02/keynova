@@ -12,3 +12,7 @@
 
 # ── Windows installer tooling (auto-downloaded) ───────
 WixTools/
+
+# ── Mobile icon artifacts (desktop-only project) ──────
+icons/android/
+icons/ios/

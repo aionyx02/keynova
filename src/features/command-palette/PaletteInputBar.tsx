@@ -1,5 +1,6 @@
 import type React from "react";
 
+import keynovaLogo from "../../assets/keynova_icon.png";
 import { UiIcon } from "../../components/icons/UiIcon";
 import { WorkspaceIndicator } from "../../components/WorkspaceIndicator";
 import type { SearchBackendInfo } from "../../ipc/types";
@@ -39,6 +40,21 @@ export function PaletteInputBar({
         hasContentBelow ? "rounded-b-none" : ""
       }`}
     >
+      <div
+        className="flex shrink-0 items-center gap-1.5 select-none"
+        aria-label="Keynova"
+      >
+        <img
+          src={keynovaLogo}
+          alt=""
+          className="h-6 w-6 rounded-md"
+          draggable={false}
+        />
+        <span className="text-[11px] font-semibold uppercase tracking-[0.22em] text-[color:var(--kn-text-soft)]">
+          Keynova
+        </span>
+      </div>
+
       <div className={iconShellClass} aria-hidden="true">
         {mode === "command" ? (
           <UiIcon name="command" className="h-[18px] w-[18px]" />
