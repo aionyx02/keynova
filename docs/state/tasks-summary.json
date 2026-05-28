@@ -1,0 +1,95 @@
+{
+  "schema_version": 1,
+  "generated_by": "scripts/docs-workbench-sync.mjs",
+  "authority": {
+    "markdown_sources": [
+      "docs/tasks/active.md",
+      "docs/tasks/refactor-ai-capability.md"
+    ],
+    "conflict_rule": "markdown_wins",
+    "lifecycle": "shadow_state",
+    "full_state": "docs/state/tasks.json",
+    "decision_summary": "docs/state/decision-summary.json"
+  },
+  "usage": {
+    "purpose": "low_token_planning_snapshot",
+    "keep_compact": true,
+    "read_full_state_when": [
+      "scope, non-goals, or done criteria are needed",
+      "task impact or detailed notes are needed"
+    ]
+  },
+  "workflow": {
+    "name": "P0 Refactor: AI Capability Layer And Unified Search",
+    "zh_name": "P0 重構：AI 能力層與統一搜尋主線",
+    "current_task": "REF.4",
+    "progress": {
+      "done": 5,
+      "total": 9,
+      "percent": 56
+    },
+    "rules": [
+      "Markdown remains the authority.",
+      "Workbench files are generated convenience views.",
+      "REF.4 and REF.5 may overlap after schema boundaries are clear."
+    ]
+  },
+  "decision_gate": {
+    "reminder_required": true,
+    "source": "docs/state/decision-summary.json"
+  },
+  "open_tasks": [
+    {
+      "id": "REF.4",
+      "title": "Stateless AI Capability Layer — PARTIALLY DONE",
+      "priority": "P0",
+      "status": "planned",
+      "summary": "Stateless AI Capability Layer — PARTIALLY DONE",
+      "depends_on": [
+        "REF.3"
+      ],
+      "parallel_with": []
+    },
+    {
+      "id": "REF.6",
+      "title": "Search Box As Pure Dispatcher (in progress)",
+      "priority": "P0",
+      "status": "open",
+      "summary": "search box = pure dispatcher. Sub-batches:",
+      "depends_on": [
+        "REF.4",
+        "REF.5"
+      ],
+      "parallel_with": []
+    },
+    {
+      "id": "REF.7",
+      "title": "Quantitative Gates And Legacy Default Off",
+      "priority": "P0",
+      "status": "open",
+      "summary": "quantitative gates, default `ai.legacy_agent = false`, observe one release cycle",
+      "depends_on": [
+        "REF.6"
+      ],
+      "parallel_with": []
+    },
+    {
+      "id": "REF.8",
+      "title": "Physical Removal",
+      "priority": "P0",
+      "status": "open",
+      "summary": "physical removal decision (AiPanel deletion, agent_runtime trim, flag removal)",
+      "depends_on": [
+        "REF.7"
+      ],
+      "parallel_with": []
+    }
+  ],
+  "completed_task_ids": [
+    "REF.0",
+    "REF.1",
+    "REF.2",
+    "REF.3",
+    "REF.5"
+  ]
+}

@@ -599,7 +599,10 @@ mod tests {
     fn rank_boost_breakdown_missing_entry_returns_zero() {
         let app_manager = Arc::new(Mutex::new(AppManager::new()));
         let manager = SearchManager::new_with_config(app_manager, Some("app_cache"), None);
-        assert_eq!(manager.rank_boost_breakdown("file", "C:/tmp/missing.txt"), (0, 0));
+        assert_eq!(
+            manager.rank_boost_breakdown("file", "C:/tmp/missing.txt"),
+            (0, 0)
+        );
     }
 
     #[test]
@@ -622,7 +625,10 @@ mod tests {
             manager.record_selection("file", "C:/tmp/a.txt");
         }
         let (_, frequency) = manager.rank_boost_breakdown("file", "C:/tmp/a.txt");
-        assert_eq!(frequency, 40, "count.min(10) * 4 = 40 even with 15 selections");
+        assert_eq!(
+            frequency, 40,
+            "count.min(10) * 4 = 40 even with 15 selections"
+        );
     }
 
     #[test]
@@ -639,7 +645,10 @@ mod tests {
         }
         let (recency, frequency) = manager.rank_boost_breakdown("file", "C:/tmp/a.txt");
         assert_eq!(recency, 0, "8-day-old selection should give 0 recency");
-        assert_eq!(frequency, 4, "one selection should give frequency = 1*4 = 4");
+        assert_eq!(
+            frequency, 4,
+            "one selection should give frequency = 1*4 = 4"
+        );
     }
 
     #[test]

@@ -2,8 +2,8 @@
 type: security_policy
 status: active
 priority: p0
-updated: 2026-05-18
-context_policy: retrieve_when_planning
+updated: 2026-05-20
+context_policy: retrieve_only
 owner: project
 ---
 

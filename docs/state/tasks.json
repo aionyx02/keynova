@@ -1,0 +1,443 @@
+{
+  "schema_version": 1,
+  "generated_by": "scripts/docs-workbench-sync.mjs",
+  "authority": {
+    "markdown_sources": [
+      "docs/tasks/active.md",
+      "docs/tasks/refactor-ai-capability.md"
+    ],
+    "suggestion_source": "docs/state/workbench-suggestions.json",
+    "generated_outputs": [
+      "docs/state/tasks.json",
+      "docs/state/tasks-summary.json",
+      "docs/state/decision-summary.json",
+      "docs/workbench/tasks.html"
+    ],
+    "conflict_rule": "markdown_wins",
+    "lifecycle": "shadow_state"
+  },
+  "workflow": {
+    "name": "P0 Refactor: AI Capability Layer And Unified Search",
+    "zh_name": "P0 重構：AI 能力層與統一搜尋主線",
+    "current_task": "REF.4",
+    "progress": {
+      "done": 5,
+      "total": 9,
+      "percent": 56
+    },
+    "rules": [
+      "Markdown remains the authority.",
+      "Workbench files are generated convenience views.",
+      "REF.4 and REF.5 may overlap after schema boundaries are clear."
+    ],
+    "expected_outcomes": [
+      {
+        "title": "產品體感",
+        "body": "Keynova 會更像鍵盤優先的工作流 launcher；搜尋結果列負責呈現可執行動作，AI 變成 inline capability，而不是獨立聊天產品。"
+      },
+      {
+        "title": "UI 結構",
+        "body": "Command Palette 熱路徑會變薄，結果列、動作 chips、preview 與確認流程會逐步分層，讓後續 UI 模擬可以先在 workbench 討論。"
+      },
+      {
+        "title": "架構邊界",
+        "body": "UnifiedResult 會成為搜尋、builtin command、file action、AI capability 的共同契約；legacy agent/chat 先保留 fallback，最後在 REF.8 移除。"
+      },
+      {
+        "title": "風險控制",
+        "body": "新流程不應擴大 shell、檔案或網路邊界；高風險操作仍由 backend risk tag 與 UI confirmation 管住。"
+      }
+    ],
+    "ui_layout_options": [
+      {
+        "id": "compact-list",
+        "label": "緊湊清單",
+        "description": "保留目前 launcher 的高速掃描感，結果列最密，preview 只在需要時展開。",
+        "best_for": "REF.2 拆分期間，最不容易造成視覺回歸。",
+        "tradeoff": "可解釋性較弱，AI action 的狀態需要靠 chip 或狀態列補足。"
+      },
+      {
+        "id": "split-preview",
+        "label": "左右預覽",
+        "description": "左側結果清單，右側顯示 preview、AI 摘要或確認內容。",
+        "best_for": "REF.6 之後，UnifiedResult 與 PreviewPayload 穩定時。",
+        "tradeoff": "需要仔細控制寬度與鍵盤焦點，避免 launcher 變成重型面板。"
+      },
+      {
+        "id": "action-table",
+        "label": "動作表格",
+        "description": "每列直接顯示主要 action chips、風險提示與來源 metadata。",
+        "best_for": "需要比較多個結果和多個可執行動作的 workflow。",
+        "tradeoff": "資訊密度最高，但若視覺層級沒有壓好會顯得吵。"
+      }
+    ]
+  },
+  "suggestions": {
+    "schema_version": 1,
+    "source": "ai_editable",
+    "updated_by": "AI",
+    "guidance": "AI 有新的流程、排版、ADR 或風險建議時，先加到這裡；docs:workbench-sync 會自動渲染到 HTML，使用者勾選後再回寫 Markdown。",
+    "questions": [
+      {
+        "id": "ref2_layout_direction",
+        "title": "REF.2 期間要偏向哪種 Command Palette 排版？",
+        "help": "這題主要決定 UI mock 的採用方向；正式實作仍以 REF.2 不改行為為前提。",
+        "type": "single",
+        "default": "compact-list",
+        "options": [
+          {
+            "id": "compact-list",
+            "label": "緊湊清單",
+            "impact": "最保守，較不容易打斷 REF.2 拆分與 Bug A/B regression。"
+          },
+          {
+            "id": "split-preview",
+            "label": "左右預覽",
+            "impact": "較接近 REF.6 的目標，但建議先停留在 mock，不急著進 runtime。"
+          },
+          {
+            "id": "action-table",
+            "label": "動作表格",
+            "impact": "資訊量最高，適合後續 UnifiedResult 穩定後再評估。"
+          }
+        ]
+      },
+      {
+        "id": "ref2_split_priority",
+        "title": "REF.2 拆分時要優先保護哪些路徑？",
+        "help": "可以多選；AI 會依勾選結果安排檢查順序與測試重點。",
+        "type": "multiple",
+        "default": [
+          "focus_ime",
+          "delete_verify"
+        ],
+        "options": [
+          {
+            "id": "focus_ime",
+            "label": "Launcher focus / IME",
+            "impact": "保護 Bug A 類回歸，避免視窗焦點、輸入法、Escape 行為被拆分影響。"
+          },
+          {
+            "id": "delete_verify",
+            "label": "Delete verification",
+            "impact": "保護 Bug B 類回歸，避免最近刪除、確認流程或狀態重置被拆壞。"
+          },
+          {
+            "id": "keyboard_nav",
+            "label": "鍵盤導覽",
+            "impact": "確保上下選取、Enter、Escape、secondary menu 不因 hook 拆分漂移。"
+          },
+          {
+            "id": "visual_baseline",
+            "label": "視覺 baseline",
+            "impact": "要求拆分後畫面密度與狀態呈現維持目前使用感。"
+          }
+        ]
+      },
+      {
+        "id": "ai_suggestion_policy",
+        "title": "AI 建議要以什麼方式進入正式流程？",
+        "help": "這題決定 AI 後續看到 proposal 時的預設處理方式。",
+        "type": "multiple",
+        "default": [
+          "preview_first",
+          "markdown_after_confirm"
+        ],
+        "options": [
+          {
+            "id": "preview_first",
+            "label": "先更新 HTML 預覽",
+            "impact": "AI 先把想法放進 workbench，讓你勾選確認後再動正式文件。"
+          },
+          {
+            "id": "markdown_after_confirm",
+            "label": "確認後才更新 Markdown",
+            "impact": "保持 Markdown 權威，避免 AI 建議直接污染 active/current。"
+          },
+          {
+            "id": "session_log_trace",
+            "label": "保留 session log 軌跡",
+            "impact": "重要決策脈絡進 session log，不塞進 current.md 或 active.md。"
+          }
+        ]
+      }
+    ],
+    "suggestion_cards": [
+      {
+        "id": "ref2-first-pass",
+        "title": "建議先用保守 UI mock 配合 REF.2",
+        "applies_to": [
+          "REF.2"
+        ],
+        "body": "REF.2 的核心價值是降低 CommandPalette 複雜度，不是改 UI。建議先用緊湊清單做 baseline，再把左右預覽與動作表格留作 REF.6 評估。",
+        "recommended_options": [
+          "compact-list",
+          "focus_ime",
+          "delete_verify",
+          "preview_first"
+        ]
+      },
+      {
+        "id": "proposal-loop",
+        "title": "建議採用 proposal loop",
+        "applies_to": [
+          "workflow"
+        ],
+        "body": "AI 的新想法先進 workbench-suggestions.json，HTML 自動更新；你勾選後複製 proposal 回對話，AI 再驗證並更新最小 Markdown。",
+        "recommended_options": [
+          "preview_first",
+          "markdown_after_confirm",
+          "session_log_trace"
+        ]
+      },
+      {
+        "id": "decision-reminder",
+        "title": "AI should remind before gated decisions",
+        "applies_to": [
+          "workflow",
+          "ADR",
+          "UI",
+          "risk"
+        ],
+        "body": "When AI detects an ADR direction, task-order change, UI layout choice, safety tradeoff, or other decision-gated change, it should explicitly remind the user to review docs/workbench/tasks.html or give direct approval before implementation continues.",
+        "recommended_options": [
+          "preview_first",
+          "markdown_after_confirm"
+        ]
+      }
+    ]
+  },
+  "tasks": [
+    {
+      "id": "REF.0",
+      "title": "ADR-0029 Decision Lock — DONE",
+      "priority": "P0",
+      "status": "done",
+      "summary": "lock ADR-0029 as the governing decision for the AI capability refactor",
+      "depends_on": [],
+      "parallel_with": [],
+      "source": "docs/tasks/refactor-ai-capability.md",
+      "scope": [],
+      "non_goals": [],
+      "done_criteria": [],
+      "notes": [],
+      "impact": {
+        "user": "工作方向被鎖定，避免 AI/chat-first 舊路線繼續擴張。",
+        "code": "只影響 ADR 與任務文件，不改 runtime code。",
+        "risk": "低；主要風險是決策文字和實際任務不同步。"
+      }
+    },
+    {
+      "id": "REF.1",
+      "title": "Unified Result Schema — DONE",
+      "priority": "P0",
+      "status": "done",
+      "summary": "define `UnifiedResult` as the shared result/action contract",
+      "depends_on": [
+        "REF.0"
+      ],
+      "parallel_with": [],
+      "source": "docs/tasks/refactor-ai-capability.md",
+      "scope": [],
+      "non_goals": [],
+      "done_criteria": [],
+      "notes": [],
+      "impact": {
+        "user": "所有結果列會逐步走向同一種 action/preview 模型。",
+        "code": "建立 Rust 與 TypeScript 的 UnifiedResult 契約，舊型別先保留相容。",
+        "risk": "中；schema 若過早定死，後續 REF.6 會卡住。"
+      }
+    },
+    {
+      "id": "REF.2",
+      "title": "Command Palette Feature Split — DONE (with documented deviation)",
+      "priority": "P0",
+      "status": "done",
+      "summary": "split `CommandPalette.tsx` (landed 598 lines; `< 250` dropped — see plan)",
+      "depends_on": [
+        "REF.1"
+      ],
+      "parallel_with": [],
+      "source": "docs/tasks/refactor-ai-capability.md",
+      "scope": [],
+      "non_goals": [],
+      "done_criteria": [],
+      "notes": [],
+      "impact": {
+        "user": "畫面和鍵盤行為應維持原樣，但後續 UI 改版會更容易。",
+        "code": "CommandPalette 拆成 feature hooks/components，降低熱路徑檔案大小。",
+        "risk": "中；最容易回歸的是 launcher focus/IME 和刪除確認流程。"
+      }
+    },
+    {
+      "id": "REF.3",
+      "title": "Agent Handler Module Split — DONE",
+      "priority": "P0",
+      "status": "done",
+      "summary": "split `handlers/agent/mod.rs` (landed 616 lines, observation target `< 600`)",
+      "depends_on": [
+        "REF.2"
+      ],
+      "parallel_with": [],
+      "source": "docs/tasks/refactor-ai-capability.md",
+      "scope": [],
+      "non_goals": [],
+      "done_criteria": [],
+      "notes": [],
+      "impact": {
+        "user": "使用者可見行為應不變，但 agent 相關功能的維護邊界會更清楚。",
+        "code": "agent handler 拆分 lifecycle、context、tool dispatch、dev runner。",
+        "risk": "中高；錯切邊界可能破壞既有 legacy agent fallback。"
+      }
+    },
+    {
+      "id": "REF.4",
+      "title": "Stateless AI Capability Layer — PARTIALLY DONE",
+      "priority": "P0",
+      "status": "planned",
+      "summary": "Stateless AI Capability Layer — PARTIALLY DONE",
+      "depends_on": [
+        "REF.3"
+      ],
+      "parallel_with": [],
+      "source": "docs/tasks/refactor-ai-capability.md",
+      "scope": [],
+      "non_goals": [],
+      "done_criteria": [],
+      "notes": [],
+      "impact": {
+        "user": "AI 會變成結果列旁的 explain/summarize/fix_error 動作，而不是獨立聊天面板。",
+        "code": "新增 stateless capability layer、IPC handler、前端 inline hooks/surfaces。",
+        "risk": "高；需要守住 approval、audit、latency 和 provider 相容性。"
+      }
+    },
+    {
+      "id": "REF.5",
+      "title": "Workflow Memory — DONE",
+      "priority": "P0",
+      "status": "done",
+      "summary": "workflow memory schema v4 + `record`/`suggest`",
+      "depends_on": [
+        "REF.1"
+      ],
+      "parallel_with": [
+        "REF.4"
+      ],
+      "source": "docs/tasks/refactor-ai-capability.md",
+      "scope": [],
+      "non_goals": [],
+      "done_criteria": [],
+      "notes": [],
+      "impact": {
+        "user": "Keynova 會開始記住近期工作流並提供非 AI 的下一步建議。",
+        "code": "新增 workflow_history schema 與 workflow_memory core。",
+        "risk": "中高；資料遷移和隱私邊界要非常保守。"
+      }
+    },
+    {
+      "id": "REF.6",
+      "title": "Search Box As Pure Dispatcher (in progress)",
+      "priority": "P0",
+      "status": "open",
+      "summary": "search box = pure dispatcher. Sub-batches:",
+      "depends_on": [
+        "REF.4",
+        "REF.5"
+      ],
+      "parallel_with": [],
+      "source": "docs/tasks/refactor-ai-capability.md",
+      "scope": [
+        "Backend `core/ai_capability/gen_command.rs`: typed payload",
+        "Backend `core/ai_capability/suggest_next.rs`: typed payload",
+        "Frontend types + `useGenCommand` / `useSuggestNext` hooks.",
+        "`handlers/ai_capability.rs` exposes both via IPC."
+      ],
+      "non_goals": [
+        "No UI surface wiring (that is REF.6.E / REF.6.F).",
+        "No autonomous chain — capabilities still single-step."
+      ],
+      "done_criteria": [
+        "5 / 5 capabilities live behind one `call_capability` entry.",
+        "Unit tests cover typed payload contracts.",
+        "Live Ollama smoke green for both new capabilities."
+      ],
+      "notes": [],
+      "impact": {
+        "user": "搜尋框會更像純 dispatcher，結果列 action chip 成為主要互動方式。",
+        "code": "CommandPalette 改吃 UnifiedResult，移除 AiPanel/TerminalPanel 熱路徑掛載。",
+        "risk": "高；這是最接近產品手感的切換點。"
+      }
+    },
+    {
+      "id": "REF.7",
+      "title": "Quantitative Gates And Legacy Default Off",
+      "priority": "P0",
+      "status": "open",
+      "summary": "quantitative gates, default `ai.legacy_agent = false`, observe one release cycle",
+      "depends_on": [
+        "REF.6"
+      ],
+      "parallel_with": [],
+      "source": "docs/tasks/refactor-ai-capability.md",
+      "scope": [
+        "Add performance bench scripts and CI-friendly file-size gates (per docx §8).",
+        "Default `ai.legacy_agent = false`.",
+        "Keep legacy agent/chat available behind the flag for one release cycle.",
+        "Run manual regression for Bug A/B class race conditions.",
+        "Update release notes and docs for the new AI interaction model.",
+        "Take formal P50 / P95 reading on `qwen2.5:7b` (the deferred ADR-0029 §8"
+      ],
+      "non_goals": [
+        "Do not physically remove legacy agent/chat code during the observation cycle."
+      ],
+      "done_criteria": [
+        "`handlers/agent/mod.rs` ≤ 616 lines (current) or trimmed below `< 600`.",
+        "`agent_runtime.rs` < 400 lines during observation or justified pending removal.",
+        "AI inline P50 < 800 ms and P95 < 1500 ms on `qwen2.5:7b`.",
+        "Palette cold open < 200 ms and warm open < 50 ms.",
+        "Search first chunk P50 < 80 ms.",
+        "Idle RSS < 150 MB after 10 minutes and < 200 MB after 1 hour, excluding",
+        "One release cycle completes without P0 regression reports."
+      ],
+      "notes": [],
+      "impact": {
+        "user": "新 AI 互動模型成為預設，legacy agent 只作為 fallback。",
+        "code": "加 performance gates，ai.legacy_agent 預設 false，觀察一個 release cycle。",
+        "risk": "中；如果量化指標不足，不能急著刪 legacy。"
+      }
+    },
+    {
+      "id": "REF.8",
+      "title": "Physical Removal",
+      "priority": "P0",
+      "status": "open",
+      "summary": "physical removal decision (AiPanel deletion, agent_runtime trim, flag removal)",
+      "depends_on": [
+        "REF.7"
+      ],
+      "parallel_with": [],
+      "source": "docs/tasks/refactor-ai-capability.md",
+      "scope": [
+        "Decide AiPanel deletion based on observation-cycle telemetry. If",
+        "Delete or shrink `agent_runtime.rs` to the remaining archival/audit",
+        "Delete migrated `handlers/agent/` legacy content.",
+        "Remove `ai.legacy_agent`.",
+        "Mark superseded ADRs (0011 / 0016 / 0022 / 0026) according to the accepted"
+      ],
+      "non_goals": [
+        "Do not remove audit log tables or historical user data."
+      ],
+      "done_criteria": [
+        "Refactor achieves at least 30% code reduction across frontend/backend",
+        "Deprecated result and agent code paths are gone (or retained with explicit",
+        "Documentation and ADR indexes match the final state."
+      ],
+      "notes": [],
+      "impact": {
+        "user": "舊 chat-first AI 面板與 ReAct runtime 退出主產品路線。",
+        "code": "刪除或大幅縮小 AiPanel、agent_runtime、legacy handler code。",
+        "risk": "高；必須確認 audit history 和 fallback 需求已處理。"
+      }
+    }
+  ]
+}

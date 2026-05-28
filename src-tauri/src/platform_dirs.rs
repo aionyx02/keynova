@@ -76,7 +76,13 @@ mod tests {
         let cfg = keynova_config_dir();
         let data_has = data.components().any(|c| c.as_os_str() == "Keynova");
         let cfg_has = cfg.components().any(|c| c.as_os_str() == "Keynova");
-        assert!(data_has, "data dir path should contain Keynova segment: {data:?}");
-        assert!(cfg_has, "config dir path should contain Keynova segment: {cfg:?}");
+        assert!(
+            data_has,
+            "data dir path should contain Keynova segment: {data:?}"
+        );
+        assert!(
+            cfg_has,
+            "config dir path should contain Keynova segment: {cfg:?}"
+        );
     }
 }

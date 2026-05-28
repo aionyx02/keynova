@@ -127,7 +127,10 @@ mod tests {
     #[test]
     fn parse_unknown_command_returns_readable_error() {
         let err = parse_pipeline_text("grep foo").unwrap_err();
-        assert!(matches!(err, PipelineParseError::UnknownCommand { index: 0, .. }));
+        assert!(matches!(
+            err,
+            PipelineParseError::UnknownCommand { index: 0, .. }
+        ));
         assert!(err.to_string().contains("grep"));
         assert!(err.to_string().contains("supported:"));
     }

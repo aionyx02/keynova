@@ -7,7 +7,9 @@ use serde_json::{json, Value};
 
 use crate::core::config_manager::ConfigManager;
 use crate::core::{CommandHandler, CommandResult};
-use crate::managers::ai_manager::{resolve_ai_runtime_config, AiManager, AiProvider, AiRuntimeConfig};
+use crate::managers::ai_manager::{
+    resolve_ai_runtime_config, AiManager, AiProvider, AiRuntimeConfig,
+};
 use crate::managers::model_manager::ModelManager;
 use crate::managers::workspace_manager::WorkspaceManager;
 
@@ -61,7 +63,9 @@ impl AiHandler {
         match &config.provider {
             AiProvider::Ollama { base_url, model } => format!("ollama:{}:{}", base_url, model),
             AiProvider::Claude { model, .. } => format!("claude:{}", model),
-            AiProvider::OpenAI { base_url, model, .. } => format!("openai:{}:{}", base_url, model),
+            AiProvider::OpenAI {
+                base_url, model, ..
+            } => format!("openai:{}:{}", base_url, model),
         }
     }
 
@@ -98,8 +102,7 @@ impl AiHandler {
 
         let result = match &ai_config.provider {
             AiProvider::Ollama { base_url, model } => {
-                let (reachable, available, reason) =
-                    check_ollama(base_url, model);
+                let (reachable, available, reason) = check_ollama(base_url, model);
                 let needs_setup = !reachable || !available;
                 json!({
                     "needs_setup": needs_setup,
@@ -168,10 +171,7 @@ fn unload_ollama_model(base_url: &str, model: &str) {
 
 /// Returns `(reachable, model_available, reason)`.
 fn check_ollama(base_url: &str, target_model: &str) -> (bool, bool, &'static str) {
-    let url = format!(
-        "{}/api/tags",
-        base_url.trim_end_matches('/')
-    );
+    let url = format!("{}/api/tags", base_url.trim_end_matches('/'));
     let client = reqwest::blocking::Client::builder()
         .timeout(Duration::from_secs(3))
         .build();
@@ -179,7 +179,11 @@ fn check_ollama(base_url: &str, target_model: &str) -> (bool, bool, &'static str
         return (false, false, "Failed to build HTTP client");
     };
     let Ok(resp) = client.get(&url).send() else {
-        return (false, false, "Ollama is not reachable — is the daemon running?");
+        return (
+            false,
+            false,
+            "Ollama is not reachable — is the daemon running?",
+        );
     };
     if !resp.status().is_success() {
         return (true, false, "Ollama responded but returned an error status");
@@ -226,12 +230,14 @@ impl CommandHandler for AiHandler {
                         .map(|v| !v.eq_ignore_ascii_case("false"))
                         .unwrap_or(true);
                     if !enabled {
-                        return Err(
-                            "AI 功能已停用。請前往 /setting → Features 開啟。".into()
-                        );
+                        return Err("AI 功能已停用。請前往 /setting → Features 開啟。".into());
                     }
                 }
-                if self.in_flight.compare_exchange(false, true, Ordering::SeqCst, Ordering::SeqCst).is_err() {
+                if self
+                    .in_flight
+                    .compare_exchange(false, true, Ordering::SeqCst, Ordering::SeqCst)
+                    .is_err()
+                {
                     return Err("另一個 AI 請求進行中，請等待回應後再試".into());
                 }
                 let request_id = payload

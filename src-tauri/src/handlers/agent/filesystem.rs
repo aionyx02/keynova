@@ -1,4 +1,4 @@
-﻿use std::path::{Path, PathBuf};
+use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
 
 use crate::managers::system_indexer::SystemSearchOutcome;
@@ -6,9 +6,9 @@ use crate::managers::system_indexer::SystemSearchOutcome;
 use super::formatting::{
     capability_answer, extract_backticked, extract_path_like, extract_quoted, truncate,
 };
-use super::intent::{is_capability_question, is_time_question};
 #[cfg(test)]
 use super::intent::wants_whole_computer_search;
+use super::intent::{is_capability_question, is_time_question};
 use super::safety::contains_any;
 
 pub(super) fn direct_local_answer(prompt: &str) -> Option<String> {
@@ -214,7 +214,10 @@ pub(super) fn format_filesystem_search_answer(query: &str, outcome: &FileSearchO
     )
 }
 
-pub(super) fn format_system_index_search_answer(query: &str, outcome: &SystemSearchOutcome) -> String {
+pub(super) fn format_system_index_search_answer(
+    query: &str,
+    outcome: &SystemSearchOutcome,
+) -> String {
     let diagnostics = &outcome.diagnostics;
     let mut diagnostic_parts = vec![format!("provider={}", diagnostics.provider)];
     if let Some(reason) = diagnostics.fallback_reason.as_deref() {
@@ -606,7 +609,10 @@ pub(super) fn extract_file_read_target(prompt: &str) -> Option<String> {
         .or_else(|| extract_path_like(prompt))
 }
 
-pub(super) fn resolve_directory_target(target: &str, roots: &[PathBuf]) -> (Option<PathBuf>, Vec<PathBuf>) {
+pub(super) fn resolve_directory_target(
+    target: &str,
+    roots: &[PathBuf],
+) -> (Option<PathBuf>, Vec<PathBuf>) {
     let target_path = PathBuf::from(target);
     let mut checked = Vec::new();
     if target_path.is_absolute() {
@@ -633,7 +639,10 @@ pub(super) fn resolve_directory_target(target: &str, roots: &[PathBuf]) -> (Opti
     (None, checked)
 }
 
-pub(super) fn resolve_file_target(target: &str, roots: &[PathBuf]) -> (Option<PathBuf>, Vec<PathBuf>) {
+pub(super) fn resolve_file_target(
+    target: &str,
+    roots: &[PathBuf],
+) -> (Option<PathBuf>, Vec<PathBuf>) {
     let target_path = PathBuf::from(target);
     let mut checked = Vec::new();
     if target_path.is_absolute() {
@@ -783,4 +792,3 @@ pub(super) fn is_meaningful_target(value: &str) -> bool {
                 | "inside"
         )
 }
-

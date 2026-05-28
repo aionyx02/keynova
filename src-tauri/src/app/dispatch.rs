@@ -8,7 +8,9 @@ use crate::app::shortcuts::setup_global_shortcuts;
 use crate::app::state::AppState;
 use crate::core::automation_engine::AutomationEngine;
 use crate::core::config_manager::{ConfigChange, ConfigManager};
+use crate::core::knowledge_store::WorkflowHistoryEntry;
 use crate::core::observability;
+use crate::core::workflow_memory;
 use crate::core::{ActionLogEntry, AppEvent, IpcError};
 use crate::models::action::{ActionKind, ActionRef, ActionResult};
 use crate::models::builtin_command::{BuiltinCommandResult, CommandUiType};
@@ -21,6 +23,15 @@ pub(crate) fn cmd_dispatch_impl(
     let payload = payload.unwrap_or(Value::Null);
     let request_metric = observability::measure_json(&payload);
     let action_name = action_name_for_observability(&route, &payload);
+    // REF.5 — keep a cheap reference snapshot for the post-success workflow
+    // record hook. action.run already has access to the resolved label
+    // inside `run_action_command`; the central hook only needs payload for
+    // cmd.run / capability.call label extraction.
+    let request_payload_for_workflow = if matches!(route.as_str(), "cmd.run" | "capability.call") {
+        Some(payload.clone())
+    } else {
+        None
+    };
     let started = Instant::now();
 
     let result = dispatch_command(&route, payload, &app, &state);
@@ -39,6 +50,12 @@ pub(crate) fn cmd_dispatch_impl(
             );
             if let Some(name) = action_name.as_deref() {
                 observability::log_action_execution(name, true, elapsed);
+            }
+            // REF.5 — record cmd.run + capability.call into workflow_history.
+            // action.run is recorded inside `run_action_command` next to the
+            // existing `try_log_action` site so the resolved label is at hand.
+            if let Some(p) = request_payload_for_workflow.as_ref() {
+                maybe_record_central_workflow(&route, p, state.inner());
             }
         }
         Err(error) => {
@@ -143,9 +160,10 @@ fn run_pipeline_execute(
     let actions = parse_pipeline_text(text)
         .map_err(|e| IpcError::new("pipeline_parse_error", e.to_string()))?;
 
-    let report = AutomationEngine::execute_pipeline("pipeline", actions, |route, action_payload| {
-        dispatch_command(route, action_payload, app, state).map_err(|e| e.to_string())
-    });
+    let report =
+        AutomationEngine::execute_pipeline("pipeline", actions, |route, action_payload| {
+            dispatch_command(route, action_payload, app, state).map_err(|e| e.to_string())
+        });
 
     Ok(json!(report))
 }
@@ -200,6 +218,12 @@ fn run_action_command(
                 duration_ms: elapsed.as_millis(),
                 error: result.as_ref().err().map(ToString::to_string),
             });
+            // REF.5 — workflow_history record (only on success). Captures the
+            // resolved human-readable label that the central hook in
+            // `cmd_dispatch_impl` cannot see for action.run.
+            if result.is_ok() {
+                record_workflow_event(state.inner(), "action.run", &action.label, Some(&payload));
+            }
             if let Ok(mut workspace) = state._workspace_manager.lock() {
                 workspace.record_action(action.id);
             }
@@ -466,6 +490,63 @@ fn publish_config_reload_failed(app: &tauri::AppHandle, source: &str, error: &Ip
             "details": error.details.clone(),
         }),
     ));
+}
+
+// REF.5 — workflow_history record helpers.
+//
+// `record_workflow_event` is the single fire-and-forget entry point. The
+// workspace lock is best-effort: if it can't be acquired, the entry is
+// recorded without a `context_hash` so the critical IPC path is never
+// blocked by workflow bookkeeping.
+fn record_workflow_event(
+    state: &AppState,
+    route: &str,
+    action_label: &str,
+    payload: Option<&Value>,
+) {
+    let (context_hash, workspace_id) = match state._workspace_manager.lock() {
+        Ok(workspace) => {
+            let current = workspace.current();
+            let hash = workflow_memory::compute_context_hash(
+                current.id as i64,
+                &current.mode,
+                current.panel.as_deref(),
+            );
+            (Some(hash), Some(current.id as i64))
+        }
+        Err(_) => (None, None),
+    };
+    let payload_digest = payload.map(workflow_memory::digest_payload);
+    workflow_memory::record(
+        &state.knowledge_store,
+        WorkflowHistoryEntry {
+            context_hash,
+            route: route.to_string(),
+            action_label: action_label.to_string(),
+            payload_digest,
+            workspace_id,
+        },
+    );
+}
+
+// REF.5 — central record hook for cmd.run + capability.call. action.run is
+// handled by its own call site in `run_action_command` so the resolved
+// human-readable label is available.
+fn maybe_record_central_workflow(route: &str, payload: &Value, state: &AppState) {
+    let label = match route {
+        "cmd.run" => payload
+            .get("name")
+            .and_then(Value::as_str)
+            .map(str::to_owned)
+            .unwrap_or_else(|| "cmd".into()),
+        "capability.call" => payload
+            .get("id")
+            .and_then(Value::as_str)
+            .map(str::to_owned)
+            .unwrap_or_else(|| "capability".into()),
+        _ => return,
+    };
+    record_workflow_event(state, route, &label, Some(payload));
 }
 
 pub(crate) fn schedule_shutdown(app: &tauri::AppHandle) {

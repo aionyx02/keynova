@@ -1,0 +1,68 @@
+{
+  "schema_version": 1,
+  "generated_by": "scripts/docs-workbench-sync.mjs",
+  "authority": {
+    "markdown_sources": [
+      "docs/tasks/active.md",
+      "docs/tasks/refactor-ai-capability.md"
+    ],
+    "conflict_rule": "markdown_wins",
+    "lifecycle": "shadow_state",
+    "full_state": "docs/state/tasks.json",
+    "summary": "docs/state/tasks-summary.json",
+    "workbench": "docs/workbench/tasks.html"
+  },
+  "usage": {
+    "purpose": "low_token_decision_gate_check",
+    "prefer_this_file": true,
+    "avoid_html_by_default": true,
+    "read_html_only_when": [
+      "debugging the workbench itself",
+      "the user explicitly asks to inspect the rendered HTML"
+    ]
+  },
+  "decision_reminder": {
+    "required": true,
+    "trigger_kinds": [
+      "ADR direction",
+      "task order",
+      "UI layout",
+      "risky approval gate",
+      "other decision-gated runtime or Markdown change"
+    ],
+    "reminder_must_include": [
+      "decision name",
+      "why it is gated",
+      "next action"
+    ],
+    "next_actions": [
+      "refresh/open docs/workbench/tasks.html",
+      "confirm and return the proposal",
+      "reply with direct approval"
+    ],
+    "block_implementation_without_confirmation": true,
+    "default_policy_options": [
+      "preview_first",
+      "markdown_after_confirm"
+    ],
+    "source_card": {
+      "id": "decision-reminder",
+      "title": "AI should remind before gated decisions",
+      "applies_to": [
+        "workflow",
+        "ADR",
+        "UI",
+        "risk"
+      ]
+    }
+  },
+  "workflow": {
+    "current_task": "REF.4",
+    "current_task_summary": "Stateless AI Capability Layer — PARTIALLY DONE",
+    "progress": {
+      "done": 5,
+      "total": 9,
+      "percent": 56
+    }
+  }
+}

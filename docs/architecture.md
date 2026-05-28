@@ -2,7 +2,7 @@
 type: architecture_spec
 status: active
 priority: p1
-updated: 2026-05-18
+updated: 2026-05-23
 context_policy: retrieve_only
 owner: project
 ---
@@ -134,10 +134,38 @@ src-tauri/src/
 │   ├── preview.rs         # LAUNCH.1.C: bounded read + classify_path + guess_image_mime (shared by file.preview + learning_material)
 │   ├── dev_utils.rs       # UTIL.2: uuid/nanoid/pw/hash/b64/url/json/regex/jwt/color/cron pure-fn computations
 │   ├── process_lookup.rs  # UTIL.2.J: find_process_by_port + kill_pid (Windows netstat+tasklist / Unix lsof)
+│   ├── grounding.rs       # REF.3: GroundingSource construction helpers (source/visibility_filtered_source/truncate/contains_any/parse_visibility); shared by agent path and ai_capability layer
+│   ├── local_context.rs   # REF.3: LocalContextSearcher — workspace/command/note/history/model source aggregation; consumed by ai_capability (REF.4)
+│   ├── dev_runner.rs      # REF.3: bounded read-only dev command runner (run_bounded_dev_cmd / extract_compiler_errors / bound_output_n); consumed by fix_error capability (REF.4)
+│   ├── ai_capability/     # REF.4: stateless single-shot capability layer (ADR-0029). call_capability(req, deps) dispatched on a compile-time enum match.
+│   │   ├── mod.rs              # public entry + match on CapabilityId
+│   │   ├── registry.rs         # CapabilityId::{Explain,Summarize,FixError} + static CapabilityMeta {audit, accepts_context_hash} per ADR-0030 §4
+│   │   ├── contract.rs         # CapabilityRequest/Response/Output/Error/Deps; ChatProvider trait (test-stubbable); AiManagerChatProvider production adapter
+│   │   ├── prompt.rs           # CAPABILITY_PROMPT_BUDGET_CHARS=1400; build_prompt drops context block on overrun; maybe_audit gated by CapabilityMeta.audit
+│   │   ├── capabilities/       # one file per capability
+│   │   │   ├── explain.rs           # local_context-grounded explanation; audit=true; risk=none
+│   │   │   ├── summarize.rs         # pure text transform; audit=false; risk=none
+│   │   │   └── fix_error.rs         # raw_output OR allowlisted dev re-run via dev_runner; "apply" variant rejected as UnsupportedAction in v1; audit=true; risk=none
+│   │   └── live_tests.rs       # cfg(feature="live-ai"), #[ignore]: live Ollama qwen2.5:7b smoke tests (P50/P95 print to stdout for REF.7)
+│   ├── workflow_memory.rs # REF.5: workflow_history (schema v4) record + suggest + compute_context_hash + digest_payload. Heuristic recency-only ranking; coarse hash(workspace_id, mode, panel).
 │   └── ipc_error.rs
 ├── handlers/              # CommandHandler 實作（每個 namespace 一個）
 │   ├── agent/             # Agent handler 子模組
+│   │   ├── mod.rs              # AgentHandler struct + CommandHandler dispatch + remaining helpers (REF.3 in progress)
+│   │   ├── lifecycle.rs        # REF.3: start_run / start_react_run / start_heuristic_run / approve_run / reject_run / memory_refs
+│   │   ├── planning.rs         # REF.3 (deprecated, ADR-0029): plan_approvals / detect_planned_action / plan_* draft detectors / execute_planned_action — removed in REF.8
+│   │   ├── answers.rs          # REF.3 (deprecated, ADR-0029): direct_local_answer + answer_filesystem_search / answer_file_read / answer_project_type_summary / answer_github_trending / answer_web_search — removed in REF.8
+│   │   ├── sources.rs          # REF.3: sources_for_prompt / run_tool / filesystem_search_roots_for_prompt / filesystem_search_sources / filesystem_read_source / local_searcher / keynova_search / push_setting_schema_sources / web_search / log_audit / build_context_bundle
+│   │   ├── tools.rs            # REF.3: ReactDispatchState + all dispatch_* (keynova/filesystem/web/git.status/dev.cargo_test/check/npm.build/lint/explain_compiler_error/learning_material_review) + AgentHandler::build_react_dispatch
+│   │   ├── filesystem.rs       # filesystem-search + read helpers
+│   │   ├── formatting.rs       # prompt audit / plan / describe / suggested_note_name / re-export of core/grounding helpers
+│   │   ├── intent.rs           # should_run_local_search + capability/time direct-answer
+│   │   ├── safety.rs           # sanitize_external_query / long_term_memory_opt_in / looks_sensitive_path / resolve_readable_path
+│   │   └── web.rs              # web-search provider abstraction (duckduckgo + tavily + searxng + github trending)
 │   ├── ai.rs / model.rs / translation.rs
+│   ├── ai_capability.rs       # REF.4: capability.* IPC (list/call/cancel). Async worker via thread::spawn; per-request cancel flag; emits capability.response + (when stream=true) capability.stream.chunk events.
+│   ├── workflow_memory.rs     # REF.5: workflow.* IPC (recent/suggest). Synchronous read via KnowledgeStoreHandle::recent_workflows_blocking; suggest resolves context_hash server-side.
+│   ├── search.rs              # REF.6.A: search.query IPC now emits UnifiedResult[] (via to_unified_results helper). UiSearchItem stays internal; conversion happens at sync return, stream-init batch, and emit_search_chunk boundaries.
 │   ├── launcher.rs / search.rs / history.rs
 │   ├── hotkey.rs / mouse.rs
 │   ├── terminal.rs / note.rs / workspace.rs

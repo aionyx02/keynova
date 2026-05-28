@@ -3,7 +3,13 @@ import { getCurrentWindow } from "@tauri-apps/api/window";
 import { LogicalSize } from "@tauri-apps/api/dpi";
 import type { BuiltinCommandResult } from "./useCommands";
 
-const TERMINAL_HEIGHT = 360;
+// Window height for the full-screen terminal mode (no input bar above).
+// Covers .kn-terminal-body (460) + header (~52) + chrome.
+const TERMINAL_HEIGHT_MODE = 540;
+// Window height when terminal is attached below the palette input bar.
+// Adds room for PaletteInputBar (~70) so the search box stays visible after
+// a builtin command opens a terminal panel.
+const TERMINAL_HEIGHT_ATTACHED = 620;
 export const PALETTE_WIDTH_NARROW = 640;
 export const PALETTE_WIDTH_WIDE = 960;
 
@@ -39,11 +45,11 @@ export function useWindowResize(
       resizeRafRef.current = null;
       const width = widthRef?.current ?? PALETTE_WIDTH_NARROW;
       if (modeRef.current === "terminal") {
-        getCurrentWindow().setSize(new LogicalSize(PALETTE_WIDTH_NARROW, TERMINAL_HEIGHT)).catch(() => {});
+        getCurrentWindow().setSize(new LogicalSize(PALETTE_WIDTH_NARROW, TERMINAL_HEIGHT_MODE)).catch(() => {});
         return;
       }
       if (isTerminalResult(cmdResultRef.current)) {
-        getCurrentWindow().setSize(new LogicalSize(PALETTE_WIDTH_NARROW, TERMINAL_HEIGHT)).catch(() => {});
+        getCurrentWindow().setSize(new LogicalSize(PALETTE_WIDTH_NARROW, TERMINAL_HEIGHT_ATTACHED)).catch(() => {});
         return;
       }
       const el = containerRef.current;

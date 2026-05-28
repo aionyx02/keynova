@@ -1,6 +1,7 @@
 #![cfg(target_os = "windows")]
 
 use crate::models::app::AppInfo;
+use std::collections::HashMap;
 use std::path::Path;
 use std::sync::{Arc, Mutex, OnceLock};
 use windows::Win32::UI::Input::KeyboardAndMouse::{
@@ -76,6 +77,193 @@ fn collect_lnk_files(dir: &Path, out: &mut Vec<AppInfo>) {
 }
 
 /// 以 ShellExecute 語義開啟捷徑或可執行檔。
+static SEARCH_ICON_CACHE: OnceLock<Mutex<HashMap<String, Option<String>>>> = OnceLock::new();
+
+const SEARCH_ICON_SCRIPT: &str = r#"
+Add-Type -AssemblyName System.Drawing
+if (-not ("KeynovaShellIcon" -as [type])) {
+Add-Type @"
+using System;
+using System.Runtime.InteropServices;
+
+public static class KeynovaShellIcon {
+    [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
+    public struct SHFILEINFO {
+        public IntPtr hIcon;
+        public int iIcon;
+        public uint dwAttributes;
+        [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 260)]
+        public string szDisplayName;
+        [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 80)]
+        public string szTypeName;
+    }
+
+    [DllImport("Shell32.dll", CharSet = CharSet.Unicode)]
+    public static extern IntPtr SHGetFileInfo(
+        string pszPath,
+        uint dwFileAttributes,
+        out SHFILEINFO psfi,
+        uint cbFileInfo,
+        uint uFlags
+    );
+
+    [DllImport("User32.dll", SetLastError = true)]
+    public static extern bool DestroyIcon(IntPtr hIcon);
+}
+"@
+}
+
+$path = $env:KEYNOVA_ICON_PATH
+$kind = $env:KEYNOVA_ICON_KIND
+if ([string]::IsNullOrWhiteSpace($path)) {
+    exit 1
+}
+
+$attrs = 0
+if ($kind -eq "folder") {
+    $attrs = 0x10
+}
+
+$flags = 0x100
+$info = New-Object KeynovaShellIcon+SHFILEINFO
+[void][KeynovaShellIcon]::SHGetFileInfo(
+    $path,
+    [uint32]$attrs,
+    [ref]$info,
+    [uint32][System.Runtime.InteropServices.Marshal]::SizeOf([type][KeynovaShellIcon+SHFILEINFO]),
+    [uint32]$flags
+)
+
+if ($info.hIcon -eq [IntPtr]::Zero) {
+    exit 1
+}
+
+try {
+    $icon = [System.Drawing.Icon]::FromHandle($info.hIcon)
+    $bitmap = $icon.ToBitmap()
+    $stream = New-Object System.IO.MemoryStream
+    $bitmap.Save($stream, [System.Drawing.Imaging.ImageFormat]::Png)
+    [Convert]::ToBase64String($stream.ToArray())
+} finally {
+    [KeynovaShellIcon]::DestroyIcon($info.hIcon) | Out-Null
+}
+"#;
+
+pub fn search_icon_data_url(icon_key: &str, kind: &str, path: &str) -> Option<String> {
+    if path.trim().is_empty() {
+        return None;
+    }
+    if kind != "app" && kind != "file" && kind != "folder" {
+        return None;
+    }
+
+    let cache = SEARCH_ICON_CACHE.get_or_init(|| Mutex::new(HashMap::new()));
+    if let Ok(guard) = cache.lock() {
+        if let Some(cached) = guard.get(icon_key) {
+            return cached.clone();
+        }
+    }
+
+    if let Some(base64) = read_icon_disk_cache(icon_key) {
+        let data_url = Some(format!("data:image/png;base64,{base64}"));
+        if let Ok(mut guard) = cache.lock() {
+            guard.insert(icon_key.to_string(), data_url.clone());
+        }
+        return data_url;
+    }
+
+    let base64 = extract_shell_icon_base64(path, kind);
+    let data_url = base64.as_ref().map(|b| format!("data:image/png;base64,{b}"));
+
+    // Only persist successful extractions. Missing icons stay in the in-mem
+    // None bucket so we don't repeat PowerShell calls this session, but a
+    // restart re-tries them in case the source app installs an icon later.
+    if let Some(b) = &base64 {
+        write_icon_disk_cache(icon_key, b);
+    }
+
+    if let Ok(mut guard) = cache.lock() {
+        guard.insert(icon_key.to_string(), data_url.clone());
+    }
+
+    data_url
+}
+
+// ─── Icon disk cache ────────────────────────────────────────────────────────
+//
+// On-disk PNG cache so PowerShell + SHGetFileInfo only runs once per icon_key
+// across restarts. Files live under `dirs::cache_dir()/keynova/icons/<hash>.b64`,
+// holding the same base64 payload PowerShell emits — no encode/decode round-trip
+// on the hot path. icon_key already encodes path/extension changes (see
+// handlers::search::icon_key_for_item), so renames/upgrades skip the cache
+// naturally.
+
+fn icon_cache_dir() -> Option<std::path::PathBuf> {
+    let dir = dirs::cache_dir()?.join("keynova").join("icons");
+    if !dir.exists() {
+        std::fs::create_dir_all(&dir).ok()?;
+    }
+    Some(dir)
+}
+
+fn icon_cache_file_name(icon_key: &str) -> String {
+    use sha2::{Digest, Sha256};
+    let hash = Sha256::digest(icon_key.as_bytes());
+    let mut name = String::with_capacity(16 + 4);
+    for byte in &hash[..8] {
+        use std::fmt::Write;
+        let _ = write!(name, "{byte:02x}");
+    }
+    name.push_str(".b64");
+    name
+}
+
+fn read_icon_disk_cache(icon_key: &str) -> Option<String> {
+    let dir = icon_cache_dir()?;
+    let file = dir.join(icon_cache_file_name(icon_key));
+    let raw = std::fs::read_to_string(&file).ok()?;
+    let trimmed = raw.trim();
+    if trimmed.is_empty() {
+        return None;
+    }
+    Some(trimmed.to_string())
+}
+
+fn write_icon_disk_cache(icon_key: &str, base64: &str) {
+    let Some(dir) = icon_cache_dir() else {
+        return;
+    };
+    let file = dir.join(icon_cache_file_name(icon_key));
+    let _ = std::fs::write(&file, base64);
+}
+
+fn extract_shell_icon_base64(path: &str, kind: &str) -> Option<String> {
+    let output = std::process::Command::new("powershell.exe")
+        .args([
+            "-NoProfile",
+            "-NonInteractive",
+            "-ExecutionPolicy",
+            "Bypass",
+            "-Command",
+            SEARCH_ICON_SCRIPT,
+        ])
+        .env("KEYNOVA_ICON_PATH", path)
+        .env("KEYNOVA_ICON_KIND", kind)
+        .output()
+        .ok()?;
+
+    if !output.status.success() {
+        return None;
+    }
+
+    let text = String::from_utf8(output.stdout).ok()?;
+    let base64 = text.trim();
+    if base64.is_empty() {
+        return None;
+    }
+    Some(base64.to_string())
+}
+
 pub fn launch_app(path: &str) -> Result<(), String> {
     std::process::Command::new("cmd")
         .args(["/C", "start", "", path])
@@ -411,7 +599,14 @@ fn user_search_dirs() -> Vec<(std::path::PathBuf, usize)> {
         let home = std::path::PathBuf::from(&home_str);
 
         // OS-standardised user dirs: names are fixed by Windows shell APIs.
-        for sub in &["Desktop", "Downloads", "Documents", "Pictures", "Music", "Videos"] {
+        for sub in &[
+            "Desktop",
+            "Downloads",
+            "Documents",
+            "Pictures",
+            "Music",
+            "Videos",
+        ] {
             add(home.join(sub), 6);
         }
 
@@ -445,7 +640,9 @@ fn dropbox_paths() -> Vec<String> {
     let mut paths = Vec::new();
     for env_key in &["LOCALAPPDATA", "APPDATA"] {
         if let Ok(base) = std::env::var(env_key) {
-            let info = std::path::PathBuf::from(base).join("Dropbox").join("info.json");
+            let info = std::path::PathBuf::from(base)
+                .join("Dropbox")
+                .join("info.json");
             if let Ok(content) = std::fs::read_to_string(info) {
                 paths.extend(extract_json_path_values(&content));
                 if !paths.is_empty() {
@@ -519,8 +716,7 @@ fn wsl_home_dirs() -> Vec<(std::path::PathBuf, usize)> {
 
     for prefix in &[r"\\wsl.localhost", r"\\wsl$"] {
         for distro in &distros {
-            let home_root =
-                std::path::PathBuf::from(format!(r"{}\{}\home", prefix, distro));
+            let home_root = std::path::PathBuf::from(format!(r"{}\{}\home", prefix, distro));
             if !home_root.exists() {
                 continue;
             }
@@ -622,10 +818,7 @@ fn looks_like_utf16_le(bytes: &[u8]) -> bool {
     if pairs == 0 {
         return false;
     }
-    let nul_second_bytes = bytes
-        .chunks_exact(2)
-        .filter(|pair| pair[1] == 0)
-        .count();
+    let nul_second_bytes = bytes.chunks_exact(2).filter(|pair| pair[1] == 0).count();
     nul_second_bytes * 2 >= pairs
 }
 
@@ -735,7 +928,9 @@ pub fn everything_search(query: &str, max_results: u32) -> Vec<(String, String, 
             }
             let full_path = String::from_utf16_lossy(&buf[..len as usize]).to_string();
             if full_path.contains('\u{FFFD}') {
-                eprintln!("[keynova] skipping Everything result with invalid UTF-16 path at index {i}");
+                eprintln!(
+                    "[keynova] skipping Everything result with invalid UTF-16 path at index {i}"
+                );
                 continue;
             }
 
@@ -745,7 +940,9 @@ pub fn everything_search(query: &str, max_results: u32) -> Vec<(String, String, 
             }
             let name = read_wstr(name_ptr);
             if name.contains('\u{FFFD}') {
-                eprintln!("[keynova] skipping Everything result with invalid UTF-16 name at index {i}");
+                eprintln!(
+                    "[keynova] skipping Everything result with invalid UTF-16 name at index {i}"
+                );
                 continue;
             }
             let is_folder = (fns.is_folder_result)(i) != 0;
@@ -804,5 +1001,31 @@ mod tests {
     fn dropbox_extraction_handles_empty_json() {
         assert!(extract_json_path_values("{}").is_empty());
         assert!(extract_json_path_values("").is_empty());
+    }
+
+    #[test]
+    fn icon_cache_file_name_is_stable_per_key() {
+        let a = icon_cache_file_name("app:abc123");
+        let b = icon_cache_file_name("app:abc123");
+        assert_eq!(a, b);
+    }
+
+    #[test]
+    fn icon_cache_file_name_differs_per_key() {
+        let a = icon_cache_file_name("app:abc123");
+        let b = icon_cache_file_name("app:abc124");
+        assert_ne!(a, b);
+    }
+
+    #[test]
+    fn icon_cache_file_name_has_b64_extension_and_hex_stem() {
+        let name = icon_cache_file_name("file:rs");
+        assert!(name.ends_with(".b64"), "expected .b64 suffix, got {name}");
+        let stem = name.trim_end_matches(".b64");
+        assert_eq!(stem.len(), 16, "expected 16-hex stem, got {stem}");
+        assert!(
+            stem.chars().all(|c| c.is_ascii_hexdigit()),
+            "expected lowercase hex stem, got {stem}"
+        );
     }
 }

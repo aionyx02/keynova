@@ -24,7 +24,11 @@ pub fn uuid_v4() -> String {
 /// Length defaults to 21 when input is 0 or invalid.
 pub fn nanoid(length: usize) -> String {
     const ALPHABET: &[u8] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_-";
-    let len = if length == 0 || length > 256 { 21 } else { length };
+    let len = if length == 0 || length > 256 {
+        21
+    } else {
+        length
+    };
     let mut rng = rand::thread_rng();
     (0..len)
         .map(|_| ALPHABET[rng.gen_range(0..ALPHABET.len())] as char)
@@ -53,9 +57,15 @@ impl FromStr for PasswordMode {
 }
 
 pub fn generate_password(length: usize, mode: PasswordMode) -> String {
-    let len = if length == 0 || length > 1024 { 16 } else { length };
+    let len = if length == 0 || length > 1024 {
+        16
+    } else {
+        length
+    };
     let alphabet: &[u8] = match mode {
-        PasswordMode::All => b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*()-_=+[]{}<>?",
+        PasswordMode::All => {
+            b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*()-_=+[]{}<>?"
+        }
         PasswordMode::Alnum => b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789",
         PasswordMode::Alpha => b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz",
     };
@@ -92,7 +102,9 @@ pub fn hash_text(algo: &str, text: &str) -> Result<String, String> {
             h.update(text.as_bytes());
             Ok(format!("{:x}", h.finalize()))
         }
-        other => Err(format!("unsupported hash algorithm '{other}' (md5|sha1|sha256|sha512)")),
+        other => Err(format!(
+            "unsupported hash algorithm '{other}' (md5|sha1|sha256|sha512)"
+        )),
     }
 }
 
@@ -193,10 +205,7 @@ pub fn jwt_decode(token: &str) -> Result<String, String> {
                     now.saturating_sub(exp)
                 ));
             } else {
-                out.push_str(&format!(
-                    "Expires in {} seconds",
-                    exp.saturating_sub(now)
-                ));
+                out.push_str(&format!("Expires in {} seconds", exp.saturating_sub(now)));
             }
             if let Some(dt) = exp_dt {
                 out.push_str(&format!(" (at {})", dt.format("%Y-%m-%d %H:%M:%S UTC")));
@@ -280,7 +289,9 @@ fn parse_color(input: &str) -> Result<Rgb, String> {
         if parts.len() != 3 {
             return Err("hsl() expects 3 components".into());
         }
-        let h: f64 = parts[0].parse().map_err(|e: std::num::ParseFloatError| e.to_string())?;
+        let h: f64 = parts[0]
+            .parse()
+            .map_err(|e: std::num::ParseFloatError| e.to_string())?;
         let s_pct: f64 = parts[1]
             .trim_end_matches('%')
             .parse()
@@ -324,7 +335,11 @@ fn rgb_to_hsl(rgb: Rgb) -> (f64, f64, f64) {
         return (0.0, 0.0, l);
     }
     let d = max - min;
-    let s = if l > 0.5 { d / (2.0 - max - min) } else { d / (max + min) };
+    let s = if l > 0.5 {
+        d / (2.0 - max - min)
+    } else {
+        d / (max + min)
+    };
     let h = if (max - r).abs() < 1e-9 {
         ((g - b) / d) + if g < b { 6.0 } else { 0.0 }
     } else if (max - g).abs() < 1e-9 {
@@ -340,7 +355,11 @@ fn hsl_to_rgb(h: f64, s: f64, l: f64) -> Rgb {
         let v = (l * 255.0).round().clamp(0.0, 255.0) as u8;
         return Rgb { r: v, g: v, b: v };
     }
-    let q = if l < 0.5 { l * (1.0 + s) } else { l + s - l * s };
+    let q = if l < 0.5 {
+        l * (1.0 + s)
+    } else {
+        l + s - l * s
+    };
     let p = 2.0 * l - q;
     let hk = ((h % 360.0) + 360.0) % 360.0 / 360.0;
     let r = hue_to_rgb(p, q, hk + 1.0 / 3.0);
@@ -354,7 +373,13 @@ fn hsl_to_rgb(h: f64, s: f64, l: f64) -> Rgb {
 }
 
 fn hue_to_rgb(p: f64, q: f64, t: f64) -> f64 {
-    let t = if t < 0.0 { t + 1.0 } else if t > 1.0 { t - 1.0 } else { t };
+    let t = if t < 0.0 {
+        t + 1.0
+    } else if t > 1.0 {
+        t - 1.0
+    } else {
+        t
+    };
     if t < 1.0 / 6.0 {
         p + (q - p) * 6.0 * t
     } else if t < 1.0 / 2.0 {
@@ -382,8 +407,7 @@ pub fn cron_explain(expression: &str) -> Result<String, String> {
         6 | 7 => trimmed.to_string(),
         n => return Err(format!("cron expected 5/6/7 fields, got {n}")),
     };
-    let schedule =
-        Schedule::from_str(&normalized).map_err(|e| format!("invalid cron: {e}"))?;
+    let schedule = Schedule::from_str(&normalized).map_err(|e| format!("invalid cron: {e}"))?;
     let mut out = format!("schedule: {}\n\nnext fires (local):", normalized);
     for dt in schedule.upcoming(Local).take(5) {
         out.push_str(&format!("\n  {}", dt.format("%Y-%m-%d %H:%M:%S")));
@@ -425,8 +449,14 @@ mod tests {
 
     #[test]
     fn password_mode_from_str() {
-        assert_eq!(PasswordMode::from_str("alpha").unwrap(), PasswordMode::Alpha);
-        assert_eq!(PasswordMode::from_str("ALNUM").unwrap(), PasswordMode::Alnum);
+        assert_eq!(
+            PasswordMode::from_str("alpha").unwrap(),
+            PasswordMode::Alpha
+        );
+        assert_eq!(
+            PasswordMode::from_str("ALNUM").unwrap(),
+            PasswordMode::Alnum
+        );
         assert_eq!(PasswordMode::from_str("").unwrap(), PasswordMode::All);
         assert!(PasswordMode::from_str("rocket").is_err());
     }
@@ -447,7 +477,9 @@ mod tests {
             hash_text("sha256", "abc").unwrap(),
             "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"
         );
-        assert!(hash_text("sha512", "abc").unwrap().starts_with("ddaf35a193617aba"));
+        assert!(hash_text("sha512", "abc")
+            .unwrap()
+            .starts_with("ddaf35a193617aba"));
     }
 
     #[test]
@@ -522,7 +554,8 @@ mod tests {
     #[test]
     fn jwt_decode_header_and_payload() {
         // {"alg":"HS256","typ":"JWT"}.{"sub":"123","name":"Alice"}.<sig>
-        let token = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjMiLCJuYW1lIjoiQWxpY2UifQ.signature";
+        let token =
+            "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjMiLCJuYW1lIjoiQWxpY2UifQ.signature";
         let out = jwt_decode(token).unwrap();
         assert!(out.contains("\"alg\""));
         assert!(out.contains("HS256"));
