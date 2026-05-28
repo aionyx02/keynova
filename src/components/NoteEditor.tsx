@@ -121,23 +121,23 @@ export function NoteEditor({ onClose, initialArgs }: PanelProps) {
 
   return (
     <div
-      className="bg-gray-900/95 backdrop-blur-md rounded-b-xl shadow-2xl flex"
+      className="kn-panel-shell flex rounded-t-none border-t-0"
       style={{ height: 380 }}
     >
-      <div className="w-40 border-r border-gray-700/50 flex flex-col">
-        <div className="flex items-center justify-between px-2 py-2 border-b border-gray-700/30">
-          <span className="text-[10px] font-semibold text-gray-500 uppercase">
+      <div className="flex w-40 flex-col border-r border-[color:var(--kn-border)] bg-white/[0.015]">
+        <div className="flex items-center justify-between border-b border-[color:var(--kn-border)] px-2 py-2">
+          <span className="text-[10px] font-semibold uppercase text-[color:var(--kn-text-faint)]">
             {t.note.title}
           </span>
           <button
             onClick={() => setShowCreate(true)}
-            className="text-blue-400 hover:text-blue-300 text-xs font-bold"
+            className="kn-button h-7 px-2 py-1 text-xs font-bold"
             title={t.note.new}
           >
             +
           </button>
         </div>
-        <div className="flex-1 overflow-y-auto">
+        <div className="kn-scroll flex-1 overflow-y-auto p-1">
           {notes.map((note) => (
             <button
               key={note.name}
@@ -145,21 +145,22 @@ export function NoteEditor({ onClose, initialArgs }: PanelProps) {
                 setSelectedNote(note.name);
                 setShowCreate(false);
               }}
-              className={`w-full text-left px-2 py-1.5 text-xs truncate transition-colors ${
+              className={`kn-sidebar-item w-full truncate px-2 py-1.5 text-left text-xs ${
                 selectedNote === note.name
-                  ? "bg-blue-600/40 text-white"
-                  : "text-gray-400 hover:bg-white/5"
+                  ? "text-white"
+                  : "text-[color:var(--kn-text-muted)]"
               }`}
+              data-active={selectedNote === note.name ? "true" : "false"}
             >
               {note.name}
             </button>
           ))}
           {notes.length === 0 && (
-            <p className="text-center text-gray-700 text-[10px] mt-4">No notes yet.</p>
+            <p className="mt-4 text-center text-[10px] text-[color:var(--kn-text-faint)]">No notes yet.</p>
           )}
         </div>
         {showCreate && (
-          <div className="p-2 border-t border-gray-700/30 flex gap-1">
+          <div className="flex gap-1 border-t border-[color:var(--kn-border)] p-2">
             <input
               autoFocus
               value={newNoteName}
@@ -169,11 +170,11 @@ export function NoteEditor({ onClose, initialArgs }: PanelProps) {
                 if (e.key === "Escape") setShowCreate(false);
               }}
               placeholder={t.note.namePlaceholder}
-              className="flex-1 bg-gray-800/60 text-gray-200 text-[10px] rounded px-1 py-0.5 outline-none"
+              className="kn-field flex-1 px-1 py-0.5 text-[10px]"
             />
             <button
               onClick={() => void handleCreate()}
-              className="text-blue-400 text-[10px] hover:text-blue-300"
+              className="text-[10px] text-[color:var(--kn-accent)] hover:text-white"
             >
               Create
             </button>
@@ -184,17 +185,17 @@ export function NoteEditor({ onClose, initialArgs }: PanelProps) {
       <div className="flex-1 flex flex-col">
         {selectedNote ? (
           <>
-            <div className="flex items-center justify-between px-3 py-1.5 border-b border-gray-700/30">
-              <span className="text-xs text-gray-400 font-medium">{selectedNote}.md</span>
+            <div className="flex items-center justify-between border-b border-[color:var(--kn-border)] bg-white/[0.015] px-3 py-1.5">
+              <span className="text-xs font-medium text-[color:var(--kn-text-soft)]">{selectedNote}.md</span>
               <div className="flex items-center gap-3">
                 {saveStatus === "saved" && (
-                  <span className="text-[10px] text-green-400">{t.note.saved}</span>
+                  <span className="text-[10px] text-[color:var(--kn-success)]">{t.note.saved}</span>
                 )}
                 {saveStatus === "error" && (
-                  <span className="text-[10px] text-red-400">Save failed</span>
+                  <span className="text-[10px] text-[color:var(--kn-danger)]">Save failed</span>
                 )}
                 {confirmDelete ? (
-                  <span className="text-[10px] text-red-400 flex gap-2">
+                  <span className="flex gap-2 text-[10px] text-[color:var(--kn-danger)]">
                     Delete?
                     <button onClick={() => void handleDelete()} className="hover:text-red-300">
                       Yes
@@ -206,7 +207,7 @@ export function NoteEditor({ onClose, initialArgs }: PanelProps) {
                 ) : (
                   <button
                     onClick={() => setConfirmDelete(true)}
-                    className="text-[10px] text-gray-600 hover:text-red-400 transition-colors"
+                    className="text-[10px] text-[color:var(--kn-text-faint)] transition-colors hover:text-[color:var(--kn-danger)]"
                   >
                     {t.note.delete}
                   </button>
@@ -222,14 +223,14 @@ export function NoteEditor({ onClose, initialArgs }: PanelProps) {
               }}
               onKeyDown={handleEditorKeyDown}
               placeholder={t.note.placeholder}
-              className="flex-1 bg-transparent text-gray-200 text-sm px-3 py-2 outline-none resize-none font-mono placeholder-gray-700"
+              className="kn-scroll flex-1 resize-none bg-transparent px-3 py-2 font-mono text-sm text-[color:var(--kn-text)] outline-none placeholder:text-[color:var(--kn-text-faint)]"
             />
-            <div className="px-3 py-1 text-[10px] text-gray-700">
+            <div className="px-3 py-1 text-[10px] text-[color:var(--kn-text-faint)]">
               Ctrl+S to save, Esc to go back.
             </div>
           </>
         ) : (
-          <div className="flex-1 flex items-center justify-center text-gray-700 text-sm">
+          <div className="flex flex-1 items-center justify-center text-sm text-[color:var(--kn-text-faint)]">
             {showCreate ? "Create a note to continue." : "Select a note or create a draft."}
           </div>
         )}

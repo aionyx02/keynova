@@ -295,10 +295,10 @@ export function SettingPanel({ initialArgs }: PanelProps) {
   }
 
   return (
-    <div className="bg-gray-900/95 backdrop-blur-md rounded-b-xl shadow-2xl overflow-hidden">
-      <div className="relative border-b border-gray-700/50">
-        <div className="pointer-events-none absolute inset-y-0 left-0 z-10 w-6 bg-gradient-to-r from-gray-900/90 to-transparent" />
-        <div className="pointer-events-none absolute inset-y-0 right-0 z-10 w-6 bg-gradient-to-l from-gray-900/90 to-transparent" />
+    <div className="kn-panel-shell overflow-hidden rounded-t-none border-t-0">
+      <div className="relative border-b border-[color:var(--kn-border)] bg-white/[0.015]">
+        <div className="pointer-events-none absolute inset-y-0 left-0 z-10 w-6 bg-gradient-to-r from-[color:var(--kn-panel-bg)] to-transparent" />
+        <div className="pointer-events-none absolute inset-y-0 right-0 z-10 w-6 bg-gradient-to-l from-[color:var(--kn-panel-bg)] to-transparent" />
         <div className="setting-tabs-scroll overflow-x-auto overflow-y-hidden">
           <div className="flex min-w-max items-center gap-0.5 px-2">
             {sections.map((section) => (
@@ -307,8 +307,8 @@ export function SettingPanel({ initialArgs }: PanelProps) {
                 onClick={() => setActiveSection(section)}
                 className={`shrink-0 border-b-2 px-3 py-2 text-[12px] font-semibold whitespace-nowrap transition-colors ${
                   activeSection === section
-                    ? "text-blue-400 border-blue-400"
-                    : "text-gray-500 border-transparent hover:text-gray-300"
+                    ? "border-[color:var(--kn-accent)] text-[color:var(--kn-text)]"
+                    : "border-transparent text-[color:var(--kn-text-faint)] hover:text-[color:var(--kn-text-soft)]"
                 }`}
               >
                 {sectionDisplayLabel(section)}
@@ -319,14 +319,16 @@ export function SettingPanel({ initialArgs }: PanelProps) {
       </div>
 
       <div className="px-4 pt-2 pb-0">
-        <span className="text-[10px] text-gray-600">
+        <span className="text-[10px] text-[color:var(--kn-text-faint)]">
           {SECTION_EFFECT_HINT[activeSection] ?? "Applies after the next relevant action."}
         </span>
       </div>
 
-      <div className="max-h-[260px] overflow-y-auto px-4 py-3 space-y-3">
+      <div className="kn-scroll max-h-[260px] overflow-y-auto px-4 py-3 space-y-3">
         {visible.length === 0 && (
-          <p className="text-xs text-gray-600 text-center py-4">No settings in this section.</p>
+          <p className="py-4 text-center text-xs text-[color:var(--kn-text-faint)]">
+            No settings in this section.
+          </p>
         )}
         {visible.map(({ key, value, sensitive }, rowIdx) => {
           const fieldSchema = schema.find((item) => item.key === key);
@@ -343,9 +345,9 @@ export function SettingPanel({ initialArgs }: PanelProps) {
             return (
               <div key={key} className="flex items-center gap-3 py-0.5">
                 <div className="flex-1 min-w-0">
-                  <div className="text-xs text-gray-300 truncate">{label}</div>
+                  <div className="truncate text-xs text-[color:var(--kn-text-soft)]">{label}</div>
                   {description && (
-                    <div className="text-[10px] text-gray-600 truncate">{description}</div>
+                    <div className="truncate text-[10px] text-[color:var(--kn-text-faint)]">{description}</div>
                   )}
                 </div>
                 <button
@@ -358,8 +360,10 @@ export function SettingPanel({ initialArgs }: PanelProps) {
                     if (e.key === "ArrowUp") { e.preventDefault(); inputRefs.current[rowIdx - 1]?.focus(); }
                     if (e.key === " " || e.key === "Enter") { e.preventDefault(); void saveValue(key, isOn ? "false" : "true"); }
                   }}
-                  className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer items-center rounded-full transition-colors focus:outline-none focus:ring-1 focus:ring-blue-500 ${
-                    isOn ? "bg-blue-500" : "bg-gray-600"
+                  className={`relative inline-flex h-5 w-9 shrink-0 items-center rounded-full border transition-colors ${
+                    isOn
+                      ? "border-[color:rgba(138,168,255,0.24)] bg-[color:var(--kn-accent)]"
+                      : "border-[color:var(--kn-border)] bg-white/[0.08]"
                   } ${saving === key ? "opacity-60" : ""}`}
                 >
                   <span
@@ -369,10 +373,10 @@ export function SettingPanel({ initialArgs }: PanelProps) {
                   />
                 </button>
                 {saving === key && (
-                  <span className="text-[10px] text-gray-500 shrink-0">Saving</span>
+                  <span className="shrink-0 text-[10px] text-[color:var(--kn-text-muted)]">Saving</span>
                 )}
                 {savedKey === key && saving !== key && (
-                  <span className="text-[10px] text-emerald-400 shrink-0">Saved</span>
+                  <span className="shrink-0 text-[10px] text-[color:var(--kn-success)]">Saved</span>
                 )}
               </div>
             );
@@ -380,7 +384,7 @@ export function SettingPanel({ initialArgs }: PanelProps) {
 
           return (
             <div key={key} className="flex items-center gap-3">
-              <label className="w-44 shrink-0 text-xs text-gray-400 truncate">{label}</label>
+              <label className="w-44 shrink-0 truncate text-xs text-[color:var(--kn-text-muted)]">{label}</label>
               <input
                 ref={(el) => {
                   inputRefs.current[rowIdx] = el;
@@ -398,28 +402,28 @@ export function SettingPanel({ initialArgs }: PanelProps) {
                       ? "Enter a new secret value"
                       : undefined
                 }
-                className={`flex-1 rounded bg-gray-800 px-2 py-1 text-sm text-gray-100 outline-none focus:ring-1 ${
-                  isHotkey ? "focus:ring-violet-500 cursor-pointer" : "focus:ring-blue-500"
+                className={`kn-field flex-1 px-2 py-1 text-sm ${
+                  isHotkey ? "cursor-pointer" : ""
                 } ${saving === key ? "opacity-60" : ""}`}
                 spellCheck={false}
               />
               {saving === key && (
-                <span className="text-[10px] text-gray-500 shrink-0">Saving</span>
+                <span className="shrink-0 text-[10px] text-[color:var(--kn-text-muted)]">Saving</span>
               )}
               {savedKey === key && saving !== key && (
-                <span className="text-[10px] text-emerald-400 shrink-0">Saved</span>
+                <span className="shrink-0 text-[10px] text-[color:var(--kn-success)]">Saved</span>
               )}
             </div>
           );
         })}
       </div>
 
-      <div className="border-t border-gray-700/50 px-4 py-1.5 text-[11px] text-gray-600 flex justify-between">
+      <div className="kn-panel-footer">
         <span>%APPDATA%\Keynova\config.toml</span>
         {saveError ? (
-          <span className="text-red-400 truncate ml-2">{saveError}</span>
+          <span className="ml-2 truncate text-[color:var(--kn-danger)]">{saveError}</span>
         ) : (
-          reloadNotice && <span className="text-emerald-400 truncate ml-2">{reloadNotice}</span>
+          reloadNotice && <span className="ml-2 truncate text-[color:var(--kn-success)]">{reloadNotice}</span>
         )}
       </div>
     </div>
