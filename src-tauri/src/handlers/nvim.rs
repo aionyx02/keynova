@@ -36,8 +36,9 @@ impl CommandHandler for NvimHandler {
             "download" => {
                 let event_bus = Arc::clone(&self.event_bus);
                 std::thread::spawn(move || {
-                    let emit: Arc<dyn Fn(AppEvent) + Send + Sync> =
-                        Arc::new(move |evt| { let _ = event_bus.publish(evt); });
+                    let emit: Arc<dyn Fn(AppEvent) + Send + Sync> = Arc::new(move |evt| {
+                        let _ = event_bus.publish(evt);
+                    });
                     match portable_nvim_manager::download_nvim(Arc::clone(&emit)) {
                         Ok(path) => emit(AppEvent::new(
                             "nvim.download_progress",

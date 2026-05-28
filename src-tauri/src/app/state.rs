@@ -3,23 +3,24 @@ use std::time::Instant;
 
 use serde_json::json;
 
-use crate::core::config_manager::ConfigManager;
 use crate::core::agent_runtime::AgentArchiveSink;
+use crate::core::config_manager::ConfigManager;
 use crate::core::knowledge_store::AgentArchiveEntry;
+use crate::core::local_context::LocalContextSearcher;
 use crate::core::{
     ActionArena, AgentRuntime, AppEvent, BuiltinCommandRegistry, CommandRouter, EventBus,
     KnowledgeStoreHandle,
 };
-use crate::models::agent::AgentRun;
 use crate::handlers::{
     agent::{AgentHandler, AgentHandlerDeps},
     ai::AiHandler,
+    ai_capability::{AiCapabilityHandler, AiCapabilityHandlerDeps},
     automation::AutomationHandler,
     builtin_cmd::{
-        AiCommand, BuiltinCmdHandler, CalCommand, DownCommand, HelpCommand, HistoryCommand,
+        BuiltinCmdHandler, CalCommand, DownCommand, HelpCommand, HistoryCommand,
         ModelDownloadCommand, ModelListCommand, ModelRemoveCommand, NoteCommand, OnboardCommand,
-        RebuildSearchIndexCommand, ReloadCommand, SettingCommand, SysCtlCommand,
-        SysMonitorCommand, TrCommand,
+        RebuildSearchIndexCommand, ReloadCommand, SettingCommand, SysCtlCommand, SysMonitorCommand,
+        TrCommand,
     },
     calculator::CalculatorHandler,
     dev_utils_cmd::{
@@ -35,14 +36,15 @@ use crate::handlers::{
     model::ModelHandler,
     mouse::MouseHandler,
     note::NoteHandler,
+    nvim::NvimHandler,
     plugin::PluginHandler,
     search::{SearchHandler, SearchHandlerDeps},
     setting::SettingHandler,
     system_control::SystemControlHandler,
-    nvim::NvimHandler,
     system_monitoring::SystemMonitoringHandler,
     terminal::TerminalHandler,
     translation::TranslationHandler,
+    workflow_memory::{WorkflowMemoryHandler, WorkflowMemoryHandlerDeps},
     workspace::WorkspaceHandler,
 };
 use crate::managers::{
@@ -53,6 +55,7 @@ use crate::managers::{
     terminal_manager::TerminalManager, translation_manager::TranslationManager,
     workspace_manager::WorkspaceManager,
 };
+use crate::models::agent::AgentRun;
 
 pub(crate) struct AppState {
     pub(crate) command_router: CommandRouter,
@@ -221,7 +224,12 @@ fn build_builtin_registry(
     reg.register(Box::new(OnboardCommand));
     reg.register(Box::new(DownCommand));
     reg.register(Box::new(TrCommand));
-    reg.register(Box::new(AiCommand));
+    // REF.6.B follow-up — `/ai` builtin removed: legacy chat panel does not
+    // belong on the keyboard-first hot path (docx §4.6). Inline AI is now
+    // invoked via prefix keyword (`explain <q>` / `summarize <text>`); the
+    // `ai.model` config still feeds the capability layer via /model_list.
+    // If chat ever returns, re-register here and reinstate
+    // `PanelRegistry["ai"]`.
     reg.register(Box::new(ModelDownloadCommand));
     reg.register(Box::new(ModelListCommand));
     reg.register(Box::new(ModelRemoveCommand::new(
@@ -358,6 +366,21 @@ fn build_command_router(
         knowledge_store: knowledge_store.clone(),
         tantivy_index_dir: agent_tantivy_dir,
     })));
+    router.register(Arc::new(AiCapabilityHandler::new(
+        AiCapabilityHandlerDeps {
+            ai: Arc::clone(&bundle.ai_manager),
+            config: Arc::clone(&bundle.config_manager),
+            local_context: LocalContextSearcher {
+                workspace_manager: Arc::clone(&bundle.workspace_manager),
+                note_manager: Arc::clone(&bundle.note_manager),
+                history_manager: Arc::clone(&bundle.history_manager),
+                builtin_registry: Arc::clone(&builtin_registry),
+                model_manager: Arc::clone(&bundle.model_manager),
+            },
+            knowledge_store: knowledge_store.clone(),
+            event_bus: Arc::new(event_bus.clone()),
+        },
+    )));
     router.register(Arc::new(SystemMonitoringHandler::new(Arc::new(
         event_bus.clone(),
     ))));
@@ -368,6 +391,12 @@ fn build_command_router(
     )));
     router.register(Arc::new(AutomationHandler));
     router.register(Arc::new(PluginHandler));
+    router.register(Arc::new(WorkflowMemoryHandler::new(
+        WorkflowMemoryHandlerDeps {
+            store: knowledge_store.clone(),
+            workspace_manager: Arc::clone(&bundle.workspace_manager),
+        },
+    )));
     router
 }
 

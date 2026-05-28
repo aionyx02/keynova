@@ -118,25 +118,9 @@ impl BuiltinCommand for TrCommand {
     }
 }
 
-pub struct AiCommand;
-
-impl BuiltinCommand for AiCommand {
-    fn name(&self) -> &'static str {
-        "ai"
-    }
-    fn description(&self) -> &'static str {
-        "Ask AI assistant"
-    }
-    fn args_hint(&self) -> Option<&'static str> {
-        Some("<question>")
-    }
-    fn execute(&self, _args: &str) -> BuiltinCommandResult {
-        BuiltinCommandResult {
-            text: String::new(),
-            ui_type: CommandUiType::Panel("ai".into()),
-        }
-    }
-}
+// REF.6.B follow-up — `AiCommand` removed. The chat-first `/ai` panel does
+// not match the prefix-keyword inline AI flow (`explain <q>` /
+// `summarize <text>`). Reinstate when chat returns (see ADR-0029 §2.5).
 
 pub struct ModelDownloadCommand;
 

@@ -15,6 +15,13 @@ default-run = "tauri-app"
 name = "tauri_app_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
+[features]
+# REF.4 — enables `#[ignore]`-gated integration tests that hit a live Ollama
+# daemon (qwen2.5:7b). Default-off so CI / unit-test runs do not depend on
+# external services. Run locally with:
+#   cargo test --features live-ai -- --ignored ai_capability_live
+live-ai = []
+
 [build-dependencies]
 tauri-build = { version = "2", features = [] }
 

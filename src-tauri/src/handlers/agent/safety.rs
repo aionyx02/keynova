@@ -1,7 +1,11 @@
-﻿use std::path::{Path, PathBuf};
+use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 
 use crate::core::config_manager::ConfigManager;
+
+// `contains_any` now lives in `crate::core::grounding`; re-export so existing
+// `super::safety::contains_any` callers in the agent submodules keep working.
+pub(super) use crate::core::grounding::contains_any;
 
 pub(super) fn sanitize_external_query(query: &str) -> Result<String, String> {
     let trimmed = query.trim();
@@ -31,10 +35,6 @@ pub(super) fn sanitize_external_query(query: &str) -> Result<String, String> {
     Ok(trimmed.to_string())
 }
 
-pub(super) fn contains_any(haystack: &str, needles: &[&str]) -> bool {
-    needles.iter().any(|needle| haystack.contains(needle))
-}
-
 pub(super) fn long_term_memory_opt_in(config: &Arc<Mutex<ConfigManager>>) -> bool {
     config
         .lock()
@@ -53,11 +53,28 @@ pub(super) fn is_allowlisted_safe_builtin(name: &str, args: &str) -> bool {
 
 pub(super) fn looks_sensitive_path(path: &Path) -> bool {
     const SENSITIVE_COMPONENTS: &[&str] = &[
-        ".ssh", ".gnupg", ".gpg", ".aws", ".azure", ".gcloud",
-        "id_rsa", "id_ed25519", "id_ecdsa", "id_dsa",
-        ".env", ".env.local", ".env.production", ".env.secret",
-        "credentials", "secrets", "secret.json", "secret.toml",
-        "keystore", "truststore", ".netrc", ".pgpass",
+        ".ssh",
+        ".gnupg",
+        ".gpg",
+        ".aws",
+        ".azure",
+        ".gcloud",
+        "id_rsa",
+        "id_ed25519",
+        "id_ecdsa",
+        "id_dsa",
+        ".env",
+        ".env.local",
+        ".env.production",
+        ".env.secret",
+        "credentials",
+        "secrets",
+        "secret.json",
+        "secret.toml",
+        "keystore",
+        "truststore",
+        ".netrc",
+        ".pgpass",
     ];
     path.components().any(|comp| {
         let s = comp.as_os_str().to_string_lossy();
@@ -167,7 +184,11 @@ mod tests {
 
         assert!(looks_sensitive_path(Path::new("/home/user/.ssh/id_rsa")));
         assert!(looks_sensitive_path(Path::new("/home/user/.env")));
-        assert!(looks_sensitive_path(Path::new("C:/Users/user/.aws/credentials")));
-        assert!(!looks_sensitive_path(Path::new("/home/user/projects/keynova/src/main.rs")));
+        assert!(looks_sensitive_path(Path::new(
+            "C:/Users/user/.aws/credentials"
+        )));
+        assert!(!looks_sensitive_path(Path::new(
+            "/home/user/projects/keynova/src/main.rs"
+        )));
     }
 }

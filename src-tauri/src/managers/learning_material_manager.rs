@@ -79,11 +79,9 @@ impl LearningMaterialManager {
     /// No file content is read during the scan; only filesystem metadata is accessed.
     pub fn scan(&self, roots: &[PathBuf]) -> Result<ReviewReport, String> {
         if !self.enabled {
-            return Err(
-                "Learning material review is disabled. \
+            return Err("Learning material review is disabled. \
                  Enable agent.local_context.enabled in Settings → Agent."
-                    .into(),
-            );
+                .into());
         }
 
         let mut candidates: Vec<MaterialCandidate> = Vec::new();
@@ -116,10 +114,7 @@ impl LearningMaterialManager {
     ///
     /// Returns an explanatory label string when the file is denied, binary, or unreadable.
     pub fn preview_file(&self, path: &Path) -> String {
-        let name = path
-            .file_name()
-            .and_then(|n| n.to_str())
-            .unwrap_or("");
+        let name = path.file_name().and_then(|n| n.to_str()).unwrap_or("");
 
         if is_denied(name, &self.denylist) {
             return "[denylist: preview blocked]".to_string();
@@ -301,7 +296,10 @@ mod tests {
     }
 
     fn disabled_manager() -> LearningMaterialManager {
-        LearningMaterialManager { enabled: false, ..enabled_manager() }
+        LearningMaterialManager {
+            enabled: false,
+            ..enabled_manager()
+        }
     }
 
     #[test]
@@ -314,38 +312,72 @@ mod tests {
     #[test]
     fn scan_rejects_nonexistent_root() {
         let mgr = enabled_manager();
-        assert!(mgr.scan(&[PathBuf::from("C:\\nonexistent\\keynova_lm_xyz")]).is_err()
-            || mgr.scan(&[PathBuf::from("/nonexistent/keynova_lm_xyz")]).is_err());
+        assert!(
+            mgr.scan(&[PathBuf::from("C:\\nonexistent\\keynova_lm_xyz")])
+                .is_err()
+                || mgr
+                    .scan(&[PathBuf::from("/nonexistent/keynova_lm_xyz")])
+                    .is_err()
+        );
     }
 
     #[test]
     fn classifier_identifies_note_extensions() {
-        for (name, expected) in [("file.md", MaterialClass::Note), ("readme.txt", MaterialClass::Note), ("doc.org", MaterialClass::Note)] {
-            assert_eq!(classify_by_extension(Path::new(name)), expected, "failed for {name}");
+        for (name, expected) in [
+            ("file.md", MaterialClass::Note),
+            ("readme.txt", MaterialClass::Note),
+            ("doc.org", MaterialClass::Note),
+        ] {
+            assert_eq!(
+                classify_by_extension(Path::new(name)),
+                expected,
+                "failed for {name}"
+            );
         }
     }
 
     #[test]
     fn classifier_identifies_report_extensions() {
-        assert_eq!(classify_by_extension(Path::new("report.pdf")), MaterialClass::Report);
-        assert_eq!(classify_by_extension(Path::new("thesis.docx")), MaterialClass::Report);
+        assert_eq!(
+            classify_by_extension(Path::new("report.pdf")),
+            MaterialClass::Report
+        );
+        assert_eq!(
+            classify_by_extension(Path::new("thesis.docx")),
+            MaterialClass::Report
+        );
     }
 
     #[test]
     fn classifier_identifies_presentation_extensions() {
-        assert_eq!(classify_by_extension(Path::new("slides.pptx")), MaterialClass::Presentation);
+        assert_eq!(
+            classify_by_extension(Path::new("slides.pptx")),
+            MaterialClass::Presentation
+        );
     }
 
     #[test]
     fn classifier_identifies_certificate_extensions() {
-        assert_eq!(classify_by_extension(Path::new("cert.pem")), MaterialClass::Certificate);
-        assert_eq!(classify_by_extension(Path::new("root.cer")), MaterialClass::Certificate);
+        assert_eq!(
+            classify_by_extension(Path::new("cert.pem")),
+            MaterialClass::Certificate
+        );
+        assert_eq!(
+            classify_by_extension(Path::new("root.cer")),
+            MaterialClass::Certificate
+        );
     }
 
     #[test]
     fn classifier_returns_unknown_for_binary() {
-        assert_eq!(classify_by_extension(Path::new("program.exe")), MaterialClass::Unknown);
-        assert_eq!(classify_by_extension(Path::new("archive.zip")), MaterialClass::Unknown);
+        assert_eq!(
+            classify_by_extension(Path::new("program.exe")),
+            MaterialClass::Unknown
+        );
+        assert_eq!(
+            classify_by_extension(Path::new("archive.zip")),
+            MaterialClass::Unknown
+        );
     }
 
     #[test]
@@ -381,8 +413,15 @@ mod tests {
         let mgr = enabled_manager();
         let report = mgr.scan(&[root]).expect("scan ok");
 
-        assert_eq!(report.candidates.len(), 2, "note + report should be candidates");
-        assert!(report.stats.filtered_count >= 1, "node_modules should be filtered");
+        assert_eq!(
+            report.candidates.len(),
+            2,
+            "note + report should be candidates"
+        );
+        assert!(
+            report.stats.filtered_count >= 1,
+            "node_modules should be filtered"
+        );
     }
 
     #[test]
@@ -407,10 +446,27 @@ mod tests {
         let report = ReviewReport {
             roots: vec!["/home/user/docs".into()],
             candidates: vec![
-                MaterialCandidate { path: "/home/user/docs/note.md".into(), name: "note.md".into(), class: MaterialClass::Note, size_bytes: 1024, modified_secs: 0 },
-                MaterialCandidate { path: "/home/user/docs/slides.pptx".into(), name: "slides.pptx".into(), class: MaterialClass::Presentation, size_bytes: 2048, modified_secs: 0 },
+                MaterialCandidate {
+                    path: "/home/user/docs/note.md".into(),
+                    name: "note.md".into(),
+                    class: MaterialClass::Note,
+                    size_bytes: 1024,
+                    modified_secs: 0,
+                },
+                MaterialCandidate {
+                    path: "/home/user/docs/slides.pptx".into(),
+                    name: "slides.pptx".into(),
+                    class: MaterialClass::Presentation,
+                    size_bytes: 2048,
+                    modified_secs: 0,
+                },
             ],
-            stats: ScanStats { scanned_count: 5, candidate_count: 2, filtered_count: 2, denied_count: 1 },
+            stats: ScanStats {
+                scanned_count: 5,
+                candidate_count: 2,
+                filtered_count: 2,
+                denied_count: 1,
+            },
         };
         let md = report.to_markdown();
         assert!(md.contains("# Learning Material Review"));

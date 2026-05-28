@@ -1,4 +1,4 @@
-﻿use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex};
 
 use serde_json::{json, Value};
 
@@ -13,8 +13,18 @@ use crate::models::terminal::TerminalLaunchSpec;
 use uuid::Uuid;
 
 use super::intent::should_run_local_search;
-use super::safety::contains_any;
 use super::PROMPT_SOURCE_LIMIT;
+
+// Re-export the GroundingSource construction helpers so other `agent/*`
+// submodules keep using `super::formatting::{source, truncate, ...}` without
+// touching every call site. The canonical definitions now live in
+// `crate::core::grounding` so `core/local_context.rs` (and the upcoming
+// `core/ai_capability/` layer in REF.4) can reuse them without a reverse
+// dependency on `handlers/`.
+#[allow(unused_imports)]
+pub(super) use crate::core::grounding::{
+    contains_any, parse_visibility, source, truncate, visibility_filtered_source,
+};
 
 pub(super) fn build_prompt_audit(
     prompt: &str,
@@ -72,7 +82,6 @@ pub(super) fn build_prompt_audit(
     }
 }
 
-
 pub(super) fn capability_answer() -> String {
     [
         "我可以用兩種方式幫你：",
@@ -128,7 +137,10 @@ pub(super) fn describe_run(prompt: &str, audit: &AgentPromptAudit) -> String {
     }
 }
 
-pub(super) fn describe_execution(action: &AgentPlannedAction, result: &BuiltinCommandResult) -> String {
+pub(super) fn describe_execution(
+    action: &AgentPlannedAction,
+    result: &BuiltinCommandResult,
+) -> String {
     match &result.ui_type {
         CommandUiType::Inline => format!("Executed '{}'. {}", action.label, result.text),
         CommandUiType::Panel(panel) => {
@@ -138,93 +150,6 @@ pub(super) fn describe_execution(action: &AgentPlannedAction, result: &BuiltinCo
             "Executed '{}'. Ready to run terminal command '{}'.",
             action.label, spec.program
         ),
-    }
-}
-
-pub(super) fn visibility_filtered_source(
-    source_id: String,
-    source_type: &str,
-    title: String,
-    snippet: String,
-    score: f32,
-) -> GroundingSource {
-    let combined = format!("{title} {snippet}").to_lowercase();
-    if contains_any(
-        &combined,
-        &[
-            "CLAUDE.md",
-            "tasks.md",
-            "memory.md",
-            "decisions.md",
-            "skill.md",
-            "private_architecture",
-            "architecture",
-        ],
-    ) {
-        return GroundingSource {
-            source_id,
-            source_type: source_type.into(),
-            title,
-            snippet: "[redacted private architecture context]".into(),
-            uri: None,
-            score,
-            visibility: ContextVisibility::PrivateArchitecture,
-            redacted_reason: Some("private_architecture".into()),
-        };
-    }
-    if contains_any(
-        &combined,
-        &[
-            "api_key", "api key", "password", "token", "secret", "sk-", "bearer ",
-        ],
-    ) {
-        return GroundingSource {
-            source_id,
-            source_type: source_type.into(),
-            title,
-            snippet: "[redacted secret]".into(),
-            uri: None,
-            score,
-            visibility: ContextVisibility::Secret,
-            redacted_reason: Some("secret".into()),
-        };
-    }
-    source(
-        source_id,
-        source_type,
-        title,
-        snippet,
-        score,
-        ContextVisibility::UserPrivate,
-    )
-}
-
-pub(super) fn source(
-    source_id: String,
-    source_type: &str,
-    title: String,
-    snippet: String,
-    score: f32,
-    visibility: ContextVisibility,
-) -> GroundingSource {
-    GroundingSource {
-        source_id,
-        source_type: source_type.into(),
-        title,
-        snippet: truncate(&snippet, 240),
-        uri: None,
-        score,
-        visibility,
-        redacted_reason: None,
-    }
-}
-
-pub(super) fn parse_visibility(value: &str) -> ContextVisibility {
-    match value {
-        "public_context" => ContextVisibility::PublicContext,
-        "private_architecture" => ContextVisibility::PrivateArchitecture,
-        "secret" => ContextVisibility::Secret,
-        _ => ContextVisibility::UserPrivate,
     }
 }
 
@@ -259,7 +184,9 @@ pub(super) fn title_case(value: &str) -> String {
         .join(" ")
 }
 
-pub(super) fn match_setting_schema(prompt: &str) -> Option<crate::models::settings_schema::SettingSchema> {
+pub(super) fn match_setting_schema(
+    prompt: &str,
+) -> Option<crate::models::settings_schema::SettingSchema> {
     let q = prompt.to_lowercase();
     builtin_setting_schema()
         .into_iter()
@@ -493,24 +420,6 @@ pub(super) fn build_terminal_command_spec(
         editor: false,
     }
 }
-
-
-pub(super) fn truncate(value: &str, max_chars: usize) -> String {
-    let mut out = String::new();
-    let mut truncated = false;
-    for (count, ch) in value.chars().enumerate() {
-        if count >= max_chars {
-            truncated = true;
-            break;
-        }
-        out.push(ch);
-    }
-    if truncated {
-        out.push_str("...");
-    }
-    out
-}
-
 
 pub(super) fn inline_result(text: String) -> BuiltinCommandResult {
     BuiltinCommandResult {

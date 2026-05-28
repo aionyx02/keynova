@@ -2,7 +2,7 @@
 type: decision_index
 status: active
 priority: p1
-updated: 2026-05-18
+updated: 2026-05-20
 context_policy: retrieve_only
 owner: project
 ---
@@ -67,6 +67,8 @@ owner: project
 | [0026](adr/0026-provider-driven-react-loop.md) | Provider-Driven ReAct Agent Loop | 接受 | 2026-05-08 |
 | [0027](adr/0027-generic-shell-sandbox.md) | Generic Shell Tool Sandbox Requirement | 接受（research，product 未解封）| 2026-05-09 |
 | [0028](adr/0028-learning-material-review-local-context.md) | Learning Material Review Local Context Boundary | 提議 | 2026-05-15 |
+| [0029](adr/0029-ai-capability-layer.md) | AI Capability Layer — Stateless Inline Capabilities Over Search Results | 接受 | 2026-05-20 |
+| [0030](adr/0030-backend-risk-tag-contract.md) | Backend Risk Tag Contract For UI-Owned Confirmation | 接受 | 2026-05-20 |
 | [0038](adr/0038-currency-online-rates.md) | Currency Online Rates Network Boundary | 提議 | 2026-05-18 |
 
 ---
@@ -76,6 +78,7 @@ owner: project
 - Everything IPC 完整實作（`everything_ipc.rs` 目前為佔位符）— 見 ADR-006
 - ADR-027 product 解封：各平台剩餘工作（AppContainer / seccomp / App Sandbox entitlement）
 - TD.2 / TD.3 / TD.4 架構演進屆時需新增對應 ADR（見 tasks.md）
+- ADR-0029 / ADR-0030 已於 2026-05-20 接受；REF.1–REF.8 實作解鎖，依 `docs/tasks/refactor-ai-capability.md` 批次序執行
 
 ## Post-FEAT.11 規劃 — 待起草 ADR (2026-05-15)
 
@@ -83,12 +86,14 @@ owner: project
 
 | 預留編號 | 預定標題 | 對應 Track |
 |------|------|------|
-| ADR-029 | Agent Tool Surface — Action Tools Boundary | AGENT.3 |
-| ADR-030 | OS-Level Selection Capture Boundary | AGENT.4 |
 | ADR-031 | Clipboard Capture Boundary | CLIP.1 |
 | ADR-032 | Text Expansion Trigger Boundary | SNIP.1 |
 | ADR-033 | Window Enumeration Boundary | WIN.1 |
 | ADR-034 | ScheduleManager — Local Cron-like Scheduler | UTIL.3 |
 | ADR-035 | External Provider Auth Boundary | DEV.1.C/D |
 | ADR-036 | Git-Backed Sync Boundary | SYNC.1.D/E/F |
-| ADR-037 | Inline AI Surfaces Boundary | AI.1 |
+| ADR-037 | Inline AI Surfaces Boundary | AI.1（已被 ADR-0029 取代，待接受後正式廢棄此預留）|
+
+備註：
+- 原本預留給 `AGENT.3` 的 `ADR-029` 槽位已由 `ADR-0029 AI Capability Layer` 接管；`AGENT.3` 軌道本身已被 ADR-0029 / AI capability refactor 取代（見 `docs/tasks/refactor-ai-capability.md`）。
+- 原本預留給 `AGENT.4 OS-Level Selection Capture Boundary` 的 `ADR-030` 槽位已由 `ADR-0030 Backend Risk Tag Contract` 接管（ADR-0029 衍生的資料契約）；`AGENT.4` 仍為 parked-until-REF.7 軌道，若日後復活需另取新編號。

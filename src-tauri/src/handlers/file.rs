@@ -137,7 +137,11 @@ impl CommandHandler for FileHandler {
                     .map_err(|e| format!("invalid file.delete request: {e}"))?;
                 let path = trim_path(&req.path)?;
                 let target = PathBuf::from(&path);
-                trace_delete("request", &path, &format!("confirm={} raw_path={:?}", req.confirm, req.path));
+                trace_delete(
+                    "request",
+                    &path,
+                    &format!("confirm={} raw_path={:?}", req.confirm, req.path),
+                );
                 let metadata = target.metadata().map_err(|e| {
                     trace_delete("metadata_err", &path, &format!("{e}"));
                     format!("cannot inspect path: {e}")
@@ -338,16 +342,36 @@ fn file_attributes_string(metadata: &fs::Metadata) -> String {
     use std::os::windows::fs::MetadataExt;
     let attrs = metadata.file_attributes();
     let mut flags: Vec<&'static str> = Vec::new();
-    if attrs & 0x0000_0001 != 0 { flags.push("READONLY"); }
-    if attrs & 0x0000_0002 != 0 { flags.push("HIDDEN"); }
-    if attrs & 0x0000_0004 != 0 { flags.push("SYSTEM"); }
-    if attrs & 0x0000_0010 != 0 { flags.push("DIRECTORY"); }
-    if attrs & 0x0000_0020 != 0 { flags.push("ARCHIVE"); }
-    if attrs & 0x0000_0400 != 0 { flags.push("REPARSE_POINT"); }
-    if attrs & 0x0000_1000 != 0 { flags.push("OFFLINE"); }
-    if attrs & 0x0008_0000 != 0 { flags.push("PINNED"); }
-    if attrs & 0x0010_0000 != 0 { flags.push("UNPINNED"); }
-    if attrs & 0x0040_0000 != 0 { flags.push("RECALL_ON_DATA_ACCESS"); }
+    if attrs & 0x0000_0001 != 0 {
+        flags.push("READONLY");
+    }
+    if attrs & 0x0000_0002 != 0 {
+        flags.push("HIDDEN");
+    }
+    if attrs & 0x0000_0004 != 0 {
+        flags.push("SYSTEM");
+    }
+    if attrs & 0x0000_0010 != 0 {
+        flags.push("DIRECTORY");
+    }
+    if attrs & 0x0000_0020 != 0 {
+        flags.push("ARCHIVE");
+    }
+    if attrs & 0x0000_0400 != 0 {
+        flags.push("REPARSE_POINT");
+    }
+    if attrs & 0x0000_1000 != 0 {
+        flags.push("OFFLINE");
+    }
+    if attrs & 0x0008_0000 != 0 {
+        flags.push("PINNED");
+    }
+    if attrs & 0x0010_0000 != 0 {
+        flags.push("UNPINNED");
+    }
+    if attrs & 0x0040_0000 != 0 {
+        flags.push("RECALL_ON_DATA_ACCESS");
+    }
     format!("0x{attrs:X}[{}]", flags.join("|"))
 }
 
@@ -416,7 +440,9 @@ fn stream_sha256(path: &Path) -> Result<(String, u64), String> {
     let mut buf = [0u8; 64 * 1024];
     let mut total: u64 = 0;
     loop {
-        let n = file.read(&mut buf).map_err(|e| format!("read failed: {e}"))?;
+        let n = file
+            .read(&mut buf)
+            .map_err(|e| format!("read failed: {e}"))?;
         if n == 0 {
             break;
         }
@@ -479,7 +505,10 @@ mod tests {
         let err = handler()
             .execute("teleport", json!({}))
             .expect_err("unknown command should error");
-        assert!(err.contains("unknown file command"), "unexpected error: {err}");
+        assert!(
+            err.contains("unknown file command"),
+            "unexpected error: {err}"
+        );
         assert!(err.contains("teleport"), "error must mention command name");
     }
 
@@ -683,7 +712,10 @@ mod tests {
         let err = handler()
             .execute("open_as_text", json!({}))
             .expect_err("missing path should error");
-        assert!(err.contains("missing field") || err.contains("path"), "unexpected: {err}");
+        assert!(
+            err.contains("missing field") || err.contains("path"),
+            "unexpected: {err}"
+        );
     }
 
     // ── verify_path_removed / verify_rename_landed (bug-fix 2026-05-18) ─────
@@ -719,8 +751,8 @@ mod tests {
         let dir = TempDir::new().unwrap();
         let src_real = tmp_file(&dir, "real.txt", b"x");
         let src_phantom = dir.path().join("phantom.txt"); // never created
-        // Pretend `src_phantom` was renamed to `src_real`: phantom missing,
-        // real present — verify is happy.
+                                                          // Pretend `src_phantom` was renamed to `src_real`: phantom missing,
+                                                          // real present — verify is happy.
         verify_rename_landed(&src_phantom, &src_real).expect("ok when src gone, dst exists");
     }
 
@@ -749,7 +781,10 @@ mod tests {
             .expect("preview ok");
         assert_eq!(res["kind"], json!("image"));
         assert_eq!(res["mime"], json!("image/png"));
-        assert!(res.get("content").is_none(), "image preview must not include content");
+        assert!(
+            res.get("content").is_none(),
+            "image preview must not include content"
+        );
     }
 
     #[test]
@@ -785,7 +820,10 @@ mod tests {
         let err = handler()
             .execute("preview", json!({}))
             .expect_err("missing path should error");
-        assert!(err.contains("missing field") || err.contains("path"), "unexpected: {err}");
+        assert!(
+            err.contains("missing field") || err.contains("path"),
+            "unexpected: {err}"
+        );
     }
 
     #[test]

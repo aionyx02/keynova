@@ -8,7 +8,7 @@ use rusqlite::{params, Connection};
 use serde::{Deserialize, Serialize};
 use tokio::sync::oneshot;
 
-const CURRENT_SCHEMA_VERSION: u32 = 3;
+const CURRENT_SCHEMA_VERSION: u32 = 4;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ActionLogEntry {
@@ -59,6 +59,32 @@ pub struct AgentMemoryEntry {
     pub visibility: String,
 }
 
+/// REF.5 — write side of `workflow_history` (schema v4). Recorded fire-and-
+/// forget at the `cmd_dispatch_impl` chokepoint for allowlisted routes
+/// (`action.run`, `cmd.run`, `capability.call`). `id` and `executed_at` are
+/// server-assigned.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct WorkflowHistoryEntry {
+    pub context_hash: Option<String>,
+    pub route: String,
+    pub action_label: String,
+    pub payload_digest: Option<String>,
+    pub workspace_id: Option<i64>,
+}
+
+/// REF.5 — read side of `workflow_history`. Carries the server-assigned
+/// `id` + `executed_at` so callers can render and key UI rows.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct WorkflowHistoryRow {
+    pub id: i64,
+    pub context_hash: Option<String>,
+    pub route: String,
+    pub action_label: String,
+    pub payload_digest: Option<String>,
+    pub workspace_id: Option<i64>,
+    pub executed_at: i64,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DbRuntimeMetrics {
     pub queue_len: usize,
@@ -73,6 +99,7 @@ pub enum DbRequest {
     WriteAgentAudit(AgentAuditEntry),
     WriteAgentArchive(AgentArchiveEntry),
     WriteAgentMemory(AgentMemoryEntry),
+    WriteWorkflowHistory(WorkflowHistoryEntry),
     ReadActionStats {
         action_id: String,
         reply: oneshot::Sender<Result<ActionStats, String>>,
@@ -82,6 +109,11 @@ pub enum DbRequest {
         workspace_id: Option<usize>,
         limit: usize,
         reply: oneshot::Sender<Result<Vec<AgentMemoryEntry>, String>>,
+    },
+    ReadRecentWorkflows {
+        context_hash: Option<String>,
+        limit: usize,
+        reply: oneshot::Sender<Result<Vec<WorkflowHistoryRow>, String>>,
     },
     Flush {
         reply: oneshot::Sender<Result<(), String>>,
@@ -145,6 +177,50 @@ impl KnowledgeStoreHandle {
 
     pub fn try_store_agent_memory(&self, entry: AgentMemoryEntry) {
         self.try_send_fire_and_forget(DbRequest::WriteAgentMemory(entry));
+    }
+
+    /// REF.5 — fire-and-forget record into `workflow_history`. Mirrors the
+    /// agent-audit pattern; failures bump `dropped_logs` but never block
+    /// the caller (workflow recording is best-effort).
+    pub fn try_log_workflow_history(&self, entry: WorkflowHistoryEntry) {
+        self.try_send_fire_and_forget(DbRequest::WriteWorkflowHistory(entry));
+    }
+
+    /// REF.5 — async read of recent workflow history. When
+    /// `context_hash` is `Some(...)`, results are filtered to rows with
+    /// matching hash; otherwise returns the global top-N by `executed_at`.
+    pub async fn recent_workflows(
+        &self,
+        context_hash: Option<String>,
+        limit: usize,
+    ) -> Result<Vec<WorkflowHistoryRow>, String> {
+        let (reply, rx) = oneshot::channel();
+        self.send_request(DbRequest::ReadRecentWorkflows {
+            context_hash,
+            limit,
+            reply,
+        })?;
+        tokio::time::timeout(Duration::from_secs(2), rx)
+            .await
+            .map_err(|_| "knowledge store read timed out".to_string())?
+            .map_err(|_| "knowledge store worker dropped response".to_string())?
+    }
+
+    /// REF.5 — blocking read for synchronous handler call sites. Same
+    /// semantics as `recent_workflows`.
+    pub fn recent_workflows_blocking(
+        &self,
+        context_hash: Option<String>,
+        limit: usize,
+    ) -> Result<Vec<WorkflowHistoryRow>, String> {
+        let (reply, rx) = oneshot::channel();
+        self.send_request(DbRequest::ReadRecentWorkflows {
+            context_hash,
+            limit,
+            reply,
+        })?;
+        rx.blocking_recv()
+            .map_err(|_| "knowledge store worker dropped response".to_string())?
     }
 
     pub async fn action_stats(&self, action_id: String) -> Result<ActionStats, String> {
@@ -308,6 +384,10 @@ fn handle_request(conn: &mut Connection, request: DbRequest) -> Result<WorkerSig
             insert_agent_memory(conn, &entry)?;
             Ok(WorkerSignal::Continue)
         }
+        DbRequest::WriteWorkflowHistory(entry) => {
+            insert_workflow_history(conn, &entry)?;
+            Ok(WorkerSignal::Continue)
+        }
         DbRequest::ReadActionStats { action_id, reply } => {
             let result = read_action_stats(conn, &action_id);
             let _ = reply.send(result);
@@ -320,6 +400,15 @@ fn handle_request(conn: &mut Connection, request: DbRequest) -> Result<WorkerSig
             reply,
         } => {
             let result = read_agent_memories(conn, scope.as_deref(), workspace_id, limit);
+            let _ = reply.send(result);
+            Ok(WorkerSignal::Continue)
+        }
+        DbRequest::ReadRecentWorkflows {
+            context_hash,
+            limit,
+            reply,
+        } => {
+            let result = read_recent_workflows(conn, context_hash.as_deref(), limit);
             let _ = reply.send(result);
             Ok(WorkerSignal::Continue)
         }
@@ -342,6 +431,9 @@ fn respond_error(request: DbRequest, error: String) {
         DbRequest::ReadAgentMemories { reply, .. } => {
             let _ = reply.send(Err(error));
         }
+        DbRequest::ReadRecentWorkflows { reply, .. } => {
+            let _ = reply.send(Err(error));
+        }
         DbRequest::Flush { reply } => {
             let _ = reply.send(Err(error));
         }
@@ -352,6 +444,7 @@ fn respond_error(request: DbRequest, error: String) {
         | DbRequest::WriteAgentAudit(_)
         | DbRequest::WriteAgentArchive(_)
         | DbRequest::WriteAgentMemory(_)
+        | DbRequest::WriteWorkflowHistory(_)
         | DbRequest::Shutdown => {}
     }
 }
@@ -465,6 +558,19 @@ fn init_schema(conn: &Connection) -> Result<(), String> {
             visibility TEXT NOT NULL,
             updated_at INTEGER NOT NULL DEFAULT (strftime('%s','now'))
         );
+        CREATE TABLE IF NOT EXISTS workflow_history (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            context_hash TEXT,
+            route TEXT NOT NULL,
+            action_label TEXT NOT NULL,
+            payload_digest TEXT,
+            workspace_id INTEGER,
+            executed_at INTEGER NOT NULL DEFAULT (strftime('%s','now'))
+        );
+        CREATE INDEX IF NOT EXISTS idx_workflow_history_context
+            ON workflow_history(context_hash, executed_at DESC);
+        CREATE INDEX IF NOT EXISTS idx_workflow_history_executed
+            ON workflow_history(executed_at DESC);
         CREATE TABLE IF NOT EXISTS schema_migrations (
             version INTEGER PRIMARY KEY,
             previous_version INTEGER NOT NULL,
@@ -646,6 +752,53 @@ fn insert_agent_memory(conn: &Connection, entry: &AgentMemoryEntry) -> Result<()
     Ok(())
 }
 
+fn insert_workflow_history(conn: &Connection, entry: &WorkflowHistoryEntry) -> Result<(), String> {
+    conn.execute(
+        "INSERT INTO workflow_history (context_hash, route, action_label, payload_digest, workspace_id)
+         VALUES (?1, ?2, ?3, ?4, ?5)",
+        params![
+            entry.context_hash,
+            entry.route,
+            entry.action_label,
+            entry.payload_digest,
+            entry.workspace_id,
+        ],
+    )
+    .map_err(|e| e.to_string())?;
+    Ok(())
+}
+
+fn read_recent_workflows(
+    conn: &Connection,
+    context_hash: Option<&str>,
+    limit: usize,
+) -> Result<Vec<WorkflowHistoryRow>, String> {
+    let mut stmt = conn
+        .prepare(
+            "SELECT id, context_hash, route, action_label, payload_digest, workspace_id, executed_at
+             FROM workflow_history
+             WHERE (?1 IS NULL OR context_hash = ?1)
+             ORDER BY executed_at DESC, id DESC
+             LIMIT ?2",
+        )
+        .map_err(|e| e.to_string())?;
+    let rows = stmt
+        .query_map(params![context_hash, limit.max(1) as i64], |row| {
+            Ok(WorkflowHistoryRow {
+                id: row.get(0)?,
+                context_hash: row.get(1)?,
+                route: row.get(2)?,
+                action_label: row.get(3)?,
+                payload_digest: row.get(4)?,
+                workspace_id: row.get(5)?,
+                executed_at: row.get(6)?,
+            })
+        })
+        .map_err(|e| e.to_string())?;
+    rows.collect::<Result<Vec<_>, _>>()
+        .map_err(|e| e.to_string())
+}
+
 fn read_action_stats(conn: &Connection, action_id: &str) -> Result<ActionStats, String> {
     let run_count = conn
         .query_row(
@@ -677,25 +830,19 @@ fn read_agent_memories(
         )
         .map_err(|e| e.to_string())?;
     let rows = stmt
-        .query_map(
-            params![
-                scope,
-                workspace_id,
-                limit.max(1) as i64,
-            ],
-            |row| {
-                Ok(AgentMemoryEntry {
-                    id: row.get(0)?,
-                    scope: row.get(1)?,
-                    workspace_id: row.get(2)?,
-                    title: row.get(3)?,
-                    content: row.get(4)?,
-                    visibility: row.get(5)?,
-                })
-            },
-        )
+        .query_map(params![scope, workspace_id, limit.max(1) as i64,], |row| {
+            Ok(AgentMemoryEntry {
+                id: row.get(0)?,
+                scope: row.get(1)?,
+                workspace_id: row.get(2)?,
+                title: row.get(3)?,
+                content: row.get(4)?,
+                visibility: row.get(5)?,
+            })
+        })
         .map_err(|e| e.to_string())?;
-    rows.collect::<Result<Vec<_>, _>>().map_err(|e| e.to_string())
+    rows.collect::<Result<Vec<_>, _>>()
+        .map_err(|e| e.to_string())
 }
 
 fn default_db_path() -> PathBuf {

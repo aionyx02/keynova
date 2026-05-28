@@ -85,14 +85,21 @@ impl ReviewReport {
             MaterialClass::Certificate,
             MaterialClass::Unknown,
         ] {
-            let items: Vec<_> = self.candidates.iter().filter(|c| c.class == class).collect();
+            let items: Vec<_> = self
+                .candidates
+                .iter()
+                .filter(|c| c.class == class)
+                .collect();
             if items.is_empty() {
                 continue;
             }
             out.push_str(&format!("## {class}\n\n"));
             for item in items {
                 let size_kb = item.size_bytes / 1024;
-                out.push_str(&format!("- **{}** — `{}` ({} KB)\n", item.name, item.path, size_kb));
+                out.push_str(&format!(
+                    "- **{}** — `{}` ({} KB)\n",
+                    item.name, item.path, size_kb
+                ));
             }
             out.push('\n');
         }

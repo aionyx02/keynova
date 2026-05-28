@@ -31,7 +31,11 @@ pub fn detect_nvim(configured: Option<&str>) -> Option<PathBuf> {
 }
 
 fn which_nvim() -> Option<PathBuf> {
-    let cmd = if cfg!(target_os = "windows") { "where" } else { "which" };
+    let cmd = if cfg!(target_os = "windows") {
+        "where"
+    } else {
+        "which"
+    };
     let output = std::process::Command::new(cmd).arg("nvim").output().ok()?;
     if !output.status.success() {
         return None;
@@ -51,7 +55,10 @@ fn portable_dir() -> PathBuf {
 
 pub fn portable_nvim_exe() -> PathBuf {
     #[cfg(target_os = "windows")]
-    return portable_dir().join("nvim-win64").join("bin").join("nvim.exe");
+    return portable_dir()
+        .join("nvim-win64")
+        .join("bin")
+        .join("nvim.exe");
     #[cfg(target_os = "macos")]
     return portable_dir()
         .join("nvim-macos-x86_64")
@@ -72,9 +79,7 @@ pub fn download_nvim(emit: Arc<dyn Fn(AppEvent) + Send + Sync>) -> Result<PathBu
     #[cfg(target_os = "windows")]
     let (archive_name, url) = (
         "nvim-win64.zip".to_string(),
-        format!(
-            "https://github.com/neovim/neovim/releases/download/{NVIM_VERSION}/nvim-win64.zip"
-        ),
+        format!("https://github.com/neovim/neovim/releases/download/{NVIM_VERSION}/nvim-win64.zip"),
     );
     #[cfg(target_os = "macos")]
     let (archive_name, url) = (
@@ -149,10 +154,15 @@ fn download_with_progress(
         if n == 0 {
             break;
         }
-        file.write_all(&buf[..n]).map_err(|e| format!("write: {e}"))?;
+        file.write_all(&buf[..n])
+            .map_err(|e| format!("write: {e}"))?;
         downloaded += n as u64;
         if total > 0 {
-            let pct = downloaded.saturating_mul(100).checked_div(total).unwrap_or(0).min(99) as u8;
+            let pct = downloaded
+                .saturating_mul(100)
+                .checked_div(total)
+                .unwrap_or(0)
+                .min(99) as u8;
             if pct != last_pct {
                 last_pct = pct;
                 emit_progress(emit, "downloading", pct);
