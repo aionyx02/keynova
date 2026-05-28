@@ -101,10 +101,7 @@ export function CommandPalette() {
   // Derive the legacy view once per `results` change and pass it down;
   // `SearchResultsList` and the inline-AI surface consume the canonical
   // `UnifiedResult[]` directly.
-  const legacyResults = React.useMemo(
-    () => results.map(unifiedToLegacy),
-    [results],
-  );
+  const legacyResults = React.useMemo(() => results.map(unifiedToLegacy), [results]);
 
   // Command mode state
   const [selectedCmd, setSelectedCmd] = useState(0);
@@ -218,7 +215,11 @@ export function CommandPalette() {
       capabilityStream.status === "pending" || capabilityStream.status === "streaming",
   });
 
-  const { containerRef, scheduleWindowResize } = useWindowResize(modeRef, cmdResultRef, paletteWidthRef);
+  const { containerRef, scheduleWindowResize } = useWindowResize(
+    modeRef,
+    cmdResultRef,
+    paletteWidthRef,
+  );
   const { metadataByPath, iconsByKey } = useSearchMetadata(legacyResults, selected);
 
   // Split rawInput into command name and trailing args (Minecraft-style).
@@ -226,14 +227,8 @@ export function CommandPalette() {
   const cmdName = spaceIdx === -1 ? rawInput : rawInput.slice(0, spaceIdx);
   const cmdArgs = spaceIdx === -1 ? "" : rawInput.slice(spaceIdx + 1).trim();
 
-  const {
-    exactCmd,
-    isArgsPhase,
-    argSuggestions,
-    setArgSuggestions,
-    selectedArg,
-    setSelectedArg,
-  } = useArgSuggestions({ mode, cmdName, cmdArgs, spaceIdx, all, suggestArgs });
+  const { exactCmd, isArgsPhase, argSuggestions, setArgSuggestions, selectedArg, setSelectedArg } =
+    useArgSuggestions({ mode, cmdName, cmdArgs, spaceIdx, all, suggestArgs });
   const cmdSuggestions = mode === "command" ? filtered(cmdName) : [];
 
   // window-focused / workspace-switched / workspace-cycled handled by hook;
@@ -288,28 +283,24 @@ export function CommandPalette() {
     triggerSearch,
   });
 
-  const {
-    launchResult,
-    copyResultLocation,
-    handleSecondaryAction,
-    runFirstSecondary,
-  } = useFileActions({
-    dispatch,
-    flashCopiedPath,
-    flashCopyHint,
-    clearCopyHint,
-    setQuery,
-    setResults,
-    setCmdResult,
-    setSelected,
-    markPathDeleted,
-    closeSecondaryMenu,
-    setExpandedMetadata,
-    inlineInput,
-    setInlineInput,
-    pendingConfirm,
-    setPendingConfirm,
-  });
+  const { launchResult, copyResultLocation, handleSecondaryAction, runFirstSecondary } =
+    useFileActions({
+      dispatch,
+      flashCopiedPath,
+      flashCopyHint,
+      clearCopyHint,
+      setQuery,
+      setResults,
+      setCmdResult,
+      setSelected,
+      markPathDeleted,
+      closeSecondaryMenu,
+      setExpandedMetadata,
+      inlineInput,
+      setInlineInput,
+      pendingConfirm,
+      setPendingConfirm,
+    });
 
   const execCommand = useExecCommand({
     runCommand,
@@ -354,20 +345,13 @@ export function CommandPalette() {
   // active filters).
   const visibleUnified = React.useMemo(() => {
     const keep = new Set(
-      visibleResults
-        .map((r) => r.unified_id)
-        .filter((id): id is string => typeof id === "string"),
+      visibleResults.map((r) => r.unified_id).filter((id): id is string => typeof id === "string"),
     );
     return results.filter((u) => keep.has(u.id));
   }, [results, visibleResults]);
 
-  const {
-    liveTranslationPanel,
-    PanelComponent,
-    panelInitialArgs,
-    terminalLaunchSpec,
-    panelKey,
-  } = usePalettePanels({ mode, cmdName, cmdArgs, spaceIdx, cmdResult });
+  const { liveTranslationPanel, PanelComponent, panelInitialArgs, terminalLaunchSpec, panelKey } =
+    usePalettePanels({ mode, cmdName, cmdArgs, spaceIdx, cmdResult });
 
   usePaletteEffects({
     inputRef,
@@ -397,20 +381,16 @@ export function CommandPalette() {
     selectedMetadata,
   });
 
-  const {
-    terminalOnExit,
-    terminalCommandOnExit,
-    handlePanelCommandResult,
-    handlePanelClose,
-  } = useTerminalControl({
-    containerRef,
-    inputRef,
-    setQuery,
-    setCmdResult,
-    setResults,
-    cancelSearch,
-    keepLauncherOpen,
-  });
+  const { terminalOnExit, terminalCommandOnExit, handlePanelCommandResult, handlePanelClose } =
+    useTerminalControl({
+      containerRef,
+      inputRef,
+      setQuery,
+      setCmdResult,
+      setResults,
+      cancelSearch,
+      keepLauncherOpen,
+    });
 
   const { onKeyDown } = useKeyboardNav({
     mode,
@@ -464,17 +444,17 @@ export function CommandPalette() {
     visibleResults.length === 0;
   const hasPaletteContentBelow = Boolean(
     hasResults ||
-      hasCmdSuggestions ||
-      hasArgSuggestions ||
-      cmdResult ||
-      isArgsPhase ||
-      liveTranslationPanel ||
-      pipelineRunning ||
-      pipelineResult ||
-      showCapabilityResult ||
-      showCapabilityHintLine ||
-      showSearchEmptyState ||
-      showEmptyFilterState,
+    hasCmdSuggestions ||
+    hasArgSuggestions ||
+    cmdResult ||
+    isArgsPhase ||
+    liveTranslationPanel ||
+    pipelineRunning ||
+    pipelineResult ||
+    showCapabilityResult ||
+    showCapabilityHintLine ||
+    showSearchEmptyState ||
+    showEmptyFilterState,
   );
 
   return (
@@ -514,16 +494,18 @@ export function CommandPalette() {
 
           {/* REF.6.B — capability prefix discovery hint, shown on empty
               palette so first-time users see the available prefixes. */}
-          {showCapabilityHintLine && (
-            <CapabilityHintLine visible={showCapabilityHint} />
-          )}
+          {showCapabilityHintLine && <CapabilityHintLine visible={showCapabilityHint} />}
 
           {showSearchEmptyState && (
             <EmptyStateCTA
               query={query}
               onCreateNote={() => void execCommand("note", `create ${query}`)}
-              onJumpHelp={() => { setQuery("/help"); }}
-              onJumpSetting={() => { setQuery("/setting"); }}
+              onJumpHelp={() => {
+                setQuery("/help");
+              }}
+              onJumpSetting={() => {
+                setQuery("/setting");
+              }}
               onReplayOnboard={() => void execCommand("onboard")}
             />
           )}
@@ -590,14 +572,10 @@ export function CommandPalette() {
           />
 
           {/* ONBOARD.1.A — first-run tour overlay (conditional mount resets step) */}
-          {onboardingOpen && (
-            <OnboardingTour onClose={() => setOnboardingOpen(false)} />
-          )}
+          {onboardingOpen && <OnboardingTour onClose={() => setOnboardingOpen(false)} />}
 
           {/* ONBOARD.1.B — `?` cheatsheet overlay */}
-          {cheatsheetOpen && (
-            <CheatsheetOverlay onClose={() => setCheatsheetOpen(false)} />
-          )}
+          {cheatsheetOpen && <CheatsheetOverlay onClose={() => setCheatsheetOpen(false)} />}
 
           {/* Command suggestions */}
           {hasCmdSuggestions && (
@@ -614,7 +592,10 @@ export function CommandPalette() {
               cmdName={cmdName}
               suggestions={argSuggestions}
               selectedIndex={selectedArg}
-              onSelect={(arg, i) => { setQuery(`/${cmdName} ${arg} `); setSelectedArg(i); }}
+              onSelect={(arg, i) => {
+                setQuery(`/${cmdName} ${arg} `);
+                setSelectedArg(i);
+              }}
               onHover={setSelectedArg}
             />
           )}

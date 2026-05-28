@@ -115,7 +115,11 @@ function paths(name: UiIconName) {
       return (
         <>
           <path d="M4.75 6.25h14.5a1.5 1.5 0 0 1 1.5 1.5v8.5a1.5 1.5 0 0 1-1.5 1.5H4.75a1.5 1.5 0 0 1-1.5-1.5v-8.5a1.5 1.5 0 0 1 1.5-1.5Z" />
-          <path d="m7.5 10 2.35 2-2.35 2M12.25 14h4.25" strokeLinecap="round" strokeLinejoin="round" />
+          <path
+            d="m7.5 10 2.35 2-2.35 2M12.25 14h4.25"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
         </>
       );
     case "filter":

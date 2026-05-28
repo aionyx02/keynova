@@ -1,4 +1,10 @@
-import { useEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from "react";
+import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type KeyboardEvent as ReactKeyboardEvent,
+} from "react";
 import { Terminal } from "@xterm/xterm";
 import { FitAddon } from "@xterm/addon-fit";
 import "@xterm/xterm/css/xterm.css";
@@ -66,7 +72,9 @@ export function TerminalPanel({ isActive, onExit, launchSpec = null, attached = 
   const exitShortcut = isEditorSession ? "Ctrl+Shift+Q" : "Esc";
 
   // Notify the feature gate on first mount so the backend can prewarm.
-  useEffect(() => { activate("terminal"); }, [activate]);
+  useEffect(() => {
+    activate("terminal");
+  }, [activate]);
 
   useEffect(() => {
     onExitRef.current = onExit;
@@ -94,7 +102,10 @@ export function TerminalPanel({ isActive, onExit, launchSpec = null, attached = 
     const handleOutput = (id: string, output: string) => {
       const xterm = xtermRef.current;
       if (!xterm) return;
-      if (id === sessionId) { xterm.write(output); return; }
+      if (id === sessionId) {
+        xterm.write(output);
+        return;
+      }
       pendingOutput.set(id, `${pendingOutput.get(id) ?? ""}${output}`);
     };
 
@@ -204,10 +215,16 @@ export function TerminalPanel({ isActive, onExit, launchSpec = null, attached = 
         unlistenOutput = await listen<OutputPayload>("terminal-output", (e) => {
           handleOutput(e.payload.id, e.payload.output);
         });
-        if (cancelled) { unlistenOutput(); unlistenOutput = undefined; return; }
+        if (cancelled) {
+          unlistenOutput();
+          unlistenOutput = undefined;
+          return;
+        }
 
         const resp = await dispatch<TerminalOpenResponse>(IPC.TERMINAL_OPEN, {
-          rows: xterm.rows, cols: xterm.cols, launch_spec: launchSpec,
+          rows: xterm.rows,
+          cols: xterm.cols,
+          launch_spec: launchSpec,
         });
         if (cancelled) {
           void dispatch(IPC.TERMINAL_CLOSE, { id: resp.id });

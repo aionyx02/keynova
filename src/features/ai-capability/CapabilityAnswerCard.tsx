@@ -7,6 +7,7 @@
 
 import { useEffect, useState, type ReactElement } from "react";
 
+import { UiIcon } from "../../components/icons/UiIcon";
 import { Markdown } from "../../components/Markdown";
 import type { DispatchFn } from "../../context/IPCContext";
 import type { CapabilityStreamStatus } from "./hooks/useCapabilityStream";
@@ -60,9 +61,7 @@ export function CapabilityAnswerCard({
   onClose,
 }: Props): ReactElement {
   const isTicking = status === "pending" || status === "streaming";
-  const now = useTickingClock(
-    isTicking && firstChunkAtMs === null && completedAtMs === null,
-  );
+  const now = useTickingClock(isTicking && firstChunkAtMs === null && completedAtMs === null);
 
   const latencyMs = (() => {
     if (startedAtMs === null) return 0;
@@ -72,15 +71,21 @@ export function CapabilityAnswerCard({
 
   const headerLabel = `${LABEL_TITLE[capabilityLabel]} - ${formatLatencyMs(latencyMs)}`;
   const statusSuffix =
-    status === "error"
-      ? " - error"
-      : status === "cancelled"
-        ? " - cancelled"
-        : "";
+    status === "error" ? " - error" : status === "cancelled" ? " - cancelled" : "";
 
   const isBodyError = status === "error" && error !== null;
   const isBodyCancelled = status === "cancelled";
   const showFooterChips = status === "complete";
+  const footerLabel =
+    status === "pending" || status === "streaming"
+      ? "Streaming response"
+      : status === "idle"
+        ? "Ready"
+        : status === "complete"
+          ? "Response complete"
+          : status === "cancelled"
+            ? "Cancelled"
+            : "Error";
 
   const [saveState, setSaveState] = useState<"idle" | "saving" | "saved" | "error">("idle");
   const [copyState, setCopyState] = useState<"idle" | "copied">("idle");
@@ -111,9 +116,9 @@ export function CapabilityAnswerCard({
   }
 
   return (
-    <div className="border-t border-gray-700/50 bg-gray-950/60 px-4 py-3">
-      <div className="mb-2 flex items-center justify-between">
-        <span className="text-[11px] uppercase tracking-wider text-gray-400">
+    <div className="kn-panel-shell overflow-hidden rounded-t-none border-t-0">
+      <div className="flex items-center justify-between border-b border-[color:var(--kn-border)] bg-[rgba(7,11,17,0.48)] px-4 py-3">
+        <span className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[color:var(--kn-text-soft)]">
           <span aria-hidden>AI </span>
           {headerLabel}
           {statusSuffix}
@@ -128,48 +133,43 @@ export function CapabilityAnswerCard({
               onClose();
             }
           }}
-          className="text-[11px] text-gray-500 hover:text-gray-300"
+          className="flex h-7 w-7 items-center justify-center rounded-[10px] border border-[color:var(--kn-border)] bg-white/[0.035] text-[color:var(--kn-text-muted)] transition-colors hover:bg-white/[0.06] hover:text-[color:var(--kn-text)]"
           aria-label="Close"
         >
-          [x]
+          <UiIcon name="x" className="h-3.5 w-3.5" />
         </button>
       </div>
 
-      <div className="max-h-[280px] overflow-y-auto text-sm text-gray-200">
+      <div className="kn-scroll max-h-[300px] overflow-y-auto px-4 py-3 text-sm text-[color:var(--kn-text)]">
         {isBodyError ? (
-          <div className="whitespace-pre-wrap break-words text-red-400">{error}</div>
+          <div className="whitespace-pre-wrap break-words text-rose-200">{error}</div>
         ) : isBodyCancelled ? (
-          <div className="text-gray-500">Cancelled.</div>
+          <div className="text-[color:var(--kn-text-muted)]">Cancelled.</div>
         ) : text ? (
           <Markdown content={text} />
         ) : status === "pending" ? (
-          <div className="text-gray-500 italic">
+          <div className="text-[color:var(--kn-text-muted)]">
             Asking model...{" "}
-            <span className="text-gray-600">
+            <span className="text-[color:var(--kn-text-faint)]">
               (first call after launch may take a few seconds while the model loads)
             </span>
           </div>
         ) : status === "idle" && args.text.trim() ? (
-          <div className="text-gray-500">
-            Press{" "}
-            <kbd className="mx-0.5 rounded border border-gray-600 px-1.5 py-0.5 text-[10px]">
-              Enter
-            </kbd>{" "}
-            to ask
-          </div>
+          <div className="text-[color:var(--kn-text-muted)]">Ready to ask.</div>
         ) : null}
       </div>
 
       {showFooterChips && text && (
-        <div className="mt-3 flex flex-wrap gap-2 text-[11px]">
+        <div className="flex flex-wrap gap-2 border-t border-[color:var(--kn-border)] bg-[rgba(7,11,17,0.42)] px-4 py-3 text-[11px]">
           <button
             type="button"
             onMouseDown={(e) => {
               e.preventDefault();
               void handleCopyMd();
             }}
-            className="rounded border border-gray-600 px-2 py-0.5 text-gray-300 hover:border-blue-400/60 hover:text-blue-300"
+            className="inline-flex items-center gap-1.5 rounded-[12px] border border-[color:var(--kn-border)] bg-white/[0.035] px-2.5 py-1.5 font-medium text-[color:var(--kn-text-soft)] transition-colors hover:bg-white/[0.06] hover:text-[color:var(--kn-text)]"
           >
+            <UiIcon name="file" className="h-3.5 w-3.5" />
             {copyState === "copied" ? "Copied" : "Copy md"}
           </button>
           <button
@@ -179,8 +179,9 @@ export function CapabilityAnswerCard({
               void handleSaveToNote();
             }}
             disabled={saveState === "saving"}
-            className="rounded border border-gray-600 px-2 py-0.5 text-gray-300 hover:border-blue-400/60 hover:text-blue-300 disabled:opacity-60"
+            className="inline-flex items-center gap-1.5 rounded-[12px] border border-[color:var(--kn-border)] bg-white/[0.035] px-2.5 py-1.5 font-medium text-[color:var(--kn-text-soft)] transition-colors hover:bg-white/[0.06] hover:text-[color:var(--kn-text)] disabled:opacity-60"
           >
+            <UiIcon name="note" className="h-3.5 w-3.5" />
             {saveState === "saving"
               ? "Saving..."
               : saveState === "saved"
@@ -192,12 +193,8 @@ export function CapabilityAnswerCard({
         </div>
       )}
 
-      <div className="mt-2 text-[10px] text-gray-600">
-        {status === "pending" || status === "streaming"
-          ? "Esc cancels stream - Backspace past prefix returns to search"
-          : status === "idle"
-            ? "Enter to ask - Esc clears prefix"
-            : "Esc clears prefix - Type more then Enter to re-ask"}
+      <div className="border-t border-[color:var(--kn-border)] bg-[rgba(7,11,17,0.48)] px-4 py-2 text-[10px] text-[color:var(--kn-text-muted)]">
+        {footerLabel}
       </div>
     </div>
   );
