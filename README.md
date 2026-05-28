@@ -9,6 +9,7 @@
 [![Rust](https://img.shields.io/badge/Rust-stable-CE422B?logo=rust&logoColor=white)](https://www.rust-lang.org/)
 [![React](https://img.shields.io/badge/React-19-61DAFB?logo=react&logoColor=white)](https://react.dev/)
 [![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20Linux%20%7C%20macOS-lightgrey.svg)](#平台支援)
+[![Release](https://img.shields.io/github/v/release/aionyx02/keynova?include_prereleases&sort=semver)](https://github.com/aionyx02/keynova/releases)
 
 Keynova 不是另一個 AI Chat 工具。它是一個 unified workflow entry：搜尋、啟動、檔案操作、終端機、筆記、工具命令與 AI capability 都從同一個入口出發。
 
@@ -24,19 +25,33 @@ Keynova 的核心目標很直接：讓你少切視窗、少摸滑鼠、少在工
 
 目前最高優先級是 P0 架構重構：把舊的 chat-first agent 降級為 stateless inline capability，並把 unified search / unified result schema 變成產品主軸。未完成項目在本 README 皆標為「實現中」。
 
-## 早期測試階段（Beta）
+## 下載與安裝（Beta）
 
-Keynova 目前正處於底層架構重構與快速迭代階段，程式碼幾乎每日更新。為了避免頻繁的手動下載打斷一般使用者的工作流，目前暫不提供預先編譯的安裝檔（Releases）。
+Keynova 目前處於底層架構重構與快速迭代階段，但已開始提供預先編譯的安裝檔，方便不想配置 Node.js / Rust 環境的使用者直接試用。
 
-現階段強烈建議具備 Node.js / Rust 環境配置經驗的開發者，透過原始碼建置來搶先體驗。未來正式版本釋出時，將會提供完整的一鍵安裝與自動更新（Auto-updater）機制。
+最新版本與所有 artifact 都在 [GitHub Releases](https://github.com/aionyx02/keynova/releases)：
+
+| 平台    | 檔案                                                      | 安裝方式                                                           |
+| ------- | --------------------------------------------------------- | ------------------------------------------------------------------ |
+| Windows | `Keynova_<version>_x64-setup.exe` (NSIS) 或 `_x64.msi`    | 雙擊執行 → 一鍵安裝；卸載走「設定 → 應用程式」                     |
+| macOS   | `Keynova_<version>_universal.dmg`                         | 開啟 `.dmg` → 拖入「應用程式」資料夾                               |
+| Linux   | `keynova_<version>_amd64.deb` / `keynova_<version>_amd64.AppImage` | `sudo apt install ./*.deb` 或直接賦予 `.AppImage` 執行權限後執行 |
+
+第一次執行的注意事項：
+
+- **Windows** SmartScreen 會出現「無法辨識」警告：點「其他資訊 → 仍要執行」即可。Build 尚未做 code signing。
+- **macOS** Gatekeeper 會擋未簽章 app：在「系統設定 → 隱私權與安全性」按一次「允許」，或執行 `xattr -d com.apple.quarantine /Applications/Keynova.app`。
+- **Linux** AppImage 需先 `chmod +x` 才能執行；deb 安裝後預設加進 PATH。
+
+自動更新（Auto-updater）仍在計畫中，目前更新需手動下載新版安裝。
 
 ## Keynova 解決的問題
 
 | 問題                                               | Keynova 的方向                                                 | 狀態           |
 | -------------------------------------------------- | -------------------------------------------------------------- | -------------- |
 | 工作時一直切換 IDE、檔案總管、終端機、瀏覽器與筆記 | 用單一 command palette 聚合搜尋、啟動與 action                 | 已可用         |
-| 搜尋結果來源太分散，前端需要適配多種 result shape  | 統一成 `UnifiedResult`，所有來源共用 result/action schema      | 實現中         |
-| AI Chat 迫使使用者離開當前 workflow                | AI 改為 inline action chip，例如 Explain、Summarize、Fix error | 實現中         |
+| 搜尋結果來源太分散，前端需要適配多種 result shape  | 統一成 `UnifiedResult`，所有來源共用 result/action schema      | 已可用         |
+| AI Chat 迫使使用者離開當前 workflow                | AI 改為 inline capability，由 prefix keyword 觸發（如 `explain <text>` / `summarize <text>`） | 已可用，實現中 |
 | autonomous agent 行為不可預測，安全邊界難掌控      | AI capability 改成單步、stateless、typed input/output          | 實現中         |
 | destructive action 容易誤觸                        | action 使用風險標記與 UI confirmation gate                     | 已可用，實現中 |
 | 使用越久沒有變快                                   | workflow memory 記錄近期操作，提供可預測的 recent/suggestion   | 實現中         |
@@ -56,9 +71,10 @@ Keynova 目前正處於底層架構重構與快速迭代階段，程式碼幾乎
 | Calculator / Dev Utilities | 常用計算、轉換與開發者小工具                         | 已可用         |
 | Onboarding                 | 首次使用引導、空狀態 CTA、cheatsheet                 | 已可用         |
 | Legacy AI Chat / Agent     | 舊版 chat-first / ReAct agent，相容期保留            | 已可用，實現中 |
-| AI Capability Layer        | Explain、Summarize、Fix error 等 inline capability   | 實現中         |
-| Unified Result Schema      | 統一 result、preview、rank signal、action chip       | 實現中         |
-| Workflow Memory            | recent workflow、context hash、suggestion ranking    | 實現中         |
+| AI Capability Layer        | Explain / Summarize / Fix error 三個 capability 已上線；`gen_command` / `suggest_next` 仍在實作 | 已可用，實現中 |
+| Inline Capability Prefix   | 在 launcher 直接輸入 `explain <text>` / `summarize <text>` 觸發            | 已可用         |
+| Unified Result Schema      | 統一 result、preview、rank signal、action chip       | 已可用         |
+| Workflow Memory            | recent workflow、context hash、suggestion ranking    | 已可用         |
 | Model Manager 整合         | 下載、列表、移除模型整合成單一管理面板               | 實現中         |
 | 舊 Agent / AiPanel 退場    | `ai.legacy_agent` 相容期後移除 chat-first surface    | 實現中         |
 
@@ -110,16 +126,25 @@ jwt
 
 目前舊版 AI Chat / Agent 仍保留作相容用途，但產品方向已改變：
 
-- 現在：舊版 chat-first AI 仍可用，但不再是產品核心。
-- 實現中：AI 會變成結果列旁的 inline capability，例如 Explain、Summarize、Fix error、Generate command。
-- 實現中：每次 AI 呼叫都是單步 capability，不保留 session memory，不自主連續執行工具。
-- 實現中：backend 只標記 risk level，UI 負責二階段 confirmation。
+- 已可用：在 launcher 直接輸入 prefix keyword 觸發 inline capability，例如：
+
+  ```text
+  explain <貼上一段程式碼或錯誤訊息>
+  summarize <貼上一段長文>
+  fix <錯誤訊息>
+  ```
+
+  capability 是單步、stateless，呼叫後串流回答到 result area，可一鍵 Copy 為 Markdown 或存到筆記。
+- 已可用：每次 AI 呼叫都是單步 capability，不保留 session memory，不自主連續執行工具。
+- 已可用：舊版 chat-first AI 仍能透過 `ai.legacy_agent = true` 啟用，但 REF.7 之後預設關閉，REF.8 之後實體移除。
+- 實現中：`cmd <intent>`、`next` 兩個 prefix 與對應 capability card 仍在做（REF.6.C/E/F）。
+- 實現中：backend 標記 risk level，UI 負責二階段 confirmation，仍在收尾。
 
 這代表 Keynova 不會試圖取代 ChatGPT 或 Claude 的長對話場景。它會把 AI 放在你正在工作的地方，幫你解釋錯誤、摘要內容、產生命令或補上下一步建議。
 
-## 快速開始
+## 從原始碼啟動
 
-目前沒有預先編譯的 release installer。請從原始碼啟動或自行建置 release bundle。
+想跟著 main 分支開發或自行修改 Keynova，請依下列步驟。直接使用安裝檔的使用者可跳過本節，回到上方[下載與安裝](#下載與安裝beta)。
 
 ### 環境需求
 
@@ -129,20 +154,20 @@ jwt
 - Linux：Tauri 2 所需 GTK/WebKit 相關套件
 - macOS：Xcode Command Line Tools
 
-### 從原始碼啟動
+### Dev 模式
 
 ```bash
 npm install
 npm run tauri dev
 ```
 
-### 建置 release
+### 自行建置 release bundle
 
 ```bash
 npm run tauri build
 ```
 
-建置產物會輸出到 `src-tauri/target/release/bundle/`。
+產物會輸出到 `src-tauri/target/release/bundle/`，包含對應平台的 NSIS / MSI / DMG / DEB / AppImage。CI 上的等價流程定義在 `.github/workflows/release.yml`，push 一個 `v*` tag 即可觸發跨平台 build 與 draft release。
 
 ## 常用開發指令
 
@@ -214,27 +239,27 @@ graph TD
 
 目前 P0 任務在 [docs/tasks/refactor-ai-capability.md](docs/tasks/refactor-ai-capability.md)：
 
-| 批次    | 目標                                           | 狀態   |
-| ------- | ---------------------------------------------- | ------ |
-| `REF.0` | ADR-0029 決策鎖定                              | 實現中 |
-| `REF.1` | Unified Result Schema                          | 實現中 |
-| `REF.2` | Command Palette 拆分                           | 實現中 |
-| `REF.3` | Agent handler module split                     | 實現中 |
-| `REF.4` | Stateless AI Capability Layer                  | 實現中 |
-| `REF.5` | Workflow Memory                                | 實現中 |
-| `REF.6` | Search box as pure dispatcher                  | 實現中 |
-| `REF.7` | Quantitative gates + legacy default off        | 實現中 |
-| `REF.8` | Physical removal of deprecated chat/agent code | 實現中 |
+| 批次    | 目標                                           | 狀態                                  |
+| ------- | ---------------------------------------------- | ------------------------------------- |
+| `REF.0` | ADR-0029 決策鎖定                              | 已完成                                |
+| `REF.1` | Unified Result Schema                          | 已完成                                |
+| `REF.2` | Command Palette 拆分                           | 已完成（landed 598 行）               |
+| `REF.3` | Agent handler module split                     | 已完成                                |
+| `REF.4` | Stateless AI Capability Layer                  | 部分（3/5 capabilities live）         |
+| `REF.5` | Workflow Memory                                | 已完成                                |
+| `REF.6` | Search box as pure dispatcher                  | 進行中（A/B done，C–I 排程中）        |
+| `REF.7` | Quantitative gates + legacy default off        | 實現中                                |
+| `REF.8` | Physical removal of deprecated chat/agent code | 實現中                                |
 
 量化目標：
 
-- `CommandPalette.tsx`：1582 行降到 250 行以下。
-- `handlers/agent/mod.rs`：2406 行先降到 600 行以下，觀察期後刪除或壓到 100 行以下。
+- `CommandPalette.tsx`：原訂 250 行以下，REF.2 landed 在 598 行後決定接受現狀，`< 250 / < 400` 重新留給 REF.6 收尾。
+- `handlers/agent/mod.rs`：2406 行先降到 600 行以下（REF.3 landed 616），觀察期後刪除或壓到 100 行以下。
 - `agent_runtime.rs`：觀察期降到 400 行以下，最終移除。
 - `AiPanel.tsx`：相容期後移除。
 - Palette cold open：200 ms 以下。
 - Search first chunk P50：80 ms 以下。
-- AI inline P50：800 ms 以下。
+- AI inline P50：800 ms 以下（REF.7 補上正式量測）。
 
 ## 平台支援
 
