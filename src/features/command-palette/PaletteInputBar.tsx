@@ -1,10 +1,6 @@
-// REF.2.P4 — Search/command input bar.
-//
-// Owns the leading icon (mode-dependent), the <input>, the optional search
-// backend chip, and the workspace indicator. State stays in CommandPalette;
-// this component is presentational + keyboard/IME pass-through.
-
 import type React from "react";
+
+import { UiIcon } from "../../components/icons/UiIcon";
 import { WorkspaceIndicator } from "../../components/WorkspaceIndicator";
 import type { SearchBackendInfo } from "../../ipc/types";
 
@@ -16,7 +12,6 @@ interface Props {
   onKeyDown: (e: React.KeyboardEvent<HTMLInputElement>) => void;
   onFocus: () => void;
   searchBackend: SearchBackendInfo | null;
-  /** When true the bar uses rounded-t-xl + bottom border (content rendered below); else rounded-xl. */
   hasContentBelow: boolean;
 }
 
@@ -30,57 +25,61 @@ export function PaletteInputBar({
   searchBackend,
   hasContentBelow,
 }: Props) {
+  const iconShellClass = [
+    "flex h-10 w-10 shrink-0 items-center justify-center rounded-[14px] border",
+    "shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]",
+    mode === "command"
+      ? "border-[color:rgba(127,212,255,0.22)] bg-[rgba(127,212,255,0.12)] text-[color:var(--kn-accent)]"
+      : "border-[color:var(--kn-border)] bg-white/[0.035] text-[color:var(--kn-text-soft)]",
+  ].join(" ");
+
   return (
     <div
-      className={`flex items-center bg-gray-900/95 backdrop-blur-md shadow-2xl ${
-        hasContentBelow ? "rounded-t-xl border-b border-gray-700/50" : "rounded-xl"
+      className={`kn-panel-shell kn-panel-focus flex items-center gap-3 px-3 py-3 ${
+        hasContentBelow ? "rounded-b-none" : ""
       }`}
     >
-      {mode === "command" ? (
-        <span className="ml-4 mr-2 text-sm font-bold text-blue-400 select-none">/</span>
-      ) : (
-        <svg
-          className="ml-4 mr-2 h-4 w-4 shrink-0 text-gray-400"
-          fill="none"
-          viewBox="0 0 24 24"
-          stroke="currentColor"
-          strokeWidth={2}
-        >
-          <path
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            d="M21 21l-4.35-4.35M17 11A6 6 0 1 1 5 11a6 6 0 0 1 12 0z"
-          />
-        </svg>
-      )}
-      <input
-        ref={inputRef}
-        value={query}
-        onChange={(e) => onQueryChange(e.target.value)}
-        onKeyDown={onKeyDown}
-        // Bug-fix 2026-05-19 (round 2) — onFocus + per-keydown throttle in
-        // onKeyDown together cover initial mount, post-Esc re-focus, and
-        // every subsequent keystroke regardless of IME state. See
-        // CommandPalette for the throttle + ref.
-        onFocus={onFocus}
-        placeholder={
-          mode === "command"
-            ? "輸入指令… 試試 /help 或 /setting"
-            : "搜尋應用程式、檔案或資料夾… 輸入 > 進入終端"
-        }
-        className="flex-1 bg-transparent py-4 text-base text-gray-100 placeholder-gray-500 outline-none"
-        spellCheck={false}
-        autoComplete="off"
-      />
-      {searchBackend && mode === "search" && (
-        <span
-          title={`configured=${searchBackend.configured}, everything=${searchBackend.everything_available}, tantivy=${searchBackend.tantivy_available}, cache=${searchBackend.file_cache_entries}, tantivy_docs=${searchBackend.tantivy_index_entries}, index=${searchBackend.tantivy_index_dir}`}
-          className="mr-2 hidden shrink-0 rounded border border-gray-700/70 bg-gray-950/70 px-2 py-1 text-[10px] font-semibold uppercase text-gray-400 sm:inline-flex"
-        >
-          {searchBackend.active}
-        </span>
-      )}
-      <div className="pr-3">
+      <div className={iconShellClass} aria-hidden="true">
+        {mode === "command" ? (
+          <UiIcon name="command" className="h-[18px] w-[18px]" />
+        ) : (
+          <UiIcon name="search" className="h-[18px] w-[18px]" />
+        )}
+      </div>
+
+      <div className="min-w-0 flex-1">
+        <input
+          ref={inputRef}
+          value={query}
+          onChange={(e) => onQueryChange(e.target.value)}
+          onKeyDown={onKeyDown}
+          onFocus={onFocus}
+          placeholder={
+            mode === "command"
+              ? "輸入指令，例如 /help 或 /setting"
+              : "搜尋應用、檔案或資料夾，輸入 > 進入終端"
+          }
+          className="w-full bg-transparent text-[15px] font-medium text-[color:var(--kn-text)] placeholder:text-[color:var(--kn-text-muted)] outline-none"
+          spellCheck={false}
+          autoComplete="off"
+        />
+        <div className="mt-1 flex items-center gap-2 text-[11px] text-[color:var(--kn-text-faint)]">
+          <span>{mode === "command" ? "Command mode" : "Launcher"}</span>
+          <span className="h-1 w-1 rounded-full bg-white/10" />
+          <span>Keyboard-first flow</span>
+        </div>
+      </div>
+
+      <div className="flex shrink-0 items-center gap-2">
+        {searchBackend && mode === "search" && (
+          <span
+            title={`configured=${searchBackend.configured}, everything=${searchBackend.everything_available}, tantivy=${searchBackend.tantivy_available}, cache=${searchBackend.file_cache_entries}, tantivy_docs=${searchBackend.tantivy_index_entries}, index=${searchBackend.tantivy_index_dir}`}
+            className="hidden items-center gap-1.5 rounded-[12px] border border-[color:var(--kn-border)] bg-[rgba(255,255,255,0.035)] px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-[color:var(--kn-text-soft)] sm:inline-flex"
+          >
+            <UiIcon name="database" className="h-3.5 w-3.5" />
+            {searchBackend.active}
+          </span>
+        )}
         <WorkspaceIndicator />
       </div>
     </div>

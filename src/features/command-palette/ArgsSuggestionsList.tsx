@@ -1,8 +1,3 @@
-// REF.2.P4 — Args-phase dropdown (rendered when an exact command match has
-// returned suggestion strings and the user has typed past the trailing
-// space). Mouse selection mirrors the keyboard path: clicking fills the
-// query, hover updates the selected index for parity with Tab/Enter.
-
 interface Props {
   cmdName: string;
   suggestions: string[];
@@ -11,32 +6,40 @@ interface Props {
   onHover: (index: number) => void;
 }
 
-export function ArgsSuggestionsList({
-  suggestions,
-  selectedIndex,
-  onSelect,
-  onHover,
-}: Props) {
+export function ArgsSuggestionsList({ suggestions, selectedIndex, onSelect, onHover }: Props) {
   return (
-    <div className="bg-gray-900/95 backdrop-blur-md rounded-b-xl shadow-2xl overflow-hidden">
-      <ul className="max-h-[220px] overflow-y-auto py-1">
-        {suggestions.map((arg, i) => (
-          <li
-            key={arg}
-            onMouseDown={() => onSelect(arg, i)}
-            onMouseEnter={() => onHover(i)}
-            className={`flex items-center gap-2 px-4 py-2 cursor-pointer text-sm font-mono transition-colors ${
-              i === selectedIndex ? "bg-blue-600/70 text-white" : "text-gray-300 hover:bg-white/8"
-            }`}
-          >
-            {arg}
-          </li>
-        ))}
+    <div className="kn-panel-shell rounded-t-none border-t-0 overflow-hidden">
+      <ul className="kn-scroll max-h-[220px] space-y-1 overflow-y-auto px-2 py-2">
+        {suggestions.map((arg, index) => {
+          const isSelected = index === selectedIndex;
+
+          return (
+            <li
+              key={arg}
+              data-selected={isSelected ? "true" : "false"}
+              onMouseDown={() => onSelect(arg, index)}
+              onMouseEnter={() => onHover(index)}
+              className="kn-result-row cursor-pointer px-3 py-2.5 font-mono text-sm text-[color:var(--kn-text-soft)] transition-all duration-150"
+            >
+              {arg}
+            </li>
+          );
+        })}
       </ul>
-      <div className="border-t border-gray-700/50 px-4 py-1.5 text-[11px] text-gray-600 flex justify-between">
-        <span>↑↓ 選擇</span>
-        <span>Tab 填入</span>
-        <span>Enter 執行</span>
+
+      <div className="flex items-center justify-between border-t border-[color:var(--kn-border)] bg-[rgba(7,11,17,0.48)] px-4 py-2 text-[11px] text-[color:var(--kn-text-muted)]">
+        <span className="flex items-center gap-1.5">
+          <span className="kn-kbd">Up/Down</span>
+          <span>move</span>
+        </span>
+        <span className="flex items-center gap-1.5">
+          <span className="kn-kbd">Tab</span>
+          <span>complete</span>
+        </span>
+        <span className="flex items-center gap-1.5">
+          <span className="kn-kbd">Enter</span>
+          <span>apply</span>
+        </span>
       </div>
     </div>
   );

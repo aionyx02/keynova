@@ -1,22 +1,7 @@
-// REF.2.P4 — Main search results card.
-//
-// Bundles FilterChips, the result <ul> with row-level hover/select callbacks,
-// the SecondaryActionMenu overlay anchored to the result column, the optional
-// right-side PreviewPane column, the metadata expansion strip toggled from
-// the action menu, and the footer hint row.
-//
-// State stays in CommandPalette; this component is presentational and pipes
-// callbacks through. Inline rendering of the result row is kept here (not
-// split into another sub-component) because the row-level callbacks share
-// the hover-timer ref captured in the parent, and extracting that across two
-// files would force a tuple of refs through the prop bundle for no clarity
-// gain.
-
 import type React from "react";
 import type { ReactNode } from "react";
 
-import { FilterChips } from "./FilterChips";
-import { SecondaryActionMenu } from "./SecondaryActionMenu";
+import { UiIcon, type UiIconName } from "../../components/icons/UiIcon";
 import { PreviewPane } from "../../components/PreviewPane";
 import type {
   FilePreviewResult,
@@ -27,38 +12,48 @@ import type {
 } from "../../types/search";
 import type { UnifiedResult } from "../../types/unified-result";
 import type { SecondaryActionItem, SecondaryActionId } from "../../utils/secondaryActions";
+import { FilterChips } from "./FilterChips";
+import { SecondaryActionMenu } from "./SecondaryActionMenu";
 import type { SecondaryInlineInput } from "./hooks/useSecondaryMenu";
 
-const KIND_BADGE: Record<string, { label: string; cls: string }> = {
-  app: { label: "App", cls: "bg-violet-500/30 text-violet-300" },
-  file: { label: "File", cls: "bg-sky-500/30 text-sky-300" },
-  folder: { label: "Dir", cls: "bg-amber-500/30 text-amber-300" },
-  command: { label: "Cmd", cls: "bg-emerald-500/30 text-emerald-300" },
-  note: { label: "Note", cls: "bg-teal-500/30 text-teal-300" },
-  history: { label: "Hist", cls: "bg-zinc-500/30 text-zinc-300" },
-  model: { label: "AI", cls: "bg-fuchsia-500/30 text-fuchsia-300" },
+const KIND_BADGE: Record<string, { label: string; cls: string; icon: UiIconName }> = {
+  app: { label: "App", cls: "border-violet-400/20 bg-violet-400/10 text-violet-200", icon: "app" },
+  file: { label: "File", cls: "border-sky-400/20 bg-sky-400/10 text-sky-200", icon: "file" },
+  folder: {
+    label: "Dir",
+    cls: "border-amber-400/20 bg-amber-400/10 text-amber-200",
+    icon: "folder",
+  },
+  command: {
+    label: "Cmd",
+    cls: "border-emerald-400/20 bg-emerald-400/10 text-emerald-200",
+    icon: "command",
+  },
+  note: { label: "Note", cls: "border-teal-400/20 bg-teal-400/10 text-teal-200", icon: "note" },
+  history: {
+    label: "Hist",
+    cls: "border-slate-400/20 bg-slate-400/10 text-slate-200",
+    icon: "history",
+  },
+  model: { label: "AI", cls: "border-cyan-400/20 bg-cyan-400/10 text-cyan-200", icon: "model" },
 };
 
 function hasEncodingError(s: string | undefined | null): boolean {
-  return typeof s === "string" && s.includes("�");
+  return typeof s === "string" && s.includes("嚙");
 }
 
 interface Props {
   visibleResults: SearchResult[];
-  /** REF.6.A — canonical `UnifiedResult[]` parallel to `visibleResults`.
-   * Indexed access drives the inline AI chip column. */
   unifiedVisible: UnifiedResult[];
   safeSelected: number;
   iconsByKey: Record<string, SearchIconAsset>;
   onSelectIndex: (index: number) => void;
   onLaunch: (result: SearchResult) => void;
-  // Hover for rank tooltip (LAUNCH.1.E).
   showRankBreakdown: boolean;
   onHoverStart: (index: number, rect: DOMRect) => void;
   onHoverEnd: () => void;
   activeFilters: Set<SourceFilter>;
   onChangeFilters: (next: Set<SourceFilter>) => void;
-  // Secondary action menu overlay (LAUNCH.1.A).
   secondaryMenuOpen: boolean;
   selectedResult: SearchResult | null;
   menuItems: SecondaryActionItem[];
@@ -69,14 +64,11 @@ interface Props {
   onMenuFocus: (index: number) => void;
   onInlineInputChange: (value: string) => void;
   onInlineInputKeyDown: (e: React.KeyboardEvent<HTMLInputElement>) => void;
-  // Preview pane (LAUNCH.1.C).
   showPreview: boolean;
   previewForSelected: FilePreviewResult | undefined;
   previewLoading: boolean;
-  // Metadata expansion (LAUNCH.1.A).
   expandedMetadata: boolean;
   selectedMetadata: SearchMetadata | null | undefined;
-  // Footer hint text (copy/preview/diagnostic).
   footerHint: ReactNode;
 }
 
@@ -111,70 +103,90 @@ export function SearchResultsList({
 }: Props) {
   return (
     <div
-      className={`bg-gray-900/95 backdrop-blur-md rounded-b-xl shadow-2xl ${
+      className={`kn-panel-shell rounded-t-none border-t-0 ${
         secondaryMenuOpen ? "overflow-visible" : "overflow-hidden"
       }`}
     >
       <FilterChips active={activeFilters} onChange={onChangeFilters} />
-      <div className={showPreview ? "grid grid-cols-[1fr_320px]" : ""}>
-        <div className={`relative min-w-0 ${secondaryMenuOpen ? "min-h-[384px]" : ""}`}>
-          <ul className="max-h-[352px] overflow-y-auto py-1">
-            {visibleResults.map((r, i) => {
-              const badge = KIND_BADGE[r.kind] ?? KIND_BADGE.file;
-              const icon = r.icon_key ? iconsByKey[r.icon_key] : null;
-              const unified = unifiedVisible[i];
+
+      <div className={showPreview ? "grid grid-cols-[minmax(0,1fr)_336px]" : ""}>
+        <div className={`relative min-w-0 ${secondaryMenuOpen ? "min-h-[420px]" : ""}`}>
+          <ul className="kn-scroll max-h-[360px] space-y-1 overflow-y-auto px-2 py-2">
+            {visibleResults.map((result, index) => {
+              const isSelected = index === safeSelected;
+              const badge = KIND_BADGE[result.kind] ?? KIND_BADGE.file;
+              const icon = result.icon_key ? iconsByKey[result.icon_key] : null;
+              const unified = unifiedVisible[index];
+              const title = hasEncodingError(result.title ?? result.name)
+                ? "Unavailable text"
+                : (result.title ?? result.name);
+              const detailSource =
+                result.kind === "app" ? result.subtitle : (result.subtitle ?? result.path);
+              const detail = hasEncodingError(detailSource) ? "Path unavailable" : detailSource;
+
               return (
                 <li
-                  key={unified?.id ?? r.path}
-                  ref={(el) => {
-                    if (i === safeSelected && el) el.scrollIntoView({ block: "nearest" });
+                  key={unified?.id ?? result.path}
+                  ref={(element) => {
+                    if (isSelected && element) {
+                      element.scrollIntoView({ block: "nearest" });
+                    }
                   }}
-                  onMouseDown={() => onLaunch(r)}
-                  onMouseEnter={(e) => {
-                    onSelectIndex(i);
+                  data-selected={isSelected ? "true" : "false"}
+                  onMouseDown={() => onLaunch(result)}
+                  onMouseEnter={(event) => {
+                    onSelectIndex(index);
                     if (!showRankBreakdown) return;
-                    onHoverStart(i, e.currentTarget.getBoundingClientRect());
+                    onHoverStart(index, event.currentTarget.getBoundingClientRect());
                   }}
                   onMouseLeave={onHoverEnd}
-                  className={`flex items-center gap-2 px-4 py-2.5 cursor-pointer text-sm transition-colors ${
-                    i === safeSelected ? "bg-blue-600/70 text-white" : "text-gray-300 hover:bg-white/8"
-                  }`}
+                  className="kn-result-row flex cursor-pointer items-center gap-3 px-3 py-3 transition-all duration-150"
                 >
                   {icon ? (
-                    <img
-                      src={icon.data_url}
-                      alt=""
-                      className="h-6 w-6 shrink-0 rounded"
-                      draggable={false}
-                    />
+                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[12px] border border-white/5 bg-white/[0.035] shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]">
+                      <img
+                        src={icon.data_url}
+                        alt=""
+                        className="h-7 w-7 shrink-0 rounded-[10px]"
+                        draggable={false}
+                      />
+                    </div>
                   ) : (
-                    <span
-                      className={`shrink-0 rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${badge.cls}`}
+                    <div
+                      className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-[12px] border ${badge.cls}`}
+                      title={badge.label}
                     >
-                      {badge.label}
-                    </span>
+                      <UiIcon name={badge.icon} className="h-[18px] w-[18px]" />
+                    </div>
                   )}
-                  <span
-                    className={`truncate font-medium${
-                      hasEncodingError(r.title ?? r.name) ? " text-gray-500 italic" : ""
-                    }`}
-                  >
-                    {hasEncodingError(r.title ?? r.name)
-                      ? "(無法解碼的名稱)"
-                      : (r.title ?? r.name)}
-                  </span>
-                  {Boolean(r.secondary_action_count) && (
-                    <span className="shrink-0 text-[10px] text-gray-500">
-                      +{r.secondary_action_count}
-                    </span>
-                  )}
-                  {r.kind !== "app" && (
-                    <span className="ml-auto shrink-0 max-w-[220px] truncate text-xs text-gray-500">
-                      {hasEncodingError(r.subtitle ?? r.path)
-                        ? "(無法解碼的路徑)"
-                        : (r.subtitle ?? r.path)}
-                    </span>
-                  )}
+
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2">
+                      <span
+                        className={`truncate text-sm font-semibold ${
+                          isSelected ? "text-white" : "text-[color:var(--kn-text)]"
+                        }`}
+                      >
+                        {title}
+                      </span>
+                      {Boolean(result.secondary_action_count) && (
+                        <span className="rounded-full border border-white/8 bg-white/[0.04] px-1.5 py-0.5 text-[10px] font-medium text-[color:var(--kn-text-muted)]">
+                          +{result.secondary_action_count}
+                        </span>
+                      )}
+                    </div>
+                    {detail && (
+                      <div
+                        className={`mt-1 truncate text-[11px] ${
+                          isSelected
+                            ? "text-[color:rgba(238,244,251,0.72)]"
+                            : "text-[color:var(--kn-text-muted)]"
+                        }`}
+                      >
+                        {detail}
+                      </div>
+                    )}
+                  </div>
                 </li>
               );
             })}
@@ -197,9 +209,9 @@ export function SearchResultsList({
 
         {showPreview && (
           <div
-            className={`${
-              secondaryMenuOpen ? "h-[384px]" : "max-h-[352px]"
-            } border-l border-gray-700/50 bg-gray-950/40`}
+            className={`border-l border-[color:var(--kn-border)] bg-[rgba(7,11,17,0.52)] ${
+              secondaryMenuOpen ? "h-[420px]" : "max-h-[360px]"
+            }`}
           >
             <PreviewPane
               result={selectedResult}
@@ -211,42 +223,44 @@ export function SearchResultsList({
       </div>
 
       {expandedMetadata && selectedResult && (
-        <div className="border-t border-gray-700/50 px-4 py-2 text-xs text-gray-400 bg-gray-950/60">
-          <div className="mb-1 flex items-center justify-between">
-            <span className="text-[10px] uppercase tracking-wider text-gray-500">Metadata</span>
-            <span className="text-[10px] text-gray-600">Esc 收起</span>
+        <div className="border-t border-[color:var(--kn-border)] bg-[rgba(7,11,17,0.62)] px-4 py-3 text-xs text-[color:var(--kn-text-soft)]">
+          <div className="mb-2 flex items-center justify-between">
+            <span className="text-[10px] uppercase tracking-[0.2em] text-[color:var(--kn-text-faint)]">
+              Metadata
+            </span>
+            <span className="text-[10px] text-[color:var(--kn-text-muted)]">Esc collapse</span>
           </div>
-          <div className="grid grid-cols-[max-content_1fr] gap-x-3 gap-y-0.5 font-mono">
-            <span className="text-gray-500">path</span>
-            <span className="truncate text-gray-300">{selectedResult.path}</span>
+          <div className="grid grid-cols-[max-content_1fr] gap-x-3 gap-y-1 font-mono text-[11px]">
+            <span className="text-[color:var(--kn-text-faint)]">path</span>
+            <span className="truncate text-[color:var(--kn-text-soft)]">{selectedResult.path}</span>
             {selectedMetadata?.size_bytes !== undefined && (
               <>
-                <span className="text-gray-500">size</span>
-                <span className="text-gray-300">
+                <span className="text-[color:var(--kn-text-faint)]">size</span>
+                <span className="text-[color:var(--kn-text-soft)]">
                   {selectedMetadata.size_bytes.toLocaleString()} bytes
                 </span>
               </>
             )}
             {selectedMetadata?.modified_ms !== undefined && (
               <>
-                <span className="text-gray-500">modified</span>
-                <span className="text-gray-300">
+                <span className="text-[color:var(--kn-text-faint)]">modified</span>
+                <span className="text-[color:var(--kn-text-soft)]">
                   {new Date(selectedMetadata.modified_ms).toLocaleString()}
                 </span>
               </>
             )}
             {selectedMetadata?.is_dir !== undefined && (
               <>
-                <span className="text-gray-500">type</span>
-                <span className="text-gray-300">
+                <span className="text-[color:var(--kn-text-faint)]">type</span>
+                <span className="text-[color:var(--kn-text-soft)]">
                   {selectedMetadata.is_dir ? "folder" : "file"}
                 </span>
               </>
             )}
             {selectedMetadata?.preview && (
               <>
-                <span className="text-gray-500">preview</span>
-                <span className="text-gray-300 whitespace-pre-wrap break-words">
+                <span className="text-[color:var(--kn-text-faint)]">preview</span>
+                <span className="whitespace-pre-wrap break-words text-[color:var(--kn-text-soft)]">
                   {selectedMetadata.preview}
                 </span>
               </>
@@ -255,11 +269,22 @@ export function SearchResultsList({
         </div>
       )}
 
-      <div className="border-t border-gray-700/50 px-4 py-1.5 text-[11px] text-gray-600 flex justify-between gap-2">
+      <div className="flex flex-wrap items-center justify-between gap-3 border-t border-[color:var(--kn-border)] bg-[rgba(7,11,17,0.48)] px-4 py-2 text-[11px] text-[color:var(--kn-text-muted)]">
         <span className="min-w-0 flex-1 truncate">{footerHint}</span>
-        <span className="shrink-0">Enter 開啟</span>
-        <span className="shrink-0">Shift+Enter 次要</span>
-        <span className="shrink-0">→ Actions</span>
+        <div className="flex items-center gap-3">
+          <span className="flex items-center gap-1.5">
+            <span className="kn-kbd">Enter</span>
+            <span>open</span>
+          </span>
+          <span className="flex items-center gap-1.5">
+            <span className="kn-kbd">Shift+Enter</span>
+            <span>preview</span>
+          </span>
+          <span className="flex items-center gap-1.5">
+            <span className="kn-kbd">Tab</span>
+            <span>actions</span>
+          </span>
+        </div>
       </div>
     </div>
   );
