@@ -2,7 +2,7 @@
 type: working_memory
 status: active
 priority: p0
-updated: 2026-05-27
+updated: 2026-05-28
 context_policy: always_retrievable
 owner: project
 ---
@@ -34,7 +34,7 @@ owner: project
 
 ## Next Step
 
-- `REF.6.B` landed at unit level: prefix dispatcher (`explain` / `summarize`) + `CapabilityAnswerCard` + `[Copy md]` / `[Save to note]` chips + capability-cancel Esc branch + discovery hint line (`launcher.show_capability_hint`). REF.6.A row chip + `Ctrl+E` + `InlineCapabilityReply` removed. 101/102 vitest pass; lint clean.
+- `REF.6.B` landed at unit level: prefix dispatcher (`explain` / `summarize`) + `CapabilityAnswerCard` + `[Copy md]` / `[Save to note]` chips + capability-cancel Esc branch + discovery hint line (`launcher.show_capability_hint`). REF.6.A row chip + `Ctrl+E` + `InlineCapabilityReply` removed. Post-handoff `explain <text>` UI event alias/final-response fallback regression fixed; targeted vitest pass.
 - Pending manual `tauri dev` smoke for REF.6.B (live Ollama stream end-to-end + Bug A/B regression).
 - Next batch: `REF.6.C` backend `gen_command` + `suggest_next` capabilities (no UI surface in that batch; UI consumers are REF.6.D/.E/.F).
 - Live Ollama smoke for `explain` + `fix_error` passed on `qwen2.5:0.5b` cold-start (4.6–5.0 s). Formal `qwen2.5:7b` P50/P95 reading still owed; runs in REF.7.

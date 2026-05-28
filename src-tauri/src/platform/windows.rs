@@ -1,6 +1,7 @@
 #![cfg(target_os = "windows")]
 
 use crate::models::app::AppInfo;
+use std::collections::HashMap;
 use std::path::Path;
 use std::sync::{Arc, Mutex, OnceLock};
 use windows::Win32::UI::Input::KeyboardAndMouse::{
@@ -76,6 +77,130 @@ fn collect_lnk_files(dir: &Path, out: &mut Vec<AppInfo>) {
 }
 
 /// 以 ShellExecute 語義開啟捷徑或可執行檔。
+static SEARCH_ICON_CACHE: OnceLock<Mutex<HashMap<String, Option<String>>>> = OnceLock::new();
+
+const SEARCH_ICON_SCRIPT: &str = r#"
+Add-Type -AssemblyName System.Drawing
+if (-not ("KeynovaShellIcon" -as [type])) {
+Add-Type @"
+using System;
+using System.Runtime.InteropServices;
+
+public static class KeynovaShellIcon {
+    [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
+    public struct SHFILEINFO {
+        public IntPtr hIcon;
+        public int iIcon;
+        public uint dwAttributes;
+        [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 260)]
+        public string szDisplayName;
+        [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 80)]
+        public string szTypeName;
+    }
+
+    [DllImport("Shell32.dll", CharSet = CharSet.Unicode)]
+    public static extern IntPtr SHGetFileInfo(
+        string pszPath,
+        uint dwFileAttributes,
+        out SHFILEINFO psfi,
+        uint cbFileInfo,
+        uint uFlags
+    );
+
+    [DllImport("User32.dll", SetLastError = true)]
+    public static extern bool DestroyIcon(IntPtr hIcon);
+}
+"@
+}
+
+$path = $env:KEYNOVA_ICON_PATH
+$kind = $env:KEYNOVA_ICON_KIND
+if ([string]::IsNullOrWhiteSpace($path)) {
+    exit 1
+}
+
+$attrs = 0
+if ($kind -eq "folder") {
+    $attrs = 0x10
+}
+
+$flags = 0x100
+$info = New-Object KeynovaShellIcon+SHFILEINFO
+[void][KeynovaShellIcon]::SHGetFileInfo(
+    $path,
+    [uint32]$attrs,
+    [ref]$info,
+    [uint32][System.Runtime.InteropServices.Marshal]::SizeOf([type][KeynovaShellIcon+SHFILEINFO]),
+    [uint32]$flags
+)
+
+if ($info.hIcon -eq [IntPtr]::Zero) {
+    exit 1
+}
+
+try {
+    $icon = [System.Drawing.Icon]::FromHandle($info.hIcon)
+    $bitmap = $icon.ToBitmap()
+    $stream = New-Object System.IO.MemoryStream
+    $bitmap.Save($stream, [System.Drawing.Imaging.ImageFormat]::Png)
+    [Convert]::ToBase64String($stream.ToArray())
+} finally {
+    [KeynovaShellIcon]::DestroyIcon($info.hIcon) | Out-Null
+}
+"#;
+
+pub fn search_icon_data_url(icon_key: &str, kind: &str, path: &str) -> Option<String> {
+    if path.trim().is_empty() {
+        return None;
+    }
+    if kind != "app" && kind != "file" && kind != "folder" {
+        return None;
+    }
+
+    let cache = SEARCH_ICON_CACHE.get_or_init(|| Mutex::new(HashMap::new()));
+    if let Ok(guard) = cache.lock() {
+        if let Some(cached) = guard.get(icon_key) {
+            return cached.clone();
+        }
+    }
+
+    let data_url = extract_shell_icon_base64(path, kind)
+        .map(|base64| format!("data:image/png;base64,{base64}"));
+
+    if let Ok(mut guard) = cache.lock() {
+        guard.insert(icon_key.to_string(), data_url.clone());
+    }
+
+    data_url
+}
+
+fn extract_shell_icon_base64(path: &str, kind: &str) -> Option<String> {
+    let output = std::process::Command::new("powershell.exe")
+        .args([
+            "-NoProfile",
+            "-NonInteractive",
+            "-ExecutionPolicy",
+            "Bypass",
+            "-Command",
+            SEARCH_ICON_SCRIPT,
+        ])
+        .env("KEYNOVA_ICON_PATH", path)
+        .env("KEYNOVA_ICON_KIND", kind)
+        .output()
+        .ok()?;
+
+    if !output.status.success() {
+        return None;
+    }
+
+    let text = String::from_utf8(output.stdout).ok()?;
+    let base64 = text.trim();
+    if base64.is_empty() {
+        return None;
+    }
+    Some(base64.to_string())
+}
+
 pub fn launch_app(path: &str) -> Result<(), String> {
     std::process::Command::new("cmd")
         .args(["/C", "start", "", path])
@@ -411,7 +536,14 @@ fn user_search_dirs() -> Vec<(std::path::PathBuf, usize)> {
         let home = std::path::PathBuf::from(&home_str);
 
         // OS-standardised user dirs: names are fixed by Windows shell APIs.
-        for sub in &["Desktop", "Downloads", "Documents", "Pictures", "Music", "Videos"] {
+        for sub in &[
+            "Desktop",
+            "Downloads",
+            "Documents",
+            "Pictures",
+            "Music",
+            "Videos",
+        ] {
             add(home.join(sub), 6);
         }
 
@@ -445,7 +577,9 @@ fn dropbox_paths() -> Vec<String> {
     let mut paths = Vec::new();
     for env_key in &["LOCALAPPDATA", "APPDATA"] {
         if let Ok(base) = std::env::var(env_key) {
-            let info = std::path::PathBuf::from(base).join("Dropbox").join("info.json");
+            let info = std::path::PathBuf::from(base)
+                .join("Dropbox")
+                .join("info.json");
             if let Ok(content) = std::fs::read_to_string(info) {
                 paths.extend(extract_json_path_values(&content));
                 if !paths.is_empty() {
@@ -519,8 +653,7 @@ fn wsl_home_dirs() -> Vec<(std::path::PathBuf, usize)> {
 
     for prefix in &[r"\\wsl.localhost", r"\\wsl$"] {
         for distro in &distros {
-            let home_root =
-                std::path::PathBuf::from(format!(r"{}\{}\home", prefix, distro));
+            let home_root = std::path::PathBuf::from(format!(r"{}\{}\home", prefix, distro));
             if !home_root.exists() {
                 continue;
             }
@@ -622,10 +755,7 @@ fn looks_like_utf16_le(bytes: &[u8]) -> bool {
     if pairs == 0 {
         return false;
     }
-    let nul_second_bytes = bytes
-        .chunks_exact(2)
-        .filter(|pair| pair[1] == 0)
-        .count();
+    let nul_second_bytes = bytes.chunks_exact(2).filter(|pair| pair[1] == 0).count();
     nul_second_bytes * 2 >= pairs
 }
 
@@ -735,7 +865,9 @@ pub fn everything_search(query: &str, max_results: u32) -> Vec<(String, String, 
             }
             let full_path = String::from_utf16_lossy(&buf[..len as usize]).to_string();
             if full_path.contains('\u{FFFD}') {
-                eprintln!("[keynova] skipping Everything result with invalid UTF-16 path at index {i}");
+                eprintln!(
+                    "[keynova] skipping Everything result with invalid UTF-16 path at index {i}"
+                );
                 continue;
             }
 
@@ -745,7 +877,9 @@ pub fn everything_search(query: &str, max_results: u32) -> Vec<(String, String, 
             }
             let name = read_wstr(name_ptr);
             if name.contains('\u{FFFD}') {
-                eprintln!("[keynova] skipping Everything result with invalid UTF-16 name at index {i}");
+                eprintln!(
+                    "[keynova] skipping Everything result with invalid UTF-16 name at index {i}"
+                );
                 continue;
             }
             let is_folder = (fns.is_folder_result)(i) != 0;
