@@ -112,7 +112,13 @@ impl AutomationEngine {
                     output: None,
                     error: Some(error.clone()),
                 });
-                return Self::pipeline_report(name, action_count, "failed", Some(error), executions);
+                return Self::pipeline_report(
+                    name,
+                    action_count,
+                    "failed",
+                    Some(error),
+                    executions,
+                );
             }
 
             let mut payload = action.payload.clone();
@@ -141,7 +147,13 @@ impl AutomationEngine {
                         output: None,
                         error: Some(error.clone()),
                     });
-                    return Self::pipeline_report(name, action_count, "failed", Some(error), executions);
+                    return Self::pipeline_report(
+                        name,
+                        action_count,
+                        "failed",
+                        Some(error),
+                        executions,
+                    );
                 }
             }
         }
@@ -328,10 +340,11 @@ mod tests {
             pipeline_action("agent.start"),
         ];
         let mut call_count = 0usize;
-        let report = AutomationEngine::execute_pipeline("fail-pipe", actions, |_route, _payload| {
-            call_count += 1;
-            Err("search failed".into())
-        });
+        let report =
+            AutomationEngine::execute_pipeline("fail-pipe", actions, |_route, _payload| {
+                call_count += 1;
+                Err("search failed".into())
+            });
 
         assert_eq!(report.log.status, "failed");
         assert_eq!(call_count, 1);
@@ -367,12 +380,18 @@ mod tests {
             route: "automation.execute".into(),
             payload: json!({}),
         }];
-        let report = AutomationEngine::execute_pipeline("recursive-pipe", actions, |_route, _payload| {
-            panic!("must not dispatch automation.execute")
-        });
+        let report =
+            AutomationEngine::execute_pipeline("recursive-pipe", actions, |_route, _payload| {
+                panic!("must not dispatch automation.execute")
+            });
 
         assert_eq!(report.log.status, "failed");
-        assert!(report.log.error.as_deref().unwrap_or("").contains("recursive"));
+        assert!(report
+            .log
+            .error
+            .as_deref()
+            .unwrap_or("")
+            .contains("recursive"));
     }
 
     #[test]
@@ -381,9 +400,10 @@ mod tests {
             pipeline_action("search.query"),
             pipeline_action("history.search"),
         ];
-        let report = AutomationEngine::execute_pipeline("report-pipe", actions, |route, _payload| {
-            Ok(json!({ "route": route }))
-        });
+        let report =
+            AutomationEngine::execute_pipeline("report-pipe", actions, |route, _payload| {
+                Ok(json!({ "route": route }))
+            });
 
         assert_eq!(report.log.action_count, 2);
         assert_eq!(report.actions[0].route, "search.query");

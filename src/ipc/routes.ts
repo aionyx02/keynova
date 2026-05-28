@@ -62,6 +62,15 @@ export const IPC = {
   AGENT_REJECT: "agent.reject",
   AGENT_CLEAR_RUNS: "agent.clear_runs",
 
+  // ai capability (REF.4 — stateless single-shot, ADR-0029)
+  CAPABILITY_LIST: "capability.list",
+  CAPABILITY_CALL: "capability.call",
+  CAPABILITY_CANCEL: "capability.cancel",
+
+  // workflow memory (REF.5 — schema v4 workflow_history, ADR-0029)
+  WORKFLOW_RECENT: "workflow.recent",
+  WORKFLOW_SUGGEST: "workflow.suggest",
+
   // file ops (Phase 8b — LAUNCH.1; populated incrementally across Slice 2-4)
   FILE_OPEN_WITH: "file.open_with",
   FILE_REVEAL: "file.reveal",

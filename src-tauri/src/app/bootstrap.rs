@@ -6,6 +6,7 @@ use crate::app::dispatch::{
     cmd_dispatch_impl, cmd_hide_launcher_impl, cmd_keep_launcher_open_impl, cmd_ping_impl,
     cmd_show_launcher_impl,
 };
+use crate::app::migration::run_legacy_migration;
 use crate::app::shortcuts::setup_global_shortcuts;
 use crate::app::state::AppState;
 use crate::app::tray::setup_tray;
@@ -15,7 +16,6 @@ use crate::app::watchers::{
 use crate::app::window::{setup_main_window, show_launcher};
 use crate::core::observability;
 use crate::core::{AppEvent, IpcError};
-use crate::app::migration::run_legacy_migration;
 
 #[tauri::command]
 fn cmd_dispatch(

@@ -1,5 +1,6 @@
 pub mod agent;
 pub mod ai;
+pub mod ai_capability;
 pub mod automation;
 pub mod builtin_cmd;
 pub mod calculator;
@@ -21,4 +22,5 @@ pub mod system_control;
 pub mod system_monitoring;
 pub mod terminal;
 pub mod translation;
+pub mod workflow_memory;
 pub mod workspace;

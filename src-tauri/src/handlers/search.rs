@@ -9,7 +9,6 @@ use crate::core::{
     observability, ActionArena, AppEvent, BuiltinCommandRegistry, CommandHandler, CommandResult,
     EventBus,
 };
-use crate::models::ipc_requests::{SearchQueryRequest, SearchRecordSelectionRequest};
 use crate::managers::{
     history_manager::HistoryManager,
     model_manager::{HardwareInfo, ModelManager},
@@ -18,7 +17,17 @@ use crate::managers::{
     search_service::SearchService,
 };
 use crate::models::action::{Action, ScoreBreakdown, UiSearchItem};
+use crate::models::ipc_requests::{SearchQueryRequest, SearchRecordSelectionRequest};
 use crate::models::search_result::{ResultKind, SearchResult};
+use crate::models::unified_result::UnifiedResult;
+
+/// REF.6.A — convert internal `UiSearchItem` rows into the wire format the
+/// palette consumes (`UnifiedResult`). Keeps `UiSearchItem` as the
+/// computation type inside `SearchHandler` while standardising the IPC
+/// boundary.
+fn to_unified_results(items: Vec<UiSearchItem>) -> Vec<UnifiedResult> {
+    items.into_iter().map(UnifiedResult::from).collect()
+}
 
 const DEFAULT_FIRST_BATCH_LIMIT: usize = 30;
 
@@ -54,9 +63,7 @@ impl SearchPlan {
             note_limit: NOTE_LIMIT,
             history_limit: HISTORY_LIMIT,
             model_limit: MODEL_LIMIT,
-            file_limit: display_limit
-                .saturating_mul(FILE_LIMIT_MULTIPLIER)
-                .max(120),
+            file_limit: display_limit.saturating_mul(FILE_LIMIT_MULTIPLIER).max(120),
         }
     }
 }
@@ -178,7 +185,13 @@ impl SearchHandler {
                 .unwrap_or(DEFAULT_FIRST_BATCH_LIMIT)
                 .min(limit)
                 .max(1);
-            return self.execute_stream_query(query, workspace_root, limit, first_batch_limit, request_id);
+            return self.execute_stream_query(
+                query,
+                workspace_root,
+                limit,
+                first_batch_limit,
+                request_id,
+            );
         }
         self.execute_sync_query(query, workspace_root, limit)
     }
@@ -215,11 +228,11 @@ impl SearchHandler {
         };
         let mut results = self.base_results_to_ui_items(base_results, &session)?;
         if !self.is_generation_current(generation)? {
-            return Ok(json!(Vec::<UiSearchItem>::new()));
+            return Ok(json!(Vec::<UnifiedResult>::new()));
         }
         self.append_non_file_results(&query, &plan, &session, &mut results)?;
         if !self.is_generation_current(generation)? {
-            return Ok(json!(Vec::<UiSearchItem>::new()));
+            return Ok(json!(Vec::<UnifiedResult>::new()));
         }
         Self::apply_workspace_filter(&mut results, workspace_root.as_deref());
         sort_balanced_truncate(&mut results, plan.display_limit);
@@ -230,7 +243,7 @@ impl SearchHandler {
             results.len(),
             started.elapsed(),
         );
-        serde_json::to_value(results).map_err(|e| e.to_string())
+        serde_json::to_value(to_unified_results(results)).map_err(|e| e.to_string())
     }
 
     fn execute_stream_query(
@@ -294,7 +307,7 @@ impl SearchHandler {
             });
         }
 
-        serde_json::to_value(first_batch).map_err(|e| e.to_string())
+        serde_json::to_value(to_unified_results(first_batch)).map_err(|e| e.to_string())
     }
 
     fn run_stream_worker(&self, request: StreamWorkerRequest) {
@@ -321,7 +334,13 @@ impl SearchHandler {
         let mut worker_items = Vec::new();
         let timed_out;
 
-        match self.file_results_bounded(backend, query.clone(), plan.file_limit, generation, Arc::clone(&cancel)) {
+        match self.file_results_bounded(
+            backend,
+            query.clone(),
+            plan.file_limit,
+            generation,
+            Arc::clone(&cancel),
+        ) {
             Some(file_results) => {
                 timed_out = false;
                 match self.base_results_to_ui_items(file_results, &session) {
@@ -465,13 +484,17 @@ impl SearchHandler {
     }
 
     fn emit_search_chunk(&self, chunk: SearchChunk) {
+        // REF.6.A — palette consumes `UnifiedResult`; convert at the event-
+        // bus emit boundary so the worker's internal `UiSearchItem`
+        // computation type doesn't need to change.
+        let items = to_unified_results(chunk.items);
         let _ = self.event_bus.publish(AppEvent::new(
             "search.results.chunk",
             json!({
                 "request_id": chunk.request_id,
                 "generation": chunk.generation,
                 "chunk_index": chunk.chunk_index,
-                "items": chunk.items,
+                "items": items,
                 "done": chunk.done,
                 "replace": chunk.replace,
                 "timed_out_providers": chunk.timed_out_providers,
@@ -782,6 +805,15 @@ impl SearchHandler {
             .unwrap_or("unknown");
         let kind = payload.get("kind").and_then(Value::as_str).unwrap_or("");
         let path = payload.get("path").and_then(Value::as_str).unwrap_or("");
+        #[cfg(target_os = "windows")]
+        if let Some(data_url) = crate::platform::windows::search_icon_data_url(icon_key, kind, path)
+        {
+            return json!({
+                "icon_key": icon_key,
+                "mime": "image/png",
+                "data_url": data_url,
+            });
+        }
         let label = icon_label(icon_key, kind, path);
         let color = icon_color(icon_key, kind);
         json!({
@@ -1089,7 +1121,10 @@ mod tests {
         assert_eq!(strip_global_prefix(":global foo"), ("foo".into(), true));
         assert_eq!(strip_global_prefix("  :global  foo"), ("foo".into(), true));
         // `:globalfoo` (no separator) should not be treated as the prefix.
-        assert_eq!(strip_global_prefix(":globalfoo"), (":globalfoo".into(), false));
+        assert_eq!(
+            strip_global_prefix(":globalfoo"),
+            (":globalfoo".into(), false)
+        );
     }
 
     #[test]
@@ -1142,21 +1177,39 @@ mod tests {
     fn command_name_prefix_beats_description_match() {
         // "/down" has description "Gracefully quit Keynova".
         // Searching "keynova" should give a low score (description-only), not 85.
-        assert_eq!(command_match_score("down", "Gracefully quit Keynova", "keynova"), Some(40));
+        assert_eq!(
+            command_match_score("down", "Gracefully quit Keynova", "keynova"),
+            Some(40)
+        );
         // Searching "down" should give prefix score 90.
-        assert_eq!(command_match_score("down", "Gracefully quit Keynova", "down"), Some(90));
+        assert_eq!(
+            command_match_score("down", "Gracefully quit Keynova", "down"),
+            Some(90)
+        );
         // Searching "ow" (substring) should give 85.
-        assert_eq!(command_match_score("down", "Gracefully quit Keynova", "ow"), Some(85));
+        assert_eq!(
+            command_match_score("down", "Gracefully quit Keynova", "ow"),
+            Some(85)
+        );
         // No match at all.
-        assert_eq!(command_match_score("down", "Gracefully quit Keynova", "zzz"), None);
+        assert_eq!(
+            command_match_score("down", "Gracefully quit Keynova", "zzz"),
+            None
+        );
         // Empty query returns None.
-        assert_eq!(command_match_score("down", "Gracefully quit Keynova", ""), None);
+        assert_eq!(
+            command_match_score("down", "Gracefully quit Keynova", ""),
+            None
+        );
     }
 
     #[test]
     fn description_only_score_is_below_file_score() {
         let score = command_match_score("down", "Gracefully quit Keynova", "keynova").unwrap();
-        assert!(score < 80, "description-only match ({score}) must be below file score (80)");
+        assert!(
+            score < 80,
+            "description-only match ({score}) must be below file score (80)"
+        );
     }
 
     #[test]
@@ -1199,17 +1252,18 @@ mod tests {
 
     #[test]
     fn result_keys_collects_unique_keys_for_all_items() {
-        let items = vec![make_item("file", 80, 0), make_item("file", 80, 1), make_item("note", 75, 0)];
+        let items = vec![
+            make_item("file", 80, 0),
+            make_item("file", 80, 1),
+            make_item("note", 75, 0),
+        ];
         let keys = result_keys(&items);
         assert_eq!(keys.len(), 3);
     }
 
     #[test]
     fn chunk_merge_deduplicates_by_source_and_path() {
-        let first_batch = vec![
-            make_item("file", 90, 0),
-            make_item("file", 88, 1),
-        ];
+        let first_batch = vec![make_item("file", 90, 0), make_item("file", 88, 1)];
         let first_keys = result_keys(&first_batch);
         let worker_items = vec![
             make_item("file", 85, 1), // duplicate of first_batch[1]
@@ -1228,7 +1282,10 @@ mod tests {
 
         let file_count = combined.iter().filter(|i| i.source == "file").count();
         let note_count = combined.iter().filter(|i| i.source == "note").count();
-        assert_eq!(file_count, 3, "2 from first_batch + 1 new file (dup skipped)");
+        assert_eq!(
+            file_count, 3,
+            "2 from first_batch + 1 new file (dup skipped)"
+        );
         assert_eq!(note_count, 1, "1 new note");
         assert_eq!(combined.len(), 4);
     }

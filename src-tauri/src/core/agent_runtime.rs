@@ -565,7 +565,14 @@ pub fn react_loop_body(
         // Check for cancellation.
         match runtime.get(run_id) {
             Ok(Some(run)) if run.status == AgentRunStatus::Cancelled => {
-                maybe_audit(config, run_id, "react_cancelled", "cancelled", "Run cancelled.", None);
+                maybe_audit(
+                    config,
+                    run_id,
+                    "react_cancelled",
+                    "cancelled",
+                    "Run cancelled.",
+                    None,
+                );
                 return;
             }
             Ok(None) => return,
@@ -683,7 +690,13 @@ pub fn react_loop_body(
                                 run.status = AgentRunStatus::WaitingApproval;
                                 let _ = runtime.update_run(run, "agent.approval.required");
                             }
-                            emit_react_step(runtime, run_id, step_idx, &call.name, "waiting_approval");
+                            emit_react_step(
+                                runtime,
+                                run_id,
+                                step_idx,
+                                &call.name,
+                                "waiting_approval",
+                            );
 
                             wait_for_react_approval(
                                 runtime,
@@ -708,8 +721,9 @@ pub fn react_loop_body(
                                     run.status = AgentRunStatus::Running;
                                     let _ = runtime.update_run(run, "agent.step");
                                 }
-                                let obs_policy =
-                                    spec.map(|s| s.observation_policy.clone()).unwrap_or_default();
+                                let obs_policy = spec
+                                    .map(|s| s.observation_policy.clone())
+                                    .unwrap_or_default();
                                 // Inject approval token so dispatch-layer permission checks pass.
                                 let mut approved_args = call.arguments.clone();
                                 if let Some(obj) = approved_args.as_object_mut() {
@@ -898,7 +912,13 @@ fn react_fail(runtime: &AgentRuntime, run_id: &str, reason: &str) {
     }
 }
 
-fn emit_react_step(runtime: &AgentRuntime, run_id: &str, step: usize, tool_name: &str, status: &str) {
+fn emit_react_step(
+    runtime: &AgentRuntime,
+    run_id: &str,
+    step: usize,
+    tool_name: &str,
+    status: &str,
+) {
     (runtime.publish_event)(AppEvent::new(
         "agent.step",
         json!({
@@ -938,8 +958,7 @@ fn wait_for_react_approval(
     approval_id: &str,
     timeout_secs: u64,
 ) -> ReactApprovalOutcome {
-    let deadline =
-        std::time::Instant::now() + std::time::Duration::from_secs(timeout_secs.max(1));
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(timeout_secs.max(1));
     loop {
         let remaining = deadline.saturating_duration_since(std::time::Instant::now());
         if remaining.is_zero() {
@@ -968,7 +987,11 @@ fn wait_for_react_approval(
             }
             _ => return ReactApprovalOutcome::Cancelled,
         }
-        let guard = runtime.run_notify.0.lock().unwrap_or_else(|e| e.into_inner());
+        let guard = runtime
+            .run_notify
+            .0
+            .lock()
+            .unwrap_or_else(|e| e.into_inner());
         let _ = runtime
             .run_notify
             .1
@@ -1073,7 +1096,9 @@ mod tests {
 
         let topic_log = topics.lock().unwrap();
         assert!(
-            topic_log.iter().any(|t| t.as_str() == "agent.approval.timeout"),
+            topic_log
+                .iter()
+                .any(|t| t.as_str() == "agent.approval.timeout"),
             "expected agent.approval.timeout event, got {:?}",
             topic_log
         );
@@ -1111,7 +1136,10 @@ mod tests {
         assert!(runtime.get("run-4").unwrap().is_some());
 
         let evicted = sink.0.lock().unwrap();
-        assert_eq!(evicted.as_slice(), &["run-0".to_string(), "run-1".to_string()]);
+        assert_eq!(
+            evicted.as_slice(),
+            &["run-0".to_string(), "run-1".to_string()]
+        );
 
         let topic_log = topics.lock().unwrap();
         let archived_count = topic_log
@@ -1215,9 +1243,7 @@ mod tests {
     #[test]
     fn react_loop_single_final_text_completes_run() {
         let runtime = react_runtime();
-        runtime
-            .insert_run(running_run("r1"))
-            .expect("insert run");
+        runtime.insert_run(running_run("r1")).expect("insert run");
 
         let provider = FakeToolCallProvider::single_final("Here is your answer.");
         react_loop_body(
@@ -1237,9 +1263,7 @@ mod tests {
     #[test]
     fn react_loop_tool_call_then_final_completes_run() {
         let runtime = react_runtime();
-        runtime
-            .insert_run(running_run("r2"))
-            .expect("insert run");
+        runtime.insert_run(running_run("r2")).expect("insert run");
 
         let provider = FakeToolCallProvider::tool_then_final(
             "keynova_search",
@@ -1252,7 +1276,9 @@ mod tests {
         let hits = Arc::clone(&dispatch_hits);
         let dispatch = move |name: &str, _args: &Value| -> Result<Value, String> {
             hits.lock().unwrap().push(name.to_string());
-            Ok(json!({ "sources": [{ "title": "Rust notes", "snippet": "async/await", "source_type": "note" }] }))
+            Ok(
+                json!({ "sources": [{ "title": "Rust notes", "snippet": "async/await", "source_type": "note" }] }),
+            )
         };
 
         // Build a keynova.search spec so the dispatch is recognized.
@@ -1270,15 +1296,16 @@ mod tests {
         let run = runtime.get("r2").unwrap().unwrap();
         assert_eq!(run.status, AgentRunStatus::Completed);
         assert_eq!(run.output.as_deref(), Some("Found 2 notes about Rust."));
-        assert_eq!(dispatch_hits.lock().unwrap().as_slice(), &["keynova_search"]);
+        assert_eq!(
+            dispatch_hits.lock().unwrap().as_slice(),
+            &["keynova_search"]
+        );
     }
 
     #[test]
     fn react_loop_cancel_mid_loop_stops_early() {
         let runtime = react_runtime();
-        runtime
-            .insert_run(running_run("r3"))
-            .expect("insert run");
+        runtime.insert_run(running_run("r3")).expect("insert run");
 
         // Provider returns a tool call; we cancel the run before the loop checks status again.
         // The trick: cancel first, then run the loop — it checks at the top of each iteration.
@@ -1304,8 +1331,7 @@ mod tests {
         use crate::managers::system_indexer::search_system_index;
         use uuid::Uuid;
 
-        let tmp_root =
-            std::env::temp_dir().join(format!("keynova-react-fs-{}", Uuid::new_v4()));
+        let tmp_root = std::env::temp_dir().join(format!("keynova-react-fs-{}", Uuid::new_v4()));
         std::fs::create_dir_all(&tmp_root).expect("create tmp dir");
         let file_path = tmp_root.join("react-test-note.md");
         std::fs::write(&file_path, "# React test\nSome content.").expect("write file");
@@ -1345,11 +1371,22 @@ mod tests {
         runtime.insert_run(running_run("fs1")).expect("insert run");
 
         let tools = AgentToolRegistry::with_default_readonly_tools().list();
-        react_loop_body(&runtime, "fs1", &provider, &tools, &ReactLoopConfig::default(), &*dispatch);
+        react_loop_body(
+            &runtime,
+            "fs1",
+            &provider,
+            &tools,
+            &ReactLoopConfig::default(),
+            &*dispatch,
+        );
 
         let run = runtime.get("fs1").unwrap().unwrap();
         assert_eq!(run.status, AgentRunStatus::Completed);
-        assert!(run.output.as_deref().unwrap_or("").contains("react-test-note.md"));
+        assert!(run
+            .output
+            .as_deref()
+            .unwrap_or("")
+            .contains("react-test-note.md"));
 
         let _ = std::fs::remove_dir_all(tmp_root);
     }
@@ -1358,8 +1395,7 @@ mod tests {
     fn react_loop_filesystem_read_dispatch_returns_content() {
         use uuid::Uuid;
 
-        let tmp_root =
-            std::env::temp_dir().join(format!("keynova-react-read-{}", Uuid::new_v4()));
+        let tmp_root = std::env::temp_dir().join(format!("keynova-react-read-{}", Uuid::new_v4()));
         std::fs::create_dir_all(&tmp_root).expect("create tmp dir");
         let file_path = tmp_root.join("sample.toml");
         std::fs::write(&file_path, "[agent]\nmode = \"local\"\n").expect("write file");
@@ -1367,8 +1403,7 @@ mod tests {
         let dispatch = Arc::new(move |name: &str, args: &Value| -> Result<Value, String> {
             match name {
                 "filesystem_read" => {
-                    let path_str =
-                        args.get("path").and_then(Value::as_str).unwrap_or("");
+                    let path_str = args.get("path").and_then(Value::as_str).unwrap_or("");
                     let content = std::fs::read_to_string(path_str)
                         .map_err(|e| format!("read error: {e}"))?;
                     Ok(json!({
@@ -1395,7 +1430,14 @@ mod tests {
         runtime.insert_run(running_run("fs2")).expect("insert run");
 
         let tools = AgentToolRegistry::with_default_readonly_tools().list();
-        react_loop_body(&runtime, "fs2", &provider, &tools, &ReactLoopConfig::default(), &*dispatch);
+        react_loop_body(
+            &runtime,
+            "fs2",
+            &provider,
+            &tools,
+            &ReactLoopConfig::default(),
+            &*dispatch,
+        );
 
         let run = runtime.get("fs2").unwrap().unwrap();
         assert_eq!(run.status, AgentRunStatus::Completed);
@@ -1409,7 +1451,9 @@ mod tests {
         use std::time::{Duration, Instant};
 
         let runtime = react_runtime_arc();
-        runtime.insert_run(running_run("gate1")).expect("insert run");
+        runtime
+            .insert_run(running_run("gate1"))
+            .expect("insert run");
 
         let provider: Arc<dyn crate::managers::ai_manager::ToolCallProvider> =
             Arc::new(FakeToolCallProvider::tool_then_final(
@@ -1453,7 +1497,11 @@ mod tests {
         // Approve: set approval to "approved" and restore Running status.
         {
             let mut run = runtime.get("gate1").unwrap().unwrap();
-            let approval = run.approvals.iter_mut().find(|a| a.id == approval_id).unwrap();
+            let approval = run
+                .approvals
+                .iter_mut()
+                .find(|a| a.id == approval_id)
+                .unwrap();
             approval.status = "approved".into();
             run.status = AgentRunStatus::Running;
             runtime.update_run(run, "agent.run.updated").unwrap();
@@ -1462,7 +1510,10 @@ mod tests {
         // Wait for the loop to complete.
         let deadline = Instant::now() + Duration::from_secs(5);
         let run = loop {
-            assert!(Instant::now() < deadline, "timed out waiting for completion");
+            assert!(
+                Instant::now() < deadline,
+                "timed out waiting for completion"
+            );
             let run = runtime.get("gate1").unwrap().unwrap();
             if !matches!(
                 run.status,
@@ -1486,7 +1537,9 @@ mod tests {
         use std::time::{Duration, Instant};
 
         let runtime = react_runtime_arc();
-        runtime.insert_run(running_run("gate2")).expect("insert run");
+        runtime
+            .insert_run(running_run("gate2"))
+            .expect("insert run");
 
         // Provider: first calls git_status (requires approval), then returns final text.
         let provider: Arc<dyn crate::managers::ai_manager::ToolCallProvider> =
@@ -1526,7 +1579,11 @@ mod tests {
         // Reject: mark rejected, set Running so loop can continue.
         {
             let mut run = runtime.get("gate2").unwrap().unwrap();
-            let approval = run.approvals.iter_mut().find(|a| a.id == approval_id).unwrap();
+            let approval = run
+                .approvals
+                .iter_mut()
+                .find(|a| a.id == approval_id)
+                .unwrap();
             approval.status = "rejected".into();
             run.status = AgentRunStatus::Running;
             runtime.update_run(run, "agent.run.updated").unwrap();
@@ -1535,7 +1592,10 @@ mod tests {
         // Loop should resume, send rejection observation to LLM, get final text, complete.
         let deadline = Instant::now() + Duration::from_secs(5);
         let run = loop {
-            assert!(Instant::now() < deadline, "timed out waiting for completion");
+            assert!(
+                Instant::now() < deadline,
+                "timed out waiting for completion"
+            );
             let run = runtime.get("gate2").unwrap().unwrap();
             if !matches!(
                 run.status,
@@ -1557,9 +1617,7 @@ mod tests {
     #[test]
     fn react_loop_max_steps_exceeded_fails_run() {
         let runtime = react_runtime();
-        runtime
-            .insert_run(running_run("r4"))
-            .expect("insert run");
+        runtime.insert_run(running_run("r4")).expect("insert run");
 
         // Provider always returns a tool call but dispatch is a no-op; the loop
         // will hit max_steps without ever getting FinalText.
@@ -1595,9 +1653,7 @@ mod tests {
     #[test]
     fn react_loop_provider_network_error_fails_run() {
         let runtime = react_runtime();
-        runtime
-            .insert_run(running_run("r5"))
-            .expect("insert run");
+        runtime.insert_run(running_run("r5")).expect("insert run");
 
         // An empty FakeToolCallProvider returns ToolCallError::Network on the first call.
         let provider = FakeToolCallProvider::new([]);
@@ -1612,15 +1668,17 @@ mod tests {
 
         let run = runtime.get("r5").unwrap().unwrap();
         assert_eq!(run.status, AgentRunStatus::Failed);
-        assert!(run.error.as_deref().unwrap_or("").contains("Provider error"));
+        assert!(run
+            .error
+            .as_deref()
+            .unwrap_or("")
+            .contains("Provider error"));
     }
 
     #[test]
     fn react_loop_unknown_tool_produces_error_observation_and_loop_completes() {
         let runtime = react_runtime();
-        runtime
-            .insert_run(running_run("r6"))
-            .expect("insert run");
+        runtime.insert_run(running_run("r6")).expect("insert run");
 
         // Provider calls an unregistered tool (not in the spec list, not in dispatch).
         // The loop must not panic; it should surface an error observation and the LLM
@@ -1647,11 +1705,7 @@ mod tests {
 
         let run = runtime.get("r6").unwrap().unwrap();
         assert_eq!(run.status, AgentRunStatus::Completed);
-        assert!(run
-            .output
-            .as_deref()
-            .unwrap_or("")
-            .contains("not allowed"));
+        assert!(run.output.as_deref().unwrap_or("").contains("not allowed"));
     }
 
     // ─── P0.A: Two-step file find then read ─────────────────────────────────
@@ -1661,8 +1715,7 @@ mod tests {
         use crate::managers::ai_manager::AiToolCallRequest;
         use uuid::Uuid;
 
-        let tmp_root = std::env::temp_dir()
-            .join(format!("keynova-2step-{}", Uuid::new_v4()));
+        let tmp_root = std::env::temp_dir().join(format!("keynova-2step-{}", Uuid::new_v4()));
         std::fs::create_dir_all(&tmp_root).expect("create tmp dir");
         let json_file = tmp_root.join("config.json");
         std::fs::write(&json_file, r#"{"mode":"local"}"#).expect("write file");
@@ -1717,7 +1770,9 @@ mod tests {
         };
 
         let runtime = react_runtime();
-        runtime.insert_run(running_run("two-step-1")).expect("insert run");
+        runtime
+            .insert_run(running_run("two-step-1"))
+            .expect("insert run");
         let tools = AgentToolRegistry::with_default_readonly_tools().list();
         react_loop_body(
             &runtime,
@@ -1802,7 +1857,9 @@ mod tests {
         };
 
         let runtime = react_runtime();
-        runtime.insert_run(running_run("stale1")).expect("insert run");
+        runtime
+            .insert_run(running_run("stale1"))
+            .expect("insert run");
         let tools = AgentToolRegistry::with_default_readonly_tools().list();
         react_loop_body(
             &runtime,
@@ -1828,7 +1885,9 @@ mod tests {
         };
 
         let runtime = react_runtime();
-        runtime.insert_run(running_run("no-tool-1")).expect("insert run");
+        runtime
+            .insert_run(running_run("no-tool-1"))
+            .expect("insert run");
         react_loop_body(
             &runtime,
             "no-tool-1",
@@ -1846,9 +1905,7 @@ mod tests {
     #[test]
     fn react_loop_large_dispatch_result_does_not_panic() {
         let runtime = react_runtime();
-        runtime
-            .insert_run(running_run("r7"))
-            .expect("insert run");
+        runtime.insert_run(running_run("r7")).expect("insert run");
 
         // Dispatch returns a 50 KB sources blob to exercise the observation truncation path.
         let large_snippet = "x".repeat(50_000);

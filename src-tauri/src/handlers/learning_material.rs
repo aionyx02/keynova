@@ -75,10 +75,8 @@ impl CommandHandler for LearningMaterialHandler {
                     .to_string();
 
                 let report: crate::models::learning_material::ReviewReport =
-                    serde_json::from_value(
-                        payload.get("report").cloned().unwrap_or(Value::Null),
-                    )
-                    .map_err(|e| format!("invalid report payload: {e}"))?;
+                    serde_json::from_value(payload.get("report").cloned().unwrap_or(Value::Null))
+                        .map_err(|e| format!("invalid report payload: {e}"))?;
 
                 let content = report.to_markdown();
                 let note_mgr = self.note_manager.lock().map_err(|e| e.to_string())?;
@@ -106,10 +104,8 @@ impl CommandHandler for LearningMaterialHandler {
                 );
 
                 let report: crate::models::learning_material::ReviewReport =
-                    serde_json::from_value(
-                        payload.get("report").cloned().unwrap_or(Value::Null),
-                    )
-                    .map_err(|e| format!("invalid report payload: {e}"))?;
+                    serde_json::from_value(payload.get("report").cloned().unwrap_or(Value::Null))
+                        .map_err(|e| format!("invalid report payload: {e}"))?;
 
                 let content = report.to_markdown();
                 std::fs::write(&canonical_target, content).map_err(|e| e.to_string())?;
