@@ -29,7 +29,6 @@ interface ModelListResponse {
 type ModelRow =
   | (LocalModel & { kind: "local"; label: string })
   | (ApiModel & { kind: "api"; label: string });
-const AI_TOOL_LABEL = "AI Chat";
 
 async function ipcDispatch<T>(route: string, payload?: Record<string, unknown>): Promise<T> {
   return invoke<T>("cmd_dispatch", { route, payload: payload ?? null });
@@ -91,14 +90,15 @@ export function ModelListPanel({ onClose }: PanelProps) {
   async function activateRow(row: ModelRow) {
     setError("");
     if (row.kind === "api" && !row.configured) {
-      setNotice(`請先用 /model_download 設定 ${row.label}`);
+      setNotice(`Open /model_download to configure ${row.label}.`);
       return;
     }
-    const payload = row.kind === "local"
-      ? { provider: "ollama", model: row.name, tool: "ai" }
-      : { provider: row.provider, model: row.model, tool: "ai" };
+    const payload =
+      row.kind === "local"
+        ? { provider: "ollama", model: row.name, tool: "ai" }
+        : { provider: row.provider, model: row.model, tool: "ai" };
     await ipcDispatch("model.set_active", payload);
-    setNotice(`✓ 已為 ${AI_TOOL_LABEL} 啟用 ${row.kind === "local" ? row.name : row.label}`);
+    setNotice(`AI Chat is now using ${row.kind === "local" ? row.name : row.label}.`);
     await load();
   }
 
@@ -106,7 +106,7 @@ export function ModelListPanel({ onClose }: PanelProps) {
     if (row.kind !== "local") return;
     setError("");
     await ipcDispatch("model.delete", { name: row.name });
-    setNotice(`已刪除 ${row.name}`);
+    setNotice(`Removed ${row.name}.`);
     await load();
   }
 
@@ -136,57 +136,76 @@ export function ModelListPanel({ onClose }: PanelProps) {
       ref={rootRef}
       tabIndex={-1}
       onKeyDown={handleKeyDown}
-      className=" min-h-[350px] bg-gray-900/95 backdrop-blur-md rounded-b-xl shadow-2xl outline-none"
+      className="kn-panel-shell flex min-h-[360px] flex-col rounded-t-none border-t-0 outline-none"
     >
-      <div className="flex items-center justify-between border-b border-gray-700/50 px-4 py-2">
-        <span className="text-xs font-semibold uppercase tracking-wide text-blue-400">Model List</span>
-        <div className="flex items-center gap-2">
-          <span className="max-w-[210px] truncate text-[11px] text-gray-500">
-            {data ? `${data.tool_label}: ${data.active_provider}:${data.active_model}` : loading ? "Loading" : ""}
-          </span>
+      <div className="kn-panel-header">
+        <div>
+          <div className="kn-panel-title">Model List</div>
+          <div className="kn-panel-subtitle">
+            {data
+              ? `${data.tool_label}: ${data.active_provider}:${data.active_model}`
+              : loading
+                ? "Loading available models..."
+                : "Inspect the active AI Chat model"}
+          </div>
         </div>
       </div>
 
-      <div className="max-h-[360px] overflow-y-auto py-1">
-        {rows.length === 0 && (
-          <p className="px-4 py-6 text-center text-xs text-gray-600">
-            {loading ? "讀取模型中…" : "沒有可用模型"}
-          </p>
+      <div className="kn-scroll flex-1 overflow-y-auto px-2 py-2">
+        {rows.length === 0 ? (
+          <div className="flex h-full min-h-[220px] items-center justify-center px-4 text-center text-xs text-[color:var(--kn-text-faint)]">
+            {loading ? "Loading available models..." : "No models are currently available."}
+          </div>
+        ) : (
+          <div className="space-y-1">
+            {rows.map((row, index) => {
+              const isSelected = index === selected;
+              const status = row.active
+                ? "Active"
+                : row.kind === "api" && !row.configured
+                  ? "Needs key"
+                  : "Available";
+              return (
+                <button
+                  key={`${row.kind}-${row.kind === "local" ? row.name : row.provider}`}
+                  type="button"
+                  onMouseEnter={() => setSelected(index)}
+                  onMouseDown={() => {
+                    setSelected(index);
+                    void activateRow(row).catch((err) => setError(String(err)));
+                  }}
+                  className="kn-result-row grid w-full grid-cols-[92px_minmax(0,1fr)_88px_72px] items-center gap-3 px-3 py-2.5 text-left"
+                  data-selected={isSelected}
+                >
+                  <span className="kn-chip justify-center">
+                    {row.kind === "local" ? "Ollama" : row.provider}
+                  </span>
+                  <span className="min-w-0">
+                    <span className="block truncate text-sm font-medium text-[color:var(--kn-text)]">
+                      {row.label}
+                    </span>
+                    <span className="block truncate text-xs text-[color:var(--kn-text-faint)]">
+                      {row.kind === "local" ? row.name : row.model}
+                    </span>
+                  </span>
+                  <span className="text-xs text-[color:var(--kn-text-muted)]">{modelSize(row)}</span>
+                  <span
+                    className={`text-xs ${
+                      row.active ? "text-[color:var(--kn-success)]" : "text-[color:var(--kn-text-muted)]"
+                    }`}
+                  >
+                    {status}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
         )}
-        {rows.map((row, index) => {
-          const isSelected = index === selected;
-          const status = row.active ? "使用中" : row.kind === "api" && !row.configured ? "未設定" : "可用";
-          return (
-            <button
-              key={`${row.kind}-${row.kind === "local" ? row.name : row.provider}`}
-              type="button"
-              onMouseEnter={() => setSelected(index)}
-              onMouseDown={() => { setSelected(index); void activateRow(row).catch((err) => setError(String(err))); }}
-              className={`grid w-full grid-cols-[92px_minmax(0,1fr)_88px_72px] items-center gap-3 px-4 py-2.5 text-left text-sm transition-colors ${
-                isSelected ? "bg-blue-600/70 text-white" : "text-gray-300 hover:bg-white/8"
-              }`}
-            >
-              <span className="rounded bg-gray-800/80 px-2 py-1 text-center text-[10px] font-semibold uppercase text-gray-400">
-                {row.kind === "local" ? "Ollama" : row.provider}
-              </span>
-              <span className="min-w-0">
-                <span className="block truncate font-medium">{row.label}</span>
-                <span className="block truncate text-xs text-gray-500">
-                  {row.kind === "local" ? row.name : row.model}
-                </span>
-              </span>
-              <span className="text-xs text-gray-500">{modelSize(row)}</span>
-              <span className={row.active ? "text-xs text-emerald-300" : "text-xs text-gray-500"}>
-                {status}
-              </span>
-            </button>
-          );
-        })}
       </div>
 
-      <div className="flex justify-between border-t border-gray-700/50 px-4 py-1.5 text-[11px] text-gray-600">
-        <span>↑↓ 選擇 · Enter 切換 · Delete 刪除本地模型 · Esc 關閉</span>
-        <span className={error ? "text-red-400" : "text-emerald-400"}>{error || notice}</span>
+      <div className="kn-panel-footer">
+        <span>Enter activates</span>
+        <span className={error ? "text-red-300" : ""}>{error || notice || "Delete removes a local model"}</span>
       </div>
     </div>
   );

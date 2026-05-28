@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import type { PanelProps } from "../types/panel";
@@ -12,10 +12,7 @@ interface ProgressEvent {
   message?: string;
 }
 
-async function ipcDispatch<T>(
-  route: string,
-  payload?: Record<string, unknown>,
-): Promise<T> {
+async function ipcDispatch<T>(route: string, payload?: Record<string, unknown>): Promise<T> {
   return invoke<T>("cmd_dispatch", { route, payload: payload ?? null });
 }
 
@@ -24,14 +21,16 @@ export function NvimDownloadPanel({ onClose }: PanelProps) {
   const [pct, setPct] = useState(0);
   const [nvimPath, setNvimPath] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const rootRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
+    rootRef.current?.focus();
     if (!window.__TAURI_INTERNALS__) return;
     let unlisten: (() => void) | undefined;
-    listen<ProgressEvent>("nvim-download-progress", (e) => {
-      const { stage: s, pct: p, path, message } = e.payload;
-      setStage(s);
-      if (p !== undefined) setPct(p);
+    void listen<ProgressEvent>("nvim-download-progress", (event) => {
+      const { stage: nextStage, pct: nextPct, path, message } = event.payload;
+      setStage(nextStage);
+      if (nextPct !== undefined) setPct(nextPct);
       if (path) setNvimPath(path);
       if (message) setError(message);
     }).then((fn) => {
@@ -40,101 +39,108 @@ export function NvimDownloadPanel({ onClose }: PanelProps) {
     return () => unlisten?.();
   }, []);
 
-  const startDownload = () => {
+  function startDownload() {
     if (!window.__TAURI_INTERNALS__) return;
     setStage("downloading");
     setPct(0);
     setError(null);
-    ipcDispatch("nvim.download").catch((e: unknown) => {
+    void ipcDispatch("nvim.download").catch((err: unknown) => {
       setStage("error");
-      setError(String(e));
+      setError(String(err));
     });
-  };
+  }
 
   const stageLabel: Record<Stage, string> = {
-    idle: "",
-    downloading: "Downloading…",
-    extracting: "Extracting…",
-    done: "Done",
+    idle: "Ready",
+    downloading: "Downloading",
+    extracting: "Extracting",
+    done: "Installed",
     error: "Failed",
   };
 
   const isActive = stage === "downloading" || stage === "extracting";
 
   return (
-    <div className="bg-gray-900/95 backdrop-blur-md rounded-b-xl shadow-2xl flex flex-col p-5 gap-4 min-w-[340px]">
-      <div className="flex items-center gap-2">
-        <span className="text-xs font-semibold text-blue-400 uppercase tracking-wide">
-          Install Neovim
+    <div
+      ref={rootRef}
+      tabIndex={-1}
+      onKeyDown={(e) => {
+        if (e.key === "Escape") {
+          e.preventDefault();
+          onClose();
+        }
+      }}
+      className="kn-panel-shell flex min-h-[320px] flex-col rounded-t-none border-t-0 outline-none"
+    >
+      <div className="kn-panel-header">
+        <div>
+          <div className="kn-panel-title">Install Neovim</div>
+          <div className="kn-panel-subtitle">Fetch a portable Neovim copy for the LazyVim workflow</div>
+        </div>
+        <span className={`kn-chip ${isActive || stage === "done" ? "kn-chip-active" : ""}`}>
+          {stageLabel[stage]}
         </span>
-        <button
-          onClick={onClose}
-          className="ml-auto text-gray-600 hover:text-gray-400 text-xs leading-none"
-          aria-label="Close"
-        >
-          ✕
-        </button>
       </div>
 
-      <p className="text-xs text-gray-400 leading-relaxed">
-        Neovim was not found on your system. Keynova can download a portable
-        copy of Neovim {/* version */} v0.10.4 for you.
-      </p>
-
-      {stage === "idle" && (
-        <button
-          onClick={startDownload}
-          className="bg-blue-600 hover:bg-blue-500 text-white text-xs font-medium py-2 px-4 rounded-lg transition-colors"
-        >
-          Download Neovim v0.10.4
-        </button>
-      )}
-
-      {isActive && (
-        <div className="space-y-2">
-          <div className="flex justify-between text-[10px] text-gray-500">
-            <span>{stageLabel[stage]}</span>
-            <span className="font-mono text-gray-300">{pct}%</span>
-          </div>
-          <div className="h-1.5 w-full bg-gray-700 rounded-full overflow-hidden">
-            <div
-              className="h-full bg-blue-500 rounded-full transition-all duration-300"
-              style={{ width: `${pct}%` }}
-            />
-          </div>
+      <div className="flex flex-1 flex-col gap-4 px-4 py-4">
+        <div className="kn-muted-surface px-4 py-3 text-sm leading-6 text-[color:var(--kn-text-soft)]">
+          Neovim was not found on this machine. Keynova can download a portable
+          copy of Neovim v0.10.4 and wire it into the note workflow for you.
         </div>
-      )}
 
-      {stage === "done" && (
-        <div className="space-y-3">
-          <p className="text-xs text-green-400">
-            Neovim installed successfully.
-          </p>
-          {nvimPath && (
-            <p className="text-[10px] text-gray-600 font-mono break-all">
-              {nvimPath}
-            </p>
-          )}
-          <button
-            onClick={onClose}
-            className="w-full bg-green-700 hover:bg-green-600 text-white text-xs font-medium py-2 px-4 rounded-lg transition-colors"
-          >
-            Close — retry your /lazyvim command
+        {stage === "idle" && (
+          <button type="button" onClick={startDownload} className="kn-button kn-button-primary self-start px-4 py-2">
+            Download Neovim v0.10.4
           </button>
-        </div>
-      )}
+        )}
 
-      {stage === "error" && (
-        <div className="space-y-3">
-          <p className="text-xs text-red-400">{error ?? "Download failed."}</p>
-          <button
-            onClick={startDownload}
-            className="bg-gray-700 hover:bg-gray-600 text-gray-200 text-xs font-medium py-2 px-4 rounded-lg transition-colors"
-          >
-            Retry
-          </button>
-        </div>
-      )}
+        {isActive && (
+          <div className="kn-muted-surface space-y-3 px-4 py-3">
+            <div className="flex items-center justify-between text-xs text-[color:var(--kn-text-muted)]">
+              <span>{stageLabel[stage]}</span>
+              <span className="font-mono text-[color:var(--kn-text-soft)]">{pct}%</span>
+            </div>
+            <div className="h-1.5 w-full overflow-hidden rounded-full bg-white/[0.05]">
+              <div
+                className="h-full rounded-full bg-[color:var(--kn-accent)] transition-all duration-300"
+                style={{ width: `${pct}%` }}
+              />
+            </div>
+          </div>
+        )}
+
+        {stage === "done" && (
+          <div className="space-y-3">
+            <div className="kn-muted-surface border-emerald-400/20 bg-[color:var(--kn-success-wash)] px-4 py-3 text-sm text-emerald-100">
+              Neovim installed successfully.
+            </div>
+            {nvimPath && (
+              <div className="kn-muted-surface break-all px-4 py-3 font-mono text-xs text-[color:var(--kn-text-muted)]">
+                {nvimPath}
+              </div>
+            )}
+            <button type="button" onClick={onClose} className="kn-button kn-button-primary self-start px-4 py-2">
+              Close and retry /lazyvim
+            </button>
+          </div>
+        )}
+
+        {stage === "error" && (
+          <div className="space-y-3">
+            <div className="kn-muted-surface border-red-400/20 bg-[color:var(--kn-danger-wash)] px-4 py-3 text-sm text-red-100">
+              {error ?? "The download failed."}
+            </div>
+            <button type="button" onClick={startDownload} className="kn-button self-start px-4 py-2">
+              Retry
+            </button>
+          </div>
+        )}
+      </div>
+
+      <div className="kn-panel-footer">
+        <span>Esc closes</span>
+        <span>{stage === "done" ? "Neovim is ready to use" : "Portable install, no manual setup required"}</span>
+      </div>
     </div>
   );
 }
