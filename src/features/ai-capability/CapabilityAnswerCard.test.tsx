@@ -39,7 +39,14 @@ describe("CapabilityAnswerCard", () => {
 
   it("renders pending placeholder when no chunk has arrived", () => {
     render(<CapabilityAnswerCard {...baseProps} status="pending" text="" />);
-    expect(screen.getByText("…")).not.toBeNull();
+    expect(screen.getByText(/Asking model/i)).not.toBeNull();
+  });
+
+  it("renders Press Enter prompt in idle state", () => {
+    render(<CapabilityAnswerCard {...baseProps} status="idle" text="" />);
+    // Body + footer both mention Enter; assert at least one match.
+    expect(screen.getAllByText(/Enter/).length).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByText(/to ask/i).length).toBeGreaterThanOrEqual(1);
   });
 
   it("renders streaming text as markdown", () => {

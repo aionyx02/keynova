@@ -441,6 +441,8 @@ export function CommandPalette() {
     runFirstSecondary,
     runPipeline,
     execCommand,
+    capabilityMode: paletteMode.kind === "capability",
+    onCapabilitySubmit: capabilityStream.submit,
     keepLauncherOpen,
   });
 

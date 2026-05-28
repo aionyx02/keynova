@@ -22,6 +22,9 @@ import type {
   CapabilityStreamChunkEvent,
 } from "../types";
 
+const CAPABILITY_RESPONSE_EVENT = "capability-response";
+const CAPABILITY_STREAM_CHUNK_EVENT = "capability-stream-chunk";
+
 export interface UseCapabilityDeps {
   dispatch: DispatchFn;
   id: CapabilityId;
@@ -110,7 +113,7 @@ export function useCapability({ dispatch, id }: UseCapabilityDeps): UseCapabilit
       // a live channel.
       if (typeof window !== "undefined" && window.__TAURI_INTERNALS__) {
         const responseUnlistenP = listen<CapabilityResponseEvent>(
-          "capability.response",
+          CAPABILITY_RESPONSE_EVENT,
           (event) => {
             if (event.payload.request_id !== rid) return;
             if (event.payload.ok) {
@@ -130,7 +133,7 @@ export function useCapability({ dispatch, id }: UseCapabilityDeps): UseCapabilit
         );
 
         const chunkUnlistenP = opts.stream
-          ? listen<CapabilityStreamChunkEvent>("capability.stream.chunk", (event) => {
+          ? listen<CapabilityStreamChunkEvent>(CAPABILITY_STREAM_CHUNK_EVENT, (event) => {
               if (event.payload.request_id !== rid) return;
               setStreamText((prev) => prev + event.payload.delta);
             })

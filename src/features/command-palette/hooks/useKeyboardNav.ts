@@ -62,6 +62,10 @@ export interface UseKeyboardNavDeps {
   runFirstSecondary: (r: SearchResult) => Promise<void>;
   runPipeline: (text: string) => Promise<void>;
   execCommand: (name: string, args?: string) => Promise<void>;
+  /** REF.6.B — true when palette is in capability mode (prefix matched). */
+  capabilityMode: boolean;
+  /** REF.6.B — invoke the active capability stream's submit (Enter-to-ask). */
+  onCapabilitySubmit: () => void;
   // Bug A focus-guard renewal (must be invoked on every keydown, throttled).
   keepLauncherOpen: () => Promise<void> | void;
 }
@@ -90,6 +94,23 @@ export function useKeyboardNav(deps: UseKeyboardNavDeps) {
       ) {
         e.preventDefault();
         deps.setCheatsheetOpen(true);
+        return;
+      }
+
+      // REF.6.B — capability mode owns Enter: fire `submit()` on the active
+      // stream. Predates the search-mode branch so the search row launcher
+      // does not steal the keystroke. Esc cancel is handled in useEscapeKey.
+      // The `isComposing` guard lets a Chinese / Japanese IME commit its
+      // candidate on the first Enter without triggering submit — the
+      // subsequent Enter (post-commit) reaches us with isComposing === false.
+      if (
+        deps.capabilityMode &&
+        e.key === "Enter" &&
+        !e.shiftKey &&
+        !e.nativeEvent.isComposing
+      ) {
+        e.preventDefault();
+        deps.onCapabilitySubmit();
         return;
       }
 

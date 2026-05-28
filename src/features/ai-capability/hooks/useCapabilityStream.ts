@@ -1,16 +1,21 @@
-// REF.6.B — Streaming wrapper around `useCapability` for prefix-mode UI.
+// REF.6.B — Submit-on-Enter wrapper around `useCapability` for prefix mode.
 //
-// Adds three things on top of the bare capability hook:
-//   1. Debounced auto-run on `args` change (300 ms). Prevents per-keystroke
-//      backend spam when the user is mid-typing a prefix body.
-//   2. Cancel-on-rerun. Each new run cancels the previous request_id before
-//      dispatching the next, so we never have two in-flight requests for
-//      the same hook instance.
-//   3. Projected timing + status. Surfaces `status`, `startedAtMs`,
-//      `firstChunkAtMs`, `completedAtMs` for the answer card header.
+// Replaces the original debounced auto-fire design. Reasons:
+//   - Capability calls cost real backend work (Ollama load, token gen);
+//     auto-firing on every typing pause wastes them.
+//   - Enter is the keyboard-first conventional "commit" gesture.
+//   - Predictable status flow: idle → pending → streaming → complete.
 //
-// The hook owns its lifecycle: cancel on unmount, cancel on `args` becoming
-// null (caller exited capability mode but kept the hook mounted).
+// State machine:
+//   args === null      → idle, no-op submit
+//   args !== null      → idle, awaits caller to invoke `submit()`
+//   submit() called    → dispatch run + flip to pending; previous in-flight
+//                        request is cancelled before the new one fires
+//   args change after a submit → reset everything to idle (the previous
+//                        answer is for a different question; require a
+//                        fresh Enter)
+//
+// Cancel on unmount stays the same.
 
 import { useCallback, useEffect, useRef, useState } from "react";
 
@@ -29,10 +34,8 @@ export type CapabilityStreamStatus =
 export interface UseCapabilityStreamDeps {
   dispatch: DispatchFn;
   id: CapabilityId;
-  /** Null = idle (no run). Setting non-null fires a debounced run. */
+  /** Null = no prefix active. Setting a value enables `submit()`. */
   args: { text: string } | null;
-  /** Override debounce window in tests; defaults to 300 ms. */
-  debounceMs?: number;
 }
 
 export interface UseCapabilityStream {
@@ -42,17 +45,19 @@ export interface UseCapabilityStream {
   startedAtMs: number | null;
   firstChunkAtMs: number | null;
   completedAtMs: number | null;
+  /** Cancel any in-flight stream + flip status to cancelled. */
   cancel: () => void;
+  /** Dispatch a capability run for the current args. No-op when args is null. */
+  submit: () => void;
 }
 
 export function useCapabilityStream({
   dispatch,
   id,
   args,
-  debounceMs = 300,
 }: UseCapabilityStreamDeps): UseCapabilityStream {
   const inner = useCapability({ dispatch, id });
-  const { run, cancel: innerCancel, streamText, isLoading, error } = inner;
+  const { run, cancel: innerCancel, data, streamText, isLoading, error } = inner;
 
   const [startedAtMs, setStartedAtMs] = useState<number | null>(null);
   const [firstChunkAtMs, setFirstChunkAtMs] = useState<number | null>(null);
@@ -61,41 +66,51 @@ export function useCapabilityStream({
   const [hasRunOnce, setHasRunOnce] = useState(false);
 
   const argsKey = args ? args.text : null;
+  /** Set when a `submit()` dispatches a run; cleared on args change. */
+  const lastSubmittedKeyRef = useRef<string | null>(null);
 
-  // Debounced auto-run on args change.
-  useEffect(() => {
-    if (argsKey === null) return;
-    const timer = window.setTimeout(() => {
-      // Cancel any prior in-flight request before dispatching a new one.
-      void innerCancel();
-      setStartedAtMs(Date.now());
-      setFirstChunkAtMs(null);
-      setCompletedAtMs(null);
-      setCancelled(false);
-      setHasRunOnce(true);
-      void run({ text: argsKey }, { stream: true });
-    }, debounceMs);
-    return () => window.clearTimeout(timer);
-  }, [argsKey, run, innerCancel, debounceMs]);
-
-  // First-chunk timing: streamText goes from empty to non-empty after a run.
-  // The setState-in-effect here is a one-shot observation (guarded by
-  // `firstChunkAtMs === null`), not a render loop; it can't cascade because
-  // the next render sees firstChunkAtMs !== null and the effect early-returns.
+  // Args change after a submit → discard the stale response and return to
+  // idle. The previous answer was for a different question, and the user
+  // explicitly types out a new one + presses Enter to ask again.
   useEffect(() => {
     if (
-      streamText &&
+      lastSubmittedKeyRef.current !== null &&
+      argsKey !== lastSubmittedKeyRef.current
+    ) {
+      void innerCancel();
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- bounded one-shot reset on args-change after submit
+      setStartedAtMs(null);
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setFirstChunkAtMs(null);
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setCompletedAtMs(null);
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setCancelled(false);
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setHasRunOnce(false);
+      lastSubmittedKeyRef.current = null;
+    }
+  }, [argsKey, innerCancel]);
+
+  const resolvedText =
+    streamText || (data?.kind === "text" ? data.text : "");
+
+  // First-chunk timing: resolvedText goes from empty to non-empty after a run.
+  // The final response text is a fallback for providers or event channels that
+  // complete without incremental chunks.
+  useEffect(() => {
+    if (
+      resolvedText &&
       firstChunkAtMs === null &&
       startedAtMs !== null &&
       !cancelled
     ) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect -- bounded one-shot transition observation; reference: useCapability subscribes to Tauri events outside React's tree
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- bounded one-shot transition observation
       setFirstChunkAtMs(Date.now());
     }
-  }, [streamText, firstChunkAtMs, startedAtMs, cancelled]);
+  }, [resolvedText, firstChunkAtMs, startedAtMs, cancelled]);
 
-  // Completion timing: isLoading drops after a run was dispatched. Same
-  // bounded-observation pattern as above.
+  // Completion timing: isLoading drops after a run was dispatched.
   const prevLoadingRef = useRef(false);
   useEffect(() => {
     if (
@@ -104,7 +119,7 @@ export function useCapabilityStream({
       completedAtMs === null &&
       startedAtMs !== null
     ) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect -- bounded one-shot transition observation
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setCompletedAtMs(Date.now());
     }
     prevLoadingRef.current = isLoading;
@@ -123,7 +138,18 @@ export function useCapabilityStream({
     void innerCancel();
   }, [innerCancel]);
 
-  // Derived status.
+  const submit = useCallback(() => {
+    if (argsKey === null || argsKey.trim() === "") return;
+    void innerCancel();
+    setStartedAtMs(Date.now());
+    setFirstChunkAtMs(null);
+    setCompletedAtMs(null);
+    setCancelled(false);
+    setHasRunOnce(true);
+    lastSubmittedKeyRef.current = argsKey;
+    void run({ text: argsKey }, { stream: true });
+  }, [argsKey, run, innerCancel]);
+
   let status: CapabilityStreamStatus;
   if (!hasRunOnce) {
     status = "idle";
@@ -139,11 +165,12 @@ export function useCapabilityStream({
 
   return {
     status,
-    text: streamText,
+    text: resolvedText,
     error,
     startedAtMs,
     firstChunkAtMs,
     completedAtMs,
     cancel,
+    submit,
   };
 }
