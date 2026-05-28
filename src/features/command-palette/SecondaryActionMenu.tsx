@@ -1,6 +1,12 @@
+import type React from "react";
 import { useEffect, useRef } from "react";
+
 import type { SearchResult } from "../../types/search";
-import { isDestructive, type SecondaryActionId, type SecondaryActionItem } from "../../utils/secondaryActions";
+import {
+  isDestructive,
+  type SecondaryActionId,
+  type SecondaryActionItem,
+} from "../../utils/secondaryActions";
 
 interface Props {
   result: SearchResult;
@@ -25,7 +31,7 @@ export function SecondaryActionMenu({
   onInlineInputChange,
   onInlineInputKeyDown,
 }: Props) {
-  const enabled = items.filter((it) => !it.disabled);
+  const enabled = items.filter((item) => !item.disabled);
   const focusedId = enabled[focusedIndex]?.id ?? null;
   const itemRefs = useRef<Record<string, HTMLDivElement | null>>({});
 
@@ -38,93 +44,105 @@ export function SecondaryActionMenu({
     <div
       role="menu"
       aria-label="Secondary actions"
-      className="absolute right-3 top-3 z-20 flex h-[360px] max-h-[calc(100vh-24px)] w-[390px] max-w-[calc(100%-24px)] flex-col overflow-hidden rounded-md border border-gray-700/60 bg-gray-950/95 shadow-2xl backdrop-blur-md"
+      className="kn-panel-shell absolute right-3 top-3 z-20 flex h-[380px] max-h-[calc(100vh-24px)] w-[400px] max-w-[calc(100%-24px)] flex-col overflow-hidden rounded-[18px]"
     >
-      <div className="shrink-0 border-b border-gray-700/40 px-3 py-1.5 text-[10px] uppercase tracking-wider text-gray-500">
-        Actions · {result.title ?? result.name}
+      <div className="shrink-0 border-b border-[color:var(--kn-border)] bg-[rgba(7,11,17,0.52)] px-4 py-2 text-[10px] uppercase tracking-[0.2em] text-[color:var(--kn-text-faint)]">
+        Actions / {result.title ?? result.name}
       </div>
-      <div className="min-h-0 flex-1 overflow-y-auto py-1">
-        {items.map((it) => {
-          const enabledIdx = enabled.findIndex((x) => x.id === it.id);
-          const isFocused = !it.disabled && enabledIdx === focusedIndex;
-          const isPending = pendingConfirmId === it.id;
-          const showInput = isFocused && inlineInput && inlineInput.for === it.id;
-          const isArmedDestructive = isFocused && isPending && isDestructive(it.id);
-          const riskTint = it.risk === "high"
-            ? "text-red-300"
-            : it.risk === "medium"
-              ? "text-amber-200"
-              : "text-gray-300";
-          // Bug-fix 2026-05-19 (round 2) — Bug B 真根因：使用者按一次 Enter
-          // 就期待刪除，但 2-stage gate 的視覺訊號太弱（一條小紅色 banner 在
-          // row 底下）。改在 row 本身做大聲對白：label 動態變成 "⚠ Confirm
-          // <X>? Enter again · Esc cancel" + 紅色 bg + pulse 框，使用者不可能
-          // 漏看。drop 原本的 banner div（一致性 + 視覺乾淨）。
+
+      <div className="kn-scroll min-h-0 flex-1 overflow-y-auto px-2 py-2">
+        {items.map((item) => {
+          const enabledIndex = enabled.findIndex((entry) => entry.id === item.id);
+          const isFocused = !item.disabled && enabledIndex === focusedIndex;
+          const isPending = pendingConfirmId === item.id;
+          const showInput = isFocused && inlineInput && inlineInput.for === item.id;
+          const isArmedDestructive = isFocused && isPending && isDestructive(item.id);
+          const tintClass =
+            item.risk === "high"
+              ? "text-red-200"
+              : item.risk === "medium"
+                ? "text-amber-100"
+                : "text-[color:var(--kn-text-soft)]";
+
           return (
             <div
-              key={it.id}
+              key={item.id}
               ref={(node) => {
-                itemRefs.current[it.id] = node;
+                itemRefs.current[item.id] = node;
               }}
             >
               <div
                 role="menuitem"
-                aria-disabled={it.disabled || undefined}
+                aria-disabled={item.disabled || undefined}
                 onMouseEnter={() => {
-                  if (!it.disabled) onHoverEnabled(enabledIdx);
+                  if (!item.disabled) onHoverEnabled(enabledIndex);
                 }}
-                onMouseDown={(e) => {
-                  e.preventDefault();
-                  if (!it.disabled) onSelect(it.id);
+                onMouseDown={(event) => {
+                  event.preventDefault();
+                  if (!item.disabled) onSelect(item.id);
                 }}
-                className={`flex min-h-[32px] items-center justify-between gap-3 px-3 py-1.5 text-sm transition-colors ${
-                  it.disabled
-                    ? "cursor-not-allowed text-gray-600"
+                className={`kn-result-row flex min-h-[40px] items-center justify-between gap-3 px-3 py-2 text-sm transition-all duration-150 ${
+                  item.disabled
+                    ? "cursor-not-allowed text-[color:var(--kn-text-faint)]"
                     : isArmedDestructive
-                      ? `cursor-pointer animate-pulse border-l-4 border-red-400 bg-red-900/60 font-semibold text-red-100`
+                      ? "cursor-pointer border-red-400/30 bg-red-500/15 text-red-100"
                       : isFocused
-                        ? `cursor-pointer bg-blue-600/70 text-white`
-                        : `cursor-pointer ${riskTint} hover:bg-white/8`
+                        ? "border-[color:rgba(127,212,255,0.18)] bg-[rgba(127,212,255,0.12)] text-white"
+                        : `cursor-pointer ${tintClass}`
                 }`}
+                data-selected={isFocused && !isArmedDestructive ? "true" : "false"}
               >
-                <span className="truncate">
-                  {isArmedDestructive
-                    ? `⚠ Confirm ${it.label}? Enter again · Esc cancel`
-                    : it.label}
+                <span className="truncate font-medium">
+                  {isArmedDestructive ? `Confirm ${item.label}? Press Enter again` : item.label}
                 </span>
-                {it.disabled && it.disabledReason ? (
-                  <span className="shrink-0 text-[10px] text-gray-600">{it.disabledReason}</span>
-                ) : it.hint && !isArmedDestructive ? (
-                  <span className="shrink-0 text-[10px] text-gray-500">{it.hint}</span>
+                {item.disabled && item.disabledReason ? (
+                  <span className="shrink-0 text-[10px] text-[color:var(--kn-text-faint)]">
+                    {item.disabledReason}
+                  </span>
+                ) : item.hint && !isArmedDestructive ? (
+                  <span className="shrink-0 text-[10px] text-[color:var(--kn-text-muted)]">
+                    {item.hint}
+                  </span>
                 ) : null}
               </div>
+
               {showInput && onInlineInputChange ? (
-                <div className="bg-gray-900/80 px-3 pb-1.5 pt-1">
+                <div className="px-3 pb-2 pt-1">
                   <input
                     autoFocus
                     type="text"
                     value={inlineInput.value}
-                    onChange={(e) => onInlineInputChange(e.target.value)}
+                    onChange={(event) => onInlineInputChange(event.target.value)}
                     onKeyDown={onInlineInputKeyDown}
-                    onMouseDown={(e) => e.stopPropagation()}
-                    className="w-full rounded border border-gray-700/60 bg-gray-950 px-2 py-1 text-xs text-gray-100 focus:border-blue-500/70 focus:outline-none"
-                    placeholder={inlineInput.for === "rename" ? "new name" : "target folder absolute path"}
+                    onMouseDown={(event) => event.stopPropagation()}
+                    className="w-full rounded-[12px] border border-[color:var(--kn-border-strong)] bg-[rgba(7,11,17,0.74)] px-3 py-2 text-sm text-[color:var(--kn-text)] outline-none transition-colors focus:border-[color:rgba(127,212,255,0.34)]"
+                    placeholder={
+                      inlineInput.for === "rename" ? "New name" : "Target folder absolute path"
+                    }
                   />
-                  <div className="mt-1 text-[10px] text-gray-500">
-                    Enter preview · Enter again to confirm · Esc cancel
+                  <div className="mt-1 text-[10px] text-[color:var(--kn-text-muted)]">
+                    Enter preview / Enter again to confirm / Esc cancel
                   </div>
                 </div>
               ) : null}
-              {/* Banner removed 2026-05-19 (round 2) — folded the confirm
-                  signal into the row itself (see isArmedDestructive above).
-                  One loud signal beats two competing ones. */}
             </div>
           );
         })}
       </div>
-      <div className="flex shrink-0 justify-between border-t border-gray-700/40 px-3 py-1 text-[10px] text-gray-600">
-        <span>↑↓ navigate</span>
-        <span>Enter run · Esc close</span>
+
+      <div className="flex shrink-0 items-center justify-between border-t border-[color:var(--kn-border)] bg-[rgba(7,11,17,0.52)] px-4 py-2 text-[11px] text-[color:var(--kn-text-muted)]">
+        <span className="flex items-center gap-1.5">
+          <span className="kn-kbd">Up/Down</span>
+          <span>navigate</span>
+        </span>
+        <span className="flex items-center gap-1.5">
+          <span className="kn-kbd">Enter</span>
+          <span>run</span>
+        </span>
+        <span className="flex items-center gap-1.5">
+          <span className="kn-kbd">Esc</span>
+          <span>close</span>
+        </span>
       </div>
     </div>
   );

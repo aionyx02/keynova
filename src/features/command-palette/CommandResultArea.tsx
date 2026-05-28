@@ -1,15 +1,3 @@
-// REF.2.P5 — Bundles four mutually-exclusive small render regions that all
-// appear below the command-suggestion list:
-//
-//   1. Args-phase syntax hint bar (`/cmd <args-hint> · Tab 填入 · Enter 執行`)
-//   2. Inline command result (a `<pre>` block from `runCommand`)
-//   3. Terminal command result (lazy TerminalPanel with a launch spec)
-//   4. Panel command result (lazy PanelComponent under PanelRegistry)
-//
-// They were inline in CommandPalette as four separate JSX islands. Each
-// guard is preserved as-is — `terminalLaunchSpec` and `PanelComponent` are
-// mutually exclusive in practice because both come from `cmdResult.ui_type`.
-
 import React, { Suspense } from "react";
 
 import { PanelRegistry } from "../../components/panel/PanelRegistry";
@@ -17,7 +5,7 @@ import type { BuiltinCommandResult, CommandMeta } from "../../hooks/useCommands"
 import type { TerminalLaunchSpec } from "../../types/terminal";
 
 const TerminalPanel = React.lazy(() =>
-  import("../../components/TerminalPanel").then((m) => ({ default: m.TerminalPanel })),
+  import("../../components/TerminalPanel").then((module) => ({ default: module.TerminalPanel })),
 );
 
 interface Props {
@@ -48,25 +36,27 @@ export function CommandResultArea({
   return (
     <>
       {isArgsPhase && exactCmd && !cmdResult && (
-        <div className="bg-gray-900/95 backdrop-blur-md px-4 py-1.5 text-xs text-gray-500 border-t border-gray-700/30">
-          <span className="text-blue-400">/{exactCmd.name}</span>
+        <div className="border-t border-[color:var(--kn-border)] bg-[rgba(7,11,17,0.48)] px-4 py-2 text-[11px] text-[color:var(--kn-text-muted)]">
+          <span className="font-semibold text-[color:var(--kn-accent)]">/{exactCmd.name}</span>
           {exactCmd.args_hint && (
-            <span className="ml-1 font-mono text-gray-600">{exactCmd.args_hint}</span>
+            <span className="ml-2 font-mono text-[color:var(--kn-text-faint)]">
+              {exactCmd.args_hint}
+            </span>
           )}
-          <span className="ml-3 text-gray-700">Tab 填入 · Enter 執行</span>
+          <span className="ml-3">Tab complete / Enter run</span>
         </div>
       )}
 
       {cmdResult?.ui_type.type === "Inline" && cmdResult.text && (
-        <div className="bg-gray-900/95 backdrop-blur-md rounded-b-xl shadow-2xl px-4 py-3">
-          <pre className="text-sm text-gray-300 whitespace-pre-wrap leading-relaxed">
+        <div className="kn-panel-shell rounded-t-none border-t-0 px-4 py-4">
+          <pre className="whitespace-pre-wrap text-sm leading-7 text-[color:var(--kn-text-soft)]">
             {cmdResult.text}
           </pre>
         </div>
       )}
 
       {terminalLaunchSpec && (
-        <Suspense fallback={<div className="h-[360px] bg-gray-900/95 rounded-b-xl" />}>
+        <Suspense fallback={<div className="kn-panel-shell h-[360px] rounded-t-none border-t-0" />}>
           <TerminalPanel
             isActive={true}
             onExit={onTerminalCommandExit}
@@ -76,7 +66,7 @@ export function CommandResultArea({
       )}
 
       {PanelComponent && (
-        <Suspense fallback={<div className="h-16 bg-gray-900/95 rounded-b-xl" />}>
+        <Suspense fallback={<div className="kn-panel-shell h-16 rounded-t-none border-t-0" />}>
           <PanelComponent
             key={panelKey}
             onClose={onPanelClose}

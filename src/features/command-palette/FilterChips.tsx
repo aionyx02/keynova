@@ -1,21 +1,22 @@
+import { UiIcon, type UiIconName } from "../../components/icons/UiIcon";
 import type { SourceFilter } from "../../types/search";
 
 interface ChipSpec {
   kind: SourceFilter;
   label: string;
-  activeCls: string;
+  icon: UiIconName;
 }
 
 const CHIPS: ChipSpec[] = [
-  { kind: "file", label: "Files", activeCls: "bg-sky-500/30 text-sky-200 ring-sky-500/40" },
-  { kind: "note", label: "Notes", activeCls: "bg-teal-500/30 text-teal-200 ring-teal-500/40" },
-  { kind: "app", label: "Apps", activeCls: "bg-violet-500/30 text-violet-200 ring-violet-500/40" },
-  { kind: "command", label: "Commands", activeCls: "bg-emerald-500/30 text-emerald-200 ring-emerald-500/40" },
-  { kind: "history", label: "History", activeCls: "bg-zinc-500/30 text-zinc-200 ring-zinc-500/40" },
-  { kind: "model", label: "Models", activeCls: "bg-fuchsia-500/30 text-fuchsia-200 ring-fuchsia-500/40" },
+  { kind: "file", label: "Files", icon: "file" },
+  { kind: "note", label: "Notes", icon: "note" },
+  { kind: "app", label: "Apps", icon: "app" },
+  { kind: "command", label: "Commands", icon: "command" },
+  { kind: "history", label: "History", icon: "history" },
+  { kind: "model", label: "Models", icon: "model" },
 ];
 
-const INACTIVE_CLS = "bg-gray-800/60 text-gray-400 ring-gray-700/40 hover:text-gray-200 hover:bg-gray-800";
+const STORAGE_KEY = "keynova.searchFilters";
 
 interface Props {
   active: Set<SourceFilter>;
@@ -34,8 +35,11 @@ export function FilterChips({ active, onChange }: Props) {
   }
 
   return (
-    <div className="flex flex-wrap items-center gap-1.5 border-b border-gray-700/40 bg-gray-900/60 px-3 py-1.5">
-      <span className="mr-1 text-[10px] uppercase tracking-wider text-gray-500">Filter</span>
+    <div className="flex flex-wrap items-center gap-2 border-b border-[color:var(--kn-border)] bg-[rgba(7,11,17,0.48)] px-3 py-2">
+      <span className="mr-1 inline-flex items-center gap-1.5 text-[10px] uppercase tracking-[0.2em] text-[color:var(--kn-text-faint)]">
+        <UiIcon name="filter" className="h-3.5 w-3.5" />
+        Scope
+      </span>
       {CHIPS.map((chip) => {
         const isActive = active.has(chip.kind);
         return (
@@ -43,11 +47,14 @@ export function FilterChips({ active, onChange }: Props) {
             key={chip.kind}
             type="button"
             onClick={() => toggle(chip.kind)}
-            className={`rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ring-1 transition-colors ${
-              isActive ? chip.activeCls : INACTIVE_CLS
-            }`}
             aria-pressed={isActive}
+            className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] transition-all duration-150 ${
+              isActive
+                ? "border-[color:rgba(127,212,255,0.24)] bg-[rgba(127,212,255,0.14)] text-[color:var(--kn-text)] shadow-[inset_0_1px_0_rgba(255,255,255,0.08)]"
+                : "border-[color:var(--kn-border)] bg-white/[0.03] text-[color:var(--kn-text-muted)] hover:bg-white/[0.05] hover:text-[color:var(--kn-text-soft)]"
+            }`}
           >
+            <UiIcon name={chip.icon} className="h-3.5 w-3.5" />
             {chip.label}
           </button>
         );
@@ -56,8 +63,9 @@ export function FilterChips({ active, onChange }: Props) {
         <button
           type="button"
           onClick={() => onChange(new Set())}
-          className="ml-auto text-[10px] text-gray-500 hover:text-gray-300"
+          className="ml-auto inline-flex items-center gap-1.5 text-[11px] font-medium text-[color:var(--kn-text-muted)] transition-colors hover:text-[color:var(--kn-text-soft)]"
         >
+          <UiIcon name="x" className="h-3.5 w-3.5" />
           Clear
         </button>
       )}
@@ -65,21 +73,6 @@ export function FilterChips({ active, onChange }: Props) {
   );
 }
 
-const STORAGE_KEY = "keynova.searchFilters";
-
-/**
- * LAUNCH.1.D — filter chips state is now in-memory only.
- *
- * Cross-session persistence (the original `loadFilters` / `saveFilters` pair)
- * created a UX trap: a single accidental click on, say, the `Notes` chip
- * would silently hide every `file` and `folder` result on every future
- * launch, with no visible cause beyond the dimly-coloured chip bar. Several
- * users hit this and reported "file and folder all gone".
- *
- * `loadFilters` now returns an empty set (always start clean). `clearLegacyFilters`
- * cleans up the leftover localStorage entry on first mount so existing users
- * recover without manual intervention.
- */
 export function loadFilters(): Set<SourceFilter> {
   return new Set();
 }
@@ -92,4 +85,3 @@ export function clearLegacyFilters() {
     /* ignore */
   }
 }
-

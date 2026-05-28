@@ -1,3 +1,4 @@
+import { UiIcon } from "../../components/icons/UiIcon";
 import type { CommandMeta } from "../../hooks/useCommands";
 
 interface Props {
@@ -11,42 +12,60 @@ export function CommandSuggestions({ commands, selectedIndex, onSelect, onHover 
   if (commands.length === 0) return null;
 
   return (
-    <div className="bg-gray-900/95 backdrop-blur-md rounded-b-xl shadow-2xl overflow-hidden">
-      <ul className="max-h-[352px] overflow-y-auto py-1">
-        {commands.map((cmd, i) => (
-          <li
-            key={cmd.name}
-            ref={(el) => {
-              if (i === selectedIndex && el) {
-                el.scrollIntoView({ block: "nearest" });
-              }}}
-            onMouseDown={() => onSelect(cmd.name)}
-            onMouseEnter={() => onHover(i)}
-            className={`flex items-center gap-3 px-4 py-2.5 cursor-pointer text-sm transition-colors ${
-              i === selectedIndex
-                ? "bg-blue-600/70 text-white"
-                : "text-gray-300 hover:bg-white/8"
-            }`}
-          >
-            <span className="shrink-0 rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide bg-blue-500/30 text-blue-300">
-              CMD
-            </span>
-            <span className="font-medium">/{cmd.name}</span>
-            {cmd.args_hint && (
-              <span className={`text-xs font-mono ${i === selectedIndex ? "text-blue-300" : "text-gray-600"}`}>
-                {cmd.args_hint}
+    <div className="kn-panel-shell rounded-t-none border-t-0 overflow-hidden">
+      <ul className="kn-scroll max-h-[360px] space-y-1 overflow-y-auto px-2 py-2">
+        {commands.map((command, index) => {
+          const isSelected = index === selectedIndex;
+
+          return (
+            <li
+              key={command.name}
+              ref={(element) => {
+                if (isSelected && element) {
+                  element.scrollIntoView({ block: "nearest" });
+                }
+              }}
+              data-selected={isSelected ? "true" : "false"}
+              onMouseDown={() => onSelect(command.name)}
+              onMouseEnter={() => onHover(index)}
+              className="kn-result-row flex cursor-pointer items-center gap-3 px-3 py-3 transition-all duration-150"
+            >
+              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[12px] border border-cyan-400/20 bg-cyan-400/10 text-cyan-200">
+                <UiIcon name="command" className="h-[18px] w-[18px]" />
               </span>
-            )}
-            <span className={`ml-auto text-xs truncate ${i === selectedIndex ? "text-blue-200" : "text-gray-500"}`}>
-              {cmd.description}
-            </span>
-          </li>
-        ))}
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-2">
+                  <span className="truncate text-sm font-semibold text-[color:var(--kn-text)]">
+                    /{command.name}
+                  </span>
+                  {command.args_hint && (
+                    <span className="truncate font-mono text-[11px] text-[color:var(--kn-text-muted)]">
+                      {command.args_hint}
+                    </span>
+                  )}
+                </div>
+                <div className="mt-1 truncate text-[11px] text-[color:var(--kn-text-muted)]">
+                  {command.description}
+                </div>
+              </div>
+            </li>
+          );
+        })}
       </ul>
-      <div className="border-t border-gray-700/50 px-4 py-1.5 text-[11px] text-gray-600 flex justify-between">
-        <span>↑↓ 選擇</span>
-        <span>Enter 執行</span>
-        <span>Esc 關閉</span>
+
+      <div className="flex items-center justify-between border-t border-[color:var(--kn-border)] bg-[rgba(7,11,17,0.48)] px-4 py-2 text-[11px] text-[color:var(--kn-text-muted)]">
+        <span className="flex items-center gap-1.5">
+          <span className="kn-kbd">Up/Down</span>
+          <span>move</span>
+        </span>
+        <span className="flex items-center gap-1.5">
+          <span className="kn-kbd">Enter</span>
+          <span>run</span>
+        </span>
+        <span className="flex items-center gap-1.5">
+          <span className="kn-kbd">Esc</span>
+          <span>close</span>
+        </span>
       </div>
     </div>
   );

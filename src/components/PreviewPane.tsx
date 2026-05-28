@@ -1,4 +1,5 @@
 import { convertFileSrc } from "@tauri-apps/api/core";
+
 import type { FilePreviewResult, SearchResult } from "../types/search";
 
 interface Props {
@@ -15,14 +16,14 @@ function formatBytes(n: number): string {
 }
 
 function formatMtime(ms?: number): string {
-  if (!ms) return "—";
+  if (!ms) return "Unknown";
   return new Date(ms).toLocaleString();
 }
 
 export function PreviewPane({ result, preview, loading }: Props) {
   if (!result) {
     return (
-      <div className="flex h-full items-center justify-center px-4 text-xs text-gray-600">
+      <div className="flex h-full items-center justify-center px-6 text-sm text-[color:var(--kn-text-muted)]">
         Select a result to preview
       </div>
     );
@@ -30,28 +31,30 @@ export function PreviewPane({ result, preview, loading }: Props) {
 
   if (loading && !preview) {
     return (
-      <div className="space-y-2 px-3 py-3">
-        <div className="h-3 w-3/4 animate-pulse rounded bg-gray-800/80" />
-        <div className="h-3 w-1/2 animate-pulse rounded bg-gray-800/80" />
-        <div className="h-3 w-2/3 animate-pulse rounded bg-gray-800/80" />
-        <div className="h-3 w-1/3 animate-pulse rounded bg-gray-800/80" />
+      <div className="space-y-3 px-4 py-4">
+        <div className="h-3 w-3/4 animate-pulse rounded-full bg-white/[0.07]" />
+        <div className="h-3 w-1/2 animate-pulse rounded-full bg-white/[0.07]" />
+        <div className="h-3 w-2/3 animate-pulse rounded-full bg-white/[0.07]" />
+        <div className="h-3 w-1/3 animate-pulse rounded-full bg-white/[0.07]" />
       </div>
     );
   }
 
   if (!preview) {
     return (
-      <div className="flex h-full flex-col justify-center px-4 text-xs text-gray-500">
-        <div className="mb-1 text-gray-400">No preview available</div>
-        <div className="truncate">{result.name}</div>
+      <div className="flex h-full flex-col justify-center px-5 text-sm text-[color:var(--kn-text-muted)]">
+        <div className="mb-1 text-[color:var(--kn-text-soft)]">No preview available</div>
+        <div className="truncate text-[11px] uppercase tracking-[0.14em] text-[color:var(--kn-text-faint)]">
+          {result.name}
+        </div>
       </div>
     );
   }
 
   if (preview.kind === "image") {
     return (
-      <div className="flex h-full flex-col p-2">
-        <div className="flex flex-1 items-center justify-center overflow-hidden rounded bg-gray-950/60">
+      <div className="flex h-full flex-col p-3">
+        <div className="flex flex-1 items-center justify-center overflow-hidden rounded-[16px] border border-[color:var(--kn-border)] bg-white/[0.03] shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]">
           <img
             src={convertFileSrc(result.path)}
             alt=""
@@ -59,8 +62,8 @@ export function PreviewPane({ result, preview, loading }: Props) {
             draggable={false}
           />
         </div>
-        <div className="mt-1 truncate px-1 text-[10px] text-gray-500">
-          {formatBytes(preview.size_bytes)} · {formatMtime(preview.modified_ms)}
+        <div className="mt-2 truncate text-[11px] text-[color:var(--kn-text-muted)]">
+          {formatBytes(preview.size_bytes)} / {formatMtime(preview.modified_ms)}
         </div>
       </div>
     );
@@ -68,32 +71,37 @@ export function PreviewPane({ result, preview, loading }: Props) {
 
   if (preview.kind === "binary") {
     return (
-      <div className="flex h-full flex-col justify-center px-4 text-xs text-gray-400">
-        <div className="mb-1 text-[10px] uppercase tracking-wider text-gray-500">Binary</div>
-        <div className="mb-2 truncate text-gray-300">{result.name}</div>
-        <div className="text-gray-500">size: {formatBytes(preview.size_bytes)}</div>
-        <div className="text-gray-500">modified: {formatMtime(preview.modified_ms)}</div>
+      <div className="flex h-full flex-col justify-center px-5 text-sm text-[color:var(--kn-text-soft)]">
+        <div className="mb-2 text-[10px] uppercase tracking-[0.2em] text-[color:var(--kn-text-faint)]">
+          Binary
+        </div>
+        <div className="mb-2 truncate font-medium text-[color:var(--kn-text)]">{result.name}</div>
+        <div className="text-[11px] text-[color:var(--kn-text-muted)]">
+          size: {formatBytes(preview.size_bytes)}
+        </div>
+        <div className="text-[11px] text-[color:var(--kn-text-muted)]">
+          modified: {formatMtime(preview.modified_ms)}
+        </div>
       </div>
     );
   }
 
-  // text
   return (
     <div className="flex h-full flex-col">
-      <div className="flex items-center justify-between border-b border-gray-800/60 px-2 py-1 text-[10px] uppercase tracking-wider text-gray-500">
+      <div className="flex items-center justify-between border-b border-[color:var(--kn-border)] px-3 py-2 text-[10px] uppercase tracking-[0.2em] text-[color:var(--kn-text-faint)]">
         <span>Preview</span>
         {preview.truncated && (
-          <span className="rounded bg-amber-500/20 px-1.5 py-0.5 text-[9px] text-amber-200">
+          <span className="rounded-full border border-amber-400/20 bg-amber-400/10 px-2 py-0.5 text-[9px] text-amber-200">
             truncated
           </span>
         )}
       </div>
-      <pre className="max-h-[336px] flex-1 overflow-y-auto whitespace-pre-wrap break-words bg-gray-950/40 px-2 py-1 font-mono text-[11px] leading-snug text-gray-300">
+      <pre className="kn-scroll flex-1 overflow-y-auto whitespace-pre-wrap break-words bg-transparent px-3 py-3 font-mono text-[11px] leading-6 text-[color:var(--kn-text-soft)]">
         {preview.content ?? ""}
       </pre>
-      <div className="border-t border-gray-800/60 px-2 py-0.5 text-[10px] text-gray-600">
+      <div className="border-t border-[color:var(--kn-border)] px-3 py-2 text-[11px] text-[color:var(--kn-text-muted)]">
         {formatBytes(preview.size_bytes)}
-        {preview.line_count !== undefined && ` · ${preview.line_count} lines shown`}
+        {preview.line_count !== undefined && ` / ${preview.line_count} lines shown`}
       </div>
     </div>
   );
