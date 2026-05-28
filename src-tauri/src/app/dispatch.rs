@@ -4,6 +4,7 @@ use std::time::{Duration, Instant};
 use serde_json::{json, Value};
 use tauri::Manager;
 
+use crate::app::autostart::sync_autostart;
 use crate::app::shortcuts::setup_global_shortcuts;
 use crate::app::state::AppState;
 use crate::core::automation_engine::AutomationEngine;
@@ -457,6 +458,13 @@ pub(crate) fn apply_config_changes(
                 configured_index_dir.as_deref(),
             );
         };
+    }
+
+    if changes
+        .iter()
+        .any(|change| change.key == "launcher.auto_start_on_login")
+    {
+        sync_autostart(app).map_err(|e| IpcError::handler("autostart.sync", e))?;
     }
 
     if emit_on_empty || !changes.is_empty() {

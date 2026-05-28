@@ -123,6 +123,15 @@ pub fn builtin_setting_schema() -> Vec<SettingSchema> {
             &[],
         ),
         SettingSchema::new(
+            "launcher.auto_start_on_login",
+            "launcher",
+            "Launch on startup",
+            Boolean,
+            "true",
+            false,
+            &["true", "false"],
+        ),
+        SettingSchema::new(
             "search.backend",
             "search",
             "Search backend",

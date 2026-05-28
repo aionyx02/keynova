@@ -10,6 +10,7 @@ workspace_cycle = "Ctrl+Alt+0"        # LAUNCH.2.B — cycles to next workspace 
 scan_paths = []          # 額外掃描路徑（空陣列代表僅掃描系統預設路徑）
 max_results = 10
 cache_ttl_secs = 300     # 應用列表快取時間（秒）
+auto_start_on_login = true
 
 [search]
 backend = "auto"
