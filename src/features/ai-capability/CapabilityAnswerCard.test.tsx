@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
 import type { DispatchFn } from "../../context/IPCContext";
@@ -42,11 +42,10 @@ describe("CapabilityAnswerCard", () => {
     expect(screen.getByText(/Asking model/i)).not.toBeNull();
   });
 
-  it("renders Press Enter prompt in idle state", () => {
+  it("renders a quiet ready prompt in idle state", () => {
     render(<CapabilityAnswerCard {...baseProps} status="idle" text="" />);
-    // Body + footer both mention Enter; assert at least one match.
-    expect(screen.getAllByText(/Enter/).length).toBeGreaterThanOrEqual(1);
-    expect(screen.getAllByText(/to ask/i).length).toBeGreaterThanOrEqual(1);
+    expect(screen.getByText("Ready to ask.")).not.toBeNull();
+    expect(screen.getByText("Ready")).not.toBeNull();
   });
 
   it("renders streaming text as markdown", () => {
@@ -62,14 +61,7 @@ describe("CapabilityAnswerCard", () => {
   });
 
   it("renders the error string in red when status is error", () => {
-    render(
-      <CapabilityAnswerCard
-        {...baseProps}
-        status="error"
-        text=""
-        error="backend offline"
-      />,
-    );
+    render(<CapabilityAnswerCard {...baseProps} status="error" text="" error="backend offline" />);
     expect(screen.getByText("backend offline")).not.toBeNull();
     // Header suffix shows · error.
     expect(screen.getAllByText(/error/i).length).toBeGreaterThanOrEqual(1);
@@ -81,12 +73,7 @@ describe("CapabilityAnswerCard", () => {
     );
     expect(screen.queryByRole("button", { name: /Copy md/i })).toBeNull();
     rerender(
-      <CapabilityAnswerCard
-        {...baseProps}
-        status="complete"
-        text="done"
-        completedAtMs={1500}
-      />,
+      <CapabilityAnswerCard {...baseProps} status="complete" text="done" completedAtMs={1500} />,
     );
     expect(screen.getByRole("button", { name: /Copy md/i })).not.toBeNull();
     expect(screen.getByRole("button", { name: /Save to note/i })).not.toBeNull();
@@ -106,9 +93,10 @@ describe("CapabilityAnswerCard", () => {
         completedAtMs={1500}
       />,
     );
-    fireEvent.mouseDown(screen.getByRole("button", { name: /Copy md/i }));
-    // microtask
-    await Promise.resolve();
+    await act(async () => {
+      fireEvent.mouseDown(screen.getByRole("button", { name: /Copy md/i }));
+      await Promise.resolve();
+    });
     expect(writeText).toHaveBeenCalledWith("markdown body");
   });
 
@@ -124,9 +112,11 @@ describe("CapabilityAnswerCard", () => {
         args={{ text: "rust hashmap remove returns Option<V>" }}
       />,
     );
-    fireEvent.mouseDown(screen.getByRole("button", { name: /Save to note/i }));
-    await Promise.resolve();
-    await Promise.resolve();
+    await act(async () => {
+      fireEvent.mouseDown(screen.getByRole("button", { name: /Save to note/i }));
+      await Promise.resolve();
+      await Promise.resolve();
+    });
     expect(dispatch).toHaveBeenCalledWith("note.save", {
       name: "Explain: rust hashmap remove returns Option<V>",
       content: "answer body",
@@ -147,9 +137,11 @@ describe("CapabilityAnswerCard", () => {
         args={{ text: longBody }}
       />,
     );
-    fireEvent.mouseDown(screen.getByRole("button", { name: /Save to note/i }));
-    await Promise.resolve();
-    await Promise.resolve();
+    await act(async () => {
+      fireEvent.mouseDown(screen.getByRole("button", { name: /Save to note/i }));
+      await Promise.resolve();
+      await Promise.resolve();
+    });
     const callArg = dispatch.mock.calls[0]![1] as { name: string };
     expect(callArg.name).toBe(`Summarize: ${"a".repeat(40)}`);
   });
