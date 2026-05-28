@@ -54,7 +54,7 @@ export function PreviewPane({ result, preview, loading }: Props) {
   if (preview.kind === "image") {
     return (
       <div className="flex h-full flex-col p-3">
-        <div className="flex flex-1 items-center justify-center overflow-hidden rounded-[16px] border border-[color:var(--kn-border)] bg-white/[0.03] shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]">
+        <div className="flex flex-1 items-center justify-center overflow-hidden rounded-[8px] border border-[color:var(--kn-border)] bg-white/[0.03] shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]">
           <img
             src={convertFileSrc(result.path)}
             alt=""
@@ -88,7 +88,7 @@ export function PreviewPane({ result, preview, loading }: Props) {
 
   return (
     <div className="flex h-full flex-col">
-      <div className="flex items-center justify-between border-b border-[color:var(--kn-border)] px-3 py-2 text-[10px] uppercase tracking-[0.2em] text-[color:var(--kn-text-faint)]">
+      <div className="flex items-center justify-between border-b border-[color:var(--kn-border)] bg-white/[0.02] px-3 py-2 text-[10px] uppercase tracking-[0.16em] text-[color:var(--kn-text-faint)]">
         <span>Preview</span>
         {preview.truncated && (
           <span className="rounded-full border border-amber-400/20 bg-amber-400/10 px-2 py-0.5 text-[9px] text-amber-200">

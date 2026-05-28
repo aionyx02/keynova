@@ -14,9 +14,9 @@
       {
         "label": "main",
         "title": "Keynova",
-        "width": 640,
+        "width": 700,
         "height": 60,
-        "minWidth": 640,
+        "minWidth": 700,
         "minHeight": 56,
         "transparent": true,
         "decorations": false,

@@ -17,25 +17,25 @@ import { SecondaryActionMenu } from "./SecondaryActionMenu";
 import type { SecondaryInlineInput } from "./hooks/useSecondaryMenu";
 
 const KIND_BADGE: Record<string, { label: string; cls: string; icon: UiIconName }> = {
-  app: { label: "App", cls: "border-violet-400/20 bg-violet-400/10 text-violet-200", icon: "app" },
-  file: { label: "File", cls: "border-sky-400/20 bg-sky-400/10 text-sky-200", icon: "file" },
+  app: { label: "App", cls: "border-white/10 bg-white/[0.045] text-[color:var(--kn-text-soft)]", icon: "app" },
+  file: { label: "File", cls: "border-white/10 bg-white/[0.045] text-[color:var(--kn-text-soft)]", icon: "file" },
   folder: {
     label: "Dir",
-    cls: "border-amber-400/20 bg-amber-400/10 text-amber-200",
+    cls: "border-amber-400/18 bg-amber-400/10 text-amber-200",
     icon: "folder",
   },
   command: {
     label: "Cmd",
-    cls: "border-emerald-400/20 bg-emerald-400/10 text-emerald-200",
+    cls: "border-[color:rgba(138,168,255,0.2)] bg-[color:var(--kn-accent-wash)] text-[color:var(--kn-accent)]",
     icon: "command",
   },
-  note: { label: "Note", cls: "border-teal-400/20 bg-teal-400/10 text-teal-200", icon: "note" },
+  note: { label: "Note", cls: "border-white/10 bg-white/[0.045] text-[color:var(--kn-text-soft)]", icon: "note" },
   history: {
     label: "Hist",
-    cls: "border-slate-400/20 bg-slate-400/10 text-slate-200",
+    cls: "border-white/10 bg-white/[0.045] text-[color:var(--kn-text-soft)]",
     icon: "history",
   },
-  model: { label: "AI", cls: "border-cyan-400/20 bg-cyan-400/10 text-cyan-200", icon: "model" },
+  model: { label: "AI", cls: "border-[color:rgba(88,211,166,0.22)] bg-[color:var(--kn-success-wash)] text-[color:var(--kn-success)]", icon: "model" },
 };
 
 function hasEncodingError(s: string | undefined | null): boolean {
@@ -140,20 +140,20 @@ export function SearchResultsList({
                     onHoverStart(index, event.currentTarget.getBoundingClientRect());
                   }}
                   onMouseLeave={onHoverEnd}
-                  className="kn-result-row flex cursor-pointer items-center gap-3 px-3 py-3 transition-all duration-150"
+                  className="kn-result-row flex cursor-pointer items-center gap-3 px-3 py-2.5"
                 >
                   {icon ? (
-                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[12px] border border-white/5 bg-white/[0.035] shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]">
+                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[8px] border border-white/5 bg-white/[0.035] shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]">
                       <img
                         src={icon.data_url}
                         alt=""
-                        className="h-7 w-7 shrink-0 rounded-[10px]"
+                        className="h-7 w-7 shrink-0 rounded-[7px]"
                         draggable={false}
                       />
                     </div>
                   ) : (
                     <div
-                      className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-[12px] border ${badge.cls}`}
+                      className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-[8px] border ${badge.cls}`}
                       title={badge.label}
                     >
                       <UiIcon name={badge.icon} className="h-[18px] w-[18px]" />
@@ -170,7 +170,7 @@ export function SearchResultsList({
                         {title}
                       </span>
                       {Boolean(result.secondary_action_count) && (
-                        <span className="rounded-full border border-white/8 bg-white/[0.04] px-1.5 py-0.5 text-[10px] font-medium text-[color:var(--kn-text-muted)]">
+                        <span className="kn-chip px-1.5 py-0 text-[10px]">
                           +{result.secondary_action_count}
                         </span>
                       )}
@@ -209,7 +209,7 @@ export function SearchResultsList({
 
         {showPreview && (
           <div
-            className={`border-l border-[color:var(--kn-border)] bg-[rgba(7,11,17,0.52)] ${
+            className={`border-l border-[color:var(--kn-border)] bg-[color:var(--kn-panel-bg-strong)] ${
               secondaryMenuOpen ? "h-[420px]" : "max-h-[360px]"
             }`}
           >
@@ -223,7 +223,7 @@ export function SearchResultsList({
       </div>
 
       {expandedMetadata && selectedResult && (
-        <div className="border-t border-[color:var(--kn-border)] bg-[rgba(7,11,17,0.62)] px-4 py-3 text-xs text-[color:var(--kn-text-soft)]">
+        <div className="border-t border-[color:var(--kn-border)] bg-[color:var(--kn-panel-bg-strong)] px-4 py-3 text-xs text-[color:var(--kn-text-soft)]">
           <div className="mb-2 flex items-center justify-between">
             <span className="text-[10px] uppercase tracking-[0.2em] text-[color:var(--kn-text-faint)]">
               Metadata
@@ -269,7 +269,7 @@ export function SearchResultsList({
         </div>
       )}
 
-      <div className="flex flex-wrap items-center justify-between gap-3 border-t border-[color:var(--kn-border)] bg-[rgba(7,11,17,0.48)] px-4 py-2 text-[11px] text-[color:var(--kn-text-muted)]">
+      <div className="kn-panel-footer flex-wrap">
         <span className="min-w-0 flex-1 truncate">{footerHint}</span>
         <div className="flex items-center gap-3">
           <span className="flex items-center gap-1.5">

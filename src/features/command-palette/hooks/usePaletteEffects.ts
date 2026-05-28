@@ -28,6 +28,7 @@ interface Deps {
   showPreview: boolean;
   mode: "search" | "command" | "terminal";
   scheduleWindowResize: () => void;
+  scheduleWindowPosition: (widthOverride?: number) => void;
   // Resize-trigger deps (every state that changes the palette's height/width
   // contributes here).
   query: string;
@@ -51,6 +52,7 @@ export function usePaletteEffects(deps: Deps) {
     showPreview,
     mode,
     scheduleWindowResize,
+    scheduleWindowPosition,
   } = deps;
 
   // One-shot focus on mount.
@@ -104,6 +106,7 @@ export function usePaletteEffects(deps: Deps) {
   useEffect(() => {
     paletteWidthRef.current = showPreview ? PALETTE_WIDTH_WIDE : PALETTE_WIDTH_NARROW;
     scheduleWindowResize();
+    scheduleWindowPosition(paletteWidthRef.current);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [showPreview, scheduleWindowResize]);
+  }, [showPreview, scheduleWindowResize, scheduleWindowPosition]);
 }

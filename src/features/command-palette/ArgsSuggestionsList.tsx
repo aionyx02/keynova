@@ -27,7 +27,7 @@ export function ArgsSuggestionsList({ suggestions, selectedIndex, onSelect, onHo
         })}
       </ul>
 
-      <div className="flex items-center justify-between border-t border-[color:var(--kn-border)] bg-[rgba(7,11,17,0.48)] px-4 py-2 text-[11px] text-[color:var(--kn-text-muted)]">
+      <div className="kn-panel-footer">
         <span className="flex items-center gap-1.5">
           <span className="kn-kbd">Up/Down</span>
           <span>move</span>

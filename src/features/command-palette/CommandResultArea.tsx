@@ -36,7 +36,7 @@ export function CommandResultArea({
   return (
     <>
       {isArgsPhase && exactCmd && !cmdResult && (
-        <div className="border-t border-[color:var(--kn-border)] bg-[rgba(7,11,17,0.48)] px-4 py-2 text-[11px] text-[color:var(--kn-text-muted)]">
+        <div className="border-t border-[color:var(--kn-border)] bg-white/[0.02] px-4 py-2 text-[11px] text-[color:var(--kn-text-muted)]">
           <span className="font-semibold text-[color:var(--kn-accent)]">/{exactCmd.name}</span>
           {exactCmd.args_hint && (
             <span className="ml-2 font-mono text-[color:var(--kn-text-faint)]">

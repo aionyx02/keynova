@@ -35,7 +35,7 @@ export function FilterChips({ active, onChange }: Props) {
   }
 
   return (
-    <div className="flex flex-wrap items-center gap-2 border-b border-[color:var(--kn-border)] bg-[rgba(7,11,17,0.48)] px-3 py-2">
+    <div className="flex flex-wrap items-center gap-2 border-b border-[color:var(--kn-border)] bg-white/[0.02] px-3 py-2">
       <span className="mr-1 inline-flex items-center gap-1.5 text-[10px] uppercase tracking-[0.2em] text-[color:var(--kn-text-faint)]">
         <UiIcon name="filter" className="h-3.5 w-3.5" />
         Scope
@@ -48,10 +48,10 @@ export function FilterChips({ active, onChange }: Props) {
             type="button"
             onClick={() => toggle(chip.kind)}
             aria-pressed={isActive}
-            className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] transition-all duration-150 ${
+            className={`kn-chip ${
               isActive
-                ? "border-[color:rgba(127,212,255,0.24)] bg-[rgba(127,212,255,0.14)] text-[color:var(--kn-text)] shadow-[inset_0_1px_0_rgba(255,255,255,0.08)]"
-                : "border-[color:var(--kn-border)] bg-white/[0.03] text-[color:var(--kn-text-muted)] hover:bg-white/[0.05] hover:text-[color:var(--kn-text-soft)]"
+                ? "kn-chip-active shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]"
+                : ""
             }`}
           >
             <UiIcon name={chip.icon} className="h-3.5 w-3.5" />

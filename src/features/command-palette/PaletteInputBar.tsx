@@ -2,8 +2,7 @@ import type React from "react";
 
 import keynovaLogo from "../../assets/keynova_icon.png";
 import { UiIcon } from "../../components/icons/UiIcon";
-import { WorkspaceIndicator } from "../../components/WorkspaceIndicator";
-import type { SearchBackendInfo } from "../../ipc/types";
+import { useI18n } from "../../i18n/useI18n";
 
 interface Props {
   mode: "search" | "command" | "terminal";
@@ -12,7 +11,6 @@ interface Props {
   onQueryChange: (value: string) => void;
   onKeyDown: (e: React.KeyboardEvent<HTMLInputElement>) => void;
   onFocus: () => void;
-  searchBackend: SearchBackendInfo | null;
   hasContentBelow: boolean;
 }
 
@@ -23,69 +21,71 @@ export function PaletteInputBar({
   onQueryChange,
   onKeyDown,
   onFocus,
-  searchBackend,
   hasContentBelow,
 }: Props) {
+  const t = useI18n();
   const iconShellClass = [
-    "flex h-10 w-10 shrink-0 items-center justify-center rounded-[14px] border",
+    "flex h-9 w-9 shrink-0 items-center justify-center rounded-[8px] border",
     "shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]",
     mode === "command"
-      ? "border-[color:rgba(127,212,255,0.22)] bg-[rgba(127,212,255,0.12)] text-[color:var(--kn-accent)]"
+      ? "border-[color:rgba(242,191,112,0.18)] bg-[rgba(242,191,112,0.1)] text-[color:var(--kn-warm)]"
       : "border-[color:var(--kn-border)] bg-white/[0.035] text-[color:var(--kn-text-soft)]",
   ].join(" ");
+  const modeLabel = mode === "command" ? "Commands" : "Search";
 
   return (
     <div
-      className={`kn-panel-shell kn-panel-focus flex items-center gap-3 px-3 py-3 ${
+      className={`kn-panel-shell kn-panel-focus flex items-center gap-2.5 px-3 py-2.5 ${
         hasContentBelow ? "rounded-b-none" : ""
       }`}
     >
       <div className={iconShellClass} aria-hidden="true">
         {mode === "command" ? (
-          <UiIcon name="command" className="h-[18px] w-[18px]" />
+          <UiIcon name="command" className="h-4 w-4" />
         ) : (
-          <UiIcon name="search" className="h-[18px] w-[18px]" />
+          <UiIcon name="search" className="h-4 w-4" />
         )}
       </div>
 
       <div className="min-w-0 flex-1">
-        <input
-          ref={inputRef}
-          value={query}
-          onChange={(e) => onQueryChange(e.target.value)}
-          onKeyDown={onKeyDown}
-          onFocus={onFocus}
-          placeholder={
-            mode === "command"
-              ? "輸入指令，例如 /help 或 /setting"
-              : "搜尋應用、檔案或資料夾，輸入 > 進入終端"
-          }
-          className="w-full bg-transparent text-[15px] font-medium text-[color:var(--kn-text)] placeholder:text-[color:var(--kn-text-muted)] outline-none"
-          spellCheck={false}
-          autoComplete="off"
-        />
-        <div className="mt-1 flex items-center gap-2 text-[11px] text-[color:var(--kn-text-faint)]">
-          <span>{mode === "command" ? "Command mode" : "Launcher"}</span>
+        <div className="mb-0.5 flex items-center gap-1.5 text-[9px] text-[color:var(--kn-text-faint)]">
+          <span className="kn-chip px-1.5 py-0">{modeLabel}</span>
+          <span className="truncate">
+            {mode === "command" ? "Run actions without leaving the keyboard" : "Apps, files, notes, commands"}
+          </span>
+        </div>
+        <div className="rounded-[8px] border border-[color:rgba(255,255,255,0.08)] bg-white/[0.02] px-2.5 py-1.5 transition-colors focus-within:border-[color:rgba(138,168,255,0.3)] focus-within:bg-white/[0.035]">
+          <input
+            ref={inputRef}
+            value={query}
+            onChange={(e) => onQueryChange(e.target.value)}
+            onKeyDown={onKeyDown}
+            onFocus={onFocus}
+            placeholder={
+              mode === "command"
+                ? t.command.placeholder
+                : t.search.placeholder
+            }
+            className="w-full bg-transparent text-[15px] font-medium leading-5 text-[color:var(--kn-text)] placeholder:text-[color:var(--kn-text-muted)] outline-none focus-visible:shadow-none"
+            spellCheck={false}
+            autoComplete="off"
+          />
+        </div>
+        <div className="mt-1 flex items-center gap-1.5 text-[10px] text-[color:var(--kn-text-faint)]">
+          <span>{mode === "command" ? "Slash to switch back to search" : "Type / for commands"}</span>
           <span className="h-1 w-1 rounded-full bg-white/10" />
-          <span>Keyboard-first flow</span>
+          <span>Keyboard-first</span>
         </div>
       </div>
 
-      <div className="flex shrink-0 items-center gap-2 self-end">
-        {searchBackend && mode === "search" && (
-          <span
-            title={`configured=${searchBackend.configured}, everything=${searchBackend.everything_available}, tantivy=${searchBackend.tantivy_available}, cache=${searchBackend.file_cache_entries}, tantivy_docs=${searchBackend.tantivy_index_entries}, index=${searchBackend.tantivy_index_dir}`}
-            className="hidden items-center gap-1.5 rounded-[12px] border border-[color:var(--kn-border)] bg-[rgba(255,255,255,0.035)] px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-[color:var(--kn-text-soft)] sm:inline-flex"
-          >
-            <UiIcon name="database" className="h-3.5 w-3.5" />
-            {searchBackend.active}
-          </span>
-        )}
-        <WorkspaceIndicator />
+      <div className="flex shrink-0 items-center gap-2 self-center">
+        <span className="hidden text-[10px] font-medium uppercase tracking-[0.08em] text-[color:var(--kn-text-faint)] xl:inline">
+          Keynova
+        </span>
         <img
           src={keynovaLogo}
           alt="Keynova"
-          className="h-4 w-4 rounded-sm opacity-70"
+          className="h-[18px] w-[18px] rounded-[4px] opacity-75"
           draggable={false}
         />
       </div>
