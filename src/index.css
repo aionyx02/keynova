@@ -194,7 +194,7 @@ body,
   .kn-terminal-body {
     position: relative;
     z-index: 1;
-    height: 342px;
+    height: 460px;
     padding: 0.7rem 0.75rem 0.8rem;
     background:
       radial-gradient(circle at 82% 12%, rgba(94, 230, 168, 0.06), transparent 24%),

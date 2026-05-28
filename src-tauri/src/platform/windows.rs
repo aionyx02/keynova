@@ -164,14 +164,77 @@ pub fn search_icon_data_url(icon_key: &str, kind: &str, path: &str) -> Option<St
         }
     }
 
-    let data_url = extract_shell_icon_base64(path, kind)
-        .map(|base64| format!("data:image/png;base64,{base64}"));
+    if let Some(base64) = read_icon_disk_cache(icon_key) {
+        let data_url = Some(format!("data:image/png;base64,{base64}"));
+        if let Ok(mut guard) = cache.lock() {
+            guard.insert(icon_key.to_string(), data_url.clone());
+        }
+        return data_url;
+    }
+
+    let base64 = extract_shell_icon_base64(path, kind);
+    let data_url = base64.as_ref().map(|b| format!("data:image/png;base64,{b}"));
+
+    // Only persist successful extractions. Missing icons stay in the in-mem
+    // None bucket so we don't repeat PowerShell calls this session, but a
+    // restart re-tries them in case the source app installs an icon later.
+    if let Some(b) = &base64 {
+        write_icon_disk_cache(icon_key, b);
+    }
 
     if let Ok(mut guard) = cache.lock() {
         guard.insert(icon_key.to_string(), data_url.clone());
     }
 
     data_url
+}
+
+// ─── Icon disk cache ────────────────────────────────────────────────────────
+//
+// On-disk PNG cache so PowerShell + SHGetFileInfo only runs once per icon_key
+// across restarts. Files live under `dirs::cache_dir()/keynova/icons/<hash>.b64`,
+// holding the same base64 payload PowerShell emits — no encode/decode round-trip
+// on the hot path. icon_key already encodes path/extension changes (see
+// handlers::search::icon_key_for_item), so renames/upgrades skip the cache
+// naturally.
+
+fn icon_cache_dir() -> Option<std::path::PathBuf> {
+    let dir = dirs::cache_dir()?.join("keynova").join("icons");
+    if !dir.exists() {
+        std::fs::create_dir_all(&dir).ok()?;
+    }
+    Some(dir)
+}
+
+fn icon_cache_file_name(icon_key: &str) -> String {
+    use sha2::{Digest, Sha256};
+    let hash = Sha256::digest(icon_key.as_bytes());
+    let mut name = String::with_capacity(16 + 4);
+    for byte in &hash[..8] {
+        use std::fmt::Write;
+        let _ = write!(name, "{byte:02x}");
+    }
+    name.push_str(".b64");
+    name
+}
+
+fn read_icon_disk_cache(icon_key: &str) -> Option<String> {
+    let dir = icon_cache_dir()?;
+    let file = dir.join(icon_cache_file_name(icon_key));
+    let raw = std::fs::read_to_string(&file).ok()?;
+    let trimmed = raw.trim();
+    if trimmed.is_empty() {
+        return None;
+    }
+    Some(trimmed.to_string())
+}
+
+fn write_icon_disk_cache(icon_key: &str, base64: &str) {
+    let Some(dir) = icon_cache_dir() else {
+        return;
+    };
+    let file = dir.join(icon_cache_file_name(icon_key));
+    let _ = std::fs::write(&file, base64);
 }
 
 fn extract_shell_icon_base64(path: &str, kind: &str) -> Option<String> {
@@ -938,5 +1001,31 @@ mod tests {
     fn dropbox_extraction_handles_empty_json() {
         assert!(extract_json_path_values("{}").is_empty());
         assert!(extract_json_path_values("").is_empty());
+    }
+
+    #[test]
+    fn icon_cache_file_name_is_stable_per_key() {
+        let a = icon_cache_file_name("app:abc123");
+        let b = icon_cache_file_name("app:abc123");
+        assert_eq!(a, b);
+    }
+
+    #[test]
+    fn icon_cache_file_name_differs_per_key() {
+        let a = icon_cache_file_name("app:abc123");
+        let b = icon_cache_file_name("app:abc124");
+        assert_ne!(a, b);
+    }
+
+    #[test]
+    fn icon_cache_file_name_has_b64_extension_and_hex_stem() {
+        let name = icon_cache_file_name("file:rs");
+        assert!(name.ends_with(".b64"), "expected .b64 suffix, got {name}");
+        let stem = name.trim_end_matches(".b64");
+        assert_eq!(stem.len(), 16, "expected 16-hex stem, got {stem}");
+        assert!(
+            stem.chars().all(|c| c.is_ascii_hexdigit()),
+            "expected lowercase hex stem, got {stem}"
+        );
     }
 }
