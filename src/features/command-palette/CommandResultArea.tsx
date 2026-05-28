@@ -56,7 +56,9 @@ export function CommandResultArea({
       )}
 
       {terminalLaunchSpec && (
-        <Suspense fallback={<div className="kn-terminal-shell h-[410px] rounded-t-none border-t-0" />}>
+        <Suspense
+          fallback={<div className="kn-terminal-shell h-[410px] rounded-t-none border-t-0" />}
+        >
           <TerminalPanel
             isActive={true}
             onExit={onTerminalCommandExit}
