@@ -7,6 +7,9 @@ context_policy: always_retrievable
 owner: project
 ---
 
+<!-- Active hot-fix: BUG.ICON-WARM on branch fix/icon-warm; unit landed, smoke pending; precedes REF.6.C. -->
+
+
 # Current Project Memory
 
 ## Current Strategy

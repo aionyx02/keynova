@@ -2,7 +2,7 @@
 type: task_index
 status: active
 priority: p0
-updated: 2026-05-27
+updated: 2026-05-28
 context_policy: always_retrievable
 owner: project
 tags: [refactor, ai-capability, search-first, p0]
@@ -14,6 +14,7 @@ tags: [refactor, ai-capability, search-first, p0]
 
 ### P0
 
+- [~] `BUG.ICON-WARM` background warmer on `prescan_apps` for folder + ~30 common file extensions + every scanned app. Unit tests green; `tauri dev` cold-start smoke pending. Branch `fix/icon-warm`. No ADR (no new dep / IPC / schema / network boundary).
 - [x] `REF.0` lock ADR-0029 as the governing decision for the AI capability refactor.
 - [x] `REF.1` define `UnifiedResult` as the shared result/action contract.
 - [x] `REF.2` split `CommandPalette.tsx` (landed 598 lines; `< 250` dropped — see plan).
