@@ -28,9 +28,9 @@ export function CommandSuggestions({ commands, selectedIndex, onSelect, onHover 
               data-selected={isSelected ? "true" : "false"}
               onMouseDown={() => onSelect(command.name)}
               onMouseEnter={() => onHover(index)}
-              className="kn-result-row flex cursor-pointer items-center gap-3 px-3 py-3 transition-all duration-150"
+              className="kn-result-row flex cursor-pointer items-center gap-3 px-3 py-2.5"
             >
-              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[12px] border border-cyan-400/20 bg-cyan-400/10 text-cyan-200">
+              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[8px] border border-[color:rgba(138,168,255,0.22)] bg-[color:var(--kn-accent-wash)] text-[color:var(--kn-accent)]">
                 <UiIcon name="command" className="h-[18px] w-[18px]" />
               </span>
               <div className="min-w-0 flex-1">
@@ -53,7 +53,7 @@ export function CommandSuggestions({ commands, selectedIndex, onSelect, onHover 
         })}
       </ul>
 
-      <div className="flex items-center justify-between border-t border-[color:var(--kn-border)] bg-[rgba(7,11,17,0.48)] px-4 py-2 text-[11px] text-[color:var(--kn-text-muted)]">
+      <div className="kn-panel-footer">
         <span className="flex items-center gap-1.5">
           <span className="kn-kbd">Up/Down</span>
           <span>move</span>

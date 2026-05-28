@@ -4,7 +4,7 @@ import { CommandPalette } from "./CommandPalette";
 import { ErrorBoundary } from "./ErrorBoundary";
 
 export function AppContainer() {
-  return (
+  const palette = (
     <ErrorBoundary>
       <IPCProvider>
         <FeatureProvider>
@@ -13,4 +13,14 @@ export function AppContainer() {
       </IPCProvider>
     </ErrorBoundary>
   );
+
+  if (typeof window !== "undefined" && !window.__TAURI_INTERNALS__) {
+    return (
+      <div className="kn-browser-preview">
+        <div className="kn-browser-preview-frame">{palette}</div>
+      </div>
+    );
+  }
+
+  return palette;
 }

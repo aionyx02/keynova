@@ -21,7 +21,6 @@ import { useRecentlyDeleted } from "../features/command-palette/hooks/useRecentl
 import { usePipeline } from "../features/command-palette/hooks/usePipeline";
 import { useSearchStream } from "../features/command-palette/hooks/useSearchStream";
 import { useCopyHint } from "../features/command-palette/hooks/useCopyHint";
-import { useSearchBackend } from "../features/command-palette/hooks/useSearchBackend";
 import { useLauncherSettings } from "../features/command-palette/hooks/useLauncherSettings";
 import { useWorkspaceLifecycle } from "../features/command-palette/hooks/useWorkspaceLifecycle";
 import { useSecondaryMenu } from "../features/command-palette/hooks/useSecondaryMenu";
@@ -110,7 +109,6 @@ export function CommandPalette() {
   // Mount terminal once and keep it alive; only toggle visibility via CSS
   const [terminalMounted, setTerminalMounted] = useState(false);
 
-  const { searchBackend } = useSearchBackend({ dispatch });
   const {
     copiedPath,
     copyHint,
@@ -159,7 +157,7 @@ export function CommandPalette() {
     onMaxResultsChange: setSearchLimit,
   });
 
-  // LAUNCH.1.C — dynamic palette width: 640 normally, 960 when preview pane visible.
+  // LAUNCH.1.C — dynamic palette width: 700 normally, 1040 when preview pane visible.
   const paletteWidthRef = useRef<number>(PALETTE_WIDTH_NARROW);
 
   const { hover, start: startRankHover, end: endRankHover, hoverTimerRef } = useRankHover();
@@ -215,7 +213,7 @@ export function CommandPalette() {
       capabilityStream.status === "pending" || capabilityStream.status === "streaming",
   });
 
-  const { containerRef, scheduleWindowResize } = useWindowResize(
+  const { containerRef, scheduleWindowResize, scheduleWindowPosition } = useWindowResize(
     modeRef,
     cmdResultRef,
     paletteWidthRef,
@@ -360,6 +358,7 @@ export function CommandPalette() {
     showPreview,
     mode,
     scheduleWindowResize,
+    scheduleWindowPosition,
     query,
     resultsLength: results.length,
     activeFilters,
@@ -477,7 +476,6 @@ export function CommandPalette() {
             onQueryChange={(value) => void handleQueryChange(value)}
             onKeyDown={onKeyDown}
             onFocus={() => void keepLauncherOpen()}
-            searchBackend={searchBackend}
             hasContentBelow={hasPaletteContentBelow}
           />
 

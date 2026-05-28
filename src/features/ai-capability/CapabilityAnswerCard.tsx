@@ -117,7 +117,7 @@ export function CapabilityAnswerCard({
 
   return (
     <div className="kn-panel-shell overflow-hidden rounded-t-none border-t-0">
-      <div className="flex items-center justify-between border-b border-[color:var(--kn-border)] bg-[rgba(7,11,17,0.48)] px-4 py-3">
+      <div className="kn-panel-header">
         <span className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[color:var(--kn-text-soft)]">
           <span aria-hidden>AI </span>
           {headerLabel}
@@ -133,7 +133,7 @@ export function CapabilityAnswerCard({
               onClose();
             }
           }}
-          className="flex h-7 w-7 items-center justify-center rounded-[10px] border border-[color:var(--kn-border)] bg-white/[0.035] text-[color:var(--kn-text-muted)] transition-colors hover:bg-white/[0.06] hover:text-[color:var(--kn-text)]"
+          className="kn-button h-7 w-7 px-0 py-0"
           aria-label="Close"
         >
           <UiIcon name="x" className="h-3.5 w-3.5" />
@@ -160,14 +160,14 @@ export function CapabilityAnswerCard({
       </div>
 
       {showFooterChips && text && (
-        <div className="flex flex-wrap gap-2 border-t border-[color:var(--kn-border)] bg-[rgba(7,11,17,0.42)] px-4 py-3 text-[11px]">
+        <div className="flex flex-wrap gap-2 border-t border-[color:var(--kn-border)] bg-white/[0.015] px-4 py-3 text-[11px]">
           <button
             type="button"
             onMouseDown={(e) => {
               e.preventDefault();
               void handleCopyMd();
             }}
-            className="inline-flex items-center gap-1.5 rounded-[12px] border border-[color:var(--kn-border)] bg-white/[0.035] px-2.5 py-1.5 font-medium text-[color:var(--kn-text-soft)] transition-colors hover:bg-white/[0.06] hover:text-[color:var(--kn-text)]"
+            className="kn-button"
           >
             <UiIcon name="file" className="h-3.5 w-3.5" />
             {copyState === "copied" ? "Copied" : "Copy md"}
@@ -179,7 +179,7 @@ export function CapabilityAnswerCard({
               void handleSaveToNote();
             }}
             disabled={saveState === "saving"}
-            className="inline-flex items-center gap-1.5 rounded-[12px] border border-[color:var(--kn-border)] bg-white/[0.035] px-2.5 py-1.5 font-medium text-[color:var(--kn-text-soft)] transition-colors hover:bg-white/[0.06] hover:text-[color:var(--kn-text)] disabled:opacity-60"
+            className="kn-button disabled:opacity-60"
           >
             <UiIcon name="note" className="h-3.5 w-3.5" />
             {saveState === "saving"
@@ -193,7 +193,7 @@ export function CapabilityAnswerCard({
         </div>
       )}
 
-      <div className="border-t border-[color:var(--kn-border)] bg-[rgba(7,11,17,0.48)] px-4 py-2 text-[10px] text-[color:var(--kn-text-muted)]">
+      <div className="kn-panel-footer text-[10px]">
         {footerLabel}
       </div>
     </div>

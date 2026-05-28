@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef } from "react";
 import { getCurrentWindow } from "@tauri-apps/api/window";
-import { LogicalSize } from "@tauri-apps/api/dpi";
+import { currentMonitor } from "@tauri-apps/api/window";
+import { LogicalSize, PhysicalPosition } from "@tauri-apps/api/dpi";
 import type { BuiltinCommandResult } from "./useCommands";
 
 // Window height for the full-screen terminal mode (no input bar above).
@@ -10,8 +11,10 @@ const TERMINAL_HEIGHT_MODE = 540;
 // Adds room for PaletteInputBar (~70) so the search box stays visible after
 // a builtin command opens a terminal panel.
 const TERMINAL_HEIGHT_ATTACHED = 620;
-export const PALETTE_WIDTH_NARROW = 640;
-export const PALETTE_WIDTH_WIDE = 960;
+export const PALETTE_WIDTH_NARROW = 700;
+export const PALETTE_WIDTH_WIDE = 1040;
+const PALETTE_LEFT_SHIFT_PX = 36;
+const PALETTE_TOP_RATIO = 0.25;
 
 function isTerminalResult(result: BuiltinCommandResult | null) {
   return result?.ui_type.type === "Terminal";
@@ -21,7 +24,7 @@ function isTerminalResult(result: BuiltinCommandResult | null) {
  * Manages window resizing: schedules RAF-based setSize calls and observes
  * DOM mutations so the window tracks content height automatically.
  *
- * `widthRef` (LAUNCH.1.C) toggles between narrow (640) and wide (960) — the
+ * `widthRef` (LAUNCH.1.C) toggles between narrow (700) and wide (1040) — the
  * caller flips it when the preview pane should expand the palette horizontally.
  * Defaults to narrow when omitted.
  *
@@ -35,6 +38,25 @@ export function useWindowResize(
 ) {
   const containerRef = useRef<HTMLDivElement>(null);
   const resizeRafRef = useRef<number | null>(null);
+  const scheduleWindowPosition = useCallback(
+    (widthOverride?: number) => {
+      if (!window.__TAURI_INTERNALS__) return;
+      const width = widthOverride ?? widthRef?.current ?? PALETTE_WIDTH_NARROW;
+      void currentMonitor()
+        .then((monitor) => {
+          if (!monitor) return;
+          const physW = Math.round(width * monitor.scaleFactor);
+          const x = Math.max(
+            monitor.position.x,
+            Math.round(monitor.position.x + (monitor.size.width - physW) / 2 - PALETTE_LEFT_SHIFT_PX),
+          );
+          const y = Math.round(monitor.position.y + monitor.size.height * PALETTE_TOP_RATIO);
+          return getCurrentWindow().setPosition(new PhysicalPosition(x, y)).catch(() => {});
+        })
+        .catch(() => {});
+    },
+    [widthRef],
+  );
 
   const scheduleWindowResize = useCallback(() => {
     if (!window.__TAURI_INTERNALS__) return;
@@ -73,6 +95,7 @@ export function useWindowResize(
     mutationObserver.observe(el, { attributes: true, childList: true, subtree: true });
 
     scheduleWindowResize();
+    scheduleWindowPosition();
 
     return () => {
       resizeObserver.disconnect();
@@ -82,7 +105,7 @@ export function useWindowResize(
         resizeRafRef.current = null;
       }
     };
-  }, [scheduleWindowResize]);
+  }, [scheduleWindowResize, scheduleWindowPosition]);
 
-  return { containerRef, scheduleWindowResize };
+  return { containerRef, scheduleWindowResize, scheduleWindowPosition };
 }

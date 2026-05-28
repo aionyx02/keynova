@@ -44,7 +44,7 @@ export function PipelineStatusRow({ running, result }: Props) {
           <li className="px-3 py-2 text-sm text-rose-200">{result.log.error}</li>
         )}
       </ul>
-      <div className="flex items-center justify-between border-t border-[color:var(--kn-border)] bg-[rgba(7,11,17,0.48)] px-4 py-2 text-[11px] text-[color:var(--kn-text-muted)]">
+      <div className="kn-panel-footer">
         <span className={isCompleted ? "text-emerald-300" : "text-rose-300"}>
           {result.log.status}
         </span>

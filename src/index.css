@@ -3,26 +3,33 @@
 @tailwind utilities;
 
 :root {
-  color: #eef4fb;
+  color: #f3f4f6;
   color-scheme: dark;
   font-family: "Segoe UI Variable Text", "Segoe UI", "Noto Sans TC", sans-serif;
-  --kn-panel-bg: rgba(14, 19, 28, 0.98);
-  --kn-panel-bg-elevated: rgba(18, 25, 37, 0.98);
+  --kn-panel-bg: rgba(24, 25, 29, 0.985);
+  --kn-panel-bg-elevated: rgba(30, 32, 36, 0.985);
   --kn-panel-bg-soft: rgba(255, 255, 255, 0.04);
-  --kn-panel-bg-strong: rgba(7, 11, 17, 0.74);
-  --kn-border: rgba(154, 168, 190, 0.16);
-  --kn-border-strong: rgba(154, 168, 190, 0.24);
-  --kn-text: #eef4fb;
-  --kn-text-soft: #aebed3;
-  --kn-text-muted: #71839a;
-  --kn-text-faint: #4d5c70;
-  --kn-accent: #7fd4ff;
-  --kn-accent-strong: #55bcff;
-  --kn-accent-wash: rgba(127, 212, 255, 0.16);
-  --kn-terminal-bg: #0b1017;
-  --kn-terminal-surface: rgba(8, 12, 18, 0.92);
-  --kn-shadow: 0 22px 65px rgba(0, 0, 0, 0.32), 0 6px 18px rgba(0, 0, 0, 0.22);
-  --kn-focus-shadow: 0 0 0 1px rgba(127, 212, 255, 0.38), 0 0 0 4px rgba(127, 212, 255, 0.1);
+  --kn-panel-bg-strong: rgba(14, 15, 18, 0.88);
+  --kn-border: rgba(255, 255, 255, 0.08);
+  --kn-border-strong: rgba(255, 255, 255, 0.14);
+  --kn-text: #f3f4f6;
+  --kn-text-soft: #d8dde5;
+  --kn-text-muted: #98a0ad;
+  --kn-text-faint: #68707d;
+  --kn-accent: #8aa8ff;
+  --kn-accent-strong: #a6bcff;
+  --kn-accent-wash: rgba(138, 168, 255, 0.16);
+  --kn-success: #58d3a6;
+  --kn-success-wash: rgba(88, 211, 166, 0.14);
+  --kn-warm: #f2bf70;
+  --kn-danger: #ff8b94;
+  --kn-danger-wash: rgba(255, 139, 148, 0.14);
+  --kn-terminal-bg: #111216;
+  --kn-terminal-surface: rgba(18, 19, 23, 0.96);
+  --kn-shadow:
+    0 18px 48px rgba(0, 0, 0, 0.34),
+    0 8px 18px rgba(0, 0, 0, 0.22);
+  --kn-focus-shadow: 0 0 0 1px rgba(138, 168, 255, 0.38), 0 0 0 4px rgba(138, 168, 255, 0.1);
 }
 
 html,
@@ -55,18 +62,45 @@ body,
     font: inherit;
   }
 
+  button {
+    cursor: default;
+  }
+
+  button:focus-visible,
+  input:focus-visible,
+  textarea:focus-visible,
+  select:focus-visible {
+    outline: none;
+    box-shadow: var(--kn-focus-shadow);
+  }
+
   ::selection {
-    background: rgba(127, 212, 255, 0.24);
-    color: #f8fbff;
+    background: rgba(138, 168, 255, 0.28);
+    color: #fff;
   }
 }
 
 @layer components {
+  .kn-browser-preview {
+    height: 100%;
+    overflow: auto;
+    background: #0b0c0f;
+    padding: 3rem 1.5rem;
+  }
+
+  .kn-browser-preview-frame {
+    width: min(100%, 1040px);
+    margin: 0 auto;
+    transform: translateX(clamp(-36px, -3vw, -20px));
+  }
+
   .kn-panel-shell {
     position: relative;
     border: 1px solid var(--kn-border);
-    border-radius: 1rem;
-    background: linear-gradient(180deg, rgba(20, 28, 40, 0.98) 0%, rgba(12, 18, 27, 0.98) 100%);
+    border-radius: 8px;
+    background:
+      linear-gradient(180deg, rgba(255, 255, 255, 0.035), transparent 26%),
+      linear-gradient(180deg, rgba(30, 32, 36, 0.985) 0%, rgba(20, 21, 26, 0.985) 100%);
     box-shadow: var(--kn-shadow);
   }
 
@@ -75,7 +109,7 @@ body,
     position: absolute;
     inset: 0;
     border-radius: inherit;
-    background: linear-gradient(180deg, rgba(255, 255, 255, 0.06), transparent 26%);
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.045), transparent 24%);
     pointer-events: none;
   }
 
@@ -87,13 +121,13 @@ body,
   }
 
   .kn-panel-focus:focus-within {
-    border-color: rgba(127, 212, 255, 0.34);
+    border-color: rgba(138, 168, 255, 0.34);
     box-shadow: var(--kn-shadow), var(--kn-focus-shadow);
   }
 
   .kn-scroll {
     scrollbar-width: thin;
-    scrollbar-color: rgba(113, 131, 154, 0.9) transparent;
+    scrollbar-color: rgba(116, 124, 139, 0.9) transparent;
   }
 
   .kn-scroll::-webkit-scrollbar {
@@ -108,40 +142,46 @@ body,
   .kn-scroll::-webkit-scrollbar-thumb {
     border: 2px solid transparent;
     border-radius: 999px;
-    background: rgba(113, 131, 154, 0.72);
+    background: rgba(116, 124, 139, 0.72);
     background-clip: padding-box;
   }
 
   .kn-scroll::-webkit-scrollbar-thumb:hover {
-    background: rgba(127, 212, 255, 0.56);
+    background: rgba(138, 168, 255, 0.56);
     background-clip: padding-box;
   }
 
   .kn-result-row {
     position: relative;
     border: 1px solid transparent;
-    border-radius: 0.875rem;
+    border-radius: 8px;
+    transition:
+      border-color 150ms ease,
+      background 150ms ease,
+      box-shadow 150ms ease;
   }
 
   .kn-result-row[data-selected="true"] {
-    border-color: rgba(127, 212, 255, 0.18);
-    background: linear-gradient(180deg, rgba(127, 212, 255, 0.16), rgba(127, 212, 255, 0.09));
-    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
+    border-color: rgba(138, 168, 255, 0.2);
+    background:
+      linear-gradient(180deg, rgba(138, 168, 255, 0.14), rgba(138, 168, 255, 0.07)),
+      rgba(255, 255, 255, 0.035);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
   }
 
   .kn-result-row[data-selected="true"]::before {
     content: "";
     position: absolute;
-    left: 0.65rem;
-    top: 0.6rem;
-    bottom: 0.6rem;
-    width: 3px;
+    left: 0.55rem;
+    top: 0.55rem;
+    bottom: 0.55rem;
+    width: 2px;
     border-radius: 999px;
-    background: linear-gradient(180deg, var(--kn-accent), rgba(85, 188, 255, 0.35));
+    background: linear-gradient(180deg, var(--kn-accent), var(--kn-accent-strong));
   }
 
   .kn-result-row[data-selected="false"]:hover {
-    border-color: rgba(154, 168, 190, 0.08);
+    border-color: rgba(255, 255, 255, 0.06);
     background: rgba(255, 255, 255, 0.04);
   }
 
@@ -151,7 +191,7 @@ body,
     justify-content: center;
     min-width: 1.5rem;
     border: 1px solid var(--kn-border);
-    border-radius: 0.45rem;
+    border-radius: 6px;
     background: rgba(255, 255, 255, 0.04);
     padding: 0.1rem 0.35rem;
     font-size: 0.7rem;
@@ -160,13 +200,183 @@ body,
     box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
   }
 
+  .kn-panel-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    border-bottom: 1px solid var(--kn-border);
+    background: rgba(255, 255, 255, 0.02);
+    padding: 0.7rem 0.9rem;
+  }
+
+  .kn-panel-title {
+    font-size: 0.74rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--kn-text-soft);
+  }
+
+  .kn-panel-subtitle {
+    font-size: 0.68rem;
+    color: var(--kn-text-faint);
+  }
+
+  .kn-panel-footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    border-top: 1px solid var(--kn-border);
+    background: rgba(255, 255, 255, 0.015);
+    padding: 0.55rem 0.9rem;
+    font-size: 0.68rem;
+    color: var(--kn-text-muted);
+  }
+
+  .kn-field,
+  .kn-textarea {
+    border: 1px solid var(--kn-border);
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.045);
+    color: var(--kn-text);
+    transition:
+      border-color 150ms ease,
+      background 150ms ease,
+      box-shadow 150ms ease;
+  }
+
+  .kn-field {
+    padding: 0.55rem 0.75rem;
+  }
+
+  .kn-textarea {
+    padding: 0.7rem 0.8rem;
+  }
+
+  .kn-field::placeholder,
+  .kn-textarea::placeholder {
+    color: var(--kn-text-faint);
+  }
+
+  .kn-field:hover,
+  .kn-textarea:hover {
+    border-color: rgba(255, 255, 255, 0.12);
+  }
+
+  .kn-field:focus,
+  .kn-textarea:focus {
+    border-color: rgba(138, 168, 255, 0.3);
+    background: rgba(255, 255, 255, 0.06);
+  }
+
+  .kn-button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.4rem;
+    border: 1px solid var(--kn-border);
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.045);
+    color: var(--kn-text-soft);
+    padding: 0.45rem 0.7rem;
+    font-size: 0.74rem;
+    font-weight: 600;
+    transition:
+      border-color 150ms ease,
+      background 150ms ease,
+      color 150ms ease;
+  }
+
+  .kn-button:hover {
+    border-color: var(--kn-border-strong);
+    background: rgba(255, 255, 255, 0.07);
+    color: var(--kn-text);
+  }
+
+  .kn-button-primary {
+    border-color: rgba(138, 168, 255, 0.18);
+    background: linear-gradient(180deg, rgba(138, 168, 255, 0.2), rgba(138, 168, 255, 0.12));
+    color: #fff;
+  }
+
+  .kn-button-primary:hover {
+    border-color: rgba(138, 168, 255, 0.28);
+    background: linear-gradient(180deg, rgba(138, 168, 255, 0.24), rgba(138, 168, 255, 0.15));
+  }
+
+  .kn-button-danger {
+    border-color: rgba(255, 139, 148, 0.18);
+    background: var(--kn-danger-wash);
+    color: #ffd7db;
+  }
+
+  .kn-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    border: 1px solid var(--kn-border);
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.035);
+    padding: 0.28rem 0.6rem;
+    font-size: 0.65rem;
+    font-weight: 600;
+    color: var(--kn-text-muted);
+    transition:
+      border-color 150ms ease,
+      background 150ms ease,
+      color 150ms ease;
+  }
+
+  .kn-chip:hover {
+    border-color: var(--kn-border-strong);
+    color: var(--kn-text-soft);
+  }
+
+  .kn-chip-active {
+    border-color: rgba(138, 168, 255, 0.24);
+    background: rgba(138, 168, 255, 0.12);
+    color: var(--kn-text);
+  }
+
+  .kn-sidebar-item {
+    border-radius: 8px;
+    transition:
+      background 150ms ease,
+      color 150ms ease;
+  }
+
+  .kn-sidebar-item:hover {
+    background: rgba(255, 255, 255, 0.045);
+  }
+
+  .kn-sidebar-item[data-active="true"] {
+    background: rgba(138, 168, 255, 0.14);
+    color: var(--kn-text);
+  }
+
+  .kn-section-label {
+    font-size: 0.68rem;
+    font-weight: 600;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    color: var(--kn-text-faint);
+  }
+
+  .kn-muted-surface {
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.03);
+  }
+
   .kn-terminal-shell {
     position: relative;
     border: 1px solid var(--kn-border);
-    border-radius: 1rem;
+    border-radius: 8px;
     background:
-      radial-gradient(circle at 18% 0%, rgba(127, 212, 255, 0.13), transparent 34%),
-      linear-gradient(180deg, rgba(17, 24, 35, 0.98) 0%, rgba(9, 14, 21, 0.98) 100%);
+      linear-gradient(180deg, rgba(255, 255, 255, 0.03), transparent 20%),
+      linear-gradient(180deg, rgba(24, 25, 29, 0.985) 0%, rgba(17, 18, 22, 0.985) 100%);
     box-shadow: var(--kn-shadow);
   }
 
@@ -175,7 +385,7 @@ body,
     position: absolute;
     inset: 0;
     border-radius: inherit;
-    background: linear-gradient(180deg, rgba(255, 255, 255, 0.055), transparent 22%);
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.04), transparent 22%);
     pointer-events: none;
   }
 
@@ -187,7 +397,7 @@ body,
     justify-content: space-between;
     gap: 0.75rem;
     border-bottom: 1px solid var(--kn-border);
-    background: rgba(7, 11, 17, 0.48);
+    background: rgba(255, 255, 255, 0.02);
     padding: 0.625rem 0.75rem;
   }
 
@@ -196,9 +406,7 @@ body,
     z-index: 1;
     height: 460px;
     padding: 0.7rem 0.75rem 0.8rem;
-    background:
-      radial-gradient(circle at 82% 12%, rgba(94, 230, 168, 0.06), transparent 24%),
-      var(--kn-terminal-surface);
+    background: var(--kn-terminal-surface);
   }
 
   .kn-terminal-body .xterm {
@@ -208,7 +416,7 @@ body,
   .kn-terminal-body .xterm .xterm-viewport {
     background: transparent !important;
     scrollbar-width: thin;
-    scrollbar-color: rgba(113, 131, 154, 0.72) transparent;
+    scrollbar-color: rgba(116, 124, 139, 0.72) transparent;
   }
 
   .kn-terminal-body .xterm .xterm-viewport::-webkit-scrollbar {
@@ -222,12 +430,12 @@ body,
   .kn-terminal-body .xterm .xterm-viewport::-webkit-scrollbar-thumb {
     border: 2px solid transparent;
     border-radius: 999px;
-    background: rgba(113, 131, 154, 0.72);
+    background: rgba(116, 124, 139, 0.72);
     background-clip: padding-box;
   }
 
   .kn-terminal-body .xterm .xterm-viewport::-webkit-scrollbar-thumb:hover {
-    background: rgba(127, 212, 255, 0.56);
+    background: rgba(138, 168, 255, 0.56);
     background-clip: padding-box;
   }
 
@@ -238,7 +446,7 @@ body,
 
 .setting-tabs-scroll {
   scrollbar-width: thin;
-  scrollbar-color: rgba(71, 85, 105, 0.7) rgba(15, 23, 42, 0.35);
+  scrollbar-color: rgba(116, 124, 139, 0.7) rgba(20, 21, 26, 0.35);
 }
 
 .setting-tabs-scroll::-webkit-scrollbar {
@@ -246,14 +454,14 @@ body,
 }
 
 .setting-tabs-scroll::-webkit-scrollbar-track {
-  background: rgba(15, 23, 42, 0.35);
+  background: rgba(20, 21, 26, 0.35);
 }
 
 .setting-tabs-scroll::-webkit-scrollbar-thumb {
-  background: rgba(71, 85, 105, 0.78);
+  background: rgba(116, 124, 139, 0.78);
   border-radius: 999px;
 }
 
 .setting-tabs-scroll::-webkit-scrollbar-thumb:hover {
-  background: rgba(96, 165, 250, 0.72);
+  background: rgba(138, 168, 255, 0.72);
 }

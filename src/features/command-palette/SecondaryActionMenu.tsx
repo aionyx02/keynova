@@ -44,9 +44,9 @@ export function SecondaryActionMenu({
     <div
       role="menu"
       aria-label="Secondary actions"
-      className="kn-panel-shell absolute right-3 top-3 z-20 flex h-[380px] max-h-[calc(100vh-24px)] w-[400px] max-w-[calc(100%-24px)] flex-col overflow-hidden rounded-[18px]"
+      className="kn-panel-shell absolute right-3 top-3 z-20 flex h-[380px] max-h-[calc(100vh-24px)] w-[400px] max-w-[calc(100%-24px)] flex-col overflow-hidden rounded-[8px]"
     >
-      <div className="shrink-0 border-b border-[color:var(--kn-border)] bg-[rgba(7,11,17,0.52)] px-4 py-2 text-[10px] uppercase tracking-[0.2em] text-[color:var(--kn-text-faint)]">
+      <div className="shrink-0 border-b border-[color:var(--kn-border)] bg-white/[0.02] px-4 py-2 text-[10px] uppercase tracking-[0.16em] text-[color:var(--kn-text-faint)]">
         Actions / {result.title ?? result.name}
       </div>
 
@@ -85,9 +85,9 @@ export function SecondaryActionMenu({
                   item.disabled
                     ? "cursor-not-allowed text-[color:var(--kn-text-faint)]"
                     : isArmedDestructive
-                      ? "cursor-pointer border-red-400/30 bg-red-500/15 text-red-100"
+                      ? "cursor-pointer border-red-400/30 bg-[color:var(--kn-danger-wash)] text-red-100"
                       : isFocused
-                        ? "border-[color:rgba(127,212,255,0.18)] bg-[rgba(127,212,255,0.12)] text-white"
+                        ? "border-[color:rgba(138,168,255,0.2)] bg-[color:var(--kn-accent-wash)] text-white"
                         : `cursor-pointer ${tintClass}`
                 }`}
                 data-selected={isFocused && !isArmedDestructive ? "true" : "false"}
@@ -115,7 +115,7 @@ export function SecondaryActionMenu({
                     onChange={(event) => onInlineInputChange(event.target.value)}
                     onKeyDown={onInlineInputKeyDown}
                     onMouseDown={(event) => event.stopPropagation()}
-                    className="w-full rounded-[12px] border border-[color:var(--kn-border-strong)] bg-[rgba(7,11,17,0.74)] px-3 py-2 text-sm text-[color:var(--kn-text)] outline-none transition-colors focus:border-[color:rgba(127,212,255,0.34)]"
+                    className="kn-field w-full text-sm"
                     placeholder={
                       inlineInput.for === "rename" ? "New name" : "Target folder absolute path"
                     }
@@ -130,7 +130,7 @@ export function SecondaryActionMenu({
         })}
       </div>
 
-      <div className="flex shrink-0 items-center justify-between border-t border-[color:var(--kn-border)] bg-[rgba(7,11,17,0.52)] px-4 py-2 text-[11px] text-[color:var(--kn-text-muted)]">
+      <div className="kn-panel-footer shrink-0">
         <span className="flex items-center gap-1.5">
           <span className="kn-kbd">Up/Down</span>
           <span>navigate</span>

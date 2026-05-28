@@ -5,6 +5,10 @@ use tauri::{Emitter, Manager};
 
 use crate::app::state::AppState;
 use crate::core::IpcError;
+
+const LAUNCHER_NARROW_WIDTH: f64 = 700.0;
+const LAUNCHER_LEFT_SHIFT: i32 = 36;
+
 pub(crate) fn show_launcher(app: &tauri::AppHandle) -> Result<(), IpcError> {
     let window = app
         .get_webview_window("main")
@@ -28,8 +32,8 @@ pub(crate) fn setup_main_window(app: &tauri::App) -> Result<(), Box<dyn std::err
     if let Ok(Some(monitor)) = window.current_monitor() {
         let screen = monitor.size();
         let scale = monitor.scale_factor();
-        let phys_w = (640.0 * scale) as i32;
-        let x = ((screen.width as i32 - phys_w) / 2).max(0);
+        let phys_w = (LAUNCHER_NARROW_WIDTH * scale) as i32;
+        let x = ((screen.width as i32 - phys_w) / 2 - LAUNCHER_LEFT_SHIFT).max(0);
         let y = (screen.height as f64 * 0.25) as i32;
         let _ = window.set_position(tauri::PhysicalPosition::new(x, y));
     }
