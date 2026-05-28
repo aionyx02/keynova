@@ -160,9 +160,10 @@ fn run_pipeline_execute(
     let actions = parse_pipeline_text(text)
         .map_err(|e| IpcError::new("pipeline_parse_error", e.to_string()))?;
 
-    let report = AutomationEngine::execute_pipeline("pipeline", actions, |route, action_payload| {
-        dispatch_command(route, action_payload, app, state).map_err(|e| e.to_string())
-    });
+    let report =
+        AutomationEngine::execute_pipeline("pipeline", actions, |route, action_payload| {
+            dispatch_command(route, action_payload, app, state).map_err(|e| e.to_string())
+        });
 
     Ok(json!(report))
 }
@@ -221,12 +222,7 @@ fn run_action_command(
             // resolved human-readable label that the central hook in
             // `cmd_dispatch_impl` cannot see for action.run.
             if result.is_ok() {
-                record_workflow_event(
-                    state.inner(),
-                    "action.run",
-                    &action.label,
-                    Some(&payload),
-                );
+                record_workflow_event(state.inner(), "action.run", &action.label, Some(&payload));
             }
             if let Ok(mut workspace) = state._workspace_manager.lock() {
                 workspace.record_action(action.id);

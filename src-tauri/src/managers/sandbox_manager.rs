@@ -182,10 +182,7 @@ mod common {
 
     fn cap_bytes(bytes: Vec<u8>, cap: usize) -> (String, bool) {
         if cap > 0 && bytes.len() > cap {
-            (
-                String::from_utf8_lossy(&bytes[..cap]).into_owned(),
-                true,
-            )
+            (String::from_utf8_lossy(&bytes[..cap]).into_owned(), true)
         } else {
             (String::from_utf8_lossy(&bytes).into_owned(), false)
         }
@@ -199,16 +196,16 @@ mod imp {
     use super::{KillReason, SandboxAvailability, SandboxConfig, SandboxError, SandboxedOutput};
     use std::io::Read;
     use std::process::{Command, Stdio};
+    use windows::core::PCWSTR;
     use windows::Win32::Foundation::{CloseHandle, HANDLE, WAIT_EVENT, WAIT_OBJECT_0};
     use windows::Win32::System::JobObjects::{
         AssignProcessToJobObject, CreateJobObjectW, JobObjectExtendedLimitInformation,
-        SetInformationJobObject, JOBOBJECT_EXTENDED_LIMIT_INFORMATION,
-        JOB_OBJECT_LIMIT_JOB_MEMORY, JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE,
+        SetInformationJobObject, JOBOBJECT_EXTENDED_LIMIT_INFORMATION, JOB_OBJECT_LIMIT_JOB_MEMORY,
+        JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE,
     };
     use windows::Win32::System::Threading::{
         OpenProcess, WaitForSingleObject, PROCESS_ALL_ACCESS, PROCESS_SYNCHRONIZE,
     };
-    use windows::core::PCWSTR;
 
     #[allow(dead_code)]
     pub(super) fn availability() -> SandboxAvailability {
@@ -234,8 +231,8 @@ mod imp {
         let pid = child.id();
 
         // Apply Job Object memory + cleanup constraints immediately after spawn.
-        let job = unsafe { create_and_assign_job(pid, config) }
-            .map_err(SandboxError::SetupFailed)?;
+        let job =
+            unsafe { create_and_assign_job(pid, config) }.map_err(SandboxError::SetupFailed)?;
 
         // Read stdout/stderr in background threads (prevents pipe-buffer deadlock).
         let stdout_pipe = child.stdout.take().expect("stdout piped");
@@ -248,13 +245,10 @@ mod imp {
             std::thread::spawn(move || -> Vec<u8> { read_capped(stderr_pipe, se_cap) });
 
         // Wait with Win32 timeout — avoids 50 ms polling.
-        let timeout_ms = config
-            .timeout
-            .as_millis()
-            .clamp(1, u32::MAX as u128) as u32;
+        let timeout_ms = config.timeout.as_millis().clamp(1, u32::MAX as u128) as u32;
 
-        let (wait_result, sync_handle) = unsafe { wait_for_process(pid, timeout_ms) }
-            .map_err(SandboxError::SetupFailed)?;
+        let (wait_result, sync_handle) =
+            unsafe { wait_for_process(pid, timeout_ms) }.map_err(SandboxError::SetupFailed)?;
 
         let kill_reason = if wait_result != WAIT_OBJECT_0 {
             let _ = child.kill();
@@ -264,9 +258,13 @@ mod imp {
         };
 
         if let Some(h) = sync_handle {
-            unsafe { let _ = CloseHandle(h); }
+            unsafe {
+                let _ = CloseHandle(h);
+            }
         }
-        unsafe { let _ = CloseHandle(job); }
+        unsafe {
+            let _ = CloseHandle(job);
+        }
 
         let status = child.wait().map_err(SandboxError::Io)?;
         let raw_stdout = stdout_thread.join().unwrap_or_default();
@@ -424,7 +422,9 @@ mod imp {
         std::env::var("PATH").ok().and_then(|paths| {
             paths.split(':').find_map(|dir| {
                 let candidate = std::path::Path::new(dir).join(BWRAP_BIN);
-                candidate.is_file().then(|| candidate.to_string_lossy().into_owned())
+                candidate
+                    .is_file()
+                    .then(|| candidate.to_string_lossy().into_owned())
             })
         })
     }
@@ -553,9 +553,9 @@ mod tests {
     #[cfg(target_os = "windows")]
     mod windows_tests {
         use super::*;
+        use windows::core::PCWSTR;
         use windows::Win32::Foundation::{CloseHandle, HANDLE};
         use windows::Win32::System::JobObjects::CreateJobObjectW;
-        use windows::core::PCWSTR;
 
         #[test]
         fn create_job_object_succeeds() {
@@ -565,7 +565,9 @@ mod tests {
                     .expect("CreateJobObjectW should succeed in tests")
             };
             assert!(!job.is_invalid());
-            unsafe { let _ = CloseHandle(job); }
+            unsafe {
+                let _ = CloseHandle(job);
+            }
         }
 
         #[test]

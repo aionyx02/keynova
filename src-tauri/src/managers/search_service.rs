@@ -1,5 +1,5 @@
-use std::sync::{Arc, Condvar, Mutex};
 use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{Arc, Condvar, Mutex};
 use std::thread;
 
 struct WorkItem {
@@ -87,7 +87,10 @@ impl SearchService {
             if let Slot::Pending(old) = &*guard {
                 old.cancel.store(true, Ordering::Relaxed);
             }
-            *guard = Slot::Pending(WorkItem { task: Box::new(task), cancel });
+            *guard = Slot::Pending(WorkItem {
+                task: Box::new(task),
+                cancel,
+            });
         }
         self.condvar.notify_one();
     }
@@ -106,7 +109,10 @@ mod tests {
         svc.submit(Arc::clone(&cancel_a), || {});
         let cancel_b = Arc::new(AtomicBool::new(false));
         svc.submit(Arc::clone(&cancel_b), || {});
-        assert!(cancel_a.load(Ordering::Relaxed), "A should be cancelled when B is submitted");
+        assert!(
+            cancel_a.load(Ordering::Relaxed),
+            "A should be cancelled when B is submitted"
+        );
     }
 
     #[test]
@@ -120,7 +126,10 @@ mod tests {
         svc.submit(Arc::clone(&cancel_c), || {});
         assert!(cancel_a.load(Ordering::Relaxed));
         assert!(cancel_b.load(Ordering::Relaxed));
-        assert!(!cancel_c.load(Ordering::Relaxed), "C is active, must not be cancelled yet");
+        assert!(
+            !cancel_c.load(Ordering::Relaxed),
+            "C is active, must not be cancelled yet"
+        );
     }
 
     #[test]
@@ -186,6 +195,9 @@ mod tests {
         cancel.store(true, Ordering::Relaxed);
 
         thread::sleep(Duration::from_millis(100));
-        assert!(!ran.load(Ordering::Relaxed), "task with cancel=true must not run");
+        assert!(
+            !ran.load(Ordering::Relaxed),
+            "task with cancel=true must not run"
+        );
     }
 }

@@ -1,4 +1,4 @@
-﻿use std::path::PathBuf;
+use std::path::PathBuf;
 
 use super::safety::contains_any;
 
@@ -112,4 +112,3 @@ pub(super) fn is_time_question(prompt: &str) -> bool {
         ],
     )
 }
-

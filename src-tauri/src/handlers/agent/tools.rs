@@ -108,7 +108,12 @@ impl ReactDispatchState {
         let mut roots: Vec<PathBuf> = args
             .get("roots")
             .and_then(Value::as_array)
-            .map(|arr| arr.iter().filter_map(Value::as_str).map(PathBuf::from).collect())
+            .map(|arr| {
+                arr.iter()
+                    .filter_map(Value::as_str)
+                    .map(PathBuf::from)
+                    .collect()
+            })
             .unwrap_or_default();
 
         // Fall back to workspace project root when no roots supplied.
@@ -137,7 +142,11 @@ impl ReactDispatchState {
     }
 
     fn dispatch_filesystem_search(&self, args: &Value) -> Result<Value, String> {
-        let query = args.get("query").and_then(Value::as_str).unwrap_or("").to_string();
+        let query = args
+            .get("query")
+            .and_then(Value::as_str)
+            .unwrap_or("")
+            .to_string();
         if query.trim().is_empty() {
             return Err("filesystem.search: 'query' must not be empty".into());
         }
@@ -153,7 +162,8 @@ impl ReactDispatchState {
             })
             .unwrap_or_else(|| self.default_search_roots());
 
-        let outcome = search_system_index(&query, &roots, limit.max(1), Some(&self.tantivy_index_dir));
+        let outcome =
+            search_system_index(&query, &roots, limit.max(1), Some(&self.tantivy_index_dir));
         let sources: Vec<Value> = outcome
             .hits
             .into_iter()
@@ -301,17 +311,25 @@ impl ReactDispatchState {
             .and_then(Value::as_str)
             .map(PathBuf::from)
             .unwrap_or_else(|| {
-                roots.first().cloned().unwrap_or_else(|| std::env::current_dir().unwrap_or_default())
+                roots
+                    .first()
+                    .cloned()
+                    .unwrap_or_else(|| std::env::current_dir().unwrap_or_default())
             });
 
         // Canonicalize so symlinks and relative paths cannot escape workspace scope.
         let cwd = requested_cwd.canonicalize().map_err(|_| {
-            format!("git.status: cwd '{}' does not exist or is not accessible", requested_cwd.display())
+            format!(
+                "git.status: cwd '{}' does not exist or is not accessible",
+                requested_cwd.display()
+            )
         })?;
 
         // Enforce workspace scope: deny paths outside all known roots.
         let in_workspace = roots.iter().any(|root| {
-            root.canonicalize().map(|r| cwd.starts_with(&r)).unwrap_or(false)
+            root.canonicalize()
+                .map(|r| cwd.starts_with(&r))
+                .unwrap_or(false)
         });
         if !in_workspace {
             return Err(format!(
@@ -354,7 +372,10 @@ impl ReactDispatchState {
         // Poll for exit with timeout; kill on deadline.
         let deadline = Instant::now() + Duration::from_secs(GIT_STATUS_TIMEOUT_SECS);
         let exit_code = loop {
-            match child.try_wait().map_err(|e| format!("git.status: wait error: {e}"))? {
+            match child
+                .try_wait()
+                .map_err(|e| format!("git.status: wait error: {e}"))?
+            {
                 Some(status) => break status.code(),
                 None => {
                     if Instant::now() >= deadline {
@@ -387,36 +408,69 @@ impl ReactDispatchState {
             .and_then(Value::as_str)
             .map(PathBuf::from)
             .unwrap_or_else(|| {
-                roots.first().cloned().unwrap_or_else(|| std::env::current_dir().unwrap_or_default())
+                roots
+                    .first()
+                    .cloned()
+                    .unwrap_or_else(|| std::env::current_dir().unwrap_or_default())
             });
         let cwd = requested.canonicalize().map_err(|_| {
-            format!("{tool}: cwd '{}' does not exist or is not accessible", requested.display())
+            format!(
+                "{tool}: cwd '{}' does not exist or is not accessible",
+                requested.display()
+            )
         })?;
-        let in_workspace = roots.iter().any(|r| r.canonicalize().map(|r| cwd.starts_with(&r)).unwrap_or(false));
+        let in_workspace = roots.iter().any(|r| {
+            r.canonicalize()
+                .map(|r| cwd.starts_with(&r))
+                .unwrap_or(false)
+        });
         if !in_workspace {
-            return Err(format!("{tool}: '{}' is outside workspace roots — execution denied", cwd.display()));
+            return Err(format!(
+                "{tool}: '{}' is outside workspace roots — execution denied",
+                cwd.display()
+            ));
         }
         Ok(cwd)
     }
 
     fn dispatch_dev_cargo_test(&self, args: &Value) -> Result<Value, String> {
         let cwd = self.scoped_cwd_for_dev(args, "dev.cargo_test")?;
-        run_bounded_dev_cmd("cargo", &["test"], &cwd, Duration::from_secs(DEV_CARGO_TIMEOUT_SECS))
+        run_bounded_dev_cmd(
+            "cargo",
+            &["test"],
+            &cwd,
+            Duration::from_secs(DEV_CARGO_TIMEOUT_SECS),
+        )
     }
 
     fn dispatch_dev_cargo_check(&self, args: &Value) -> Result<Value, String> {
         let cwd = self.scoped_cwd_for_dev(args, "dev.cargo_check")?;
-        run_bounded_dev_cmd("cargo", &["check"], &cwd, Duration::from_secs(DEV_CARGO_TIMEOUT_SECS))
+        run_bounded_dev_cmd(
+            "cargo",
+            &["check"],
+            &cwd,
+            Duration::from_secs(DEV_CARGO_TIMEOUT_SECS),
+        )
     }
 
     fn dispatch_dev_npm_build(&self, args: &Value) -> Result<Value, String> {
         let cwd = self.scoped_cwd_for_dev(args, "dev.npm_build")?;
-        run_bounded_dev_cmd("npm", &["run", "build"], &cwd, Duration::from_secs(DEV_NPM_TIMEOUT_SECS))
+        run_bounded_dev_cmd(
+            "npm",
+            &["run", "build"],
+            &cwd,
+            Duration::from_secs(DEV_NPM_TIMEOUT_SECS),
+        )
     }
 
     fn dispatch_dev_npm_lint(&self, args: &Value) -> Result<Value, String> {
         let cwd = self.scoped_cwd_for_dev(args, "dev.npm_lint")?;
-        run_bounded_dev_cmd("npm", &["run", "lint"], &cwd, Duration::from_secs(DEV_NPM_TIMEOUT_SECS))
+        run_bounded_dev_cmd(
+            "npm",
+            &["run", "lint"],
+            &cwd,
+            Duration::from_secs(DEV_NPM_TIMEOUT_SECS),
+        )
     }
 
     /// Extract structured errors from raw compiler/lint output.

@@ -30,11 +30,7 @@ pub const CAPABILITY_SNIPPET_MAX_CHARS: usize = 160;
 /// exceeds the char budget, the context block is dropped first; if that still
 /// overruns, the result is truncated at the char boundary by
 /// [`crate::core::grounding::truncate`].
-pub fn build_prompt(
-    system_preamble: &str,
-    sources: &[GroundingSource],
-    user_text: &str,
-) -> String {
+pub fn build_prompt(system_preamble: &str, sources: &[GroundingSource], user_text: &str) -> String {
     let mut prompt = String::new();
     prompt.push_str(system_preamble.trim());
     prompt.push_str("\n\n");

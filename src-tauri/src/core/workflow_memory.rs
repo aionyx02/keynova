@@ -13,8 +13,8 @@ use std::hash::{Hash, Hasher};
 
 use serde_json::Value;
 
-pub use crate::core::knowledge_store::{WorkflowHistoryEntry, WorkflowHistoryRow};
 use crate::core::knowledge_store::KnowledgeStoreHandle;
+pub use crate::core::knowledge_store::{WorkflowHistoryEntry, WorkflowHistoryRow};
 
 /// `suggest` / `recent` limit caps to keep IPC + render paths bounded.
 pub const DEFAULT_LIMIT: usize = 5;
@@ -77,10 +77,7 @@ mod tests {
     use std::path::{Path, PathBuf};
 
     fn temp_db_path(name: &str) -> PathBuf {
-        let dir = std::env::temp_dir().join(format!(
-            "keynova-{name}-{}",
-            uuid::Uuid::new_v4()
-        ));
+        let dir = std::env::temp_dir().join(format!("keynova-{name}-{}", uuid::Uuid::new_v4()));
         std::fs::create_dir_all(&dir).unwrap();
         dir.join("knowledge.db")
     }
@@ -148,7 +145,10 @@ mod tests {
         {
             let store = KnowledgeStoreHandle::new(path.clone(), 8);
             record(&store, make_entry(Some("ctx-a"), "cmd.run", "help"));
-            record(&store, make_entry(Some("ctx-a"), "capability.call", "explain"));
+            record(
+                &store,
+                make_entry(Some("ctx-a"), "capability.call", "explain"),
+            );
             record(&store, make_entry(Some("ctx-b"), "cmd.run", "setting"));
 
             // Allow the worker to drain by issuing a synchronous read; the

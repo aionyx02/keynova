@@ -1,4 +1,4 @@
-﻿use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex};
 
 use serde_json::{json, Value};
 
@@ -82,7 +82,6 @@ pub(super) fn build_prompt_audit(
     }
 }
 
-
 pub(super) fn capability_answer() -> String {
     [
         "我可以用兩種方式幫你：",
@@ -138,7 +137,10 @@ pub(super) fn describe_run(prompt: &str, audit: &AgentPromptAudit) -> String {
     }
 }
 
-pub(super) fn describe_execution(action: &AgentPlannedAction, result: &BuiltinCommandResult) -> String {
+pub(super) fn describe_execution(
+    action: &AgentPlannedAction,
+    result: &BuiltinCommandResult,
+) -> String {
     match &result.ui_type {
         CommandUiType::Inline => format!("Executed '{}'. {}", action.label, result.text),
         CommandUiType::Panel(panel) => {
@@ -182,7 +184,9 @@ pub(super) fn title_case(value: &str) -> String {
         .join(" ")
 }
 
-pub(super) fn match_setting_schema(prompt: &str) -> Option<crate::models::settings_schema::SettingSchema> {
+pub(super) fn match_setting_schema(
+    prompt: &str,
+) -> Option<crate::models::settings_schema::SettingSchema> {
     let q = prompt.to_lowercase();
     builtin_setting_schema()
         .into_iter()
@@ -416,7 +420,6 @@ pub(super) fn build_terminal_command_spec(
         editor: false,
     }
 }
-
 
 pub(super) fn inline_result(text: String) -> BuiltinCommandResult {
     BuiltinCommandResult {

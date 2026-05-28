@@ -81,8 +81,7 @@ where
             .unwrap_or(30),
     };
 
-    let ollama_keep_alive = get("ai.ollama_keep_alive")
-        .unwrap_or_else(|| "5m".into());
+    let ollama_keep_alive = get("ai.ollama_keep_alive").unwrap_or_else(|| "5m".into());
 
     let stream_enabled = get("ai.stream_enabled")
         .map(|v| !v.trim().eq_ignore_ascii_case("false"))
@@ -211,7 +210,15 @@ impl ToolCallProvider for AiProvider {
                 api_key,
                 base_url,
                 model,
-            } => openai_chat_with_tools(api_key, base_url, model, messages, tools, max_tokens, timeout_secs),
+            } => openai_chat_with_tools(
+                api_key,
+                base_url,
+                model,
+                messages,
+                tools,
+                max_tokens,
+                timeout_secs,
+            ),
             AiProvider::Ollama { base_url, model } => {
                 ollama_chat_with_tools(base_url, model, messages, tools, max_tokens, timeout_secs)
             }
@@ -397,7 +404,10 @@ impl AiManager {
 
             let rollback_user_msg = || {
                 if let Ok(mut h) = history.lock() {
-                    if let Some(pos) = h.iter().rposition(|m| m.role == "user" && m.content == prompt) {
+                    if let Some(pos) = h
+                        .iter()
+                        .rposition(|m| m.role == "user" && m.content == prompt)
+                    {
                         h.remove(pos);
                     }
                 }
@@ -439,7 +449,13 @@ impl AiManager {
                         &cancel_check,
                     )
                 } else {
-                    do_chat(&provider, max_tokens, timeout_secs, &keep_alive, &messages_snapshot)
+                    do_chat(
+                        &provider,
+                        max_tokens,
+                        timeout_secs,
+                        &keep_alive,
+                        &messages_snapshot,
+                    )
                 };
                 // Late cancel: cancel arrived during the HTTP request. Drop the reply,
                 // rollback the user message, emit cancelled event instead of ok.
@@ -559,9 +575,14 @@ fn do_chat(
         AiProvider::Claude { api_key, model } => {
             chat_claude(api_key, model, max_tokens, timeout_secs, messages)
         }
-        AiProvider::Ollama { base_url, model } => {
-            chat_ollama(base_url, model, max_tokens, timeout_secs, keep_alive, messages)
-        }
+        AiProvider::Ollama { base_url, model } => chat_ollama(
+            base_url,
+            model,
+            max_tokens,
+            timeout_secs,
+            keep_alive,
+            messages,
+        ),
         AiProvider::OpenAI {
             api_key,
             base_url,
@@ -677,10 +698,7 @@ fn parse_ollama_chunk(line: &str) -> Option<(String, bool)> {
         .and_then(|c| c.as_str())
         .unwrap_or("")
         .to_string();
-    let done = json
-        .get("done")
-        .and_then(|d| d.as_bool())
-        .unwrap_or(false);
+    let done = json.get("done").and_then(|d| d.as_bool()).unwrap_or(false);
     Some((delta, done))
 }
 
@@ -939,18 +957,38 @@ fn do_chat_stream(
     cancel: &dyn Fn() -> bool,
 ) -> Result<String, String> {
     match provider {
-        AiProvider::Claude { api_key, model } => {
-            chat_claude_stream(api_key, model, max_tokens, timeout_secs, messages, on_chunk, cancel)
-        }
+        AiProvider::Claude { api_key, model } => chat_claude_stream(
+            api_key,
+            model,
+            max_tokens,
+            timeout_secs,
+            messages,
+            on_chunk,
+            cancel,
+        ),
         AiProvider::Ollama { base_url, model } => chat_ollama_stream(
-            base_url, model, max_tokens, timeout_secs, keep_alive, messages, on_chunk, cancel,
+            base_url,
+            model,
+            max_tokens,
+            timeout_secs,
+            keep_alive,
+            messages,
+            on_chunk,
+            cancel,
         ),
         AiProvider::OpenAI {
             api_key,
             base_url,
             model,
         } => chat_openai_stream(
-            api_key, base_url, model, max_tokens, timeout_secs, messages, on_chunk, cancel,
+            api_key,
+            base_url,
+            model,
+            max_tokens,
+            timeout_secs,
+            messages,
+            on_chunk,
+            cancel,
         ),
     }
 }
@@ -1142,12 +1180,7 @@ fn ollama_chat_with_tools(
         return Ok(AiToolTurn::ToolCalls { tool_calls: parsed });
     }
 
-    let content = resp
-        .message
-        .content
-        .unwrap_or_default()
-        .trim()
-        .to_string();
+    let content = resp.message.content.unwrap_or_default().trim().to_string();
 
     // If content is also empty the model likely ignored the tool schema.
     if content.is_empty() {
@@ -1176,8 +1209,8 @@ fn parse_openai_tool_calls(
     calls
         .into_iter()
         .map(|call| {
-            let arguments = serde_json::from_str::<Value>(&call.function.arguments)
-                .map_err(|e| {
+            let arguments =
+                serde_json::from_str::<Value>(&call.function.arguments).map_err(|e| {
                     ToolCallError::Parse(format!(
                         "invalid arguments JSON for '{}': {e}",
                         call.function.name
@@ -1308,7 +1341,10 @@ mod tests {
         let schema = tool_def_to_openai(&def);
         assert_eq!(schema["type"], "function");
         assert_eq!(schema["function"]["name"], "keynova_search");
-        assert_eq!(schema["function"]["parameters"]["properties"]["query"]["type"], "string");
+        assert_eq!(
+            schema["function"]["parameters"]["properties"]["query"]["type"],
+            "string"
+        );
     }
 
     #[test]
@@ -1396,29 +1432,54 @@ mod tests {
         // With retain() the first message would also be gone.
         // With rposition() only the last matching entry is removed.
         let mut history = vec![
-            AiMessage { role: "user".into(), content: "ping".into() },
-            AiMessage { role: "assistant".into(), content: "pong".into() },
-            AiMessage { role: "user".into(), content: "ping".into() },
+            AiMessage {
+                role: "user".into(),
+                content: "ping".into(),
+            },
+            AiMessage {
+                role: "assistant".into(),
+                content: "pong".into(),
+            },
+            AiMessage {
+                role: "user".into(),
+                content: "ping".into(),
+            },
         ];
         let prompt = "ping";
-        if let Some(pos) = history.iter().rposition(|m| m.role == "user" && m.content == prompt) {
+        if let Some(pos) = history
+            .iter()
+            .rposition(|m| m.role == "user" && m.content == prompt)
+        {
             history.remove(pos);
         }
-        assert_eq!(history.len(), 2, "only the last duplicate should be removed");
+        assert_eq!(
+            history.len(),
+            2,
+            "only the last duplicate should be removed"
+        );
         assert_eq!(history[0].role, "user");
-        assert_eq!(history[0].content, "ping");  // first user message preserved
+        assert_eq!(history[0].content, "ping"); // first user message preserved
         assert_eq!(history[1].role, "assistant"); // assistant message preserved
     }
 
     #[test]
     fn rposition_retains_all_messages_when_prompt_not_found() {
         let mut history = vec![
-            AiMessage { role: "user".into(), content: "hello".into() },
-            AiMessage { role: "assistant".into(), content: "hi".into() },
+            AiMessage {
+                role: "user".into(),
+                content: "hello".into(),
+            },
+            AiMessage {
+                role: "assistant".into(),
+                content: "hi".into(),
+            },
         ];
         let before_len = history.len();
         let prompt = "nonexistent";
-        if let Some(pos) = history.iter().rposition(|m| m.role == "user" && m.content == prompt) {
+        if let Some(pos) = history
+            .iter()
+            .rposition(|m| m.role == "user" && m.content == prompt)
+        {
             history.remove(pos);
         }
         assert_eq!(history.len(), before_len, "no message should be removed");
@@ -1459,7 +1520,8 @@ mod tests {
 
     #[test]
     fn parse_claude_chunk_decodes_content_block_delta() {
-        let line = r#"data: {"type":"content_block_delta","delta":{"type":"text_delta","text":"abc"}}"#;
+        let line =
+            r#"data: {"type":"content_block_delta","delta":{"type":"text_delta","text":"abc"}}"#;
         let (delta, done) = parse_claude_chunk(line).unwrap();
         assert_eq!(delta, "abc");
         assert!(!done);
@@ -1488,14 +1550,8 @@ mod tests {
         };
         let cancel = || false;
 
-        let reply = accumulate_stream(
-            &input[..],
-            &on_chunk,
-            &cancel,
-            parse_ollama_chunk,
-            "Ollama",
-        )
-        .unwrap();
+        let reply = accumulate_stream(&input[..], &on_chunk, &cancel, parse_ollama_chunk, "Ollama")
+            .unwrap();
         assert_eq!(reply, "hello world");
         assert_eq!(captured.borrow().as_slice(), &["hello ", "world"]);
     }
@@ -1504,13 +1560,7 @@ mod tests {
     fn accumulate_stream_returns_cancelled_when_cancel_set() {
         let input = b"{\"message\":{\"content\":\"x\"},\"done\":false}\n";
         let cancel = || true;
-        let result = accumulate_stream(
-            &input[..],
-            &|_| {},
-            &cancel,
-            parse_ollama_chunk,
-            "Ollama",
-        );
+        let result = accumulate_stream(&input[..], &|_| {}, &cancel, parse_ollama_chunk, "Ollama");
         assert_eq!(result, Err("cancelled".into()));
     }
 
@@ -1557,7 +1607,10 @@ mod tests {
         assert_eq!(event.payload["request_id"], "rid-1");
         assert_eq!(event.payload["ok"], false);
         assert_eq!(event.payload["cancelled"], true);
-        assert!(manager.get_history().is_empty(), "user message must be rolled back");
+        assert!(
+            manager.get_history().is_empty(),
+            "user message must be rolled back"
+        );
         assert!(
             registry.lock().unwrap().is_empty(),
             "cancel registry entry must be self-cleaned"
@@ -1618,7 +1671,10 @@ mod tests {
     fn rposition_handles_empty_history_gracefully() {
         let mut history: Vec<AiMessage> = Vec::new();
         let prompt = "anything";
-        if let Some(pos) = history.iter().rposition(|m| m.role == "user" && m.content == prompt) {
+        if let Some(pos) = history
+            .iter()
+            .rposition(|m| m.role == "user" && m.content == prompt)
+        {
             history.remove(pos);
         }
         assert!(history.is_empty());

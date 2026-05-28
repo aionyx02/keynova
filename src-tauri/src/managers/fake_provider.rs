@@ -72,7 +72,12 @@ mod tests {
     fn single_final_returns_text_then_errors() {
         let p = FakeToolCallProvider::single_final("done");
         let turn = p.chat_with_tools(&[], &[], 100, 5).unwrap();
-        assert_eq!(turn, AiToolTurn::FinalText { content: "done".into() });
+        assert_eq!(
+            turn,
+            AiToolTurn::FinalText {
+                content: "done".into()
+            }
+        );
         assert!(p.chat_with_tools(&[], &[], 100, 5).is_err());
     }
 
