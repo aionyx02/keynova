@@ -1,14 +1,9 @@
-// REF.6.B — Gemini-style streaming answer card for prefix capability mode.
+// REF.6.B - Streaming answer card for prefix capability mode.
 //
 // Pure presentational: receives projected stream state from
 // `useCapabilityStream` (lifted into `CapabilityResultArea`) and renders the
-// header + Markdown body + footer chips. Wires the [Copy md] and
-// [Save to note] chips to existing utilities (navigator.clipboard,
-// dispatch("note.save")).
-//
-// Header shape (v1): `✨ <capability> · <latency>` — no model name yet
-// (backend `CapabilityResponseEvent` does not carry it; deferred to a
-// future additive payload field, see plan §"Design Decisions" row 4).
+// header + Markdown body + footer chips. Wires [Copy md] and [Save to note] to
+// existing utilities (navigator.clipboard, dispatch("note.save")).
 
 import { useEffect, useState, type ReactElement } from "react";
 
@@ -65,7 +60,9 @@ export function CapabilityAnswerCard({
   onClose,
 }: Props): ReactElement {
   const isTicking = status === "pending" || status === "streaming";
-  const now = useTickingClock(isTicking && firstChunkAtMs === null && completedAtMs === null);
+  const now = useTickingClock(
+    isTicking && firstChunkAtMs === null && completedAtMs === null,
+  );
 
   const latencyMs = (() => {
     if (startedAtMs === null) return 0;
@@ -73,12 +70,12 @@ export function CapabilityAnswerCard({
     return stop - startedAtMs;
   })();
 
-  const headerLabel = `${LABEL_TITLE[capabilityLabel]} · ${formatLatencyMs(latencyMs)}`;
+  const headerLabel = `${LABEL_TITLE[capabilityLabel]} - ${formatLatencyMs(latencyMs)}`;
   const statusSuffix =
     status === "error"
-      ? " · error"
+      ? " - error"
       : status === "cancelled"
-        ? " · cancelled"
+        ? " - cancelled"
         : "";
 
   const isBodyError = status === "error" && error !== null;
@@ -95,8 +92,7 @@ export function CapabilityAnswerCard({
       setCopyState("copied");
       window.setTimeout(() => setCopyState("idle"), 1200);
     } catch {
-      // Clipboard failure on insecure context: surface in saveState slot
-      // visually since we don't have a distinct error chip yet.
+      // Clipboard failure on insecure context: no-op for now.
     }
   }
 
@@ -118,7 +114,7 @@ export function CapabilityAnswerCard({
     <div className="border-t border-gray-700/50 bg-gray-950/60 px-4 py-3">
       <div className="mb-2 flex items-center justify-between">
         <span className="text-[11px] uppercase tracking-wider text-gray-400">
-          <span aria-hidden>✨ </span>
+          <span aria-hidden>AI </span>
           {headerLabel}
           {statusSuffix}
         </span>
@@ -135,7 +131,7 @@ export function CapabilityAnswerCard({
           className="text-[11px] text-gray-500 hover:text-gray-300"
           aria-label="Close"
         >
-          [×]
+          [x]
         </button>
       </div>
 
@@ -147,7 +143,20 @@ export function CapabilityAnswerCard({
         ) : text ? (
           <Markdown content={text} />
         ) : status === "pending" ? (
-          <div className="text-gray-500">…</div>
+          <div className="text-gray-500 italic">
+            Asking model...{" "}
+            <span className="text-gray-600">
+              (first call after launch may take a few seconds while the model loads)
+            </span>
+          </div>
+        ) : status === "idle" && args.text.trim() ? (
+          <div className="text-gray-500">
+            Press{" "}
+            <kbd className="mx-0.5 rounded border border-gray-600 px-1.5 py-0.5 text-[10px]">
+              Enter
+            </kbd>{" "}
+            to ask
+          </div>
         ) : null}
       </div>
 
@@ -161,7 +170,7 @@ export function CapabilityAnswerCard({
             }}
             className="rounded border border-gray-600 px-2 py-0.5 text-gray-300 hover:border-blue-400/60 hover:text-blue-300"
           >
-            {copyState === "copied" ? "Copied ✓" : "Copy md"}
+            {copyState === "copied" ? "Copied" : "Copy md"}
           </button>
           <button
             type="button"
@@ -173,9 +182,9 @@ export function CapabilityAnswerCard({
             className="rounded border border-gray-600 px-2 py-0.5 text-gray-300 hover:border-blue-400/60 hover:text-blue-300 disabled:opacity-60"
           >
             {saveState === "saving"
-              ? "Saving…"
+              ? "Saving..."
               : saveState === "saved"
-                ? "Saved ✓"
+                ? "Saved"
                 : saveState === "error"
                   ? "Save failed"
                   : "Save to note"}
@@ -185,8 +194,10 @@ export function CapabilityAnswerCard({
 
       <div className="mt-2 text-[10px] text-gray-600">
         {status === "pending" || status === "streaming"
-          ? "Esc cancels stream · Backspace past prefix returns to search"
-          : "Esc clears prefix · Type more to refine"}
+          ? "Esc cancels stream - Backspace past prefix returns to search"
+          : status === "idle"
+            ? "Enter to ask - Esc clears prefix"
+            : "Esc clears prefix - Type more then Enter to re-ask"}
       </div>
     </div>
   );
