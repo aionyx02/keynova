@@ -1,6 +1,7 @@
 use serde_json::Value;
 use tauri::{Emitter, Manager};
 
+use crate::app::autostart::sync_autostart;
 use crate::app::control_server::start_control_server;
 use crate::app::dispatch::{
     cmd_dispatch_impl, cmd_hide_launcher_impl, cmd_keep_launcher_open_impl, cmd_ping_impl,
@@ -54,9 +55,14 @@ pub fn run() {
     let mut builder = tauri::Builder::default();
     #[cfg(any(target_os = "macos", target_os = "windows", target_os = "linux"))]
     {
-        builder = builder.plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
-            let _ = show_launcher(app);
-        }));
+        builder = builder
+            .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
+                let _ = show_launcher(app);
+            }))
+            .plugin(tauri_plugin_autostart::init(
+                tauri_plugin_autostart::MacosLauncher::LaunchAgent,
+                None::<Vec<&'static str>>,
+            ));
     }
 
     builder
@@ -70,7 +76,11 @@ pub fn run() {
                 return Ok(());
             }
 
-            // Bridge EventBus (Rust broadcast) → Tauri frontend events
+            if let Err(error) = sync_autostart(app.handle()) {
+                eprintln!("[keynova] autostart sync failed: {error}");
+            }
+
+            // Bridge EventBus (Rust broadcast) to Tauri frontend events.
             let mut rx = app.state::<AppState>().event_bus.subscribe();
             let handle = app.handle().clone();
             tauri::async_runtime::spawn(async move {
@@ -124,8 +134,6 @@ pub fn run() {
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }
-
-// ─── Setup helpers ───────────────────────────────────────────────────────────
 
 fn emit_app_event_with_legacy_alias(handle: &tauri::AppHandle, event: &AppEvent) {
     let _ = handle.emit(&event.topic, &event.payload);

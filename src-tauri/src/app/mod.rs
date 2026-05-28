@@ -1,3 +1,4 @@
+pub(crate) mod autostart;
 pub(crate) mod bootstrap;
 pub(crate) mod control_server;
 pub(crate) mod dispatch;
