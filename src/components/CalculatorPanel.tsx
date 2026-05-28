@@ -25,18 +25,22 @@ export function CalculatorPanel({ onClose }: PanelProps) {
   useEffect(() => {
     inputRef.current?.focus();
     if (!window.__TAURI_INTERNALS__) return;
-    ipcDispatch<CalcEntry[]>("calculator.history")
+    void ipcDispatch<CalcEntry[]>("calculator.history")
       .then(setHistory)
       .catch(() => {});
   }, []);
 
-  const evaluate = useCallback(async (e: string) => {
-    if (!e.trim()) { setResult(""); setError(""); return; }
+  const evaluate = useCallback(async (value: string) => {
+    if (!value.trim()) {
+      setResult("");
+      setError("");
+      return;
+    }
     try {
-      const res = await ipcDispatch<{ result: string }>("calculator.eval", { expr: e });
+      const res = await ipcDispatch<{ result: string }>("calculator.eval", { expr: value });
       setResult(res.result);
       setError("");
-      setHistory((prev) => [{ expr: e, result: res.result }, ...prev.slice(0, 49)]);
+      setHistory((prev) => [{ expr: value, result: res.result }, ...prev.slice(0, 49)]);
     } catch (err) {
       setResult("");
       setError(String(err));
@@ -46,7 +50,9 @@ export function CalculatorPanel({ onClose }: PanelProps) {
   function handleChange(value: string) {
     setExpr(value);
     if (debounceRef.current) clearTimeout(debounceRef.current);
-    debounceRef.current = setTimeout(() => { void evaluate(value); }, 300);
+    debounceRef.current = setTimeout(() => {
+      void evaluate(value);
+    }, 250);
   }
 
   async function copyResult() {
@@ -57,65 +63,100 @@ export function CalculatorPanel({ onClose }: PanelProps) {
   }
 
   return (
-    <div className="min-h-[350px] bg-gray-900/95 backdrop-blur-md rounded-b-xl shadow-2xl flex flex-col p-4 gap-3">
-      <div className="flex items-center gap-2">
-        <span className="text-xs font-semibold text-blue-400 uppercase tracking-wide">{t.calculator.title}</span>
+    <div className="kn-panel-shell flex min-h-[360px] flex-col rounded-t-none border-t-0">
+      <div className="kn-panel-header">
+        <div>
+          <div className="kn-panel-title">{t.calculator.title}</div>
+          <div className="kn-panel-subtitle">Quick calculations without leaving the launcher</div>
+        </div>
+        <button
+          type="button"
+          onClick={() => void copyResult()}
+          disabled={!result}
+          className="kn-button py-1 text-[10px] disabled:opacity-40"
+        >
+          {copied ? "Copied" : t.calculator.copy}
+        </button>
       </div>
 
-      {/* Input */}
-      <div className="relative">
+      <div className="flex flex-1 flex-col gap-3 px-4 py-3">
         <input
           ref={inputRef}
           value={expr}
           onChange={(e) => handleChange(e.target.value)}
           onKeyDown={(e) => {
-            if (e.key === "Escape") { e.preventDefault(); onClose(); return; }
-            if (e.key === "Enter") { if (debounceRef.current) clearTimeout(debounceRef.current); void evaluate(expr); }
+            if (e.key === "Escape") {
+              e.preventDefault();
+              onClose();
+              return;
+            }
+            if (e.key === "Enter") {
+              e.preventDefault();
+              if (debounceRef.current) clearTimeout(debounceRef.current);
+              void evaluate(expr);
+            }
           }}
           placeholder={t.calculator.placeholder}
-          className="w-full bg-gray-800/60 text-gray-200 text-sm rounded px-3 py-2 outline-none placeholder-gray-600 font-mono"
+          className="kn-field w-full font-mono text-sm"
         />
-      </div>
 
-      {/* Result display */}
-      {(result || error) && (
-        <div className="flex items-center justify-between bg-gray-800/40 rounded px-3 py-2">
-          {error ? (
-            <span className="text-red-400 text-sm">{error}</span>
-          ) : (
-            <>
-              <span className="text-2xl font-mono font-semibold text-green-400">{result}</span>
-              <button
-                onClick={() => void copyResult()}
-                className="text-[10px] text-gray-600 hover:text-gray-300 ml-3"
-              >
-                {copied ? "已複製" : t.calculator.copy}
-              </button>
-            </>
-          )}
-        </div>
-      )}
+        {(result || error) && (
+          <div
+            className={`kn-muted-surface flex min-h-[72px] items-center justify-between gap-3 px-4 py-3 ${
+              error ? "border-red-400/20 bg-[color:var(--kn-danger-wash)]" : ""
+            }`}
+          >
+            {error ? (
+              <span className="text-sm text-red-200">{error}</span>
+            ) : (
+              <>
+                <span className="font-mono text-2xl font-semibold text-[color:var(--kn-success)]">
+                  {result}
+                </span>
+                <span className="text-xs text-[color:var(--kn-text-faint)]">Ready to copy</span>
+              </>
+            )}
+          </div>
+        )}
 
-      {/* History */}
-      {history.length > 0 && (
-        <div>
-          <div className="text-[10px] text-gray-600 mb-1">{t.calculator.history}</div>
-          <div className="max-h-[120px] overflow-y-auto space-y-0.5">
-            {history.map((h, i) => (
-              <button
-                key={i}
-                onClick={() => { setExpr(h.expr); void evaluate(h.expr); }}
-                className="w-full flex items-center justify-between px-2 py-1 text-xs text-gray-500 hover:bg-white/5 rounded font-mono text-left"
-              >
-                <span className="truncate">{h.expr}</span>
-                <span className="text-gray-400 ml-2 shrink-0">= {h.result}</span>
-              </button>
-            ))}
+        <div className="flex min-h-0 flex-1 flex-col">
+          <div className="kn-section-label mb-2">{t.calculator.history}</div>
+          <div className="kn-scroll flex-1 overflow-y-auto">
+            {history.length === 0 ? (
+              <div className="kn-muted-surface flex h-full min-h-[140px] items-center justify-center px-4 text-center text-xs text-[color:var(--kn-text-faint)]">
+                Recent expressions will show up here.
+              </div>
+            ) : (
+              <div className="space-y-1">
+                {history.map((entry, index) => (
+                  <button
+                    key={`${entry.expr}-${entry.result}-${index}`}
+                    type="button"
+                    onClick={() => {
+                      setExpr(entry.expr);
+                      void evaluate(entry.expr);
+                    }}
+                    className="kn-result-row flex w-full items-center justify-between gap-3 px-3 py-2 text-left"
+                    data-selected="false"
+                  >
+                    <span className="min-w-0 truncate font-mono text-sm text-[color:var(--kn-text-soft)]">
+                      {entry.expr}
+                    </span>
+                    <span className="shrink-0 font-mono text-xs text-[color:var(--kn-text-muted)]">
+                      = {entry.result}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
         </div>
-      )}
+      </div>
 
-      <div className="text-[10px] text-gray-700">支援 + - * / ^ () sqrt sin cos pi · 單位換算 · 進位換算 。 Enter 送出 ·  Esc 關閉</div>
+      <div className="kn-panel-footer">
+        <span>Enter to evaluate</span>
+        <span>Esc closes</span>
+      </div>
     </div>
   );
 }

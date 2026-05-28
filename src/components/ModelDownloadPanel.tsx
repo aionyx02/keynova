@@ -47,7 +47,6 @@ interface LocalOption extends ModelCandidate {
 }
 
 type DownloadOption = LocalOption | ApiOption;
-const AI_TOOL_LABEL = "AI Chat";
 
 async function ipcDispatch<T>(route: string, payload?: Record<string, unknown>): Promise<T> {
   return invoke<T>("cmd_dispatch", { route, payload: payload ?? null });
@@ -59,14 +58,14 @@ const API_OPTIONS: ApiOption[] = [
     provider: "claude",
     label: "Claude API",
     model: "claude-sonnet-4-6",
-    description: "需要 Anthropic API key",
+    description: "Use an Anthropic API key for remote chat.",
   },
   {
     kind: "api",
     provider: "openai",
     label: "OpenAI-compatible",
     model: "gpt-4o-mini",
-    description: "可使用 OpenAI 或相容服務",
+    description: "Point AI Chat at any OpenAI-style endpoint.",
   },
 ];
 
@@ -84,9 +83,9 @@ function progressText(payload: ModelEventPayload | null) {
 function sourceLabel(source: string) {
   switch (source) {
     case "recommended":
-      return "推薦";
+      return "Recommended";
     case "catalog":
-      return "目錄";
+      return "Catalog";
     case "library":
       return "Ollama";
     default:
@@ -151,7 +150,9 @@ export function ModelDownloadPanel({ onClose }: PanelProps) {
       }
     }
     void load();
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   useEffect(() => {
@@ -170,13 +171,13 @@ export function ModelDownloadPanel({ onClose }: PanelProps) {
       setPendingDownload(null);
       setProgress(null);
       setError("");
-      setNotice(`✓ 已為 ${AI_TOOL_LABEL} 啟用 ${event.payload.name}`);
+      setNotice(`AI Chat is now using ${event.payload.name}.`);
     });
     const unlistenError = listen<ModelEventPayload>("model-pull-error", (event) => {
       if (event.payload.tool && event.payload.tool !== "ai") return;
       setDownloading(null);
       setProgress(null);
-      setError(event.payload.error ?? "模型下載失敗");
+      setError(event.payload.error ?? "The model download failed.");
     });
     return () => {
       unlistenCatalog.then((fn) => fn());
@@ -190,25 +191,28 @@ export function ModelDownloadPanel({ onClose }: PanelProps) {
     apiInputRef.current?.focus();
   }, [apiPrompt]);
 
-  const activateLocal = useCallback(async (name: string) => {
-    setError("");
-    if (pendingDownload === name) {
-      setDownloading(name);
-      setNotice(`開始下載 ${name}`);
-      await ipcDispatch("model.pull", { name, tool: "ai" });
-      return;
-    }
+  const activateLocal = useCallback(
+    async (name: string) => {
+      setError("");
+      if (pendingDownload === name) {
+        setDownloading(name);
+        setNotice(`Downloading ${name}...`);
+        await ipcDispatch("model.pull", { name, tool: "ai" });
+        return;
+      }
 
-    const check = await ipcDispatch<CheckResponse>("model.check", { name });
-    if (check.exists) {
-      await ipcDispatch("model.set_active", { provider: "ollama", model: name, tool: "ai" });
-      setNotice(`✓ 已為 ${AI_TOOL_LABEL} 啟用 ${name}`);
-      return;
-    }
+      const check = await ipcDispatch<CheckResponse>("model.check", { name });
+      if (check.exists) {
+        await ipcDispatch("model.set_active", { provider: "ollama", model: name, tool: "ai" });
+        setNotice(`AI Chat is now using ${name}.`);
+        return;
+      }
 
-    setPendingDownload(name);
-    setNotice(`${name} 尚未下載，再按 Enter 開始下載`);
-  }, [pendingDownload]);
+      setPendingDownload(name);
+      setNotice(`Press Enter again to download ${name}.`);
+    },
+    [pendingDownload],
+  );
 
   const activateApi = useCallback(async () => {
     if (!apiPrompt || !apiKey.trim()) return;
@@ -221,7 +225,7 @@ export function ModelDownloadPanel({ onClose }: PanelProps) {
     });
     setApiPrompt(null);
     setApiKey("");
-    setNotice(`✓ 已為 ${AI_TOOL_LABEL} 啟用 ${apiPrompt.label}`);
+    setNotice(`AI Chat is now using ${apiPrompt.label}.`);
   }, [apiKey, apiPrompt]);
 
   async function activateOption(option: DownloadOption | undefined) {
@@ -235,10 +239,6 @@ export function ModelDownloadPanel({ onClose }: PanelProps) {
     await activateLocal(option.name).catch((err) => setError(String(err)));
   }
 
-  async function activateSelected() {
-    await activateOption(options[selected]);
-  }
-
   async function activateInputModel() {
     const model = modelInput.trim();
     if (!model || downloading) return;
@@ -246,11 +246,18 @@ export function ModelDownloadPanel({ onClose }: PanelProps) {
   }
 
   function handleKeyDown(e: React.KeyboardEvent<HTMLDivElement>) {
-    if (apiPrompt) return;
     if (e.key === "Escape") {
       e.preventDefault();
-      onClose();
-    } else if (e.key === "ArrowDown") {
+      if (apiPrompt) {
+        setApiPrompt(null);
+        rootRef.current?.focus();
+      } else {
+        onClose();
+      }
+      return;
+    }
+    if (apiPrompt) return;
+    if (e.key === "ArrowDown") {
       e.preventDefault();
       setSelected((i) => Math.min(i + 1, options.length - 1));
     } else if (e.key === "ArrowUp") {
@@ -258,7 +265,7 @@ export function ModelDownloadPanel({ onClose }: PanelProps) {
       setSelected((i) => Math.max(i - 1, 0));
     } else if (e.key === "Enter") {
       e.preventDefault();
-      void activateSelected();
+      void activateOption(options[selected]);
     }
   }
 
@@ -267,119 +274,144 @@ export function ModelDownloadPanel({ onClose }: PanelProps) {
       ref={rootRef}
       tabIndex={-1}
       onKeyDown={handleKeyDown}
-      className="min-h-[350px] bg-gray-900/95 backdrop-blur-md rounded-b-xl shadow-2xl outline-none"
+      className="kn-panel-shell flex max-h-[460px] flex-col rounded-t-none border-t-0 outline-none"
     >
-      <div className="flex items-center justify-between border-b border-gray-700/50 px-4 py-2">
-        <span className="text-xs font-semibold uppercase tracking-wide text-blue-400">Model Download</span>
+      <div className="kn-panel-header">
+        <div>
+          <div className="kn-panel-title">Model Download</div>
+          <div className="kn-panel-subtitle">Pick a local or hosted model for AI Chat</div>
+        </div>
         <div className="flex items-center gap-2">
-          <div className="flex gap-2 text-[11px] text-gray-500">
-          <span>RAM {formatMb(hardware?.ram_mb ?? 0)}</span>
-          <span>VRAM {formatMb(hardware?.vram_mb ?? 0)}</span>
-          </div>
+          <span className="kn-chip">RAM {formatMb(hardware?.ram_mb ?? 0)}</span>
+          <span className="kn-chip">VRAM {formatMb(hardware?.vram_mb ?? 0)}</span>
         </div>
       </div>
 
-      <div className="max-h-[390px] overflow-y-auto py-1">
-        <div className="border-b border-gray-700/40 px-4 py-3">
-          <label className="mb-1 block text-xs text-gray-500">模型名稱或 Ollama URL</label>
-          <div className="flex gap-2">
-            <input
-              value={modelInput}
-              onChange={(e) => setModelInput(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Escape") {
-                  e.preventDefault();
-                  onClose();
-                } else if (e.key === "Enter") {
-                  e.preventDefault();
-                  void activateInputModel();
-                }
-              }}
-              placeholder="qwen2.5:1.5b 或 https://ollama.com/library/gemma4:e2b"
-              className="min-w-0 flex-1 rounded bg-gray-800 px-3 py-2 text-xs text-gray-100 outline-none placeholder-gray-600 focus:ring-1 focus:ring-blue-500"
-            />
-            <button
-              type="button"
-              onClick={() => void activateInputModel()}
-              disabled={!modelInput.trim() || Boolean(downloading)}
-              className="rounded bg-blue-600/70 px-3 py-1 text-xs text-white transition-colors hover:bg-blue-500/70 disabled:opacity-40"
-            >
-              使用
-            </button>
-          </div>
+      <div className="border-b border-[color:var(--kn-border)] px-4 py-3">
+        <div className="kn-section-label mb-2">Custom Model</div>
+        <div className="flex gap-2">
+          <input
+            value={modelInput}
+            onChange={(e) => setModelInput(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                e.preventDefault();
+                void activateInputModel();
+              }
+            }}
+            placeholder="qwen2.5:1.5b or an Ollama library URL"
+            className="kn-field min-w-0 flex-1 text-sm"
+          />
+          <button
+            type="button"
+            onClick={() => void activateInputModel()}
+            disabled={!modelInput.trim() || Boolean(downloading)}
+            className="kn-button kn-button-primary px-3 disabled:opacity-40"
+          >
+            Use
+          </button>
         </div>
-        {options.map((option, index) => {
-          const selectedClass = index === selected ? "bg-blue-600/70 text-white" : "text-gray-300 hover:bg-white/8";
-          const isPending = option.kind === "local" && pendingDownload === option.name;
-          const isDownloading = option.kind === "local" && downloading === option.name;
-          const sourceText = option.kind === "local" ? sourceLabel(option.source) : "API";
-          return (
-            <button
-              key={option.kind === "local" ? option.name : option.provider}
-              ref={(el) => {if (index === selected && el) el.scrollIntoView({block: "nearest"})}}
-              type="button"
-              onMouseEnter={() => setSelected(index)}
-              onMouseDown={() => { setSelected(index); void activateOption(option); }}
-              className={`flex w-full items-center gap-3 px-4 py-2.5 text-left text-sm transition-colors ${selectedClass}`}
-            >
-              <span
-                title={option.kind === "local" ? option.source : "API"}
-                className="inline-flex min-w-[4.75rem] shrink-0 items-center justify-center rounded bg-gray-800/80 px-2.5 py-1 text-center text-[10px] font-semibold uppercase leading-none whitespace-nowrap text-gray-400"
+      </div>
+
+      <div className="kn-scroll flex-1 overflow-y-auto px-2 py-2">
+        <div className="space-y-1">
+          {options.map((option, index) => {
+            const isSelected = index === selected;
+            const isPending = option.kind === "local" && pendingDownload === option.name;
+            const isDownloading = option.kind === "local" && downloading === option.name;
+            const sourceText = option.kind === "local" ? sourceLabel(option.source) : "API";
+
+            return (
+              <button
+                key={option.kind === "local" ? option.name : option.provider}
+                ref={(el) => {
+                  if (index === selected && el) el.scrollIntoView({ block: "nearest" });
+                }}
+                type="button"
+                onMouseEnter={() => setSelected(index)}
+                onMouseDown={() => {
+                  setSelected(index);
+                  void activateOption(option);
+                }}
+                className="kn-result-row flex w-full items-center gap-3 px-3 py-2.5 text-left"
+                data-selected={isSelected}
               >
-                {sourceText}
-              </span>
-              <span className="min-w-0 flex-1">
-                <span className="block truncate font-medium">
-                  {option.kind === "local" ? option.name : option.label}
+                <span className={`kn-chip ${isPending ? "kn-chip-active" : ""}`}>{sourceText}</span>
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate text-sm font-medium text-[color:var(--kn-text)]">
+                    {option.kind === "local" ? option.name : option.label}
+                  </span>
+                  <span className="block truncate text-xs text-[color:var(--kn-text-faint)]">
+                    {option.kind === "local" ? option.rating : option.description}
+                  </span>
                 </span>
-                <span className="block truncate text-xs text-gray-500">
-                  {option.kind === "local" ? option.rating : option.description}
+                <span className="shrink-0 text-xs text-[color:var(--kn-text-muted)]">
+                  {option.kind === "local"
+                    ? option.size_gb > 0
+                      ? `${option.size_gb.toFixed(1)} GB`
+                      : "Unknown size"
+                    : option.model}
                 </span>
-              </span>
-              <span className="shrink-0 text-xs text-gray-500">
-                {option.kind === "local"
-                  ? option.size_gb > 0 ? `${option.size_gb.toFixed(1)} GB` : "Size unknown"
-                  : option.model}
-              </span>
-              {isPending && <span className="text-xs text-amber-300">Enter 下載</span>}
-              {isDownloading && <span className="text-xs text-emerald-300">{progressText(progress)}</span>}
-            </button>
-          );
-        })}
+                {isPending && (
+                  <span className="shrink-0 text-xs text-[color:var(--kn-warm)]">Press Enter</span>
+                )}
+                {isDownloading && (
+                  <span className="shrink-0 text-xs text-[color:var(--kn-success)]">
+                    {progressText(progress)}
+                  </span>
+                )}
+              </button>
+            );
+          })}
+        </div>
       </div>
 
       {apiPrompt && (
-        <div className="border-t border-gray-700/50 px-4 py-3">
-          <label className="mb-1 block text-xs text-gray-400">{apiPrompt.label} API key</label>
-          <input
-            ref={apiInputRef}
-            value={apiKey}
-            onChange={(e) => setApiKey(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Escape") {
-                e.preventDefault();
-                setApiPrompt(null);
-                rootRef.current?.focus();
-              } else if (e.key === "Enter") {
-                e.preventDefault();
-                void activateApi().catch((err) => setError(String(err)));
-              }
-            }}
-            type="password"
-            className="w-full rounded bg-gray-800 px-3 py-2 text-sm text-gray-100 outline-none focus:ring-1 focus:ring-blue-500"
-          />
+        <div className="border-t border-[color:var(--kn-border)] px-4 py-3">
+          <div className="kn-section-label mb-2">{apiPrompt.label} Key</div>
+          <div className="flex gap-2">
+            <input
+              ref={apiInputRef}
+              value={apiKey}
+              onChange={(e) => setApiKey(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Escape") {
+                  e.preventDefault();
+                  setApiPrompt(null);
+                  rootRef.current?.focus();
+                } else if (e.key === "Enter") {
+                  e.preventDefault();
+                  void activateApi().catch((err) => setError(String(err)));
+                }
+              }}
+              type="password"
+              placeholder="Paste API key"
+              className="kn-field w-full text-sm"
+            />
+            <button
+              type="button"
+              onClick={() => void activateApi().catch((err) => setError(String(err)))}
+              disabled={!apiKey.trim()}
+              className="kn-button kn-button-primary px-3 disabled:opacity-40"
+            >
+              Save
+            </button>
+          </div>
         </div>
       )}
 
       {progress && typeof progress.percent === "number" && (
-        <div className="h-1 bg-gray-800">
-          <div className="h-full bg-emerald-500 transition-all" style={{ width: `${progress.percent}%` }} />
+        <div className="h-1 bg-white/[0.04]">
+          <div
+            className="h-full bg-[color:var(--kn-success)] transition-all"
+            style={{ width: `${progress.percent}%` }}
+          />
         </div>
       )}
 
-      <div className="flex justify-between border-t border-gray-700/50 px-4 py-1.5 text-[11px] text-gray-600">
-        <span>↑↓ 選擇 · Enter 確認 · Esc 關閉</span>
-        <span className={error ? "text-red-400" : "text-emerald-400"}>{error || notice}</span>
+      <div className="kn-panel-footer">
+        <span>Use arrows and Enter</span>
+        <span className={error ? "text-red-300" : ""}>{error || notice || "Esc closes"}</span>
       </div>
     </div>
   );

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import type { PanelProps } from "../types/panel";
@@ -36,13 +36,18 @@ async function ipcDispatch<T>(route: string, payload?: Record<string, unknown>):
   return invoke<T>("cmd_dispatch", { route, payload: payload ?? null });
 }
 
-function UsageBar({ pct }: { pct: number }) {
-  const color =
-    pct >= 90 ? "bg-red-500" : pct >= 70 ? "bg-amber-500" : "bg-blue-500";
+function UsageBar({ pct, tone }: { pct: number; tone: "accent" | "warm" | "danger" }) {
+  const colorClass =
+    tone === "danger"
+      ? "bg-[color:var(--kn-danger)]"
+      : tone === "warm"
+        ? "bg-[color:var(--kn-warm)]"
+        : "bg-[color:var(--kn-accent)]";
+
   return (
-    <div className="h-1 w-full bg-gray-700 rounded-full overflow-hidden">
+    <div className="h-1.5 w-full overflow-hidden rounded-full bg-white/[0.05]">
       <div
-        className={`h-full rounded-full transition-all duration-500 ${color}`}
+        className={`h-full rounded-full transition-all duration-500 ${colorClass}`}
         style={{ width: `${Math.min(100, pct)}%` }}
       />
     </div>
@@ -54,6 +59,7 @@ export function SystemMonitoringPanel({ onClose }: PanelProps) {
   const [streaming, setStreaming] = useState(false);
   const [error, setError] = useState("");
   const [sortBy, setSortBy] = useState<"mem" | "cpu">("mem");
+  const rootRef = useRef<HTMLDivElement>(null);
 
   const stopStream = useCallback(async () => {
     if (!window.__TAURI_INTERNALS__) return;
@@ -62,19 +68,20 @@ export function SystemMonitoringPanel({ onClose }: PanelProps) {
   }, []);
 
   useEffect(() => {
+    rootRef.current?.focus();
     if (!window.__TAURI_INTERNALS__) return;
 
-    ipcDispatch<Snapshot>("system_monitoring.snapshot")
+    void ipcDispatch<Snapshot>("system_monitoring.snapshot")
       .then(setSnap)
       .catch((e: unknown) => setError(String(e)));
 
-    ipcDispatch("system_monitoring.stream_start", { interval_ms: 2000 })
+    void ipcDispatch("system_monitoring.stream_start", { interval_ms: 2000 })
       .then(() => setStreaming(true))
       .catch((e: unknown) => setError(String(e)));
 
     let unlisten: (() => void) | undefined;
-    listen<Snapshot>("system-monitoring-tick", (e) => {
-      setSnap(e.payload);
+    void listen<Snapshot>("system-monitoring-tick", (event) => {
+      setSnap(event.payload);
     }).then((fn) => {
       unlisten = fn;
     });
@@ -83,122 +90,152 @@ export function SystemMonitoringPanel({ onClose }: PanelProps) {
       unlisten?.();
       void stopStream();
     };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [stopStream]);
 
   const ramPct = snap ? (snap.ram_used_mb / snap.ram_total_mb) * 100 : 0;
-  const activeNets = snap?.networks.filter((n) => n.rx_kbps > 0 || n.tx_kbps > 0) ?? [];
+  const activeNetworks = snap?.networks.filter((net) => net.rx_kbps > 0 || net.tx_kbps > 0) ?? [];
 
   return (
     <div
-      className="bg-gray-900/95 backdrop-blur-md rounded-b-xl shadow-2xl flex flex-col p-4 gap-3 max-h-[580px] overflow-y-auto"
-      onKeyDown={(e) => { if (e.key === "Escape") { e.preventDefault(); onClose(); } }}
+      ref={rootRef}
+      tabIndex={-1}
+      onKeyDown={(e) => {
+        if (e.key === "Escape") {
+          e.preventDefault();
+          onClose();
+        }
+      }}
+      className="kn-panel-shell flex max-h-[580px] flex-col rounded-t-none border-t-0 outline-none"
     >
-      <div className="flex items-center gap-2">
-        <span className="text-xs font-semibold text-blue-400 uppercase tracking-wide">System Monitor</span>
-        <span className={`ml-auto text-[10px] ${streaming ? "text-green-500" : "text-gray-600"}`}>
-          {streaming ? "● Live" : "○ Stopped"}
+      <div className="kn-panel-header">
+        <div>
+          <div className="kn-panel-title">System Monitor</div>
+          <div className="kn-panel-subtitle">Live CPU, memory, disk, network, and process telemetry</div>
+        </div>
+        <span className={`kn-chip ${streaming ? "kn-chip-active" : ""}`}>
+          {streaming ? "Live" : "Stopped"}
         </span>
       </div>
 
-      {error && <p className="text-xs text-red-400">{error}</p>}
-
-      {!snap ? (
-        <p className="text-xs text-gray-600 text-center py-8">Loading...</p>
-      ) : (
-        <>
-          {/* CPU + RAM */}
-          <div className="grid grid-cols-2 gap-3">
-            <div className="bg-gray-800/50 rounded-lg p-3">
-              <div className="flex justify-between text-[10px] text-gray-500 mb-1.5">
-                <span>CPU</span>
-                <span className="text-gray-300 font-mono">{snap.cpu_pct.toFixed(1)}%</span>
-              </div>
-              <UsageBar pct={snap.cpu_pct} />
-            </div>
-            <div className="bg-gray-800/50 rounded-lg p-3">
-              <div className="flex justify-between text-[10px] text-gray-500 mb-1.5">
-                <span>RAM</span>
-                <span className="text-gray-300 font-mono">
-                  {snap.ram_used_mb.toLocaleString()} / {snap.ram_total_mb.toLocaleString()} MB
-                </span>
-              </div>
-              <UsageBar pct={ramPct} />
-            </div>
+      <div className="kn-scroll flex-1 overflow-y-auto px-4 py-3">
+        {error && (
+          <div className="kn-muted-surface mb-3 border-red-400/20 bg-[color:var(--kn-danger-wash)] px-3 py-2 text-xs text-red-100">
+            {error}
           </div>
+        )}
 
-          {/* Disks */}
-          {snap.disks.length > 0 && (
-            <div>
-              <div className="text-[10px] text-gray-600 mb-1.5 uppercase tracking-wide">Disks</div>
-              <div className="space-y-2">
-                {snap.disks.map((d) => (
-                  <div key={d.mount}>
-                    <div className="flex justify-between text-[10px] mb-0.5">
-                      <span className="text-gray-500 font-mono truncate max-w-[100px]">{d.mount}</span>
-                      <span className="text-gray-400">
-                        {d.used_gb.toFixed(1)}&thinsp;/&thinsp;{d.total_gb.toFixed(1)} GB
-                        <span className="ml-1 text-gray-600">({d.pct.toFixed(0)}%)</span>
+        {!snap ? (
+          <div className="flex min-h-[260px] items-center justify-center text-xs text-[color:var(--kn-text-faint)]">
+            Loading live system data...
+          </div>
+        ) : (
+          <div className="space-y-4">
+            <div className="grid grid-cols-2 gap-3">
+              <div className="kn-muted-surface p-3">
+                <div className="mb-2 flex items-center justify-between">
+                  <span className="kn-section-label">CPU</span>
+                  <span className="font-mono text-xs text-[color:var(--kn-text-soft)]">
+                    {snap.cpu_pct.toFixed(1)}%
+                  </span>
+                </div>
+                <UsageBar pct={snap.cpu_pct} tone={snap.cpu_pct >= 85 ? "danger" : "accent"} />
+              </div>
+              <div className="kn-muted-surface p-3">
+                <div className="mb-2 flex items-center justify-between">
+                  <span className="kn-section-label">Memory</span>
+                  <span className="font-mono text-xs text-[color:var(--kn-text-soft)]">
+                    {snap.ram_used_mb.toLocaleString()} / {snap.ram_total_mb.toLocaleString()} MB
+                  </span>
+                </div>
+                <UsageBar pct={ramPct} tone={ramPct >= 85 ? "danger" : "warm"} />
+              </div>
+            </div>
+
+            {snap.disks.length > 0 && (
+              <div>
+                <div className="kn-section-label mb-2">Disks</div>
+                <div className="space-y-2">
+                  {snap.disks.map((disk) => (
+                    <div key={disk.mount} className="kn-muted-surface px-3 py-2.5">
+                      <div className="mb-1.5 flex items-center justify-between gap-3 text-xs">
+                        <span className="truncate font-mono text-[color:var(--kn-text-soft)]">{disk.mount}</span>
+                        <span className="text-[color:var(--kn-text-muted)]">
+                          {disk.used_gb.toFixed(1)} / {disk.total_gb.toFixed(1)} GB
+                        </span>
+                      </div>
+                      <UsageBar pct={disk.pct} tone={disk.pct >= 90 ? "danger" : "accent"} />
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {activeNetworks.length > 0 && (
+              <div>
+                <div className="kn-section-label mb-2">Network</div>
+                <div className="space-y-1">
+                  {activeNetworks.map((network) => (
+                    <div key={network.name} className="kn-muted-surface flex items-center gap-3 px-3 py-2 text-xs">
+                      <span className="min-w-0 flex-1 truncate font-mono text-[color:var(--kn-text-soft)]">
+                        {network.name}
+                      </span>
+                      <span className="shrink-0 text-[color:var(--kn-accent)]">
+                        Down {network.rx_kbps.toFixed(0)} KB/s
+                      </span>
+                      <span className="shrink-0 text-[color:var(--kn-success)]">
+                        Up {network.tx_kbps.toFixed(0)} KB/s
                       </span>
                     </div>
-                    <UsageBar pct={d.pct} />
-                  </div>
-                ))}
+                  ))}
+                </div>
               </div>
-            </div>
-          )}
+            )}
 
-          {/* Network */}
-          {activeNets.length > 0 && (
             <div>
-              <div className="text-[10px] text-gray-600 mb-1.5 uppercase tracking-wide">Network</div>
-              <div className="space-y-0.5">
-                {activeNets.map((n) => (
-                  <div key={n.name} className="flex items-center gap-2 text-[10px]">
-                    <span className="text-gray-500 font-mono truncate flex-1">{n.name}</span>
-                    <span className="text-blue-400 shrink-0">↓&nbsp;{n.rx_kbps.toFixed(0)}&thinsp;KB/s</span>
-                    <span className="text-green-400 shrink-0">↑&nbsp;{n.tx_kbps.toFixed(0)}&thinsp;KB/s</span>
-                  </div>
-                ))}
+              <div className="mb-2 flex items-center justify-between">
+                <div className="kn-section-label">Top Processes</div>
+                <div className="flex gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => setSortBy("mem")}
+                    className={`kn-button px-2 py-1 text-[10px] ${sortBy === "mem" ? "kn-button-primary" : ""}`}
+                  >
+                    RAM
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setSortBy("cpu")}
+                    className={`kn-button px-2 py-1 text-[10px] ${sortBy === "cpu" ? "kn-button-primary" : ""}`}
+                  >
+                    CPU
+                  </button>
+                </div>
               </div>
-            </div>
-          )}
-
-          {/* Processes */}
-          <div>
-            <div className="flex items-center mb-1.5">
-              <span className="text-[10px] text-gray-600 uppercase tracking-wide flex-1">Top Processes</span>
-              <div className="flex gap-1">
-                <button
-                  onClick={() => setSortBy("mem")}
-                  className={`text-[9px] px-1.5 py-0.5 rounded transition-colors ${sortBy === "mem" ? "bg-amber-500/20 text-amber-400" : "text-gray-600 hover:text-gray-400"}`}
-                >
-                  RAM
-                </button>
-                <button
-                  onClick={() => setSortBy("cpu")}
-                  className={`text-[9px] px-1.5 py-0.5 rounded transition-colors ${sortBy === "cpu" ? "bg-blue-500/20 text-blue-400" : "text-gray-600 hover:text-gray-400"}`}
-                >
-                  CPU
-                </button>
+              <div className="space-y-1">
+                {[...snap.processes]
+                  .sort((a, b) => (sortBy === "cpu" ? b.cpu_pct - a.cpu_pct : b.mem_mb - a.mem_mb))
+                  .slice(0, 15)
+                  .map((process) => (
+                    <div
+                      key={process.pid}
+                      className="kn-muted-surface grid grid-cols-[minmax(0,1fr)_68px_90px_70px] items-center gap-3 px-3 py-2 text-xs"
+                    >
+                      <span className="truncate text-[color:var(--kn-text-soft)]">{process.name}</span>
+                      <span className="font-mono text-[color:var(--kn-text-faint)]">{process.pid}</span>
+                      <span className="font-mono text-[color:var(--kn-warm)]">{process.mem_mb} MB</span>
+                      <span className="font-mono text-[color:var(--kn-accent)]">{process.cpu_pct.toFixed(1)}%</span>
+                    </div>
+                  ))}
               </div>
-            </div>
-            <div className="space-y-0.5">
-              {[...snap.processes]
-                .sort((a, b) => sortBy === "cpu" ? b.cpu_pct - a.cpu_pct : b.mem_mb - a.mem_mb)
-                .slice(0, 15)
-                .map((p) => (
-                  <div key={p.pid} className="flex items-center gap-2 text-[10px]">
-                    <span className="text-gray-400 truncate flex-1">{p.name}</span>
-                    <span className="text-gray-600 font-mono shrink-0">{p.pid}</span>
-                    <span className="text-amber-400 font-mono shrink-0 w-16 text-right">{p.mem_mb}&thinsp;MB</span>
-                    <span className="text-blue-400 font-mono shrink-0 w-14 text-right">{p.cpu_pct.toFixed(1)}%</span>
-                  </div>
-                ))}
             </div>
           </div>
-        </>
-      )}
+        )}
+      </div>
+
+      <div className="kn-panel-footer">
+        <span>Esc closes</span>
+        <span>{streaming ? "Updates every 2 seconds" : "Stream paused"}</span>
+      </div>
     </div>
   );
 }
