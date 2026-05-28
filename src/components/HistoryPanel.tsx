@@ -53,41 +53,41 @@ export function HistoryPanel({ onClose }: PanelProps) {
   const displayList = query ? filtered : entries;
 
   return (
-    <div className="bg-gray-900/95 backdrop-blur-md rounded-b-xl shadow-2xl flex flex-col" style={{ maxHeight: 400 }}>
+    <div className="kn-panel-shell flex flex-col rounded-t-none border-t-0" style={{ maxHeight: 400 }}>
       {/* Header */}
-      <div className="flex items-center justify-between px-4 py-2 border-b border-gray-700/50">
-        <span className="text-xs font-semibold text-blue-400 uppercase tracking-wide">{t.history.title}</span>
+      <div className="kn-panel-header">
+        <span className="kn-panel-title">{t.history.title}</span>
         <button
           onClick={() => void clearAll()}
-          className="text-[10px] text-gray-600 hover:text-gray-400 transition-colors"
+          className="kn-button py-1 text-[10px]"
         >
           {t.history.clearAll}
         </button>
       </div>
 
       {/* Search */}
-      <div className="px-4 py-2 border-b border-gray-700/30">
+      <div className="border-b border-[color:var(--kn-border)] px-4 py-2">
         <input
           ref={inputRef}
           value={query}
           onChange={(e) => handleSearch(e.target.value)}
           onKeyDown={handleKeyDown}
           placeholder={t.history.searchPlaceholder}
-          className="w-full bg-gray-800/60 text-gray-200 text-sm rounded px-3 py-1.5 outline-none placeholder-gray-600"
+          className="kn-field w-full py-1.5 text-sm"
         />
       </div>
 
       {/* Entries */}
-      <div className="flex-1 overflow-y-auto py-1">
+      <div className="kn-scroll flex-1 overflow-y-auto py-1">
         {displayList.length === 0 && (
-          <p className="text-center text-gray-700 text-xs py-6">{t.history.empty}</p>
+          <p className="py-6 text-center text-xs text-[color:var(--kn-text-faint)]">{t.history.empty}</p>
         )}
         {displayList.map((entry, i) => (
           <div
             key={entry.id}
             onMouseEnter={() => setSelected(i)}
             className={`flex items-start gap-2 px-4 py-2 group transition-colors ${
-              i === selected ? "bg-blue-600/20" : "hover:bg-white/5"
+              i === selected ? "bg-[color:var(--kn-accent-wash)]" : "hover:bg-white/[0.045]"
             }`}
           >
             {entry.pinned && (
@@ -95,7 +95,7 @@ export function HistoryPanel({ onClose }: PanelProps) {
             )}
             <button
               onClick={() => void copyEntry(entry)}
-              className="flex-1 text-left text-xs text-gray-300 truncate font-mono leading-5"
+              className="flex-1 truncate text-left font-mono text-xs leading-5 text-[color:var(--kn-text-soft)]"
               title={entry.content}
             >
               {entry.content.slice(0, 200)}
@@ -103,19 +103,19 @@ export function HistoryPanel({ onClose }: PanelProps) {
             <div className="shrink-0 flex gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
               <button
                 onClick={() => void copyEntry(entry)}
-                className="text-[9px] text-gray-600 hover:text-blue-400"
+                className="text-[9px] text-[color:var(--kn-text-faint)] hover:text-[color:var(--kn-accent)]"
               >
                 {copiedId === entry.id ? "✓" : t.history.paste}
               </button>
               <button
                 onClick={() => void pinEntry(entry.id, !entry.pinned)}
-                className="text-[9px] text-gray-600 hover:text-amber-400"
+                className="text-[9px] text-[color:var(--kn-text-faint)] hover:text-amber-300"
               >
                 {entry.pinned ? t.history.unpin : t.history.pin}
               </button>
               <button
                 onClick={() => void deleteEntry(entry.id)}
-                className="text-[9px] text-gray-600 hover:text-red-400"
+                className="text-[9px] text-[color:var(--kn-text-faint)] hover:text-[color:var(--kn-danger)]"
               >
                 {t.history.delete}
               </button>
@@ -124,7 +124,7 @@ export function HistoryPanel({ onClose }: PanelProps) {
         ))}
       </div>
 
-      <div className="px-4 py-1.5 border-t border-gray-700/30 text-[10px] text-gray-700 flex justify-between">
+      <div className="kn-panel-footer text-[10px]">
         <span>↑↓ 選擇</span>
         <span>Enter 複製</span>
         <span>Esc 關閉</span>

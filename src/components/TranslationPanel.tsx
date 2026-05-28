@@ -180,22 +180,22 @@ function LangPicker({ value, onChange, langs, allowAuto = false }: LangPickerPro
           e.preventDefault();
           setOpen((o) => !o);
         }}
-        className={`flex items-center gap-1 rounded px-2 py-1 text-xs transition-colors ${
+        className={`kn-button px-2 py-1 text-xs ${
           open
-            ? "bg-blue-600/40 text-white"
+            ? "border-[color:rgba(138,168,255,0.24)] bg-[color:var(--kn-accent-wash)] text-white"
             : isUnknown
-              ? "bg-amber-900/30 text-amber-300 hover:bg-amber-900/50"
-              : "bg-gray-800/70 text-gray-200 hover:bg-gray-700/70"
+              ? "border-amber-400/20 bg-amber-400/10 text-amber-200 hover:bg-amber-400/15"
+              : ""
         }`}
       >
         <span className="font-mono font-semibold">{value}</span>
-        {label && <span className="text-gray-400 text-[11px]">— {label}</span>}
-        {isUnknown && <span className="text-amber-400 text-[10px] ml-0.5">?未知代碼</span>}
-        <span className="text-gray-500 text-[10px]">▾</span>
+        {label && <span className="text-[11px] text-[color:var(--kn-text-muted)]">— {label}</span>}
+        {isUnknown && <span className="ml-0.5 text-[10px] text-amber-300">未知代碼</span>}
+        <span className="text-[10px] text-[color:var(--kn-text-faint)]">▾</span>
       </button>
 
       {open && (
-        <div className="absolute z-50 top-full mt-1 left-0 w-52 rounded-lg bg-gray-800 border border-gray-700/60 shadow-2xl overflow-hidden">
+        <div className="kn-panel-shell absolute left-0 top-full z-50 mt-1 w-52 overflow-hidden rounded-[8px]">
           <input
             ref={inputRef}
             value={query}
@@ -205,11 +205,11 @@ function LangPicker({ value, onChange, langs, allowAuto = false }: LangPickerPro
             }}
             onKeyDown={handleKeyDown}
             placeholder="搜尋語言代碼或名稱…"
-            className="w-full bg-gray-700/60 text-gray-100 text-xs px-3 py-1.5 outline-none placeholder-gray-500 border-b border-gray-700"
+            className="kn-field w-full rounded-none border-x-0 border-t-0 px-3 py-1.5 text-xs"
           />
-          <div ref={listRef} className="max-h-44 overflow-y-auto">
+          <div ref={listRef} className="kn-scroll max-h-44 overflow-y-auto">
             {filtered.length === 0 && (
-              <p className="px-3 py-2 text-[11px] text-gray-500">無符合結果</p>
+              <p className="px-3 py-2 text-[11px] text-[color:var(--kn-text-faint)]">無符合結果</p>
             )}
             {filtered.map((l, i) => (
               <button
@@ -218,11 +218,11 @@ function LangPicker({ value, onChange, langs, allowAuto = false }: LangPickerPro
                 onMouseDown={() => select(l.code)}
                 className={`flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs transition-colors ${
                   i === cursor
-                    ? "bg-blue-600/40 text-white"
-                    : "text-gray-300 hover:bg-gray-700/50"
+                    ? "bg-[color:var(--kn-accent-wash)] text-white"
+                    : "text-[color:var(--kn-text-soft)] hover:bg-white/[0.05]"
                 }`}
               >
-                <span className="font-mono w-10 shrink-0 text-gray-400">{l.code}</span>
+                <span className="w-10 shrink-0 font-mono text-[color:var(--kn-text-muted)]">{l.code}</span>
                 <span className="truncate">{l.name}</span>
               </button>
             ))}
@@ -432,12 +432,12 @@ export function TranslationPanel({ onClose, initialArgs }: PanelProps) {
   }, [initialArgs, translate]);
 
   return (
-    <div className="min-h-[350px] bg-gray-900/95 backdrop-blur-md rounded-b-xl shadow-2xl flex flex-col p-4 gap-3">
+    <div className="kn-panel-shell flex min-h-[350px] flex-col gap-3 rounded-t-none border-t-0 p-4">
       <div className="flex items-center justify-between gap-2">
-        <span className="text-xs font-semibold text-blue-400 uppercase tracking-wide">
+        <span className="kn-panel-title">
           {t.translation.title}
         </span>
-        <span className="text-[10px] text-gray-500">
+        <span className="text-[10px] text-[color:var(--kn-text-muted)]">
           Google Translate | {src || DEFAULT_SRC} -&gt; {dst || DEFAULT_DST}
           {loading ? ` | ${t.translation.translating}` : ""}
         </span>
@@ -464,7 +464,7 @@ export function TranslationPanel({ onClose, initialArgs }: PanelProps) {
           }
         }}
         placeholder="auto zh-TW text"
-        className="bg-gray-800/70 text-gray-100 text-sm rounded px-3 py-2 outline-none placeholder-gray-600"
+        className="kn-field text-sm"
       />
 
       {/* Visual language pickers — stay in sync with the command line above */}
@@ -476,7 +476,7 @@ export function TranslationPanel({ onClose, initialArgs }: PanelProps) {
             langs={langs}
             allowAuto
           />
-          <span className="text-gray-600 text-xs">→</span>
+          <span className="text-xs text-[color:var(--kn-text-faint)]">→</span>
           <LangPicker
             value={dst}
             onChange={(code) => updateFromPicker(src, code)}
@@ -507,12 +507,12 @@ export function TranslationPanel({ onClose, initialArgs }: PanelProps) {
         }}
         placeholder={t.translation.textPlaceholder}
         rows={5}
-        className="bg-gray-800/60 text-gray-200 text-sm rounded px-3 py-2 outline-none resize-none placeholder-gray-600 overflow-y-auto"
+        className="kn-textarea kn-scroll overflow-y-auto text-sm"
         style={{ fontFamily: "'Segoe UI', 'Microsoft JhengHei', 'PingFang TC', 'Noto Sans', sans-serif" }}
       />
 
       {error && (
-        <p className="rounded bg-red-950/30 border border-red-900/40 px-3 py-2 text-xs text-red-300">
+        <p className="rounded-[8px] border border-red-400/20 bg-[color:var(--kn-danger-wash)] px-3 py-2 text-xs text-red-200">
           {error}
         </p>
       )}
@@ -539,12 +539,12 @@ export function TranslationPanel({ onClose, initialArgs }: PanelProps) {
         }}
         placeholder={loading ? t.translation.translating : "Google Translate output"}
         rows={5}
-        className="bg-gray-800/60 text-gray-100 text-sm rounded px-3 py-2 outline-none resize-none placeholder-gray-600 overflow-y-auto selection:bg-blue-500/40 selection:text-white"
+        className="kn-textarea kn-scroll overflow-y-auto text-sm selection:bg-blue-500/40 selection:text-white"
         style={{ fontFamily: "'Segoe UI', 'Microsoft JhengHei', 'PingFang TC', 'Malgun Gothic', 'Hiragino Sans', 'Noto Sans', sans-serif" }}
       />
 
-      <div className="text-[10px] text-gray-700">
-        Command：&lt;src&gt; &lt;dst&gt; &lt;text&gt;，例如 <span className="text-gray-600">en ja 你好</span>。↑↓ 切換區域 · Esc 關閉
+      <div className="text-[10px] text-[color:var(--kn-text-faint)]">
+        Command：&lt;src&gt; &lt;dst&gt; &lt;text&gt;，例如 <span className="text-[color:var(--kn-text-muted)]">en ja 你好</span>。↑↓ 切換區域 · Esc 關閉
       </div>
     </div>
   );
