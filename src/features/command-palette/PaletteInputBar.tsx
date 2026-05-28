@@ -40,21 +40,6 @@ export function PaletteInputBar({
         hasContentBelow ? "rounded-b-none" : ""
       }`}
     >
-      <div
-        className="flex shrink-0 items-center gap-1.5 select-none"
-        aria-label="Keynova"
-      >
-        <img
-          src={keynovaLogo}
-          alt=""
-          className="h-6 w-6 rounded-md"
-          draggable={false}
-        />
-        <span className="text-[11px] font-semibold uppercase tracking-[0.22em] text-[color:var(--kn-text-soft)]">
-          Keynova
-        </span>
-      </div>
-
       <div className={iconShellClass} aria-hidden="true">
         {mode === "command" ? (
           <UiIcon name="command" className="h-[18px] w-[18px]" />
@@ -86,7 +71,7 @@ export function PaletteInputBar({
         </div>
       </div>
 
-      <div className="flex shrink-0 items-center gap-2">
+      <div className="flex shrink-0 items-center gap-2 self-end">
         {searchBackend && mode === "search" && (
           <span
             title={`configured=${searchBackend.configured}, everything=${searchBackend.everything_available}, tantivy=${searchBackend.tantivy_available}, cache=${searchBackend.file_cache_entries}, tantivy_docs=${searchBackend.tantivy_index_entries}, index=${searchBackend.tantivy_index_dir}`}
@@ -97,6 +82,12 @@ export function PaletteInputBar({
           </span>
         )}
         <WorkspaceIndicator />
+        <img
+          src={keynovaLogo}
+          alt="Keynova"
+          className="h-4 w-4 rounded-sm opacity-70"
+          draggable={false}
+        />
       </div>
     </div>
   );

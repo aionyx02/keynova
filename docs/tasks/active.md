@@ -14,7 +14,7 @@ tags: [refactor, ai-capability, search-first, p0]
 
 ### P0
 
-- [~] `BRAND.ICON` swap Tauri placeholder icon for `keynova_icon.png` brand across desktop surfaces (tauri icon-generated set, in-panel logo + wordmark, tray About/Version, NSIS sidebar/header BMPs). User-mandated polish — explicit override of pre-REF.7 freeze. Branch `feature/brand-icon`.
+- [~] `BRAND.ICON` swap Tauri placeholder icon for `keynova_icon.png` brand across desktop surfaces (tauri icon-generated set, 16px panel logo bottom-right, tray About/Version, NSIS sidebar/header BMPs). User-mandated polish — explicit override of pre-REF.7 freeze. Branch `feature/brand-icon`.
 - [x] `REF.0` lock ADR-0029 as the governing decision for the AI capability refactor.
 - [x] `REF.1` define `UnifiedResult` as the shared result/action contract.
 - [x] `REF.2` split `CommandPalette.tsx` (landed 598 lines; `< 250` dropped — see plan).
