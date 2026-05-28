@@ -978,7 +978,7 @@ fn search_item_key(item: &UiSearchItem) -> String {
     format!("{}:{}", item.source, item.path)
 }
 
-fn icon_key_for_item(source: &str, path: &str, kind: &ResultKind) -> String {
+pub(crate) fn icon_key_for_item(source: &str, path: &str, kind: &ResultKind) -> String {
     match kind {
         ResultKind::App => format!("app:{}", stable_hash(path)),
         ResultKind::File => {
