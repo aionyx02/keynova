@@ -462,7 +462,7 @@ export function CommandPalette() {
       {/* Terminal: mounted once on first visit, hidden via CSS when not active */}
       {terminalMounted && (
         <div style={{ display: mode === "terminal" ? "block" : "none" }}>
-          <Suspense fallback={<div className="kn-terminal-shell h-[410px]" />}>
+          <Suspense fallback={<div className="kn-terminal-shell h-[520px]" />}>
             <TerminalPanel isActive={mode === "terminal"} onExit={terminalOnExit} />
           </Suspense>
         </div>
