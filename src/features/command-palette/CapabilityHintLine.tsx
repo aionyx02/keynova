@@ -31,13 +31,13 @@ const HINTS: ReadonlyArray<PrefixHint> = [
 export function CapabilityHintLine({ visible }: Props): ReactElement | null {
   if (!visible) return null;
   return (
-    <div className="px-4 py-1.5 text-[11px] text-gray-500 bg-gray-950/40 border-t border-gray-700/40">
-      <span className="text-gray-600">Try: </span>
+    <div className="kn-panel-shell overflow-hidden rounded-t-none border-t-0 px-4 py-2 text-[11px] text-[color:var(--kn-text-muted)]">
+      <span className="text-[color:var(--kn-text-faint)]">Try: </span>
       {HINTS.map((h, i) => (
         <span key={h.prefix}>
-          {i > 0 && <span className="mx-1.5 text-gray-700">·</span>}
-          <span className="text-gray-400">{h.prefix}</span>
-          {h.args && <span className="text-gray-600"> {h.args}</span>}
+          {i > 0 && <span className="mx-1.5 text-[color:var(--kn-text-faint)]">/</span>}
+          <span className="font-medium text-[color:var(--kn-text-soft)]">{h.prefix}</span>
+          {h.args && <span className="font-mono text-[color:var(--kn-text-faint)]"> {h.args}</span>}
         </span>
       ))}
     </div>

@@ -1,9 +1,3 @@
-// REF.2.P4 — Pipeline running indicator + completed pipeline report row.
-//
-// Two render paths in one component because the running indicator and the
-// result list never coexist (running -> result -> Esc-cleared), and they
-// share the same outer card styling.
-
 import type { PipelineReport } from "./hooks/usePipeline";
 
 interface Props {
@@ -11,47 +5,50 @@ interface Props {
   result: PipelineReport | null;
 }
 
+function statusTone(status: string): string {
+  return status === "completed" ? "bg-emerald-400 text-emerald-100" : "bg-rose-400 text-rose-100";
+}
+
 export function PipelineStatusRow({ running, result }: Props) {
   if (running) {
     return (
-      <div className="bg-gray-900/95 backdrop-blur-md rounded-b-xl shadow-2xl px-4 py-3">
-        <span className="text-sm text-blue-400 animate-pulse">Pipeline running…</span>
+      <div className="kn-panel-shell flex items-center gap-3 rounded-t-none border-t-0 px-4 py-3">
+        <span className="h-2.5 w-2.5 animate-pulse rounded-full bg-[color:var(--kn-accent)]" />
+        <span className="text-sm font-medium text-[color:var(--kn-text-soft)]">
+          Pipeline running...
+        </span>
       </div>
     );
   }
 
   if (!result) return null;
 
+  const isCompleted = result.log.status === "completed";
+
   return (
-    <div className="bg-gray-900/95 backdrop-blur-md rounded-b-xl shadow-2xl overflow-hidden">
-      <ul className="py-1">
+    <div className="kn-panel-shell overflow-hidden rounded-t-none border-t-0">
+      <ul className="kn-scroll max-h-[220px] overflow-y-auto px-2 py-2">
         {result.actions.map((stage) => (
-          <li key={stage.index} className="flex items-start gap-2 px-4 py-1.5 text-sm">
-            <span
-              className={`shrink-0 font-mono text-xs mt-0.5 ${
-                stage.status === "completed" ? "text-emerald-400" : "text-red-400"
-              }`}
-            >
-              {stage.status === "completed" ? "✓" : "✗"}
+          <li
+            key={stage.index}
+            className="flex items-start gap-3 rounded-[12px] px-3 py-2 text-sm text-[color:var(--kn-text-soft)]"
+          >
+            <span className={`mt-1.5 h-2 w-2 shrink-0 rounded-full ${statusTone(stage.status)}`} />
+            <span className="shrink-0 font-mono text-xs text-[color:var(--kn-text-muted)]">
+              {stage.route}
             </span>
-            <span className="font-mono text-gray-400 shrink-0">{stage.route}</span>
-            {stage.error && <span className="text-red-400 truncate">{stage.error}</span>}
+            {stage.error && <span className="min-w-0 truncate text-rose-200">{stage.error}</span>}
           </li>
         ))}
-        {result.log.status === "failed" &&
-          result.log.error &&
-          result.actions.length === 0 && (
-            <li className="px-4 py-1.5 text-sm text-red-400">{result.log.error}</li>
-          )}
+        {result.log.status === "failed" && result.log.error && result.actions.length === 0 && (
+          <li className="px-3 py-2 text-sm text-rose-200">{result.log.error}</li>
+        )}
       </ul>
-      <div className="border-t border-gray-700/50 px-4 py-1.5 text-[11px] text-gray-600 flex justify-between">
-        <span
-          className={result.log.status === "completed" ? "text-emerald-600" : "text-red-600"}
-        >
+      <div className="flex items-center justify-between border-t border-[color:var(--kn-border)] bg-[rgba(7,11,17,0.48)] px-4 py-2 text-[11px] text-[color:var(--kn-text-muted)]">
+        <span className={isCompleted ? "text-emerald-300" : "text-rose-300"}>
           {result.log.status}
         </span>
         <span>{result.log.action_count} stages</span>
-        <span>Esc 清除</span>
       </div>
     </div>
   );
