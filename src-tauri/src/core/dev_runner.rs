@@ -67,7 +67,10 @@ pub fn run_bounded_dev_cmd(
 
     let deadline = Instant::now() + timeout;
     let exit_code = loop {
-        match child.try_wait().map_err(|e| format!("{program}: wait error: {e}"))? {
+        match child
+            .try_wait()
+            .map_err(|e| format!("{program}: wait error: {e}"))?
+        {
             Some(status) => break status.code(),
             None => {
                 if Instant::now() >= deadline {
@@ -107,9 +110,14 @@ pub fn extract_compiler_errors(output: &str) -> Vec<Value> {
         let trimmed = line.trim();
 
         // Cargo: `error[E0308]: mismatched types` or `error: ...`
-        if trimmed.starts_with("error[") || (trimmed.starts_with("error") && trimmed.contains(':') && !trimmed.starts_with("error -->")) {
+        if trimmed.starts_with("error[")
+            || (trimmed.starts_with("error")
+                && trimmed.contains(':')
+                && !trimmed.starts_with("error -->"))
+        {
             if let Some(msg) = pending_message.take() {
-                errors.push(json!({ "message": msg, "code": pending_code.take(), "location": null }));
+                errors
+                    .push(json!({ "message": msg, "code": pending_code.take(), "location": null }));
             }
             // Extract optional error code like E0308
             let code = if trimmed.starts_with("error[") {
@@ -199,7 +207,10 @@ mod tests {
         assert!(result.is_ok(), "command should succeed: {:?}", result);
         let val = result.unwrap();
         let stdout = val["stdout"].as_str().unwrap_or("");
-        assert!(stdout.contains("hello"), "stdout should contain 'hello', got: {stdout}");
+        assert!(
+            stdout.contains("hello"),
+            "stdout should contain 'hello', got: {stdout}"
+        );
 
         let _ = std::fs::remove_dir_all(dir);
     }
@@ -218,7 +229,10 @@ mod tests {
 
         let result = run_bounded_dev_cmd(prog, args, &dir, Duration::from_millis(300));
         assert!(result.is_err(), "slow process should time out");
-        assert!(result.unwrap_err().contains("timed out"), "error should mention timeout");
+        assert!(
+            result.unwrap_err().contains("timed out"),
+            "error should mention timeout"
+        );
 
         let _ = std::fs::remove_dir_all(dir);
     }
@@ -229,8 +243,14 @@ mod tests {
         let errors = extract_compiler_errors(output);
         assert_eq!(errors.len(), 1);
         assert_eq!(errors[0]["code"].as_str().unwrap(), "E0308");
-        assert!(errors[0]["message"].as_str().unwrap().contains("mismatched types"));
-        assert!(errors[0]["location"].as_str().unwrap().contains("src/main.rs:10:5"));
+        assert!(errors[0]["message"]
+            .as_str()
+            .unwrap()
+            .contains("mismatched types"));
+        assert!(errors[0]["location"]
+            .as_str()
+            .unwrap()
+            .contains("src/main.rs:10:5"));
     }
 
     #[test]

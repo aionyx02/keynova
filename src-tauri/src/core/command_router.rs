@@ -65,7 +65,9 @@ mod tests {
     fn dispatch_routes_to_registered_handler() {
         let mut router = CommandRouter::new();
         router.register(Arc::new(EchoHandler { ns: "search" }));
-        let result = router.dispatch("search.query", json!({ "q": "test" })).unwrap();
+        let result = router
+            .dispatch("search.query", json!({ "q": "test" }))
+            .unwrap();
         assert_eq!(result["ns"], "search");
         assert_eq!(result["command"], "query");
     }
@@ -74,14 +76,20 @@ mod tests {
     fn dispatch_unknown_namespace_returns_error() {
         let router = CommandRouter::new();
         let err = router.dispatch("unknown.cmd", json!(null)).unwrap_err();
-        assert!(err.contains("unknown"), "error should mention the namespace: {err}");
+        assert!(
+            err.contains("unknown"),
+            "error should mention the namespace: {err}"
+        );
     }
 
     #[test]
     fn dispatch_route_without_dot_returns_error() {
         let router = CommandRouter::new();
         let err = router.dispatch("nodotroute", json!(null)).unwrap_err();
-        assert!(err.contains("invalid route"), "error should say invalid route: {err}");
+        assert!(
+            err.contains("invalid route"),
+            "error should say invalid route: {err}"
+        );
     }
 
     #[test]

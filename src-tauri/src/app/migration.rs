@@ -136,10 +136,8 @@ mod tests {
 
     #[test]
     fn copy_file_once_skips_existing_dst() {
-        let tmp = std::env::temp_dir().join(format!(
-            "keynova-migration-test-{}",
-            uuid::Uuid::new_v4()
-        ));
+        let tmp =
+            std::env::temp_dir().join(format!("keynova-migration-test-{}", uuid::Uuid::new_v4()));
         std::fs::create_dir_all(&tmp).unwrap();
         let src = tmp.join("src.txt");
         let dst = tmp.join("dst.txt");
@@ -153,10 +151,8 @@ mod tests {
 
     #[test]
     fn copy_file_once_copies_when_dst_absent() {
-        let tmp = std::env::temp_dir().join(format!(
-            "keynova-migration-test-{}",
-            uuid::Uuid::new_v4()
-        ));
+        let tmp =
+            std::env::temp_dir().join(format!("keynova-migration-test-{}", uuid::Uuid::new_v4()));
         std::fs::create_dir_all(&tmp).unwrap();
         let src = tmp.join("src.txt");
         let dst = tmp.join("dst.txt");

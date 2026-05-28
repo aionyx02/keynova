@@ -137,12 +137,19 @@ fn ai_capability_live_explain_streams_chunks() {
     );
 
     // The Ctrl+E user surface receives chunks > 0 for any non-trivial reply.
-    assert!(chunk_count > 0, "expected ≥1 stream chunk, got 0 — frontend would stay on Streaming…");
+    assert!(
+        chunk_count > 0,
+        "expected ≥1 stream chunk, got 0 — frontend would stay on Streaming…"
+    );
     match &resp.output {
         CapabilityOutput::Text { text } => {
             assert!(!text.trim().is_empty(), "final accumulated text was empty");
             // Sanity: the streamed chunks concatenate to the same final text.
-            assert_eq!(text.trim(), stream_text.trim(), "stream concat must equal final reply");
+            assert_eq!(
+                text.trim(),
+                stream_text.trim(),
+                "stream concat must equal final reply"
+            );
         }
         _ => panic!("expected text output"),
     }

@@ -113,13 +113,8 @@ impl AgentHandler {
             ..ReactLoopConfig::default()
         };
         let inserted = self.runtime.insert_run(run)?;
-        self.runtime.spawn_react_loop(
-            run_id,
-            provider,
-            tools,
-            loop_config,
-            dispatch,
-        );
+        self.runtime
+            .spawn_react_loop(run_id, provider, tools, loop_config, dispatch);
         Ok(inserted)
     }
 
@@ -268,16 +263,16 @@ impl AgentHandler {
                     })),
                 );
                 if long_term_memory_opt_in(&self.config) {
-                    let workspace_id =
-                        self.workspace_manager.lock().ok().map(|ws| ws.current().id);
-                    self.knowledge_store.try_store_agent_memory(AgentMemoryEntry {
-                        id: format!("run:{run_id}"),
-                        scope: "long_term".into(),
-                        workspace_id,
-                        title: truncate(&run.prompt, 80),
-                        content: run.output.clone().unwrap_or_default(),
-                        visibility: "user_private".into(),
-                    });
+                    let workspace_id = self.workspace_manager.lock().ok().map(|ws| ws.current().id);
+                    self.knowledge_store
+                        .try_store_agent_memory(AgentMemoryEntry {
+                            id: format!("run:{run_id}"),
+                            scope: "long_term".into(),
+                            workspace_id,
+                            title: truncate(&run.prompt, 80),
+                            content: run.output.clone().unwrap_or_default(),
+                            visibility: "user_private".into(),
+                        });
                 }
                 self.runtime.update_run(run, "agent.run.completed")
             }

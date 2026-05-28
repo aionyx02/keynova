@@ -72,10 +72,7 @@ mod tests {
     struct EchoProvider;
     impl ChatProvider for EchoProvider {
         fn chat(&self, prompt: &str, _cancel: &AtomicBool) -> Result<String, String> {
-            Ok(format!(
-                "summary: {}",
-                prompt.lines().last().unwrap_or("")
-            ))
+            Ok(format!("summary: {}", prompt.lines().last().unwrap_or("")))
         }
     }
 

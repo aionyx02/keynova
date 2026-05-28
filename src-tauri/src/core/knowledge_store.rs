@@ -752,10 +752,7 @@ fn insert_agent_memory(conn: &Connection, entry: &AgentMemoryEntry) -> Result<()
     Ok(())
 }
 
-fn insert_workflow_history(
-    conn: &Connection,
-    entry: &WorkflowHistoryEntry,
-) -> Result<(), String> {
+fn insert_workflow_history(conn: &Connection, entry: &WorkflowHistoryEntry) -> Result<(), String> {
     conn.execute(
         "INSERT INTO workflow_history (context_hash, route, action_label, payload_digest, workspace_id)
          VALUES (?1, ?2, ?3, ?4, ?5)",
@@ -833,25 +830,19 @@ fn read_agent_memories(
         )
         .map_err(|e| e.to_string())?;
     let rows = stmt
-        .query_map(
-            params![
-                scope,
-                workspace_id,
-                limit.max(1) as i64,
-            ],
-            |row| {
-                Ok(AgentMemoryEntry {
-                    id: row.get(0)?,
-                    scope: row.get(1)?,
-                    workspace_id: row.get(2)?,
-                    title: row.get(3)?,
-                    content: row.get(4)?,
-                    visibility: row.get(5)?,
-                })
-            },
-        )
+        .query_map(params![scope, workspace_id, limit.max(1) as i64,], |row| {
+            Ok(AgentMemoryEntry {
+                id: row.get(0)?,
+                scope: row.get(1)?,
+                workspace_id: row.get(2)?,
+                title: row.get(3)?,
+                content: row.get(4)?,
+                visibility: row.get(5)?,
+            })
+        })
         .map_err(|e| e.to_string())?;
-    rows.collect::<Result<Vec<_>, _>>().map_err(|e| e.to_string())
+    rows.collect::<Result<Vec<_>, _>>()
+        .map_err(|e| e.to_string())
 }
 
 fn default_db_path() -> PathBuf {

@@ -1,4 +1,4 @@
-﻿use std::path::PathBuf;
+use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 
 use serde::Serialize;
@@ -14,10 +14,9 @@ use crate::managers::{
     history_manager::HistoryManager, model_manager::ModelManager, note_manager::NoteManager,
     workspace_manager::WorkspaceManager,
 };
-use crate::models::agent::GroundingSource;
 #[cfg(test)]
 use crate::models::agent::ContextVisibility;
-
+use crate::models::agent::GroundingSource;
 
 mod answers;
 mod filesystem;
@@ -115,9 +114,7 @@ impl CommandHandler for AgentHandler {
                         .map(|v| !v.eq_ignore_ascii_case("false"))
                         .unwrap_or(true);
                     if !enabled {
-                        return Err(
-                            "Agent 功能已停用。請前往 /setting → Features 開啟。".into()
-                        );
+                        return Err("Agent 功能已停用。請前往 /setting → Features 開啟。".into());
                     }
                 }
                 let prompt = payload
@@ -188,10 +185,10 @@ impl CommandHandler for AgentHandler {
 // `AgentHandler::build_react_dispatch` live in `tools.rs` after REF.3 batch 7.
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use std::path::Path;
-    use crate::models::settings_schema::SettingValueType;
     use super::tools::{bound_output, GIT_STATUS_OUTPUT_LIMIT};
+    use super::*;
+    use crate::models::settings_schema::SettingValueType;
+    use std::path::Path;
 
     #[test]
     fn rejects_private_context_in_web_query() {
@@ -484,7 +481,9 @@ mod tests {
 
     #[test]
     fn openai_provider_selects_react_loop() {
-        use crate::managers::ai_manager::{provider_supports_tool_calls, resolve_ai_runtime_config};
+        use crate::managers::ai_manager::{
+            provider_supports_tool_calls, resolve_ai_runtime_config,
+        };
         let pairs = [
             ("ai.provider", "openai"),
             ("ai.openai_api_key", "test-key"),
@@ -492,7 +491,10 @@ mod tests {
             ("ai.model", "gpt-4o-mini"),
         ];
         let rt = resolve_ai_runtime_config(|k| {
-            pairs.iter().find(|(key, _)| *key == k).map(|(_, v)| v.to_string())
+            pairs
+                .iter()
+                .find(|(key, _)| *key == k)
+                .map(|(_, v)| v.to_string())
         })
         .unwrap();
         assert!(provider_supports_tool_calls(&rt.provider));
@@ -500,14 +502,19 @@ mod tests {
 
     #[test]
     fn claude_provider_selects_heuristic_fallback() {
-        use crate::managers::ai_manager::{provider_supports_tool_calls, resolve_ai_runtime_config};
+        use crate::managers::ai_manager::{
+            provider_supports_tool_calls, resolve_ai_runtime_config,
+        };
         let pairs = [
             ("ai.provider", "claude"),
             ("ai.api_key", "test-key"),
             ("ai.model", "claude-sonnet-4-6"),
         ];
         let rt = resolve_ai_runtime_config(|k| {
-            pairs.iter().find(|(key, _)| *key == k).map(|(_, v)| v.to_string())
+            pairs
+                .iter()
+                .find(|(key, _)| *key == k)
+                .map(|(_, v)| v.to_string())
         })
         .unwrap();
         assert!(!provider_supports_tool_calls(&rt.provider));
@@ -544,20 +551,25 @@ mod tests {
     fn looks_sensitive_path_blocks_ssh_keys() {
         assert!(looks_sensitive_path(Path::new("/home/user/.ssh/id_rsa")));
         assert!(looks_sensitive_path(Path::new("C:\\Users\\user\\.env")));
-        assert!(looks_sensitive_path(Path::new("/home/user/.aws/credentials")));
-        assert!(!looks_sensitive_path(Path::new("/home/user/projects/main.rs")));
+        assert!(looks_sensitive_path(Path::new(
+            "/home/user/.aws/credentials"
+        )));
+        assert!(!looks_sensitive_path(Path::new(
+            "/home/user/projects/main.rs"
+        )));
     }
 
     #[test]
     fn resolve_readable_path_rejects_out_of_workspace() {
-        let root = std::env::temp_dir()
-            .join(format!("keynova-path-test-{}", Uuid::new_v4()));
+        let root = std::env::temp_dir().join(format!("keynova-path-test-{}", Uuid::new_v4()));
         std::fs::create_dir_all(&root).expect("create root");
         // Attempting to read something outside the root using `..` traversal
         let err = resolve_readable_path("../../etc/passwd", &[root.clone()]).unwrap_err();
         // Could fail at "not found" or "outside workspace" — both are correct rejections
         assert!(
-            err.contains("not found") || err.contains("outside workspace") || err.contains("cannot resolve"),
+            err.contains("not found")
+                || err.contains("outside workspace")
+                || err.contains("cannot resolve"),
             "unexpected error: {err}"
         );
         let _ = std::fs::remove_dir_all(root);
@@ -565,8 +577,7 @@ mod tests {
 
     #[test]
     fn resolve_readable_path_allows_in_workspace() {
-        let root = std::env::temp_dir()
-            .join(format!("keynova-path-ok-{}", Uuid::new_v4()));
+        let root = std::env::temp_dir().join(format!("keynova-path-ok-{}", Uuid::new_v4()));
         std::fs::create_dir_all(&root).expect("create root");
         let file = root.join("note.txt");
         std::fs::write(&file, "hello").expect("write file");
@@ -591,7 +602,10 @@ mod tests {
         let cwd = outside.canonicalize().unwrap_or(outside.clone());
         let workspace_root = root.canonicalize().unwrap_or(root.clone());
         let in_workspace = cwd.starts_with(&workspace_root);
-        assert!(!in_workspace, "outside dir should not start_with workspace root");
+        assert!(
+            !in_workspace,
+            "outside dir should not start_with workspace root"
+        );
 
         let _ = std::fs::remove_dir_all(root);
         let _ = std::fs::remove_dir_all(outside);
@@ -612,5 +626,4 @@ mod tests {
         let out = bound_output(small);
         assert_eq!(out, "M  src/foo.rs\n");
     }
-
 }

@@ -73,18 +73,11 @@ pub type ConfirmRequirement = RiskTag;
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum ResultSource {
     /// Filesystem-indexed entries (apps, files, folders, notes, history, models).
-    File {
-        kind: ResultKind,
-        path: String,
-    },
+    File { kind: ResultKind, path: String },
     /// Builtin command (calculator, navigation, etc.).
-    BuiltinCommand {
-        ui: BuiltinUi,
-    },
+    BuiltinCommand { ui: BuiltinUi },
     /// Extension point for sources not yet first-class (workflow memory, plugin, etc.).
-    Other {
-        name: String,
-    },
+    Other { name: String },
 }
 
 /// Mirrors `CommandUiType` but flattens `Terminal(spec)` to its tag string so
@@ -132,9 +125,16 @@ fn default_true() -> bool {
 pub enum PreviewPayload {
     #[default]
     None,
-    Text { content: String, truncated: bool },
-    Image { data_url: String },
-    Binary { size_bytes: u64 },
+    Text {
+        content: String,
+        truncated: bool,
+    },
+    Image {
+        data_url: String,
+    },
+    Binary {
+        size_bytes: u64,
+    },
 }
 
 /// Ranking signals. `score` is the canonical display score; `breakdown` retains

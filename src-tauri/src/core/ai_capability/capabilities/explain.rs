@@ -146,7 +146,11 @@ mod tests {
 
     #[test]
     fn rejects_empty_text() {
-        let err = call(req(serde_json::json!({ "text": "" })), &deps(Arc::new(EchoProvider))).unwrap_err();
+        let err = call(
+            req(serde_json::json!({ "text": "" })),
+            &deps(Arc::new(EchoProvider)),
+        )
+        .unwrap_err();
         assert!(matches!(err, CapabilityError::InvalidPayload(_)));
     }
 
@@ -163,7 +167,11 @@ mod tests {
 
     #[test]
     fn provider_error_propagates() {
-        let err = call(req(serde_json::json!({ "text": "x" })), &deps(Arc::new(ErrProvider))).unwrap_err();
+        let err = call(
+            req(serde_json::json!({ "text": "x" })),
+            &deps(Arc::new(ErrProvider)),
+        )
+        .unwrap_err();
         assert!(matches!(err, CapabilityError::ProviderError(_)));
     }
 }

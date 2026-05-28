@@ -191,10 +191,16 @@ mod tests {
     #[test]
     fn validate_reserved_names_rejected() {
         for name in &["CON", "con", "Con", "PRN", "AUX", "NUL"] {
-            assert!(validate_note_name(name).is_err(), "{name} should be rejected");
+            assert!(
+                validate_note_name(name).is_err(),
+                "{name} should be rejected"
+            );
         }
         for name in &["COM1", "com9", "LPT1", "lpt3"] {
-            assert!(validate_note_name(name).is_err(), "{name} should be rejected");
+            assert!(
+                validate_note_name(name).is_err(),
+                "{name} should be rejected"
+            );
         }
     }
 

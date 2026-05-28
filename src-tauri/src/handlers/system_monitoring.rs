@@ -97,8 +97,14 @@ fn collect_snapshot() -> SystemSnapshot {
     }
 }
 
-fn snapshot_to_json(cpu_pct: f32, ram_used_mb: u64, ram_total_mb: u64,
-    disks: &[Value], networks: &[Value], processes: &[Value]) -> Value {
+fn snapshot_to_json(
+    cpu_pct: f32,
+    ram_used_mb: u64,
+    ram_total_mb: u64,
+    disks: &[Value],
+    networks: &[Value],
+    processes: &[Value],
+) -> Value {
     json!({
         "cpu_pct": cpu_pct,
         "ram_used_mb": ram_used_mb,
@@ -168,7 +174,9 @@ impl CommandHandler for SystemMonitoringHandler {
 
                         sys.refresh_cpu_usage();
                         sys.refresh_memory();
-                        sys.refresh_processes_specifics(sysinfo::ProcessRefreshKind::new().with_cpu().with_memory());
+                        sys.refresh_processes_specifics(
+                            sysinfo::ProcessRefreshKind::new().with_cpu().with_memory(),
+                        );
 
                         let cpu_pct = sys.global_cpu_info().cpu_usage();
                         let ram_used_mb = sys.used_memory() / 1_048_576;
@@ -191,22 +199,26 @@ impl CommandHandler for SystemMonitoringHandler {
                         let networks: Vec<Value> = Networks::new_with_refreshed_list()
                             .iter()
                             .take(8)
-                            .map(|(name, data)| json!({
-                                "name": name,
-                                "rx_kbps": data.received() as f64 / 1024.0,
-                                "tx_kbps": data.transmitted() as f64 / 1024.0,
-                            }))
+                            .map(|(name, data)| {
+                                json!({
+                                    "name": name,
+                                    "rx_kbps": data.received() as f64 / 1024.0,
+                                    "tx_kbps": data.transmitted() as f64 / 1024.0,
+                                })
+                            })
                             .collect();
 
                         let mut processes: Vec<Value> = sys
                             .processes()
                             .values()
-                            .map(|p| json!({
-                                "name": p.name().to_string(),
-                                "pid": p.pid().as_u32(),
-                                "mem_mb": p.memory() / 1_048_576,
-                                "cpu_pct": p.cpu_usage(),
-                            }))
+                            .map(|p| {
+                                json!({
+                                    "name": p.name().to_string(),
+                                    "pid": p.pid().as_u32(),
+                                    "mem_mb": p.memory() / 1_048_576,
+                                    "cpu_pct": p.cpu_usage(),
+                                })
+                            })
                             .collect();
                         processes.sort_by(|a, b| {
                             let am = a["mem_mb"].as_u64().unwrap_or(0);
@@ -216,7 +228,12 @@ impl CommandHandler for SystemMonitoringHandler {
                         processes.truncate(20);
 
                         let payload = snapshot_to_json(
-                            cpu_pct, ram_used_mb, ram_total_mb, &disks, &networks, &processes,
+                            cpu_pct,
+                            ram_used_mb,
+                            ram_total_mb,
+                            &disks,
+                            &networks,
+                            &processes,
                         );
                         let _ = event_bus.publish(AppEvent::new("system_monitoring.tick", payload));
                     }

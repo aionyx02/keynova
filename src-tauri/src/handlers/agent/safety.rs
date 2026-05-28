@@ -1,4 +1,4 @@
-﻿use std::path::{Path, PathBuf};
+use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 
 use crate::core::config_manager::ConfigManager;
@@ -53,11 +53,28 @@ pub(super) fn is_allowlisted_safe_builtin(name: &str, args: &str) -> bool {
 
 pub(super) fn looks_sensitive_path(path: &Path) -> bool {
     const SENSITIVE_COMPONENTS: &[&str] = &[
-        ".ssh", ".gnupg", ".gpg", ".aws", ".azure", ".gcloud",
-        "id_rsa", "id_ed25519", "id_ecdsa", "id_dsa",
-        ".env", ".env.local", ".env.production", ".env.secret",
-        "credentials", "secrets", "secret.json", "secret.toml",
-        "keystore", "truststore", ".netrc", ".pgpass",
+        ".ssh",
+        ".gnupg",
+        ".gpg",
+        ".aws",
+        ".azure",
+        ".gcloud",
+        "id_rsa",
+        "id_ed25519",
+        "id_ecdsa",
+        "id_dsa",
+        ".env",
+        ".env.local",
+        ".env.production",
+        ".env.secret",
+        "credentials",
+        "secrets",
+        "secret.json",
+        "secret.toml",
+        "keystore",
+        "truststore",
+        ".netrc",
+        ".pgpass",
     ];
     path.components().any(|comp| {
         let s = comp.as_os_str().to_string_lossy();
@@ -167,7 +184,11 @@ mod tests {
 
         assert!(looks_sensitive_path(Path::new("/home/user/.ssh/id_rsa")));
         assert!(looks_sensitive_path(Path::new("/home/user/.env")));
-        assert!(looks_sensitive_path(Path::new("C:/Users/user/.aws/credentials")));
-        assert!(!looks_sensitive_path(Path::new("/home/user/projects/keynova/src/main.rs")));
+        assert!(looks_sensitive_path(Path::new(
+            "C:/Users/user/.aws/credentials"
+        )));
+        assert!(!looks_sensitive_path(Path::new(
+            "/home/user/projects/keynova/src/main.rs"
+        )));
     }
 }

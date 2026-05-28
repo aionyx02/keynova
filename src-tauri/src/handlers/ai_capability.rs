@@ -12,10 +12,8 @@ use serde_json::{json, Value};
 use uuid::Uuid;
 
 use crate::core::ai_capability::{
-    self,
-    contract::StreamChunkFn,
-    AiManagerChatProvider, CapabilityDeps, CapabilityError, CapabilityId, CapabilityOutput,
-    CapabilityRequest, ChatProvider,
+    self, contract::StreamChunkFn, AiManagerChatProvider, CapabilityDeps, CapabilityError,
+    CapabilityId, CapabilityOutput, CapabilityRequest, ChatProvider,
 };
 use crate::core::config_manager::ConfigManager;
 use crate::core::event_bus::EventBus;

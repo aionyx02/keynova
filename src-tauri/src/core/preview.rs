@@ -12,16 +12,13 @@ use std::path::Path;
 use crate::core::{prepare_observation, AgentObservationPolicy};
 
 /// Image extensions recognised by `classify_path`. Lowercased, no leading dot.
-const IMAGE_EXTENSIONS: &[&str] = &[
-    "png", "jpg", "jpeg", "gif", "webp", "bmp", "svg", "ico",
-];
+const IMAGE_EXTENSIONS: &[&str] = &["png", "jpg", "jpeg", "gif", "webp", "bmp", "svg", "ico"];
 
 /// Text extensions that bypass content sniffing. Lowercased, no leading dot.
 const TEXT_EXTENSIONS: &[&str] = &[
-    "txt", "md", "log", "json", "toml", "yaml", "yml", "rs", "ts", "tsx", "js",
-    "jsx", "py", "go", "java", "kt", "swift", "c", "cpp", "h", "hpp", "sh",
-    "bat", "ps1", "css", "html", "xml", "csv", "ini", "conf", "rst", "org",
-    "wiki", "adoc",
+    "txt", "md", "log", "json", "toml", "yaml", "yml", "rs", "ts", "tsx", "js", "jsx", "py", "go",
+    "java", "kt", "swift", "c", "cpp", "h", "hpp", "sh", "bat", "ps1", "css", "html", "xml", "csv",
+    "ini", "conf", "rst", "org", "wiki", "adoc",
 ];
 
 /// Coarse content kind used by the preview pane.
@@ -142,8 +139,7 @@ pub fn read_text_preview(
     let prepared = prepare_observation(raw, &policy);
     let line_count = prepared.content.lines().count();
     // Treat as truncated when the file had more bytes than we read OR observation truncated lines/chars.
-    let file_truncated = (n as u64)
-        < fs::metadata(path).map(|m| m.len()).unwrap_or(n as u64);
+    let file_truncated = (n as u64) < fs::metadata(path).map(|m| m.len()).unwrap_or(n as u64);
     Ok(TextPreview {
         content: prepared.content,
         truncated: prepared.truncated || file_truncated,
@@ -206,7 +202,10 @@ mod tests {
         assert_eq!(guess_image_mime(Path::new("a.png")), "image/png");
         assert_eq!(guess_image_mime(Path::new("a.JPG")), "image/jpeg");
         assert_eq!(guess_image_mime(Path::new("a.svg")), "image/svg+xml");
-        assert_eq!(guess_image_mime(Path::new("a.bin")), "application/octet-stream");
+        assert_eq!(
+            guess_image_mime(Path::new("a.bin")),
+            "application/octet-stream"
+        );
     }
 
     #[test]

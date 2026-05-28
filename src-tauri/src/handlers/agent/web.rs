@@ -1,4 +1,4 @@
-﻿use std::time::Duration;
+use std::time::Duration;
 
 use serde_json::{json, Value};
 
@@ -121,7 +121,10 @@ pub(super) fn search_tavily(
     parse_tavily_response(&response, limit)
 }
 
-pub(super) fn parse_tavily_response(response: &Value, limit: usize) -> Result<Vec<GroundingSource>, String> {
+pub(super) fn parse_tavily_response(
+    response: &Value,
+    limit: usize,
+) -> Result<Vec<GroundingSource>, String> {
     let results = response
         .get("results")
         .and_then(Value::as_array)
@@ -500,7 +503,12 @@ pub(super) fn format_github_trending_answer(repos: &[GithubTrendingRepo]) -> Str
 // ─── WebSearchProvider trait ─────────────────────────────────────────────────
 
 pub(super) trait WebSearchProvider: Send + Sync {
-    fn search(&self, query: &str, limit: usize, timeout_secs: u64) -> Result<Vec<GroundingSource>, String>;
+    fn search(
+        &self,
+        query: &str,
+        limit: usize,
+        timeout_secs: u64,
+    ) -> Result<Vec<GroundingSource>, String>;
 }
 
 pub(super) struct SearxngProvider {
@@ -514,19 +522,34 @@ pub(super) struct TavilyProvider {
 pub(super) struct DuckDuckGoProvider;
 
 impl WebSearchProvider for SearxngProvider {
-    fn search(&self, query: &str, limit: usize, timeout_secs: u64) -> Result<Vec<GroundingSource>, String> {
+    fn search(
+        &self,
+        query: &str,
+        limit: usize,
+        timeout_secs: u64,
+    ) -> Result<Vec<GroundingSource>, String> {
         search_searxng(&self.base_url, query, limit, timeout_secs)
     }
 }
 
 impl WebSearchProvider for TavilyProvider {
-    fn search(&self, query: &str, limit: usize, timeout_secs: u64) -> Result<Vec<GroundingSource>, String> {
+    fn search(
+        &self,
+        query: &str,
+        limit: usize,
+        timeout_secs: u64,
+    ) -> Result<Vec<GroundingSource>, String> {
         search_tavily(&self.api_key, query, limit, timeout_secs)
     }
 }
 
 impl WebSearchProvider for DuckDuckGoProvider {
-    fn search(&self, query: &str, limit: usize, timeout_secs: u64) -> Result<Vec<GroundingSource>, String> {
+    fn search(
+        &self,
+        query: &str,
+        limit: usize,
+        timeout_secs: u64,
+    ) -> Result<Vec<GroundingSource>, String> {
         search_duckduckgo_html(query, limit, timeout_secs)
     }
 }
