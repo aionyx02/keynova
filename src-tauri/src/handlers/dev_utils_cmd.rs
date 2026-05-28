@@ -344,7 +344,10 @@ impl BuiltinCommand for KillPortCmd {
         }
         let mut parts = trimmed.split_whitespace();
         let port_token = parts.next().unwrap_or("");
-        let confirm = parts.next().map(|s| s.eq_ignore_ascii_case("kill")).unwrap_or(false);
+        let confirm = parts
+            .next()
+            .map(|s| s.eq_ignore_ascii_case("kill"))
+            .unwrap_or(false);
 
         let port: u16 = match port_token.parse() {
             Ok(p) if p > 0 => p,

@@ -1,13 +1,13 @@
 ---
 type: agent_policy
 status: active
-priority: p0
-updated: 2026-05-15
-context_policy: always_retrievable
+priority: p1
+updated: 2026-05-22
+context_policy: on_demand
 owner: project
 ---
 
-# AI Agent Governance and ADR Policy
+# AI Agent Governance And ADR Policy
 
 Applies to project governance, ADR workflow, and documentation update behavior.
 
@@ -17,90 +17,150 @@ Safety > correctness > rollbackability > testability > performance > speed.
 
 ## 2. Retrieval-First Documentation Rule
 
-- Never inject all docs into prompt at once.
-- Always start from:
-  - `docs/index.md`
-  - `docs/memory/current.md`
-  - `docs/tasks/active.md`
-- Retrieve additional files only by user intent.
-- Use smallest relevant heading section.
-- Do not treat `docs/tasks/completed.md` or `docs/memory/archive/*` as current instructions.
+- Do not inject all docs into prompt at once.
+- Start from `docs/index.md`, then read `docs/memory/current.md` and `docs/tasks/active.md`.
+- Retrieve additional files only by task intent.
+- Use the smallest relevant heading section.
+- Do not treat `docs/tasks/completed.md`, `docs/memory/sessions/*`, or `docs/memory/archive/*` as current instruction.
 
 ## 3. ADR Authority Rule
 
-- AI can create ADR with status `proposed` only.
-- AI cannot mark ADR as accepted.
-- Implementation that changes architecture/security/data contracts must wait for developer acceptance.
+- AI can create ADRs with status `proposed` only.
+- AI cannot mark ADRs as accepted.
+- Implementation that changes architecture, security, or public data contracts must wait for developer acceptance.
 
 ## 4. Documentation Conflict Resolution
 
 When docs conflict, use this order:
 
-1. Explicit developer instruction in current conversation
+1. Explicit developer instruction in the current conversation
 2. `docs/tasks/active.md`
 3. `docs/memory/current.md`
-4. Accepted ADR (`docs/adr/*`)
+4. Accepted ADRs in `docs/adr/*`
 5. `docs/security.md`
 6. `docs/architecture.md`
-7. Session/archive logs
+7. Session or archive logs
 
 ## 5. Mandatory Documentation Sync
 
-After meaningful changes, update the right file immediately:
+After meaningful changes, update the smallest matching document:
 
-- Task status change -> `docs/tasks/*`
-- Working strategy/next step -> `docs/memory/current.md`
-- Architecture changes -> `docs/architecture.md`
-- Security boundary changes -> `docs/security.md`
-- Test strategy changes -> `docs/testing.md`
-- Decision boundary changes -> `docs/adr/*` + `docs/decisions.md`
+- Current strategy, focus, or constraint -> `docs/memory/current.md`
+- Open task queue or phase status -> `docs/tasks/active.md`
+- Detailed implementation notes, debugging narrative, command output, or root cause -> `docs/memory/sessions/YYYY-MM-DD.md`
+- Completed task summary -> `docs/memory/sessions/YYYY-MM-DD.md` using `## COMPLETED: TASK_ID - summary`
+- Future work -> `docs/tasks/backlog.md`
+- Blocked or approval-gated work -> `docs/tasks/blocked.md`
+- Architecture/security/testing behavior -> the matching reference doc
+- Decision boundary -> `docs/adr/*` plus `docs/decisions.md`
 
-### 5a. Auto-Archive Completed Task Groups (mandatory)
-
-A task group is a section header in `backlog.md` or `active.md` whose children are `[ ]` / `[x]` items (e.g. `## PERF.1`, `## AGENT.1`, `## FEAT.11`).
-
-Rule: the moment a group becomes 100% `[x]`, in the **same change-set**:
-
-1. Remove the entire group section from `backlog.md` (or `active.md`).
-2. Append the same group to `docs/tasks/completed.md` with a `(COMPLETE YYYY-MM-DD)` suffix on the header; retain per-item implementation hints.
-3. Update `backlog.md` "Mainline History" / `active.md` "Current Execution Order" lists to reflect the new state.
-4. Re-run `npm run docs:refresh` so `docs/index.md` and frontmatter stay in sync.
-
-Why: prevents `[x]` accumulation in `backlog.md` (which hides real remaining work), preserves a clean delivery history, and keeps `active.md` / `backlog.md` small enough to stay always-retrievable.
-
-Do not:
-
-- Leave a completed group sitting in `backlog.md` "for later cleanup".
-- Move only part of a group; either it's fully complete (move the whole section) or partial (stay in place).
-
-## 6. Auto-Update Guardrail
-
-Before commit:
+Before commit, run:
 
 ```bash
 npm run docs:refresh
 ```
 
-`docs:refresh` does two things:
+## 5a. Completed Task Archive Rule
 
-1. `docs:sync` updates metadata/index automatically.
-2. `docs:guard` blocks commit when code changed but project-state docs were not updated.
+Completed task details belong in session logs. `docs/tasks/completed.md` is an index only.
+
+When a task group is complete:
+
+1. Add a single session marker: `## COMPLETED: TASK_ID - short summary`.
+2. Put detailed notes under the same session file's `Detailed Notes` section.
+3. Remove the completed group from `active.md` or `backlog.md`.
+4. Run `npm run docs:completed-regen` when the completed index needs refresh.
+5. Run `npm run docs:refresh`.
+
+Do not copy full completed task sections into `completed.md`.
+
+## 5b. Documentation Bloat Prevention
+
+Before writing to any `.md` file, answer three questions:
+
+1. Is the target file marked `context_policy: always_retrievable`?
+2. Is the content current state or historical narrative?
+3. Does the content already exist elsewhere?
+
+Strict routing:
+
+- Strategy, focus, or durable constraint -> `docs/memory/current.md`
+- Open task and task status -> `docs/tasks/active.md`
+- Debugging narrative or root-cause analysis -> `docs/memory/sessions/YYYY-MM-DD.md`
+- Completed task summary -> session `## COMPLETED:` marker; regenerated into `completed.md`
+- Edge case as reusable structured row -> `docs/testing-edge-cases.md`
+- Edge case as story or incident -> session log, with a short reference if needed
+- Architectural decision -> `docs/adr/NNNN-*.md`
+
+Forbidden in `current.md` and `active.md`:
+
+- `Recent Execution Notes`
+- `Last Confirmed Progress`
+- `Session History`
+- `Detailed Notes`
+- `Bugfix Round`
+- Dated headings or dated bullet narratives
+
+Size discipline:
+
+- `docs/memory/current.md` must stay under 5 KB.
+- `docs/tasks/active.md` must stay under 5 KB.
+- If an edit would exceed a limit, move narrative to a session file first.
+- When in doubt, default to `docs/memory/sessions/YYYY-MM-DD.md`.
+
+## 5c. Workbench Shadow State Rule
+
+`docs/state/*` and `docs/workbench/*` are generated convenience views for planning, sorting, ADR previews, and UI simulation.
+
+- Markdown remains authoritative for agent instructions, task status, ADR status, and conflict resolution.
+- Workbench files must not be treated as startup context or mandatory retrieval targets.
+- For AI planning context, prefer `docs/state/tasks-summary.json`.
+- `docs/state/tasks-summary.json` should stay compact: current task, progress, open-task order, and references only. Do not duplicate suggestion catalogs, UI layout options, or full impact narratives there. Keep it under 6 KB.
+- For decision-reminder and decision-gate checks, prefer `docs/state/decision-summary.json` so AI does not need to read `docs/workbench/tasks.html`.
+- `docs/state/decision-summary.json` should stay under 3 KB and contain only gating/reminder essentials.
+- Read `docs/state/tasks.json` only when full scope, non-goals, or done criteria are needed, and read HTML only when debugging the workbench itself or when the user explicitly asks to inspect it.
+- If Markdown, JSON, and HTML disagree, follow Markdown first and regenerate the workbench.
+- Do not block P0 implementation only because a workbench view is missing or stale; run `npm run docs:workbench-sync` or `npm run docs:refresh` to refresh it.
+- Generate or refresh concrete workbench previews when the user is choosing an ADR direction, task order, or UI layout.
+- When AI detects a decision-bearing moment (ADR direction, task order, UI layout, risky approval gate, or other decision-gated change), it must proactively remind the user to use `docs/workbench/tasks.html` or provide explicit approval before implementation continues.
+- The reminder must name the decision, explain why it is gated, and state the next action: refresh/open the workbench, confirm the proposal, or reply with direct approval.
+- Put AI-generated suggestions and user-confirmation questions in `docs/state/workbench-suggestions.json`; the generated HTML should expose them as user-confirmed options, preferably checkboxes or radio choices.
+- When the user returns a proposal copied from HTML, validate it against Markdown first, then update only the smallest matching Markdown source.
+- If a task is decision-gated by the workbench and no confirmed proposal or explicit user approval has been provided, do not implement runtime changes or rewrite authoritative Markdown. Only update the suggestion pool or generated preview, then wait for the user's confirmed proposal.
+
+## 6. Auto-Update Guardrail
+
+`docs:refresh` runs metadata sync and the docs guard suite:
+
+```bash
+npm run docs:workbench-sync
+npm run docs:workbench-guard
+npm run docs:sync
+npm run docs:guard-size
+npm run docs:guard-schema
+npm run docs:audit-frontmatter
+npm run docs:narrative-check
+npm run docs:guard
+```
+
+Guard failures are routing feedback, not optional warnings.
 
 ## 7. ADR Trigger Checklist
 
-Create ADR before implementation when any apply:
+Create an ADR before implementation when any apply:
 
-- New/removed core dependency
-- Async model / IPC / queue / actor boundary changes
-- Security boundary or path/network permissions changes
-- Data format/schema/public contract changes
-- Major algorithmic/path/indexing model changes
+- New or removed core dependency
+- Async model, IPC, queue, or actor boundary changes
+- Security boundary or path/network permission changes
+- Data format, schema, or public contract changes
+- Major algorithmic, path, or indexing model changes
 
 ## 8. Minimal Agent Workflow
 
 1. Classify user intent.
 2. Retrieve minimal relevant docs.
-3. Implement smallest safe change.
+3. Implement the smallest safe change.
 4. Run relevant tests/checks.
-5. Update docs via `docs:refresh`.
-6. Report with file paths and remaining risks.
+5. Update docs via the routing rules above.
+6. Run `npm run docs:refresh`.
+7. Report changed file paths and remaining risk.

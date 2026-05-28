@@ -193,7 +193,9 @@ impl CalculatorManager {
         // Pattern 3: `next <weekday>` / `last <weekday>`
         if let Some(rest) = lower.strip_prefix("next ") {
             return Some(parse_weekday(rest.trim()).map(|wd| {
-                next_weekday(self.today(), wd).format("%Y-%m-%d").to_string()
+                next_weekday(self.today(), wd)
+                    .format("%Y-%m-%d")
+                    .to_string()
             }));
         }
         if let Some(rest) = lower.strip_prefix("last ") {
@@ -283,18 +285,14 @@ fn contains_date_literal(s: &str) -> bool {
     let bytes = s.as_bytes();
     for i in 0..bytes.len().saturating_sub(9) {
         let chunk = &s[i..i + 10];
-        if chunk
-            .chars()
-            .enumerate()
-            .all(|(idx, c)| match (idx, c) {
-                (0..=3, c) => c.is_ascii_digit(),
-                (4, '-') | (4, '/') => true,
-                (5..=6, c) => c.is_ascii_digit(),
-                (7, '-') | (7, '/') => true,
-                (8..=9, c) => c.is_ascii_digit(),
-                _ => false,
-            })
-        {
+        if chunk.chars().enumerate().all(|(idx, c)| match (idx, c) {
+            (0..=3, c) => c.is_ascii_digit(),
+            (4, '-') | (4, '/') => true,
+            (5..=6, c) => c.is_ascii_digit(),
+            (7, '-') | (7, '/') => true,
+            (8..=9, c) => c.is_ascii_digit(),
+            _ => false,
+        }) {
             return true;
         }
     }
@@ -411,7 +409,9 @@ fn split_top_level_arith(s: &str) -> Option<(&str, char, &str)> {
         if i + 2 >= bytes.len() {
             break;
         }
-        if bytes[i] == b' ' && (bytes[i + 1] == b'+' || bytes[i + 1] == b'-') && bytes[i + 2] == b' '
+        if bytes[i] == b' '
+            && (bytes[i + 1] == b'+' || bytes[i + 1] == b'-')
+            && bytes[i + 2] == b' '
         {
             idx_op = Some((i, bytes[i + 1] as char));
         }
@@ -491,13 +491,13 @@ fn convert_unit(value: f64, from: &str, to: &str) -> Option<f64> {
         ("cl", 0.01),
         ("dl", 0.1),
         ("m3", 1000.0),
-        ("cup", 0.2365882365),       // US legal cup
-        ("tbsp", 0.01478676),        // US tablespoon
-        ("tsp", 0.00492892),         // US teaspoon
-        ("fl_oz", 0.0295735),        // US fluid ounce
-        ("pt", 0.473176),            // US liquid pint
-        ("qt", 0.946353),            // US liquid quart
-        ("gal", 3.78541),            // US gallon
+        ("cup", 0.2365882365), // US legal cup
+        ("tbsp", 0.01478676),  // US tablespoon
+        ("tsp", 0.00492892),   // US teaspoon
+        ("fl_oz", 0.0295735),  // US fluid ounce
+        ("pt", 0.473176),      // US liquid pint
+        ("qt", 0.946353),      // US liquid quart
+        ("gal", 3.78541),      // US gallon
     ]
     .iter()
     .cloned()
@@ -888,7 +888,10 @@ mod tests {
     #[test]
     fn date_invalid_date_errors() {
         let mut m = mgr_with_today(NaiveDate::from_ymd_opt(2026, 5, 18).unwrap());
-        assert!(m.eval("2026-13-01 - today").is_err() || m.eval("2026-13-01 - today").unwrap_or_default().is_empty());
+        assert!(
+            m.eval("2026-13-01 - today").is_err()
+                || m.eval("2026-13-01 - today").unwrap_or_default().is_empty()
+        );
     }
 
     // ── UTIL.1.B offline currency ───────────────────────────────────────────
@@ -897,9 +900,18 @@ mod tests {
     fn currency_usd_to_twd_uses_offline_table() {
         let mut m = CalculatorManager::new();
         let result = m.eval("100 USD to TWD").unwrap();
-        assert!(result.starts_with("3150"), "expected ~3150 TWD, got {result}");
-        assert!(result.contains("offline"), "must surface offline rate hint: {result}");
-        assert!(result.contains("snapshot"), "must surface snapshot date: {result}");
+        assert!(
+            result.starts_with("3150"),
+            "expected ~3150 TWD, got {result}"
+        );
+        assert!(
+            result.contains("offline"),
+            "must surface offline rate hint: {result}"
+        );
+        assert!(
+            result.contains("snapshot"),
+            "must surface snapshot date: {result}"
+        );
     }
 
     #[test]
@@ -907,7 +919,10 @@ mod tests {
         let mut m = CalculatorManager::new();
         let result = m.eval("100 EUR to USD").unwrap();
         // 100 EUR / 0.92 ≈ 108.69 USD
-        assert!(result.starts_with("108."), "expected ~108.7 USD, got {result}");
+        assert!(
+            result.starts_with("108."),
+            "expected ~108.7 USD, got {result}"
+        );
     }
 
     #[test]
@@ -915,8 +930,14 @@ mod tests {
         let mut m = CalculatorManager::new();
         let result = m.eval("50 usd to jpy").unwrap();
         // 50 USD * 151 = 7550 JPY
-        assert!(result.starts_with("7550"), "expected ~7550 JPY, got {result}");
-        assert!(result.contains("JPY"), "result must use uppercase code: {result}");
+        assert!(
+            result.starts_with("7550"),
+            "expected ~7550 JPY, got {result}"
+        );
+        assert!(
+            result.contains("JPY"),
+            "result must use uppercase code: {result}"
+        );
     }
 
     #[test]

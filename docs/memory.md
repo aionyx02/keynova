@@ -1,9 +1,9 @@
 ---
 type: memory_index_root
 status: active
-priority: p0
-updated: 2026-05-13
-context_policy: always_retrievable
+priority: p2
+updated: 2026-05-20
+context_policy: on_demand
 owner: project
 ---
 

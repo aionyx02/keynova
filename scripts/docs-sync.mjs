@@ -22,8 +22,8 @@ const DOC_REGISTRY = [
     path: "docs/CLAUDE.md",
     type: "agent_policy",
     status: "active",
-    priority: "p0",
-    contextPolicy: "always_retrievable",
+    priority: "p1",
+    contextPolicy: "on_demand",
     owner: "project",
     purpose: "ADR and governance policy",
   },
@@ -40,8 +40,8 @@ const DOC_REGISTRY = [
     path: "docs/tasks.md",
     type: "task_index_root",
     status: "active",
-    priority: "p0",
-    contextPolicy: "always_retrievable",
+    priority: "p2",
+    contextPolicy: "on_demand",
     owner: "project",
     purpose: "Task index entry",
   },
@@ -55,11 +55,20 @@ const DOC_REGISTRY = [
     purpose: "Current execution tasks",
   },
   {
+    path: "docs/tasks/refactor-ai-capability.md",
+    type: "task_plan",
+    status: "active",
+    priority: "p0",
+    contextPolicy: "on_demand",
+    owner: "project",
+    purpose: "P0 AI capability refactor batch plan",
+  },
+  {
     path: "docs/tasks/backlog.md",
     type: "task_index",
     status: "backlog",
     priority: "p1",
-    contextPolicy: "retrieve_when_planning",
+    contextPolicy: "on_demand",
     owner: "project",
     purpose: "Future tasks and roadmap",
   },
@@ -74,19 +83,19 @@ const DOC_REGISTRY = [
   },
   {
     path: "docs/tasks/completed.md",
-    type: "task_history",
-    status: "completed",
+    type: "task_archive_index",
+    status: "archive",
     priority: "p3",
-    contextPolicy: "archive",
+    contextPolicy: "on_demand",
     owner: "project",
-    purpose: "Completed historical records",
+    purpose: "Compact completed task index",
   },
   {
     path: "docs/memory.md",
     type: "memory_index_root",
     status: "active",
-    priority: "p0",
-    contextPolicy: "always_retrievable",
+    priority: "p2",
+    contextPolicy: "on_demand",
     owner: "project",
     purpose: "Memory index entry",
   },
@@ -113,7 +122,7 @@ const DOC_REGISTRY = [
     type: "security_policy",
     status: "active",
     priority: "p0",
-    contextPolicy: "retrieve_when_planning",
+    contextPolicy: "retrieve_only",
     owner: "project",
     purpose: "Security and permission boundary",
   },
@@ -125,6 +134,24 @@ const DOC_REGISTRY = [
     contextPolicy: "retrieve_when_debugging",
     owner: "project",
     purpose: "Testing strategy and checks",
+  },
+  {
+    path: "docs/testing-edge-cases.md",
+    type: "testing_reference",
+    status: "active",
+    priority: "p2",
+    contextPolicy: "retrieve_when_debugging",
+    owner: "project",
+    purpose: "Structured edge-case debugging matrix",
+  },
+  {
+    path: "docs/tasks/bug-followup.md",
+    type: "bug_followup",
+    status: "active",
+    priority: "p2",
+    contextPolicy: "on_demand",
+    owner: "project",
+    purpose: "Bug follow-up notes",
   },
   {
     path: "docs/decisions.md",
@@ -250,9 +277,9 @@ function buildIndex(registry, updatedDate) {
   return `---
 type: docs_index
 status: active
-priority: p0
+priority: p1
 updated: ${updatedDate}
-context_policy: always_retrievable
+context_policy: on_demand
 owner: project
 ---
 
@@ -269,15 +296,15 @@ Use this file as the first lookup step. The goal is retrieval-first context, not
 1. \`docs/index.md\`
 2. \`docs/memory/current.md\`
 3. \`docs/tasks/active.md\`
-4. \`docs/tasks/blocked.md\` (only when needed)
-5. Additional files by intent
+4. Additional files by intent
 
 ## Retrieval Policy
 
 - Do not read all docs recursively.
 - Prefer smallest relevant heading section.
-- \`completed\` and \`archive\` files are historical context only.
-- If sources conflict: \`tasks/active.md\` + \`memory/current.md\` > \`decisions\` > \`sessions/archive\`.
+- Startup context should stay below the guard limits.
+- \`completed\`, \`sessions\`, and \`archive\` files are historical context only.
+- If sources conflict: \`tasks/active.md\` + \`memory/current.md\` > accepted ADRs > \`sessions/archive\`.
 
 ## Intent Routing
 
@@ -287,7 +314,7 @@ Use this file as the first lookup step. The goal is retrieval-first context, not
 | Implementation | \`docs/tasks/active.md\`, related \`docs/architecture.md\`, targeted code |
 | Security / permission | \`docs/tasks/blocked.md\`, \`docs/security.md\`, relevant ADR |
 | Testing / regression | \`docs/testing.md\`, \`docs/tasks/active.md\` |
-| Historical question | \`docs/memory/sessions/*\`, \`docs/memory/archive/*\` |
+| Historical question | \`docs/tasks/completed.md\`, \`docs/memory/sessions/*\`, \`docs/memory/archive/*\` |
 
 ## Context Budget (12k example)
 
@@ -309,8 +336,18 @@ ${mapRows}
 
 \`\`\`bash
 npm run docs:sync
+npm run docs:workbench-sync
+npm run docs:workbench-guard
+npm run docs:guard-size
+npm run docs:guard-schema
+npm run docs:audit-frontmatter
+npm run docs:narrative-check
 npm run docs:guard
 npm run docs:refresh
+npm run docs:new-session
+npm run docs:extract-narrative -- docs/memory/current.md
+npm run docs:completed-regen
+npm run docs:archive-sessions
 \`\`\`
 `;
 }

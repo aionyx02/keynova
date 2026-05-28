@@ -96,13 +96,7 @@ fn find_process_windows(port: u16) -> Result<Option<ProcessInfo>, String> {
 #[cfg(target_os = "windows")]
 fn process_name_from_tasklist(pid: u32) -> Result<Option<String>, String> {
     let out = Command::new("tasklist")
-        .args([
-            "/FI",
-            &format!("PID eq {pid}"),
-            "/FO",
-            "CSV",
-            "/NH",
-        ])
+        .args(["/FI", &format!("PID eq {pid}"), "/FO", "CSV", "/NH"])
         .output()
         .map_err(|e| format!("tasklist spawn failed: {e}"))?;
     if !out.status.success() {

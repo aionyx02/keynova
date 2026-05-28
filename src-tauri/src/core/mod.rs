@@ -1,20 +1,25 @@
 pub mod action_registry;
 pub mod agent_observation;
 pub mod agent_runtime;
+pub mod ai_capability;
 pub mod automation_engine;
 pub mod builtin_command_registry;
 pub mod command_router;
 pub mod config_manager;
 pub mod control_plane;
+pub mod dev_runner;
+pub mod dev_utils;
 pub mod event_bus;
+pub mod grounding;
 pub mod ipc_error;
 pub mod knowledge_store;
+pub mod local_context;
 pub mod observability;
-pub mod dev_utils;
 pub mod plugin_runtime;
 pub mod preview;
 pub mod process_lookup;
 pub mod search_registry;
+pub mod workflow_memory;
 pub mod workflow_pipeline;
 
 pub use action_registry::{ActionArena, ActionRegistry};

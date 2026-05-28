@@ -157,7 +157,10 @@ pub(crate) fn setup_global_shortcuts(app: &tauri::AppHandle, reset_existing: boo
         .state::<AppState>()
         ._config_manager
         .lock()
-        .map(|c| c.get("hotkeys.workspace_cycle").unwrap_or_else(|| "Ctrl+Alt+0".into()))
+        .map(|c| {
+            c.get("hotkeys.workspace_cycle")
+                .unwrap_or_else(|| "Ctrl+Alt+0".into())
+        })
         .unwrap_or_else(|_| "Ctrl+Alt+0".into());
     let handle_cycle = app.clone();
     if let Err(e) = gs.on_shortcut(cycle_key.as_str(), move |app_h, _, event| {

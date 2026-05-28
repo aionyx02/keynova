@@ -4,9 +4,9 @@ import type { PanelProps } from "../../types/panel";
 
 export type { PanelProps };
 
-const AiPanel = React.lazy(() =>
-  import("../AiPanel").then((m) => ({ default: m.AiPanel })),
-);
+// REF.6.B follow-up — `AiPanel` lazy import removed from the registry. The
+// component file is retained (deletion is REF.8 territory pending the
+// observation cycle) but no palette command routes to it anymore.
 const ModelDownloadPanel = React.lazy(() =>
   import("../ModelDownloadPanel").then((m) => ({ default: m.ModelDownloadPanel })),
 );
@@ -41,7 +41,6 @@ const NvimDownloadPanel = React.lazy(() =>
 /** 將後端回傳的 panel name 對應至 React 元件。新增面板只需在此 Record 加一筆。 */
 export const PanelRegistry: Record<string, React.ComponentType<PanelProps>> = {
   setting: SettingPanel as React.ComponentType<PanelProps>,
-  ai: AiPanel,
   model_download: ModelDownloadPanel,
   model_list: ModelListPanel,
   model_remove: ModelRemovePanel,

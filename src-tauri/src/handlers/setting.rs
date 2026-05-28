@@ -48,9 +48,9 @@ impl CommandHandler for SettingHandler {
                 let pairs: Vec<_> = cfg
                     .list_all_redacted()
                     .into_iter()
-                    .map(|(k, v, sensitive)| {
-                        json!({ "key": k, "value": v, "sensitive": sensitive })
-                    })
+                    .map(
+                        |(k, v, sensitive)| json!({ "key": k, "value": v, "sensitive": sensitive }),
+                    )
                     .collect();
                 Ok(json!(pairs))
             }
