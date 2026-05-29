@@ -32,6 +32,33 @@ describe("usePaletteMode", () => {
     });
   });
 
+  it("returns capability kind on cmd prefix", () => {
+    const { result } = renderHook(() => usePaletteMode("cmd run lint and tests"));
+    expect(result.current).toEqual({
+      kind: "capability",
+      id: "cmd",
+      args: { text: "run lint and tests" },
+    });
+  });
+
+  it("returns capability kind on fix prefix", () => {
+    const { result } = renderHook(() => usePaletteMode("fix error[E0308]"));
+    expect(result.current).toEqual({
+      kind: "capability",
+      id: "fix",
+      args: { text: "error[E0308]" },
+    });
+  });
+
+  it("returns capability kind on next prefix", () => {
+    const { result } = renderHook(() => usePaletteMode("next"));
+    expect(result.current).toEqual({
+      kind: "capability",
+      id: "next",
+      args: {},
+    });
+  });
+
   it("returns search kind when query is terminal sigil (parseInputMode pre-empts)", () => {
     const { result } = renderHook(() => usePaletteMode("> explain rust"));
     expect(result.current).toEqual({ kind: "search" });
@@ -81,5 +108,14 @@ describe("usePaletteMode", () => {
     expect(result.current).toMatchObject({ kind: "capability", id: "explain" });
     rerender({ q: "summarize foo" });
     expect(result.current).toMatchObject({ kind: "capability", id: "summarize" });
+  });
+
+  it("transitions from cmd to next", () => {
+    const { result, rerender } = renderHook(({ q }) => usePaletteMode(q), {
+      initialProps: { q: "cmd open the repo root" },
+    });
+    expect(result.current).toMatchObject({ kind: "capability", id: "cmd" });
+    rerender({ q: "next " });
+    expect(result.current).toEqual({ kind: "capability", id: "next", args: {} });
   });
 });

@@ -2,7 +2,7 @@
 type: task_plan
 status: active
 priority: p0
-updated: 2026-05-27
+updated: 2026-05-29
 context_policy: on_demand
 owner: project
 tags: [refactor, ai-capability, unified-result, workflow-memory, search-first]
@@ -36,13 +36,15 @@ the docx literal text and are intentional:
   decides physical deletion after the observation cycle. Authority for staged
   removal: ADR-0029 §2.5 Rollback (parallel + flag, 2 release cycles).
 - **Inline AI invocation pattern**: docx §4.1–4.5 mockups use per-row chips +
-  auto-detection (NL heuristic / terminal regex / empty-state mount). Developer
-  redirected to **prefix-keyword** pattern: type `explain <q>` / `summarize <t>` /
-  `cmd <intent>` / `fix <error>` / `next` in the palette; capability mode owns
-  the result area; no row chips and no auto-detect. REF.6.A's per-row Explain
-  chip and `Ctrl+E` are removed in REF.6.B. Wire format (`UnifiedResult`) is
-  retained for non-AI action data. Authority: see [[feedback-inline-ai-prefix]].
-  Details in `docs/tasks/refactor-ai-capability-ui-spec.md`.
+  auto-detection (NL heuristic / terminal regex / empty-state mount). The row
+  chips stay removed, but the final palette UX is now a mixed dispatcher:
+  `explain <q>` / `summarize <t>` / `fix <error>` stay explicit prefixes,
+  while `next` also auto-mounts on an empty palette and `cmd` also auto-surfaces
+  for no-result natural-language action queries. Capability mode still owns the
+  result area; row-level AI affordances remain out. Wire format (`UnifiedResult`)
+  is retained for non-AI action data. Authority: see
+  [[feedback-inline-ai-prefix]]. Details in
+  `docs/tasks/refactor-ai-capability-ui-spec.md`.
 
 ## Batch Plan
 
@@ -62,12 +64,11 @@ Bug A/B regression checks passed.
 Micro-overshoot accepted; revisit only if REF.6.B/D extraction creates room for
 free trimming.
 
-### REF.4 - Stateless AI Capability Layer — PARTIALLY DONE
+### REF.4 - Stateless AI Capability Layer - DONE
 
-Three capabilities landed: `explain`, `summarize`, `fix_error`. The remaining
-docx Step 4 capabilities — `gen_command`, `suggest_next` — are intentionally
-deferred to REF.6.C so they ship together with their UI scenes (4.4 / 4.5),
-which need workflow memory wiring (REF.5) already in place.
+All five planned capabilities now ship through the single `call_capability`
+entry: `explain`, `summarize`, `fix_error`, `gen_command`, and
+`suggest_next`.
 
 Live Ollama smoke against `qwen2.5:0.5b` cold-start: 4.6–5.0 s for `explain` /
 `fix_error`. Formal P50/P95 reading on `qwen2.5:7b` remains pending until REF.7
@@ -75,8 +76,9 @@ bench scripts exist.
 
 ### REF.5 - Workflow Memory — DONE
 
-Schema v4 `workflow_history` + `record` / `suggest` entry points landed. No
-`suggest_next` capability wiring yet (that is REF.6.C / REF.6.E scope).
+Schema v4 `workflow_history` + `record` / `suggest` entry points landed.
+`suggest_next` backend wiring now exists via REF.6.C; the dedicated UI scene
+still waits for REF.6.E.
 
 ### REF.6 - Search Box As Pure Dispatcher (in progress)
 
@@ -131,7 +133,7 @@ Pending (handoff to manual smoke before commit):
 - Esc twice clears prefix in two stages (cancel → clear).
 - Bug A focus race + Bug B delete-verify still pass.
 
-#### REF.6.C — Complete capability set: gen_command + suggest_next (docx §3.2)
+#### REF.6.C — Complete capability set: gen_command + suggest_next (docx §3.2) — DONE (unit-level)
 
 Scope:
 - Backend `core/ai_capability/gen_command.rs`: typed payload
@@ -147,12 +149,29 @@ Non-goals:
 - No UI surface wiring (that is REF.6.E / REF.6.F).
 - No autonomous chain — capabilities still single-step.
 
-Done:
-- 5 / 5 capabilities live behind one `call_capability` entry.
-- Unit tests cover typed payload contracts.
-- Live Ollama smoke green for both new capabilities.
+Landed:
+- `core/ai_capability/capabilities/gen_command.rs` with typed `intent + ctx`
+  payload, structured `{ command, confidence, rationale }` output, JSON-first
+  parsing with fallback, audit wiring, and conservative command risk tagging.
+- `core/ai_capability/capabilities/suggest_next.rs` with typed workflow-memory
+  payload, heuristic ranking over `workflow_history`, and best-effort replay
+  descriptors for replayable `cmd.run` rows.
+- Richer workflow-history labels for `cmd.run`, `capability.call`, and
+  `action.run` so `suggest_next` rows are more legible than bare ids or
+  generic `Open` labels.
+- Frontend structured parsers/types plus `useGenCommand` / `useSuggestNext`
+  hooks for later UI batches.
 
-#### REF.6.D — `fix <error>` prefix wired to `CapabilityAnswerCard`
+Verification:
+- Targeted Rust tests for `ai_capability` pass.
+- Targeted Vitest coverage for structured parsers/hooks passes.
+- `npm run lint` and `cargo clippy --lib -- -D warnings` are clean.
+
+Pending:
+- UI-owned manual `tauri dev` smoke for the capability surfaces that consume
+  `gen_command` / `suggest_next`.
+
+#### REF.6.D — `fix <error>` prefix wired to `CapabilityAnswerCard` — DONE (unit-level)
 
 Spec: ui-spec §9 REF.6.D.
 
@@ -166,13 +185,38 @@ Non-goals:
 - No terminal auto-detect / regex watcher.
 - No apply-patch action in v1; user copies fix manually.
 - No 5-minute blacklist.
+- Structured diff hint rendering is deferred until backend emits one; the
+  current `fix_error` capability is plain-text v1 per its own module comment.
 
-Done:
-- Pasting a cargo error after `fix ` streams a usable fix suggestion within
-  5 s on cold model.
-- Switching to and from `fix` prefix is instant.
+Landed:
+- `parseCapabilityPrefix` now matches `fix <body>` and exports `"fix"` as a
+  text prefix id alongside `explain` / `summarize` / `cmd`.
+- `useCapabilityStream` remaps the submit payload by capability id so
+  `fix_error` receives `{ raw_output }` while `explain` / `summarize`
+  continue to send `{ text }`. One streaming hook still covers all three
+  text capabilities.
+- `CapabilityAnswerCard` exposes `AnswerCardCapability = "explain" |
+  "summarize" | "fix"` and renders the `Fix` header label for the new id.
+- `CapabilityResultArea` adds `"fix"` to the answer-card branch; no new
+  component.
+- `CommandPalette.tsx` extends `textCapabilityMode` to cover `fix` and maps
+  the prefix id `fix` to the backend capability id `fix_error` at the
+  stream boundary.
 
-#### REF.6.E — `next` prefix + `CapabilityListCard`
+Verification:
+- New `parseCapabilityPrefix` test asserts `fix error[E0308]: mismatched
+  types` parses to `{ id: "fix", args: { text: "error[E0308]: mismatched
+  types" } }` and that bare `fix` / `fix ` still return null.
+- `usePaletteMode` test covers the `fix` prefix.
+- `CapabilityAnswerCard` test asserts the `Fix` header label renders.
+- Full `npm run test`, `npm run lint`, and the `ai_capability` Rust suite
+  are green on this branch.
+
+Pending:
+- Manual `npm run tauri dev` smoke is still required because capability IPC
+  is only available when `window.__TAURI_INTERNALS__` exists.
+
+#### REF.6.E — `next` prefix + `CapabilityListCard` — DONE (unit/browser smoke)
 
 Spec: ui-spec §9 REF.6.E.
 
@@ -181,40 +225,81 @@ Scope:
 - Add `CapabilityListCard` rendering a navigable list of
   `SuggestedNextAction` items.
 - Wire `suggest_next` capability output.
-- Extract row-navigation keyboard handling into a shared hook reusable by
-  `SearchResultsList`.
+- Extend keyboard handling so capability mode can own ArrowUp / ArrowDown /
+  Enter when the active card is a suggestion list.
 
 Non-goals:
-- No automatic empty-state mounting (docx §4.4 split dropped).
 - No mixed ranking with workflow_memory raw data — that data is the input
   to the suggester.
 
-Done:
-- Typing `next` returns ranked suggestions within 1 s warm cache.
-- Arrow keys + Enter dispatch each suggestion via its `action_ref`.
-- Empty result handled gracefully (`No recent workflows`).
+Landed:
+- `parseCapabilityPrefix` and `usePaletteMode` now recognize `next` / `next `
+  as a zero-arg capability prefix.
+- Added `CapabilityListCard` with ranked rows, replay/history-only badges,
+  timestamp display, and empty/error states.
+- `useCapabilityRunState` auto-submits `suggest_next` when `next` becomes the
+  active prefix, so the card populates without a second keystroke.
+- `useKeyboardNav` now routes ArrowUp / ArrowDown / Enter to the active
+  `CapabilityListCard` selection model.
+- 2026-05-29 UX follow-through auto-mounts the same `CapabilityListCard` on an
+  empty palette, so the workflow suggestion surface is visible without typing
+  `next`.
+- Replay currently supports rows with a best-effort `cmd.run` replay
+  descriptor. Non-replayable history rows stay visible but are labeled
+  `History only`.
 
-#### REF.6.F — `cmd <intent>` prefix + `CapabilityCommandCard`
+Verification:
+- Targeted Vitest coverage for the parser, palette-mode hook, keyboard nav,
+  and `CapabilityListCard` passes.
+- Full `npm run test` and `npm run lint` are green.
+- Browser smoke against plain `vite` confirmed both the explicit `next` scene
+  and the empty-palette auto-mount; it also caught a real integration typo,
+  which was fixed before handoff.
+
+Pending:
+- Manual `npm run tauri dev` smoke is still required because capability IPC is
+  only available when `window.__TAURI_INTERNALS__` exists.
+
+#### REF.6.F — `cmd <intent>` prefix + `CapabilityCommandCard` — DONE (unit/browser smoke)
 
 Spec: ui-spec §9 REF.6.F.
 
 Scope:
 - Add `cmd` to the prefix parser.
 - Add `CapabilityCommandCard` (structured command + confidence + rationale
-  + `[↵ Run]` / `[Edit before]` / `[Copy]` chips).
+  + `[Run]` / `[Edit before]` / `[Copy]` chips).
 - Wire `gen_command` capability.
-- Confidence display: `low` dims `[Run]` and requires explicit Tab focus;
-  `high` auto-focuses `[Run]`.
+- Display confidence and keep risky execution user-owned.
 
 Non-goals:
-- No NL-query auto-detection (prefix is the only entry).
 - No multi-step plan output.
 
-Done:
-- `cmd 把當前 branch 上 commit 推到 origin` returns `git push origin HEAD`-
-  shaped card within 1 s warm cache.
-- `[Edit before]` returns command into palette input (prefix stripped).
-- Low-confidence card does not auto-focus `[Run]`.
+Landed:
+- `parseCapabilityPrefix` and `usePaletteMode` now recognize `cmd <intent>`.
+- Added `CapabilityCommandCard` with structured command/rationale rendering,
+  latency header, and explicit `Generate`, `Run`, `Edit before`, and `Copy`
+  affordances.
+- `Run` opens an attached terminal launch spec instead of executing inline.
+- `Edit before` strips the prefix and places the generated command back into
+  the palette input so it can be edited as a normal query/command.
+- `CapabilityResultArea` now dispatches between streaming text cards,
+  `CapabilityCommandCard`, and `CapabilityListCard`.
+- 2026-05-29 UX follow-through adds a natural-language heuristic: when a search
+  query looks like an action intent, stabilizes briefly, and still has no
+  results, the same `CapabilityCommandCard` auto-surfaces and Enter submits it
+  without requiring the `cmd` keyword.
+
+Verification:
+- Targeted Vitest coverage for the parser, palette-mode hook, keyboard nav,
+  and `CapabilityCommandCard` passes.
+- Full `npm run test`, `npm run lint`, and `cargo test --lib` are green.
+- Browser smoke against plain `vite` confirmed both the explicit `cmd` scene
+  and the no-result NL-query auto-surface; the capability call itself correctly
+  reports that Tauri runtime is required outside Tauri.
+
+Pending:
+- Manual `npm run tauri dev` smoke is still required because capability IPC is
+  only available when `window.__TAURI_INTERNALS__` exists.
 
 #### REF.6.G — Remove panels from hot path + UI-owned approval
 
@@ -265,6 +350,53 @@ Done:
 - `src/components/` contains only `FloatingWindow.tsx`, `AppContainer.tsx`,
   and `AiPanel.tsx` (legacy fallback, slated for REF.8).
 - All test files + imports update; `npm run test` and `npm run lint` green.
+
+#### REF.6.J — Rule-based NL intent router (fallback) — DONE (unit-level)
+
+Source: user 2026-05-29 request to remove the "must type the prefix" friction
+for explain / fix_error workflows. Extends the existing no-result auto-surface
+pattern from REF.6.F (which only covered `cmd`) to the full text-capability
+set. Scope was explicitly bounded to rule-based, fallback-only routing per the
+user's MVP preference (see [[feedback-minimal-scope]]).
+
+Scope:
+- New `src/features/command-palette/utils/classifyNlIntent.ts` returns
+  `"explain" | "summarize" | "fix" | "cmd" | null`.
+- Priority order (first match wins): fix-shaped error output → fix verb →
+  summarize verb → explain verb → action heuristic for `cmd`.
+- Drives the existing smart-surface gate in `CommandPalette.tsx`: explicit
+  capability prefix takes priority, then the no-result + stabilization
+  debounce + dismissed-key path resolves which card (if any) to surface.
+- `closeCapabilitySurface` now treats any smart non-`next` close as a
+  dismissal keyed on the trimmed query so dismissing a smart explain card
+  does not wipe typed input.
+
+Non-goals:
+- No LLM-based classifier; no per-keystroke routing.
+- No new capability surfaces; uses the same answer / command / list cards.
+- No always-on routing — explicit prefixes (`explain X`, `fix X`, ...)
+  remain the only path that fires while there are still search results.
+
+Landed:
+- `classifyNlIntent` with English verb/cue patterns and CJK cues
+  (解釋 / 說明 / 什麼是 / 總結 / 摘要 / 修復 / 為什麼...錯誤).
+- `CommandPalette.tsx` replaces the boolean `showSmartCommand` with a
+  `smartIntentMatch` derivation; smart card variant is now picked by the
+  classifier instead of being hard-coded to `cmd`.
+- `looksLikeAiCommandIntent` is now consumed only through `classifyNlIntent`
+  (the file remains for the cmd branch; no behavior regression).
+
+Verification:
+- `classifyNlIntent.test.ts` covers fix / summarize / explain / cmd / null
+  buckets and an explicit "fix wins over explain" tie-break case.
+- Full `npm run test` (157 pass + 1 pre-existing skip) and `npm run lint`
+  are clean.
+
+Pending:
+- Manual `npm run tauri dev` smoke to confirm the smart routes for
+  "what is rust hashmap" / "tldr this article" / "fix error[E0308]" /
+  "list files in this project" all fire the right capability and that
+  dismissing a smart card does not lose input.
 
 #### REF.6.I — ADR-0030 template slimming (docx §9.2 push back 2)
 
@@ -343,16 +475,16 @@ Done:
 Frontend targets:
 - Split `src/components/CommandPalette.tsx` into `src/features/command-palette/` (DONE; 598 lines accepted).
 - AiPanel: REF.6.G removes from hot path; REF.8 decides physical deletion.
-- Add `src/features/ai-capability/` (DONE for 3 capabilities; extend in REF.6.C).
+- Add `src/features/ai-capability/` (DONE; includes all 5 capabilities plus the `cmd` / `next` UI cards).
 - Add `src/features/workflow-memory/` (DONE).
 - Consolidate model panels into `src/features/model-manager/` (REF.6.H).
 - Migrate remaining `src/components/*.tsx` panels into `src/features/*` (REF.6.H).
 
 Backend targets:
 - Shared result models (DONE).
-- `src-tauri/src/core/ai_capability/` (DONE for 3 capabilities; extend in REF.6.C).
+- `src-tauri/src/core/ai_capability/` (DONE for all 5 capabilities).
 - `src-tauri/src/core/workflow_memory.rs` (DONE).
-- `src-tauri/src/handlers/ai_capability.rs` (DONE; extend in REF.6.C).
+- `src-tauri/src/handlers/ai_capability.rs` (DONE for all 5 capabilities).
 - `src-tauri/src/handlers/agent/mod.rs` (DONE at 616; trim opportunistically).
 - Shrink then remove `src-tauri/src/core/agent_runtime.rs` after the observation
   window (REF.8).
