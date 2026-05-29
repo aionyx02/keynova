@@ -7,6 +7,7 @@ use crate::core::agent_runtime::AgentArchiveSink;
 use crate::core::config_manager::ConfigManager;
 use crate::core::knowledge_store::AgentArchiveEntry;
 use crate::core::local_context::LocalContextSearcher;
+use crate::core::startup_preflight::StartupPreflight;
 use crate::core::{
     ActionArena, AgentRuntime, AppEvent, BuiltinCommandRegistry, CommandRouter, EventBus,
     KnowledgeStoreHandle,
@@ -68,6 +69,7 @@ pub(crate) struct AppState {
     pub(crate) _config_watcher: Arc<Mutex<Option<notify::RecommendedWatcher>>>,
     pub(crate) _history_manager: Arc<Mutex<HistoryManager>>,
     pub(crate) _search_manager: Arc<Mutex<SearchManager>>,
+    pub(crate) _startup_preflight: Arc<StartupPreflight>,
     pub(crate) _workspace_manager: Arc<Mutex<WorkspaceManager>>,
 }
 
@@ -86,6 +88,7 @@ struct ManagerBundle {
     history_manager: Arc<Mutex<HistoryManager>>,
     terminal_manager: Arc<Mutex<TerminalManager>>,
     search_manager: Arc<Mutex<SearchManager>>,
+    startup_preflight: Arc<StartupPreflight>,
     ai_manager: Arc<AiManager>,
     agent_runtime: Arc<AgentRuntime>,
     translation_manager: Arc<TranslationManager>,
@@ -162,6 +165,11 @@ fn create_managers(event_bus: &EventBus, knowledge_store: &KnowledgeStoreHandle)
         configured_search_backend.as_deref(),
         configured_search_index_dir.as_deref(),
     )));
+    let startup_preflight = Arc::new(StartupPreflight::new(
+        Arc::clone(&config_manager),
+        Arc::clone(&model_manager),
+        event_bus.clone(),
+    ));
 
     let eb_for_ai = event_bus.clone();
     let ai_manager = Arc::new(AiManager::new(Arc::new(move |event| {
@@ -205,6 +213,7 @@ fn create_managers(event_bus: &EventBus, knowledge_store: &KnowledgeStoreHandle)
         history_manager,
         terminal_manager,
         search_manager,
+        startup_preflight,
         ai_manager,
         agent_runtime,
         translation_manager,
@@ -319,6 +328,7 @@ fn build_command_router(
     router.register(Arc::new(ModelHandler::new(
         Arc::clone(&bundle.model_manager),
         Arc::clone(&bundle.config_manager),
+        Arc::clone(&bundle.startup_preflight),
         Arc::new(move |event| {
             let _ = eb_for_model.publish(event);
         }),
@@ -421,6 +431,7 @@ impl AppState {
             _config_watcher: Arc::new(Mutex::new(None)),
             _history_manager: bundle.history_manager,
             _search_manager: bundle.search_manager,
+            _startup_preflight: bundle.startup_preflight,
             _workspace_manager: bundle.workspace_manager,
         }
     }

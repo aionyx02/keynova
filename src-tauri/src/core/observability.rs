@@ -76,6 +76,23 @@ pub fn log_db_request(worker: &str, ok: bool, elapsed: Duration) {
     );
 }
 
+pub fn log_startup_preflight(
+    status: &str,
+    elapsed: Duration,
+    ollama_reachable: bool,
+    error_count: usize,
+    warning_count: usize,
+) {
+    #[cfg(debug_assertions)]
+    eprintln!(
+        "[keynova][obs] startup.preflight status={status} latency_ms={:.2} ollama_reachable={} errors={} warnings={}",
+        elapsed.as_secs_f64() * 1000.0,
+        ollama_reachable,
+        error_count,
+        warning_count,
+    );
+}
+
 #[derive(Debug, Clone, Serialize)]
 pub struct RuntimeBaseline {
     pub idle_memory_bytes: Option<u64>,

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type Dispatch, type SetStateAction } from "react";
 import { listen } from "@tauri-apps/api/event";
 import { invoke } from "@tauri-apps/api/core";
 import type { PanelProps } from "../types/panel";
@@ -6,6 +6,10 @@ import type { PanelProps } from "../types/panel";
 interface HardwareInfo {
   ram_mb: number;
   vram_mb: number;
+}
+
+interface BootstrapHardwareInfo extends HardwareInfo {
+  cpu_cores: number;
 }
 
 interface ModelCandidate {
@@ -32,6 +36,24 @@ interface ModelEventPayload {
 
 interface CatalogUpdatedPayload {
   models: ModelCandidate[];
+}
+
+interface BootstrapSnapshot {
+  status: string;
+  hardware: BootstrapHardwareInfo;
+  model: {
+    ollama_url: string;
+    ollama_reachable: boolean;
+    recommended_models: ModelCandidate[];
+  };
+  warnings: string[];
+  errors: string[];
+}
+
+interface BootstrapStatusPayload {
+  running: boolean;
+  stale: boolean;
+  snapshot: BootstrapSnapshot | null;
 }
 
 interface ApiOption {
@@ -110,6 +132,51 @@ function mergeCatalog(current: ModelCandidate[], incoming: ModelCandidate[]) {
   return merged;
 }
 
+function applyBootstrapState(
+  payload: BootstrapStatusPayload,
+  setHardware: Dispatch<SetStateAction<HardwareInfo | null>>,
+  setCandidates: Dispatch<SetStateAction<ModelCandidate[]>>,
+  setNotice: Dispatch<SetStateAction<string>>,
+  setError: Dispatch<SetStateAction<string>>,
+) {
+  const snapshot = payload.snapshot;
+  if (snapshot) {
+    setHardware(snapshot.hardware);
+    if (snapshot.model.recommended_models.length > 0) {
+      setCandidates(snapshot.model.recommended_models);
+    }
+    if (snapshot.errors.length > 0) {
+      setError(snapshot.errors[0]);
+      return;
+    }
+    setError("");
+    if (!snapshot.model.ollama_reachable) {
+      setNotice(`Ollama is offline at ${snapshot.model.ollama_url}. Recommendations are cached.`);
+      return;
+    }
+    if (payload.running) {
+      setNotice("Refreshing local model bootstrap…");
+      return;
+    }
+    if (snapshot.warnings.length > 0) {
+      setNotice(snapshot.warnings[0]);
+      return;
+    }
+    setNotice("Local model bootstrap ready.");
+    setError("");
+    return;
+  }
+
+  if (payload.running) {
+    setNotice("Preparing local model bootstrap…");
+    setError("");
+    return;
+  }
+
+  setNotice("Bootstrap snapshot unavailable. Press Esc and reopen if it stays empty.");
+  setError("");
+}
+
 export function ModelDownloadPanel({ onClose }: PanelProps) {
   const [hardware, setHardware] = useState<HardwareInfo | null>(null);
   const [candidates, setCandidates] = useState<ModelCandidate[]>([]);
@@ -138,13 +205,9 @@ export function ModelDownloadPanel({ onClose }: PanelProps) {
     let cancelled = false;
     async function load() {
       try {
-        const [hw, recommended] = await Promise.all([
-          ipcDispatch<HardwareInfo>("model.detect_hardware"),
-          ipcDispatch<ModelCandidate[]>("model.recommend"),
-        ]);
+        const bootstrap = await ipcDispatch<BootstrapStatusPayload>("model.bootstrap_snapshot");
         if (cancelled) return;
-        setHardware(hw);
-        setCandidates(recommended);
+        applyBootstrapState(bootstrap, setHardware, setCandidates, setNotice, setError);
       } catch (err) {
         if (!cancelled) setError(String(err));
       }
@@ -157,6 +220,12 @@ export function ModelDownloadPanel({ onClose }: PanelProps) {
 
   useEffect(() => {
     if (!window.__TAURI_INTERNALS__) return;
+    const unlistenPreflight = listen<BootstrapStatusPayload>("startup-preflight-updated", (event) => {
+      applyBootstrapState(event.payload, setHardware, setCandidates, setNotice, setError);
+    });
+    const unlistenPreflightError = listen<BootstrapStatusPayload>("startup-preflight-failed", (event) => {
+      applyBootstrapState(event.payload, setHardware, setCandidates, setNotice, setError);
+    });
     const unlistenCatalog = listen<CatalogUpdatedPayload>("model-catalog-updated", (event) => {
       setCandidates((current) => mergeCatalog(current, event.payload.models));
     });
@@ -180,6 +249,8 @@ export function ModelDownloadPanel({ onClose }: PanelProps) {
       setError(event.payload.error ?? "The model download failed.");
     });
     return () => {
+      unlistenPreflight.then((fn) => fn());
+      unlistenPreflightError.then((fn) => fn());
       unlistenCatalog.then((fn) => fn());
       unlistenProgress.then((fn) => fn());
       unlistenDone.then((fn) => fn());

@@ -19,13 +19,14 @@ owner: project
 ## Current Focus
 
 - P0 is the ADR-0029 / AI capability refactor track from `docs/tasks/refactor-ai-capability.md`.
+- User inserted a P0 stability override on 2026-05-29: `PREFLIGHT` now implements a startup preflight snapshot with once-per-boot refresh so `/model_download` stops paying the cold path and stops flash-crashing on first open.
 - Re-planned 2026-05-27 against `Keynova_Refactor_Plan_v1-2.docx`: REF.6 is split into sub-batches B–I to recover deferred docx Step 4/6 scope (2 missing capabilities, 3 missing UI scenes, feature-first migration, ADR-0030 slim template).
 - Execution order is `REF.0` → `REF.6.A` (done) → `REF.6.B` → ... → `REF.6.I` → `REF.7` → `REF.8`.
 - `current.md` and `active.md` are current-state indexes only.
 
 ## Important Constraints
 
-- AI agents can draft ADRs as `proposed`; the developer must accept ADR-0029 before architecture-changing implementation begins.
+- AI agents can draft ADRs as `proposed`; ADR-0039 must remain `proposed` in docs even though the developer explicitly approved the bounded startup-preflight runtime implementation on 2026-05-29.
 - Freeze new feature work before `REF.7` unless it is required by the refactor, fixes a P0 regression, or protects a documented safety boundary.
 - LLM-driven execution must stay approval-gated for risky or system-affecting actions; risk + `ConfirmRequirement` live on `UnifiedResult.ActionChip`.
 - Generic shell tool exposure stays blocked until the platform sandbox boundary is complete.
@@ -34,6 +35,7 @@ owner: project
 
 ## Next Step
 
+- Immediate execution order: finish `PREFLIGHT` validation/docs follow-through and cold-path smoke coverage, then resume `REF.6.C` backend `gen_command` + `suggest_next`.
 - `REF.6.B` landed at unit level: prefix dispatcher (`explain` / `summarize`) + `CapabilityAnswerCard` + `[Copy md]` / `[Save to note]` chips + capability-cancel Esc branch + discovery hint line (`launcher.show_capability_hint`). REF.6.A row chip + `Ctrl+E` + `InlineCapabilityReply` removed. Post-handoff `explain <text>` UI event alias/final-response fallback regression fixed; targeted vitest pass.
 - Pending manual `tauri dev` smoke for REF.6.B (live Ollama stream end-to-end + Bug A/B regression).
 - Next batch: `REF.6.C` backend `gen_command` + `suggest_next` capabilities (no UI surface in that batch; UI consumers are REF.6.D/.E/.F).

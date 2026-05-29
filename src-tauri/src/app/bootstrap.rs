@@ -96,6 +96,7 @@ pub fn run() {
                 }
             });
 
+            app.state::<AppState>()._startup_preflight.ensure_started();
             prescan_apps(app);
 
             let low_memory = app

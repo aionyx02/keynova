@@ -2,7 +2,7 @@
 type: architecture_spec
 status: active
 priority: p1
-updated: 2026-05-23
+updated: 2026-05-29
 context_policy: retrieve_only
 owner: project
 ---
@@ -497,6 +497,48 @@ KnowledgeStore: agent_audit 寫入 SQLite
 | 全文搜尋 | tantivy 或 Everything | tantivy | tantivy |
 | 滑鼠控制 | WinAPI SendInput | xdotool | CGEvent |
 | Neovim portable | nvim-win64.zip | nvim-linux64.tar.gz | nvim-macos.tar.gz |
+
+---
+
+## 11. Startup Preflight Snapshot (ADR-0039 / PREFLIGHT)
+
+Keynova now has a bounded startup bootstrap path for local-only metadata that
+is reused across the same OS boot.
+
+Runtime entry points:
+
+- `src-tauri/src/app/bootstrap.rs` starts the background runner during shared
+  Tauri setup for both packaged launches and `tauri dev`.
+- `src-tauri/src/core/startup_preflight.rs` owns snapshot structs,
+  load/save/invalidation logic, and bounded collection work.
+- `src-tauri/src/handlers/model.rs` exposes `model.bootstrap_snapshot` and
+  `model.refresh_bootstrap`, and makes `model.detect_hardware` /
+  `model.recommend` snapshot-first with live fallback.
+- `src/components/ModelDownloadPanel.tsx` listens for
+  `startup-preflight-updated` / `startup-preflight-failed` and renders partial
+  bootstrap state instead of paying the full cold path on mount.
+
+Snapshot contents:
+
+- Keynova-owned path resolution and directory creation
+- App-owned icon presence checks needed for bootstrap surfaces
+- Hardware facts used by model recommendation (`ram_mb`, `vram_mb`,
+  `cpu_cores`)
+- Local Ollama bootstrap facts (`ollama_url`, reachability, local models when
+  reachable, recommended local-model shortlist)
+
+Persistence and invalidation:
+
+- Snapshot path: `%LOCALAPPDATA%\\Keynova\\bootstrap\\preflight-v1.json` on
+  Windows, via `platform_dirs::keynova_data_dir()`.
+- Rebuild triggers: missing snapshot, schema-version change, app-version
+  change, boot-ID change, source-mode change, or `ai.ollama_url` change.
+- The refresh runs in background and must not block launcher first paint.
+
+Related events/logging:
+
+- EventBus topics: `startup.preflight.updated`, `startup.preflight.failed`
+- Observability helper: `core::observability::log_startup_preflight(...)`
 
 平台特定程式碼透過 `#[cfg(target_os = "...")]` 隔離在 `platform/` 模組。
 

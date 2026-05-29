@@ -2,7 +2,7 @@
 type: task_index
 status: active
 priority: p0
-updated: 2026-05-28
+updated: 2026-05-29
 context_policy: always_retrievable
 owner: project
 tags: [refactor, ai-capability, search-first, p0]
@@ -14,6 +14,7 @@ tags: [refactor, ai-capability, search-first, p0]
 
 ### P0
 
+- [~] `PREFLIGHT` startup preflight snapshot + once-per-boot refresh for required bootstrap data (paths / app-owned icons / hardware / model bootstrap) so `/model_download` no longer pays the cold path or flash-crashes. User-mandated P0 stability override before `REF.6.C`; runtime implementation is underway under explicit 2026-05-29 developer approval while ADR-0039 remains `proposed`. Detailed plan: `docs/tasks/startup-preflight-cache.md`.
 - [~] `BRAND.ICON` swap Tauri placeholder icon for `keynova_icon.png` brand across desktop surfaces (tauri icon-generated set, 16px panel logo bottom-right, tray About/Version, NSIS sidebar/header BMPs). User-mandated polish — explicit override of pre-REF.7 freeze. Branch `feature/brand-icon`.
 - [x] `REF.0` lock ADR-0029 as the governing decision for the AI capability refactor.
 - [x] `REF.1` define `UnifiedResult` as the shared result/action contract.
@@ -48,7 +49,7 @@ Detailed batch definitions, done criteria, non-goals, file map, and validation g
 
 Keynova's active priority is search-first workflow refactor: AI is a stateless capability layer invoked inline from unified result rows; AiPanel and chat-first surfaces leave the hot path.
 
-Until `REF.7` is complete, freeze new feature work unless required for the refactor, fixing a P0 regression, or protecting a documented safety boundary.
+Until `REF.7` is complete, freeze new feature work unless required for the refactor, fixing a P0 regression, or protecting a documented safety boundary. `PREFLIGHT` is a user-mandated P0 stability override because `/model_download` currently has a cold-path crash/flash-exit risk.
 
 Keep `active.md` compact. Put batch-level task detail in `docs/tasks/refactor-ai-capability.md`, detailed implementation notes in `docs/memory/sessions/YYYY-MM-DD.md`, and future non-refactor ideas in `docs/tasks/backlog.md`.
 

@@ -151,9 +151,29 @@ impl ModelManager {
 
     /// Lists models already downloaded in Ollama.
     pub fn list_local(&self, base_url: &str) -> Result<Vec<LocalModel>, String> {
+        self.list_local_with_client(&self.client, base_url)
+    }
+
+    /// Lists local Ollama models with a bounded timeout for startup/bootstrap probes.
+    pub fn probe_local(
+        &self,
+        base_url: &str,
+        timeout: std::time::Duration,
+    ) -> Result<Vec<LocalModel>, String> {
+        let client = reqwest::blocking::Client::builder()
+            .timeout(timeout)
+            .build()
+            .map_err(|e| e.to_string())?;
+        self.list_local_with_client(&client, base_url)
+    }
+
+    fn list_local_with_client(
+        &self,
+        client: &reqwest::blocking::Client,
+        base_url: &str,
+    ) -> Result<Vec<LocalModel>, String> {
         let url = format!("{}/api/tags", normalize_base_url(base_url));
-        let response = self
-            .client
+        let response = client
             .get(url)
             .send()
             .map_err(|e| format!("Ollama is not reachable: {e}"))?;

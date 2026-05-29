@@ -2,10 +2,46 @@
 type: security_policy
 status: active
 priority: p0
-updated: 2026-05-20
+updated: 2026-05-29
 context_policy: retrieve_only
 owner: project
 ---
+
+## Startup Preflight Snapshot Boundary (ADR-0039 / PREFLIGHT)
+
+Startup preflight is allowed only as a bounded local bootstrap pass. It is not
+general file indexing and not a private-content ingestion feature.
+
+Allowed local writes:
+
+- `platform_dirs::keynova_data_dir()/bootstrap/preflight-v1.json`
+- Keynova-owned directories created during bootstrap, including notes/search
+  index/Nvim/icon-cache roots already used by the app
+
+Allowed probes:
+
+- Resolve/create Keynova-owned directories
+- Verify app-owned icon assets required by bootstrap surfaces
+- Detect local hardware facts required by `/model_download`
+- Read `ai.ollama_url` from config
+- Probe the configured Ollama base URL with a short local timeout and, when
+  reachable, list local Ollama models
+
+Explicitly not allowed on the boot path:
+
+- Recursive scanning of arbitrary user files or folders
+- Remote third-party model catalog fetches
+- Installer-only privileged hooks that differ from `tauri dev`
+- Long-running work that blocks launcher first paint
+
+Handling rules:
+
+- Snapshot failures degrade to warnings/partial status instead of panicking the
+  UI path.
+- The snapshot file stays inside Keynova-owned local storage and must not be
+  reused as a generic export or audit log.
+- ADR-0039 remains `proposed` until the developer explicitly accepts it; the AI
+  may implement within the approved boundary but must not change ADR status.
 
 # Keynova 安全模型
 

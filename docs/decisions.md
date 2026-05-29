@@ -2,7 +2,7 @@
 type: decision_index
 status: active
 priority: p1
-updated: 2026-05-20
+updated: 2026-05-29
 context_policy: retrieve_only
 owner: project
 ---
@@ -69,6 +69,7 @@ owner: project
 | [0028](adr/0028-learning-material-review-local-context.md) | Learning Material Review Local Context Boundary | 提議 | 2026-05-15 |
 | [0029](adr/0029-ai-capability-layer.md) | AI Capability Layer — Stateless Inline Capabilities Over Search Results | 接受 | 2026-05-20 |
 | [0030](adr/0030-backend-risk-tag-contract.md) | Backend Risk Tag Contract For UI-Owned Confirmation | 接受 | 2026-05-20 |
+| [0039](adr/0039-startup-preflight-snapshot.md) | Startup Preflight Snapshot | 提議 | 2026-05-29 |
 | [0038](adr/0038-currency-online-rates.md) | Currency Online Rates Network Boundary | 提議 | 2026-05-18 |
 
 ---
