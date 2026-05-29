@@ -645,6 +645,33 @@ pub fn builtin_setting_schema() -> Vec<SettingSchema> {
             false,
             &[],
         ),
+        // REF.7.A — compatibility flag for the chat-first agent path. Default off:
+        // the stateless capability layer (REF.4-REF.6) is now canonical. When true,
+        // legacy /ai_legacy_chat command + AiPanel mount become reachable; legacy
+        // ConfigManager-gated paths in handlers/agent/planning.rs and
+        // handlers/agent/answers.rs early-return on false.
+        SettingSchema::new(
+            "ai.legacy_agent",
+            "ai",
+            "Legacy chat-first agent (compatibility)",
+            Boolean,
+            "false",
+            false,
+            &["true", "false"],
+        ),
+        // REF.7.A — fixes a REF.6.B latent bug where useLauncherSettings watched
+        // this key but no schema row backed it. setting.list_all therefore could
+        // never return it. Default true matches the in-code default consumed by
+        // CapabilityHintLine.
+        SettingSchema::new(
+            "launcher.show_capability_hint",
+            "launcher",
+            "Show capability prefix hint above empty palette",
+            Boolean,
+            "true",
+            false,
+            &["true", "false"],
+        ),
     ]
 }
 

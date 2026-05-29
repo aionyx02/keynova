@@ -55,8 +55,8 @@
       "id": "REF.7",
       "title": "Quantitative Gates And Legacy Default Off",
       "priority": "P0",
-      "status": "open",
-      "summary": "quantitative gates, default `ai.legacy_agent = false`, observe one release cycle",
+      "status": "planned",
+      "summary": "Quantitative Gates And Legacy Default Off",
       "depends_on": [
         "REF.6"
       ],

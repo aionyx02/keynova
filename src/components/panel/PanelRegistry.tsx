@@ -4,9 +4,17 @@ import type { PanelProps } from "../../types/panel";
 
 export type { PanelProps };
 
-// REF.6.B follow-up — `AiPanel` lazy import removed from the registry. The
-// component file is retained (deletion is REF.8 territory pending the
-// observation cycle) but no palette command routes to it anymore.
+// REF.6.B follow-up — `AiPanel` lazy import removed from the registry hot
+// path. The component file is retained (deletion is REF.8 territory pending
+// the observation cycle).
+// REF.7.A — `ai_legacy` lazy entry restored as the legacy compatibility
+// route. The backend builtin command `ai_legacy_chat` only registers when
+// `ai.legacy_agent = true`, so the user has to opt into the chat surface
+// before this lazy import is ever resolved. With the flag off (default), the
+// chunk stays cold and adds zero cost to first paint.
+const AiPanelLazy = React.lazy(() =>
+  import("../AiPanel").then((m) => ({ default: m.AiPanel })),
+);
 const ModelDownloadPanel = React.lazy(() =>
   import("../../features/model-manager/ModelDownloadPanel").then((m) => ({ default: m.ModelDownloadPanel })),
 );
@@ -51,4 +59,5 @@ export const PanelRegistry: Record<string, React.ComponentType<PanelProps>> = {
   system: SystemPanel,
   system_monitoring: SystemMonitoringPanel,
   nvim_download: NvimDownloadPanel,
+  ai_legacy: AiPanelLazy,
 };

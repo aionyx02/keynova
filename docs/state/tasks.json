@@ -368,32 +368,28 @@
       "id": "REF.7",
       "title": "Quantitative Gates And Legacy Default Off",
       "priority": "P0",
-      "status": "open",
-      "summary": "quantitative gates, default `ai.legacy_agent = false`, observe one release cycle",
+      "status": "planned",
+      "summary": "Quantitative Gates And Legacy Default Off",
       "depends_on": [
         "REF.6"
       ],
       "parallel_with": [],
       "source": "docs/tasks/refactor-ai-capability.md",
       "scope": [
-        "Add performance bench scripts and CI-friendly file-size gates (per docx §8).",
-        "Default `ai.legacy_agent = false`.",
-        "Keep legacy agent/chat available behind the flag for one release cycle.",
-        "Run manual regression for Bug A/B class race conditions.",
-        "Update release notes and docs for the new AI interaction model.",
-        "Take formal P50 / P95 reading on `qwen2.5:7b` (the deferred ADR-0029 §8"
+        "Append two `SettingSchema::new(...)` rows to `settings_schema.rs`:",
+        "Read `ai.legacy_agent` via `ConfigManager` in `handlers/agent/planning.rs`",
+        "Register `ai_legacy_chat` builtin command only when the flag is `true`",
+        "Add `ai_legacy` entry to `PanelRegistry.tsx` with `React.lazy` import",
+        "Extend `useLauncherSettings.WATCHED_KEYS` with `\"ai.legacy_agent\"`."
       ],
       "non_goals": [
-        "Do not physically remove legacy agent/chat code during the observation cycle."
+        "Do not physically remove legacy agent/chat code during the observation cycle.",
+        "Do not introduce a \"Once\" confirm taxonomy on `ActionChip` — REF.6.G"
       ],
       "done_criteria": [
-        "`handlers/agent/mod.rs` ≤ 616 lines (current) or trimmed below `< 600`.",
-        "`agent_runtime.rs` < 400 lines during observation or justified pending removal.",
-        "AI inline P50 < 800 ms and P95 < 1500 ms on `qwen2.5:7b`.",
-        "Palette cold open < 200 ms and warm open < 50 ms.",
-        "Search first chunk P50 < 80 ms.",
-        "Idle RSS < 150 MB after 10 minutes and < 200 MB after 1 hour, excluding",
-        "One release cycle completes without P0 regression reports."
+        "Default-off: typing `/ai_legacy_chat` reports unknown command.",
+        "Flag-on after config reload: typing `/ai_legacy_chat` opens AiPanel.",
+        "`cargo clippy --lib -- -D warnings`, `cargo test --lib`, `npm run lint`,"
       ],
       "notes": [],
       "impact": {
