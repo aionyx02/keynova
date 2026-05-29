@@ -97,6 +97,12 @@ impl ConfigManager {
         self.data.get(key).cloned()
     }
 
+    pub fn get_bool(&self, key: &str) -> Option<bool> {
+        self.data
+            .get(key)
+            .map(|value| value.trim().eq_ignore_ascii_case("true"))
+    }
+
     /// 更新設定值並寫回磁碟（僅在失焦/儲存按鈕時呼叫）。
     pub fn set(&mut self, key: &str, value: &str) -> Result<(), String> {
         self.data.insert(key.to_string(), value.to_string());

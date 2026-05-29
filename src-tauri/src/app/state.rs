@@ -311,10 +311,12 @@ fn build_command_router(
     router.register(Arc::new(TerminalHandler::new(
         Arc::clone(&bundle.terminal_manager),
         Arc::clone(&bundle.workspace_manager),
+        Arc::clone(&bundle.config_manager),
     )));
-    router.register(Arc::new(FeatureHandler::new(Arc::clone(
-        &bundle.terminal_manager,
-    ))));
+    router.register(Arc::new(FeatureHandler::new(
+        Arc::clone(&bundle.terminal_manager),
+        Arc::clone(&bundle.config_manager),
+    )));
     router.register(Arc::new(MouseHandler::new(Arc::clone(
         &bundle.mouse_manager,
     ))));

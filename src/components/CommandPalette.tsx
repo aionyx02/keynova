@@ -8,7 +8,6 @@ import { useAppStore } from "../stores/appStore";
 import { parseInputMode } from "../hooks/useInputMode";
 import { useCommands } from "../hooks/useCommands";
 import { CommandSuggestions } from "../features/command-palette/CommandSuggestions";
-import { CheatsheetOverlay } from "../shared/components/CheatsheetOverlay";
 import { clearLegacyFilters, loadFilters } from "../features/command-palette/FilterChips";
 import { PaletteInputBar } from "../features/command-palette/PaletteInputBar";
 import { EmptyStateCTA } from "../features/command-palette/EmptyStateCTA";
@@ -38,7 +37,7 @@ import { usePaletteRefs } from "../features/command-palette/hooks/usePaletteRefs
 import { useQueryChange } from "../features/command-palette/hooks/useQueryChange";
 import { usePaletteEffects } from "../features/command-palette/hooks/usePaletteEffects";
 import { useRankHover } from "../features/command-palette/hooks/useRankHover";
-import { OnboardingTour, hasCompletedOnboarding } from "../shared/components/OnboardingTour";
+import { hasCompletedOnboarding } from "../shared/components/onboarding-state";
 import { RankTooltip } from "../shared/components/RankTooltip";
 import { PALETTE_WIDTH_NARROW } from "../hooks/useWindowResize";
 import type { SourceFilter } from "../types/search";
@@ -49,16 +48,29 @@ import { useCapabilityStream } from "../features/ai-capability/hooks/useCapabili
 import { useCapabilityRunState } from "../features/ai-capability/hooks/useCapabilityRunState";
 import { useGenCommand } from "../features/ai-capability/hooks/useGenCommand";
 import { useSuggestNext } from "../features/ai-capability/hooks/useSuggestNext";
-import {
-  CapabilityResultArea,
-  type CapabilitySurfaceMode,
-} from "../features/command-palette/CapabilityResultArea";
+import type { CapabilitySurfaceMode } from "../features/command-palette/CapabilityResultArea";
 import { CapabilityHintLine } from "../features/command-palette/CapabilityHintLine";
 import { classifyNlIntent } from "../features/command-palette/utils/classifyNlIntent";
 import type { TerminalLaunchSpec } from "../types/terminal";
 
 const TerminalPanel = React.lazy(() =>
   import("../features/terminal/TerminalPanel").then((m) => ({ default: m.TerminalPanel })),
+);
+// PERF.1 — Lazy-mount the rarely-used surfaces so the main bundle keeps only
+// the always-on palette skeleton. CapabilityResultArea pulls react-markdown
+// transitively when its answer card renders, so deferring it saves the most
+// memory; OnboardingTour and CheatsheetOverlay only mount on first-run /
+// `?` press.
+const CapabilityResultArea = React.lazy(() =>
+  import("../features/command-palette/CapabilityResultArea").then((m) => ({
+    default: m.CapabilityResultArea,
+  })),
+);
+const OnboardingTour = React.lazy(() =>
+  import("../shared/components/OnboardingTour").then((m) => ({ default: m.OnboardingTour })),
+);
+const CheatsheetOverlay = React.lazy(() =>
+  import("../shared/components/CheatsheetOverlay").then((m) => ({ default: m.CheatsheetOverlay })),
 );
 const EMPTY_CAPABILITY_ARGS: Record<string, never> = {};
 
@@ -744,36 +756,42 @@ export function CommandPalette() {
           />
 
           {capabilityMode && (
-            <CapabilityResultArea
-              key={capabilityMode.id}
-              mode={capabilityMode}
-              answerStream={capabilityStream}
-              commandCard={{
-                status: genCommandState.status,
-                data: genCommand.data,
-                error: genCommand.error,
-                startedAtMs: genCommandState.startedAtMs,
-                completedAtMs: genCommandState.completedAtMs,
-                riskRequiresConfirmation: Boolean(genCommand.risk?.requires_confirmation),
-                onSubmit: genCommandState.submit,
-                onCancel: genCommandState.cancel,
-                onEditBefore: editGeneratedCommand,
-                onRun: runGeneratedCommand,
-              }}
-              listCard={{
-                status: suggestNextState.status,
-                items: suggestNext.data,
-                error: suggestNext.error,
-                startedAtMs: suggestNextState.startedAtMs,
-                completedAtMs: suggestNextState.completedAtMs,
-                selectedIndex: safeCapabilitySuggestionSelected,
-                onSelectIndex: setCapabilitySuggestionSelected,
-                onRunSelected: runSuggestedWorkflow,
-                onCancel: suggestNextState.cancel,
-              }}
-              dispatch={dispatch}
-              onClose={closeCapabilitySurface}
-            />
+            <Suspense
+              fallback={
+                <div className="kn-panel-shell h-[120px] rounded-t-none border-t-0" />
+              }
+            >
+              <CapabilityResultArea
+                key={capabilityMode.id}
+                mode={capabilityMode}
+                answerStream={capabilityStream}
+                commandCard={{
+                  status: genCommandState.status,
+                  data: genCommand.data,
+                  error: genCommand.error,
+                  startedAtMs: genCommandState.startedAtMs,
+                  completedAtMs: genCommandState.completedAtMs,
+                  riskRequiresConfirmation: Boolean(genCommand.risk?.requires_confirmation),
+                  onSubmit: genCommandState.submit,
+                  onCancel: genCommandState.cancel,
+                  onEditBefore: editGeneratedCommand,
+                  onRun: runGeneratedCommand,
+                }}
+                listCard={{
+                  status: suggestNextState.status,
+                  items: suggestNext.data,
+                  error: suggestNext.error,
+                  startedAtMs: suggestNextState.startedAtMs,
+                  completedAtMs: suggestNextState.completedAtMs,
+                  selectedIndex: safeCapabilitySuggestionSelected,
+                  onSelectIndex: setCapabilitySuggestionSelected,
+                  onRunSelected: runSuggestedWorkflow,
+                  onCancel: suggestNextState.cancel,
+                }}
+                dispatch={dispatch}
+                onClose={closeCapabilitySurface}
+              />
+            </Suspense>
           )}
 
           {/* REF.6.B — capability prefix discovery hint, shown on empty
@@ -855,11 +873,23 @@ export function CommandPalette() {
             visible={hover !== null}
           />
 
-          {/* ONBOARD.1.A — first-run tour overlay (conditional mount resets step) */}
-          {onboardingOpen && <OnboardingTour onClose={() => setOnboardingOpen(false)} />}
+          {/* ONBOARD.1.A — first-run tour overlay (conditional mount resets step).
+              PERF.1: lazy-loaded; while the chunk arrives, the overlay simply
+              does not appear yet — acceptable since the tour is informational
+              and the trigger (first-run) is non-time-critical. */}
+          {onboardingOpen && (
+            <Suspense fallback={null}>
+              <OnboardingTour onClose={() => setOnboardingOpen(false)} />
+            </Suspense>
+          )}
 
-          {/* ONBOARD.1.B — `?` cheatsheet overlay */}
-          {cheatsheetOpen && <CheatsheetOverlay onClose={() => setCheatsheetOpen(false)} />}
+          {/* ONBOARD.1.B — `?` cheatsheet overlay, lazy-loaded; user-triggered
+              overlay tolerates a one-frame delay before the chunk paints. */}
+          {cheatsheetOpen && (
+            <Suspense fallback={null}>
+              <CheatsheetOverlay onClose={() => setCheatsheetOpen(false)} />
+            </Suspense>
+          )}
 
           {/* Command suggestions */}
           {hasCmdSuggestions && (

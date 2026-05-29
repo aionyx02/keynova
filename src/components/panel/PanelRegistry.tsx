@@ -1,5 +1,4 @@
 import React from "react";
-import { SettingPanel } from "../../features/settings/SettingPanel";
 import type { PanelProps } from "../../types/panel";
 
 export type { PanelProps };
@@ -12,6 +11,9 @@ export type { PanelProps };
 // `ai.legacy_agent = true`, so the user has to opt into the chat surface
 // before this lazy import is ever resolved. With the flag off (default), the
 // chunk stays cold and adds zero cost to first paint.
+const SettingPanel = React.lazy(() =>
+  import("../../features/settings/SettingPanel").then((m) => ({ default: m.SettingPanel })),
+);
 const AiPanelLazy = React.lazy(() =>
   import("../AiPanel").then((m) => ({ default: m.AiPanel })),
 );

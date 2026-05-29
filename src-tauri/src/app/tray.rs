@@ -1,4 +1,6 @@
 use tauri::Manager;
+
+use crate::app::window::show_launcher_window;
 pub(crate) fn setup_tray(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>> {
     use tauri::menu::{Menu, MenuItem};
     use tauri::tray::TrayIconBuilder;
@@ -15,8 +17,7 @@ pub(crate) fn setup_tray(app: &tauri::App) -> Result<(), Box<dyn std::error::Err
         .on_menu_event(move |_tray, event| match event.id.as_ref() {
             "show" => {
                 if let Some(win) = handle.get_webview_window("main") {
-                    let _ = win.show();
-                    let _ = win.set_focus();
+                    let _ = show_launcher_window(&win);
                 }
             }
             "quit" => handle.exit(0),

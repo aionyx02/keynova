@@ -126,13 +126,11 @@ impl CommandHandler for AgentHandler {
                         .map(|v| v.eq_ignore_ascii_case("true"))
                         .unwrap_or(false);
                     if !legacy_on {
-                        return Err(
-                            "Legacy chat-first agent is disabled. Use palette \
+                        return Err("Legacy chat-first agent is disabled. Use palette \
                              prefixes (explain / summarize / fix / cmd / next) \
                              or NL queries instead. Set `ai.legacy_agent = true` \
                              in /setting → AI to restore the legacy panel."
-                                .into(),
-                        );
+                            .into());
                     }
                 }
                 let prompt = payload

@@ -63,9 +63,9 @@ describe("CapabilityAnswerCard", () => {
     expect(screen.getByText("Ready")).not.toBeNull();
   });
 
-  it("renders streaming text as markdown", () => {
+  it("renders streaming text as markdown", async () => {
     render(<CapabilityAnswerCard {...baseProps} status="streaming" text="**bold** text" />);
-    expect(screen.getByText("bold")).not.toBeNull();
+    expect(await screen.findByText("bold")).not.toBeNull();
   });
 
   it("renders the cancelled body when status is cancelled", () => {

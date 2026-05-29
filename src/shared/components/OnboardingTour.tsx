@@ -1,8 +1,16 @@
 ﻿import { useCallback, useEffect, useState } from "react";
 
 import { UiIcon, type UiIconName } from "../../components/icons/UiIcon";
+// PERF.1 — Storage helpers moved to a sibling module so a lazy import of this
+// component does not drag the storage keys into the eager bundle. Re-exported
+// from here for callers that still reach for the old import path.
+import {
+  hasCompletedOnboarding,
+  markOnboardingCompleted,
+  resetOnboarding,
+} from "./onboarding-state";
 
-const STORAGE_KEY = "keynova.onboarding.completed";
+export { hasCompletedOnboarding, markOnboardingCompleted, resetOnboarding };
 
 interface Step {
   title: string;
@@ -38,32 +46,6 @@ const STEPS: Step[] = [
   },
 ];
 
-export function hasCompletedOnboarding(): boolean {
-  if (typeof window === "undefined" || !window.localStorage) return true;
-  try {
-    return window.localStorage.getItem(STORAGE_KEY) === "true";
-  } catch {
-    return true;
-  }
-}
-
-export function markOnboardingCompleted() {
-  if (typeof window === "undefined" || !window.localStorage) return;
-  try {
-    window.localStorage.setItem(STORAGE_KEY, "true");
-  } catch {
-    /* ignore */
-  }
-}
-
-export function resetOnboarding() {
-  if (typeof window === "undefined" || !window.localStorage) return;
-  try {
-    window.localStorage.removeItem(STORAGE_KEY);
-  } catch {
-    /* ignore */
-  }
-}
 
 interface Props {
   onClose: () => void;

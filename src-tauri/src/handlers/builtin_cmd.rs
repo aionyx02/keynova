@@ -1137,7 +1137,9 @@ mod tests {
     fn note_lazyvim_missing_nvim_routes_to_download_panel() {
         let (manager, root) = temp_note_manager();
         let result = run_note_command("lazyvim", &manager, None, None, &|_| None);
-        assert!(matches!(result.ui_type, CommandUiType::Panel(ref name) if name == "nvim_download"));
+        assert!(
+            matches!(result.ui_type, CommandUiType::Panel(ref name) if name == "nvim_download")
+        );
         assert!(result.text.is_empty());
         let _ = std::fs::remove_dir_all(root);
     }
