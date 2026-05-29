@@ -2,7 +2,7 @@
 type: task_plan
 status: active
 priority: p0
-updated: 2026-05-27
+updated: 2026-05-29
 context_policy: on_demand
 owner: project
 tags: [refactor, ai-capability, unified-result, workflow-memory, search-first]
@@ -10,7 +10,9 @@ tags: [refactor, ai-capability, unified-result, workflow-memory, search-first]
 
 # P0 Refactor: AI Capability Layer And Unified Search
 
-Source: `Keynova_Refactor_Plan_v1-2.docx` (repo root). Anchors below cite docx sections.
+Source: extracted from the external planning document
+`Keynova_Refactor_Plan_v1-2.docx` (not currently checked into this repo).
+Anchors below preserve the referenced docx sections.
 
 Goal: reposition Keynova as a keyboard-first workflow tool. Unified search is the product spine; AI becomes a stateless capability invoked inline from result rows and workflow surfaces.
 
