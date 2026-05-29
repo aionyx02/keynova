@@ -2,7 +2,7 @@
 type: task_blockers
 status: active
 priority: p0
-updated: 2026-05-20
+updated: 2026-05-29
 context_policy: retrieve_when_planning
 owner: project
 tags: [security, approval, shell, blockers, refactor]
@@ -44,6 +44,34 @@ Allowed:
 - Add deterministic typed tools.
 - Keep approval-gated read-only or narrowly scoped commands.
 - Keep bounded output and safety checks in tool observations.
+
+## PREFLIGHT Startup Snapshot
+
+Status: constrained (implementation underway under explicit 2026-05-29 developer approval; ADR-0039 remains `proposed`)
+
+Reason:
+- The planned startup preflight track changes boot-time/background scan
+  behavior and introduces a new persisted snapshot under the local Keynova
+  directory.
+- Scope touches allowed local paths, cache/schema design, and the cold-path
+  behavior of `/model_download`.
+- Runtime scope is narrowed to the explicitly approved bootstrap snapshot work;
+  ADR-0039 still records the boundary and must not be auto-promoted by the AI.
+
+Do not:
+- Expand startup preflight into recursive private-file scanning.
+- Add remote third-party model-catalog fetches to the boot path.
+- Block launcher first paint on long-running probes.
+- Depend on installer-only hooks; installed and source/dev launches must share
+  the same first-launch path.
+
+Allowed within the current constrained scope:
+- Task design and queue updates.
+- ADR drafting as `proposed`.
+- Snapshot schema/storage/runtime implementation for the bounded local bootstrap
+  path approved in the 2026-05-29 thread.
+- Narrow crash reproductions, diagnostics, and follow-up hardening for
+  `/model_download`.
 
 ## FEAT.11 Learning Material Review
 

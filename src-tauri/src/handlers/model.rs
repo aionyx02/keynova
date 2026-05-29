@@ -4,6 +4,7 @@ use serde::Serialize;
 use serde_json::{json, Value};
 
 use crate::core::config_manager::ConfigManager;
+use crate::core::startup_preflight::StartupPreflight;
 use crate::core::{AppEvent, CommandHandler, CommandResult};
 use crate::managers::model_manager::{LocalModel, ModelManager};
 
@@ -52,6 +53,7 @@ fn normalized_tool(tool: Option<&str>) -> Result<&'static str, String> {
 pub struct ModelHandler {
     manager: Arc<ModelManager>,
     config: Arc<Mutex<ConfigManager>>,
+    startup_preflight: Arc<StartupPreflight>,
     publish_event: Arc<dyn Fn(AppEvent) + Send + Sync>,
 }
 
@@ -59,11 +61,13 @@ impl ModelHandler {
     pub fn new(
         manager: Arc<ModelManager>,
         config: Arc<Mutex<ConfigManager>>,
+        startup_preflight: Arc<StartupPreflight>,
         publish_event: Arc<dyn Fn(AppEvent) + Send + Sync>,
     ) -> Self {
         Self {
             manager,
             config,
+            startup_preflight,
             publish_event,
         }
     }
@@ -194,13 +198,24 @@ impl CommandHandler for ModelHandler {
 
     fn execute(&self, command: &str, payload: Value) -> CommandResult {
         match command {
-            "detect_hardware" => Ok(json!(self.manager.detect_hardware())),
+            "bootstrap_snapshot" => {
+                self.startup_preflight.ensure_started();
+                Ok(json!(self.startup_preflight.current_status()))
+            }
+            "refresh_bootstrap" => {
+                self.startup_preflight.force_refresh();
+                Ok(json!(self.startup_preflight.current_status()))
+            }
+            "detect_hardware" => Ok(json!(self.startup_preflight.model_hardware_snapshot_or_live())),
             "recommend" => {
-                let hardware = self.manager.detect_hardware();
+                self.startup_preflight.ensure_started();
+                let hardware = self.startup_preflight.model_hardware_snapshot_or_live();
                 let publish = Arc::clone(&self.publish_event);
                 self.manager
                     .refresh_catalog_async(hardware.clone(), publish);
-                Ok(json!(self.manager.catalog_fast(&hardware)))
+                Ok(json!(
+                    self.startup_preflight.recommended_models_snapshot_or_live()
+                ))
             }
             "list_local" => {
                 let tool = normalized_tool(payload.get("tool").and_then(Value::as_str))?;
