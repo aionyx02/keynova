@@ -8,7 +8,7 @@ import { useAppStore } from "../stores/appStore";
 import { parseInputMode } from "../hooks/useInputMode";
 import { useCommands } from "../hooks/useCommands";
 import { CommandSuggestions } from "../features/command-palette/CommandSuggestions";
-import { CheatsheetOverlay } from "./CheatsheetOverlay";
+import { CheatsheetOverlay } from "../shared/components/CheatsheetOverlay";
 import { clearLegacyFilters, loadFilters } from "../features/command-palette/FilterChips";
 import { PaletteInputBar } from "../features/command-palette/PaletteInputBar";
 import { EmptyStateCTA } from "../features/command-palette/EmptyStateCTA";
@@ -38,8 +38,8 @@ import { usePaletteRefs } from "../features/command-palette/hooks/usePaletteRefs
 import { useQueryChange } from "../features/command-palette/hooks/useQueryChange";
 import { usePaletteEffects } from "../features/command-palette/hooks/usePaletteEffects";
 import { useRankHover } from "../features/command-palette/hooks/useRankHover";
-import { OnboardingTour, hasCompletedOnboarding } from "./OnboardingTour";
-import { RankTooltip } from "./RankTooltip";
+import { OnboardingTour, hasCompletedOnboarding } from "../shared/components/OnboardingTour";
+import { RankTooltip } from "../shared/components/RankTooltip";
 import { PALETTE_WIDTH_NARROW } from "../hooks/useWindowResize";
 import type { SourceFilter } from "../types/search";
 import type { BuiltinCommandResult } from "../hooks/useCommands";
@@ -58,7 +58,7 @@ import { classifyNlIntent } from "../features/command-palette/utils/classifyNlIn
 import type { TerminalLaunchSpec } from "../types/terminal";
 
 const TerminalPanel = React.lazy(() =>
-  import("./TerminalPanel").then((m) => ({ default: m.TerminalPanel })),
+  import("../features/terminal/TerminalPanel").then((m) => ({ default: m.TerminalPanel })),
 );
 const EMPTY_CAPABILITY_ARGS: Record<string, never> = {};
 

@@ -30,7 +30,7 @@ tags: [refactor, ai-capability, search-first, p0]
   - [x] `REF.6.E` `next` prefix + `CapabilityListCard` for `suggest_next`. Prefix wiring landed first; 2026-05-29 follow-through now auto-mounts the same card on empty palette so `next` is visible without typing the keyword. Final manual validation still needs `npm run tauri dev` because capability IPC requires Tauri runtime.
   - [x] `REF.6.F` `cmd <intent>` prefix + `CapabilityCommandCard` for `gen_command`. Prefix wiring landed first; 2026-05-29 follow-through now auto-surfaces the same card for no-result natural-language action queries, so Enter can generate without typing `cmd`. Final manual validation still needs `npm run tauri dev` because capability IPC requires Tauri runtime.
   - [ ] `REF.6.G` remove `AiPanel` / `TerminalPanel` mounts from the palette hot path; UI-owned `ConfirmRequirement`.
-  - [ ] `REF.6.H` feature-first directory migration for remaining panels + `src/shared/*` + model-manager consolidation.
+  - [~] `REF.6.H` feature-first directory migration. 11 panels + 3 model panels relocated to `src/features/<feature>/`; 7 shared components moved to `src/shared/components/`. Model-manager tab consolidation deferred.
   - [x] `REF.6.I` ADR-0040 (proposed) template slimming to 4 sections (ADR-0030 slot was already taken by Backend Risk Tag Contract; reassigned to 0040).
   - [x] `REF.6.J` rule-based NL intent router (fallback). `classifyNlIntent` routes no-result NL queries to `explain` / `summarize` / `fix` / `cmd` so the user no longer needs the explicit prefix for common asks. Re-uses the existing stabilization debounce + dismissed-key gate; explicit prefixes still take priority.
 - [ ] `REF.7` quantitative gates, default `ai.legacy_agent = false`, observe one release cycle.

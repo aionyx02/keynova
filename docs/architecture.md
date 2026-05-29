@@ -74,28 +74,36 @@ Keynova 是以鍵盤為核心的生產力啟動器，採用 **Tauri 2.x + React 
 src/
 ├── main.tsx               # React 入口，掛載 <App>
 ├── App.tsx                # 頂層元件，管理 CommandPalette + FloatingWindow
-├── components/
-│   ├── CommandPalette.tsx # 核心 UI：搜尋框 + 結果列表
-│   ├── CommandSuggestions.tsx
-│   ├── FloatingWindow.tsx # 浮動視窗容器
-│   ├── TerminalPanel.tsx
-│   ├── AiPanel.tsx
-│   ├── NoteEditor.tsx
-│   ├── ModelDownloadPanel.tsx
-│   ├── NvimDownloadPanel.tsx
-│   ├── HistoryPanel.tsx
-│   ├── SettingPanel.tsx
-│   ├── SystemPanel.tsx
-│   ├── SystemMonitoringPanel.tsx
-│   ├── CalculatorPanel.tsx
-│   ├── TranslationPanel.tsx
-│   ├── WorkspaceIndicator.tsx
+├── components/                  # REF.6.H 後僅保留 app shell + legacy fallback
+│   ├── AppContainer.tsx         # IPCProvider + FeatureProvider + ErrorBoundary 組裝
+│   ├── CommandPalette.tsx       # 核心 UI：搜尋框 + 結果列表（feature 拆分後的主進入點）
+│   ├── AiPanel.tsx              # REF.6.G/REF.8: legacy ai.legacy_agent fallback 才掛載
+│   ├── FloatingWindow.tsx       # 浮動視窗容器
+│   ├── icons/                   # UiIcon + 圖示資產
 │   └── panel/
-│       └── PanelRegistry.tsx  # Panel 名稱 → React.lazy 映射
-├── hooks/                 # 自訂 React hooks
-├── stores/                # Zustand 狀態管理
-├── services/              # IPC/backend API clients
-└── types/                 # TypeScript 型別定義
+│       └── PanelRegistry.tsx    # Panel 名稱 → React.lazy 映射（後端 panel_name 進入點）
+├── features/                    # REF.6.H: feature-first 分層
+│   ├── ai-capability/           # REF.4 / REF.6.B-F/J: stateless capability cards + hooks
+│   ├── calculator/              # CalculatorPanel
+│   ├── command-palette/         # REF.2: palette 子元件 + hooks + utils
+│   ├── history/                 # HistoryPanel
+│   ├── learning/                # LearningMaterialPanel
+│   ├── model-manager/           # 3 model panels（tab 合併保留為 REF.6.H follow-up）
+│   ├── mouse-control/           # MouseControlOverlay
+│   ├── notes/                   # NoteEditor
+│   ├── nvim/                    # NvimDownloadPanel
+│   ├── settings/                # SettingPanel
+│   ├── system/                  # SystemPanel
+│   ├── system-monitor/          # SystemMonitoringPanel
+│   ├── terminal/                # TerminalPanel
+│   ├── translation/             # TranslationPanel
+│   └── workflow-memory/         # REF.5: workflow_history 前端組件
+├── shared/                      # REF.6.H: 跨 feature 共用層
+│   └── components/              # PreviewPane / RankTooltip / Markdown / ErrorBoundary / CheatsheetOverlay / OnboardingTour / WorkspaceIndicator
+├── hooks/                       # 自訂 React hooks
+├── stores/                      # Zustand 狀態管理
+├── services/                    # IPC/backend API clients
+└── types/                       # TypeScript 型別定義
 ```
 
 **前端邊界規則：**

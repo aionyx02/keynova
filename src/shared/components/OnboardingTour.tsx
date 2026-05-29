@@ -1,6 +1,6 @@
-import { useCallback, useEffect, useState } from "react";
+﻿import { useCallback, useEffect, useState } from "react";
 
-import { UiIcon, type UiIconName } from "./icons/UiIcon";
+import { UiIcon, type UiIconName } from "../../components/icons/UiIcon";
 
 const STORAGE_KEY = "keynova.onboarding.completed";
 

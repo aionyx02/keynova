@@ -1,6 +1,6 @@
-import { useCallback, useRef, useState } from "react";
-import { useIPCContext } from "../context/IPCContext";
-import type { PanelProps } from "../types/panel";
+﻿import { useCallback, useRef, useState } from "react";
+import { useIPCContext } from "../../context/IPCContext";
+import type { PanelProps } from "../../types/panel";
 
 interface MaterialCandidate {
   path: string;

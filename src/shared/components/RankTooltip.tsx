@@ -1,4 +1,4 @@
-import type { ScoreBreakdown } from "../types/search";
+﻿import type { ScoreBreakdown } from "../../types/search";
 
 interface Props {
   breakdown: ScoreBreakdown | undefined;
