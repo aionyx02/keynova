@@ -5,7 +5,7 @@ import type { BuiltinCommandResult, CommandMeta } from "../../hooks/useCommands"
 import type { TerminalLaunchSpec } from "../../types/terminal";
 
 const TerminalPanel = React.lazy(() =>
-  import("../../components/TerminalPanel").then((module) => ({ default: module.TerminalPanel })),
+  import("../terminal/TerminalPanel").then((module) => ({ default: module.TerminalPanel })),
 );
 
 interface Props {
