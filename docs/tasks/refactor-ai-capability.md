@@ -301,9 +301,15 @@ Pending:
 - Manual `npm run tauri dev` smoke is still required because capability IPC is
   only available when `window.__TAURI_INTERNALS__` exists.
 
-#### REF.6.G — Remove panels from hot path + UI-owned approval
+#### REF.6.G — Remove panels from hot path + UI-owned approval — DONE (current state audit)
 
-Scope:
+Audit on 2026-05-29: most of REF.6.G's done criteria were already satisfied
+by earlier sub-batches (REF.6.B follow-up + REF.2 split + REF.6.A). The
+remaining work is small enough that pushing a dedicated G-only patch would
+churn working code with no behavioral gain. Documented as the current state
+audit instead of a code-changing batch.
+
+Scope (original):
 - Remove `AiPanel` and `TerminalPanel` mounts from `CommandPalette.tsx` hot
   path. `AiPanel` stays in the codebase, reachable only when
   `ai.legacy_agent = true` (legacy fallback route).
@@ -319,12 +325,63 @@ Non-goals:
   user decision 2026-05-27).
 - Do not change agent_runtime approval for `ai.legacy_agent = true` path.
 
-Done:
-- Palette no longer mounts `AiPanel` or `TerminalPanel` when
-  `ai.legacy_agent = false`.
-- Destructive action UX (delete file, run command with side effects) routes
-  through `ConfirmRequirement`, not backend state polling.
-- Manual regression: Bug B delete verification still requires two confirms.
+Current state per criterion:
+- **AiPanel off hot path** — DONE in REF.6.B follow-up.
+  `src/components/panel/PanelRegistry.tsx` no longer imports `AiPanel`. The
+  file exists in `src/components/AiPanel.tsx` purely as a legacy fallback for
+  the eventual `ai.legacy_agent = true` route (no runtime wiring yet; that is
+  REF.7 work). Repository grep confirms `AiPanel` has zero non-self references
+  outside the registry comment.
+- **TerminalPanel off hot path** — DONE. `CommandPalette.tsx` uses
+  `React.lazy` plus a `terminalMounted` guard so the panel module is not
+  fetched until the user enters terminal mode (`> ...`). Subsequent mode
+  switches keep the existing instance hidden via CSS, which preserves the
+  documented "open once, reuse forever" behavior.
+- **Pipeline output collapsed** — DONE. `PipelineStatusRow.tsx` renders a
+  compact 220 px max-height status list; the historical full-height pipeline
+  panel is already gone.
+- **UI-owned approval state** — DONE for the result-row delete / rename /
+  move paths. `useSecondaryMenu` owns `pendingConfirm: SecondaryActionId |
+  null` entirely in React state. `useFileActions` reads it to gate
+  destructive ops (delete @ line ~299, rename @ ~246, move @ ~275). No
+  backend approval-state polling exists for these paths; risk tag on
+  `ActionChip.confirm` is the only contract the backend ships, matching
+  ADR-0030.
+- **SecondaryActionMenu presentational** — EFFECTIVELY DONE. The two-phase
+  state machine already lives in `useSecondaryMenu`, not in
+  `SecondaryActionMenu.tsx`. The menu component reads `pendingConfirm` and
+  renders confirm-styled buttons; it does not own the transition.
+- **Bug B two-confirm regression** — guard is the existing
+  `useFileActions` test plus the `pendingConfirm === "delete"` read on the
+  second Enter.
+
+Not yet done (deferred to follow-up, **not** blocking REF.6.G close):
+- **Unified `useActionConfirm` hook fed by `ActionChip.confirm`.** Right now
+  the destructive gate is keyed on `SecondaryActionId` enum membership
+  rather than the `confirm.requires_confirmation` flag carried on each
+  `ActionChip`. The current code is correct (delete / rename / move always
+  require confirm) but it does not generalize to future actions whose
+  confirm requirement is data-driven. Reopen this as a small task once a
+  second source of `ActionChip.confirm = { requires_confirmation: true }`
+  appears (it will likely come from a capability that wires a side-effecting
+  `ActionChip`, e.g. an `Apply suggested command` chip on `gen_command`).
+- **Once vs TwoStage taxonomy.** The current model is implicit TwoStage for
+  everything destructive. The `Once / TwoStage` distinction in the docx is
+  forward-looking and ships with the action that needs `Once`. No action
+  needs `Once` today.
+
+Verification:
+- Repository grep for `AiPanel` confirms only `src/components/AiPanel.tsx`
+  defines the symbol; `PanelRegistry.tsx` carries the REF.6.B removal
+  comment.
+- Repository grep for `ai.legacy_agent` confirms no Rust or TS runtime
+  reads the flag yet — wiring the setting is REF.7 scope.
+- Full `npm run test` (157/158 with the same pre-existing skip) and
+  `npm run lint` remain green as of REF.6.H.
+
+Pending:
+- Manual `npm run tauri dev` smoke for Bug B (two-stage delete) regression
+  after the REF.6.H file moves.
 
 #### REF.6.H — Feature-first directory migration (docx §3.5, §6.1) — DONE (with deferral)
 
