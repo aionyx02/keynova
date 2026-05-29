@@ -10,6 +10,8 @@ pub enum CapabilityId {
     Explain,
     Summarize,
     FixError,
+    GenCommand,
+    SuggestNext,
 }
 
 impl CapabilityId {
@@ -18,6 +20,8 @@ impl CapabilityId {
             "explain" => Some(Self::Explain),
             "summarize" => Some(Self::Summarize),
             "fix_error" => Some(Self::FixError),
+            "gen_command" => Some(Self::GenCommand),
+            "suggest_next" => Some(Self::SuggestNext),
             _ => None,
         }
     }
@@ -27,6 +31,8 @@ impl CapabilityId {
             Self::Explain => "explain",
             Self::Summarize => "summarize",
             Self::FixError => "fix_error",
+            Self::GenCommand => "gen_command",
+            Self::SuggestNext => "suggest_next",
         }
     }
 }
@@ -56,6 +62,16 @@ const META: &[CapabilityMeta] = &[
         audit: true,
         accepts_context_hash: true,
     },
+    CapabilityMeta {
+        id: CapabilityId::GenCommand,
+        audit: true,
+        accepts_context_hash: true,
+    },
+    CapabilityMeta {
+        id: CapabilityId::SuggestNext,
+        audit: false,
+        accepts_context_hash: true,
+    },
 ];
 
 pub fn meta(id: CapabilityId) -> CapabilityMeta {
@@ -79,6 +95,8 @@ mod tests {
             CapabilityId::Explain,
             CapabilityId::Summarize,
             CapabilityId::FixError,
+            CapabilityId::GenCommand,
+            CapabilityId::SuggestNext,
         ] {
             assert_eq!(CapabilityId::parse(id.as_str()), Some(id));
         }
@@ -91,6 +109,8 @@ mod tests {
         assert!(ids.contains(&CapabilityId::Explain));
         assert!(ids.contains(&CapabilityId::Summarize));
         assert!(ids.contains(&CapabilityId::FixError));
+        assert!(ids.contains(&CapabilityId::GenCommand));
+        assert!(ids.contains(&CapabilityId::SuggestNext));
     }
 
     #[test]
@@ -98,5 +118,7 @@ mod tests {
         assert!(meta(CapabilityId::Explain).audit);
         assert!(!meta(CapabilityId::Summarize).audit);
         assert!(meta(CapabilityId::FixError).audit);
+        assert!(meta(CapabilityId::GenCommand).audit);
+        assert!(!meta(CapabilityId::SuggestNext).audit);
     }
 }

@@ -177,7 +177,7 @@ impl StartupPreflight {
                 return;
             }
             let should_refresh = force
-                || state.snapshot.as_ref().map_or(true, |snapshot| {
+                || state.snapshot.as_ref().is_none_or(|snapshot| {
                     snapshot_is_stale(
                         snapshot,
                         &current_boot_id,

@@ -14,7 +14,7 @@ use crate::app::tray::setup_tray;
 use crate::app::watchers::{
     prescan_apps, setup_config_watcher, start_clipboard_watcher, start_file_index,
 };
-use crate::app::window::{setup_main_window, show_launcher};
+use crate::app::window::{hide_launcher_window, setup_main_window, show_launcher};
 use crate::core::observability;
 use crate::core::{AppEvent, IpcError};
 
@@ -104,8 +104,7 @@ pub fn run() {
                 ._config_manager
                 .lock()
                 .ok()
-                .and_then(|c| c.get("performance.low_memory_mode"))
-                .map(|v| v.eq_ignore_ascii_case("true"))
+                .and_then(|c| c.get_bool("performance.low_memory_mode"))
                 .unwrap_or(false);
 
             if !low_memory {
@@ -122,7 +121,9 @@ pub fn run() {
         .on_window_event(|window, event| {
             if let tauri::WindowEvent::CloseRequested { api, .. } = event {
                 api.prevent_close();
-                let _ = window.hide();
+                if let Some(main) = window.app_handle().get_webview_window("main") {
+                    let _ = hide_launcher_window(&main);
+                }
             }
         })
         .invoke_handler(tauri::generate_handler![

@@ -8,7 +8,6 @@ import { useAppStore } from "../stores/appStore";
 import { parseInputMode } from "../hooks/useInputMode";
 import { useCommands } from "../hooks/useCommands";
 import { CommandSuggestions } from "../features/command-palette/CommandSuggestions";
-import { CheatsheetOverlay } from "./CheatsheetOverlay";
 import { clearLegacyFilters, loadFilters } from "../features/command-palette/FilterChips";
 import { PaletteInputBar } from "../features/command-palette/PaletteInputBar";
 import { EmptyStateCTA } from "../features/command-palette/EmptyStateCTA";
@@ -37,20 +36,42 @@ import { usePaletteRefs } from "../features/command-palette/hooks/usePaletteRefs
 import { useQueryChange } from "../features/command-palette/hooks/useQueryChange";
 import { usePaletteEffects } from "../features/command-palette/hooks/usePaletteEffects";
 import { useRankHover } from "../features/command-palette/hooks/useRankHover";
-import { OnboardingTour, hasCompletedOnboarding } from "./OnboardingTour";
-import { RankTooltip } from "./RankTooltip";
+import { hasCompletedOnboarding } from "../shared/components/onboarding-state";
+import { RankTooltip } from "../shared/components/RankTooltip";
 import { PALETTE_WIDTH_NARROW } from "../hooks/useWindowResize";
 import type { SourceFilter } from "../types/search";
 import type { BuiltinCommandResult } from "../hooks/useCommands";
 import { unifiedToLegacy } from "../utils/search";
 import { usePaletteMode } from "../features/command-palette/hooks/usePaletteMode";
 import { useCapabilityStream } from "../features/ai-capability/hooks/useCapabilityStream";
-import { CapabilityResultArea } from "../features/command-palette/CapabilityResultArea";
+import { useCapabilityRunState } from "../features/ai-capability/hooks/useCapabilityRunState";
+import { useGenCommand } from "../features/ai-capability/hooks/useGenCommand";
+import { useSuggestNext } from "../features/ai-capability/hooks/useSuggestNext";
+import type { CapabilitySurfaceMode } from "../features/command-palette/CapabilityResultArea";
 import { CapabilityHintLine } from "../features/command-palette/CapabilityHintLine";
+import { classifyNlIntent } from "../features/command-palette/utils/classifyNlIntent";
+import type { TerminalLaunchSpec } from "../types/terminal";
 
 const TerminalPanel = React.lazy(() =>
-  import("./TerminalPanel").then((m) => ({ default: m.TerminalPanel })),
+  import("../features/terminal/TerminalPanel").then((m) => ({ default: m.TerminalPanel })),
 );
+// PERF.1 — Lazy-mount the rarely-used surfaces so the main bundle keeps only
+// the always-on palette skeleton. CapabilityResultArea pulls react-markdown
+// transitively when its answer card renders, so deferring it saves the most
+// memory; OnboardingTour and CheatsheetOverlay only mount on first-run /
+// `?` press.
+const CapabilityResultArea = React.lazy(() =>
+  import("../features/command-palette/CapabilityResultArea").then((m) => ({
+    default: m.CapabilityResultArea,
+  })),
+);
+const OnboardingTour = React.lazy(() =>
+  import("../shared/components/OnboardingTour").then((m) => ({ default: m.OnboardingTour })),
+);
+const CheatsheetOverlay = React.lazy(() =>
+  import("../shared/components/CheatsheetOverlay").then((m) => ({ default: m.CheatsheetOverlay })),
+);
+const EMPTY_CAPABILITY_ARGS: Record<string, never> = {};
 
 function isEditorTerminalResult(result: BuiltinCommandResult | null) {
   return result?.ui_type.type === "Terminal" && result.ui_type.value.editor;
@@ -76,9 +97,40 @@ async function keepLauncherOpen() {
   }
 }
 
+function makeLaunchId(): string {
+  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+    return crypto.randomUUID();
+  }
+  return `launch-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+}
+
+function buildGeneratedCommandLaunchSpec(command: string): TerminalLaunchSpec {
+  const platform =
+    typeof navigator !== "undefined"
+      ? `${navigator.platform ?? ""} ${navigator.userAgent ?? ""}`.toLowerCase()
+      : "";
+  const isWindows = platform.includes("win");
+  if (isWindows) {
+    return {
+      launch_id: makeLaunchId(),
+      program: "powershell.exe",
+      args: ["-NoLogo", "-Command", command],
+      title: command,
+      editor: false,
+    };
+  }
+  return {
+    launch_id: makeLaunchId(),
+    program: "/bin/sh",
+    args: ["-lc", command],
+    title: command,
+    editor: false,
+  };
+}
+
 export function CommandPalette() {
   const { dispatch } = useIPC();
-  const { query, setQuery, setLoading } = useAppStore();
+  const { query, setQuery, setLoading, isLoading } = useAppStore();
   const { all, filtered, runCommand, suggestArgs } = useCommands();
 
   const {
@@ -105,6 +157,7 @@ export function CommandPalette() {
   // Command mode state
   const [selectedCmd, setSelectedCmd] = useState(0);
   const [cmdResult, setCmdResult] = useState<BuiltinCommandResult | null>(null);
+  const [capabilitySuggestionSelected, setCapabilitySuggestionSelected] = useState(0);
 
   // Mount terminal once and keep it alive; only toggle visibility via CSS
   const [terminalMounted, setTerminalMounted] = useState(false);
@@ -182,17 +235,143 @@ export function CommandPalette() {
 
   const { mode, rawInput } = parseInputMode(query);
 
-  // REF.6.B — prefix-keyword inline AI. When `paletteMode.kind === "capability"`,
-  // the result area is owned by `CapabilityResultArea` and search is gated off
-  // in `useQueryChange`. The stream hook lives here (not inside the card) so
-  // the global Esc handler can reach `stream.cancel` without imperative-handle
-  // wiring.
   const paletteMode = usePaletteMode(query);
+  const explicitCapabilityMode = paletteMode.kind === "capability" ? paletteMode : null;
+  const trimmedQuery = query.trim();
+  const [smartNextDismissed, setSmartNextDismissed] = useState(false);
+  const [smartCommandDismissedKey, setSmartCommandDismissedKey] = useState<string | null>(null);
+  const [stableSmartCommandQuery, setStableSmartCommandQuery] = useState("");
+
+  useEffect(() => {
+    if (mode !== "search" || explicitCapabilityMode !== null || trimmedQuery === "") return;
+    const timer = window.setTimeout(() => setStableSmartCommandQuery(trimmedQuery), 260);
+    return () => window.clearTimeout(timer);
+  }, [explicitCapabilityMode, mode, trimmedQuery]);
+
+  const showSmartNext =
+    explicitCapabilityMode === null &&
+    mode === "search" &&
+    trimmedQuery === "" &&
+    cmdResult === null &&
+    !pipelineRunning &&
+    !pipelineResult &&
+    !smartNextDismissed;
+  // REF.6.J - resolve which capability (if any) should auto-surface for the
+  // current non-result NL query. `null` means no smart card; otherwise the
+  // returned id picks the card variant. The dismissal key intentionally keys
+  // on the trimmed query so a different query gets a fresh chance to surface.
+  const smartIntentMatch =
+    explicitCapabilityMode === null &&
+    mode === "search" &&
+    trimmedQuery !== "" &&
+    cmdResult === null &&
+    !pipelineRunning &&
+    !pipelineResult &&
+    !isLoading &&
+    results.length === 0 &&
+    stableSmartCommandQuery === trimmedQuery &&
+    smartCommandDismissedKey !== trimmedQuery
+      ? classifyNlIntent(trimmedQuery)
+      : null;
+  const capabilityMode: CapabilitySurfaceMode | null = (() => {
+    if (
+      explicitCapabilityMode?.id === "explain" ||
+      explicitCapabilityMode?.id === "summarize" ||
+      explicitCapabilityMode?.id === "fix"
+    ) {
+      return {
+        id: explicitCapabilityMode.id,
+        args: explicitCapabilityMode.args,
+        source: "prefix",
+      };
+    }
+    if (explicitCapabilityMode?.id === "cmd") {
+      return {
+        id: "cmd",
+        args: explicitCapabilityMode.args,
+        source: "prefix",
+      };
+    }
+    if (explicitCapabilityMode?.id === "next") {
+      return {
+        id: "next",
+        args: EMPTY_CAPABILITY_ARGS,
+        source: "prefix",
+      };
+    }
+    if (showSmartNext) {
+      return {
+        id: "next",
+        args: EMPTY_CAPABILITY_ARGS,
+        source: "smart",
+      };
+    }
+    if (smartIntentMatch) {
+      if (smartIntentMatch.id === "cmd") {
+        return {
+          id: "cmd",
+          args: { text: smartIntentMatch.text },
+          source: "smart",
+        };
+      }
+      return {
+        id: smartIntentMatch.id,
+        args: { text: smartIntentMatch.text },
+        source: "smart",
+      };
+    }
+    return null;
+  })();
+  const textCapabilityMode: {
+    id: "explain" | "summarize" | "fix";
+    args: { text: string };
+  } | null =
+    capabilityMode?.id === "explain" ||
+    capabilityMode?.id === "summarize" ||
+    capabilityMode?.id === "fix"
+      ? { id: capabilityMode.id, args: capabilityMode.args }
+      : null;
+  const commandCapabilityMode: { id: "cmd"; args: { text: string } } | null =
+    capabilityMode?.id === "cmd" ? { id: capabilityMode.id, args: capabilityMode.args } : null;
+  const nextCapabilityMode: { id: "next"; args: Record<string, never> } | null =
+    capabilityMode?.id === "next" ? { id: capabilityMode.id, args: capabilityMode.args } : null;
   const capabilityStream = useCapabilityStream({
     dispatch,
-    id: paletteMode.kind === "capability" ? paletteMode.id : "explain",
-    args: paletteMode.kind === "capability" ? paletteMode.args : null,
+    id: textCapabilityMode
+      ? textCapabilityMode.id === "fix"
+        ? "fix_error"
+        : textCapabilityMode.id
+      : "explain",
+    args: textCapabilityMode ? textCapabilityMode.args : null,
   });
+  const genCommand = useGenCommand({ dispatch });
+  const genCommandState = useCapabilityRunState({
+    active: commandCapabilityMode !== null,
+    argsKey: commandCapabilityMode?.args.text ?? null,
+    isLoading: genCommand.isLoading,
+    error: genCommand.error,
+    run: () =>
+      genCommand.run({
+        intent: commandCapabilityMode?.args.text ?? "",
+        ctx: {},
+      }),
+    cancelInner: genCommand.cancel,
+  });
+  const suggestNext = useSuggestNext({ dispatch });
+  const suggestNextState = useCapabilityRunState({
+    active: nextCapabilityMode !== null,
+    argsKey: nextCapabilityMode ? "next" : null,
+    autoSubmit: true,
+    isLoading: suggestNext.isLoading,
+    error: suggestNext.error,
+    run: () => suggestNext.run({ ctx: { limit: 5 } }),
+    cancelInner: suggestNext.cancel,
+  });
+  const activeCapabilityLoading =
+    (textCapabilityMode !== null &&
+      (capabilityStream.status === "pending" || capabilityStream.status === "streaming")) ||
+    (commandCapabilityMode !== null && genCommand.isLoading) ||
+    (nextCapabilityMode !== null && suggestNext.isLoading);
 
   const {
     modeRef,
@@ -208,9 +387,8 @@ export function CommandPalette() {
     query,
     secondaryMenuOpen,
     expandedMetadata,
-    capabilityMode: paletteMode.kind === "capability",
-    capabilityStreaming:
-      capabilityStream.status === "pending" || capabilityStream.status === "streaming",
+    capabilityMode: capabilityMode !== null,
+    capabilityStreaming: activeCapabilityLoading,
   });
 
   const { containerRef, scheduleWindowResize, scheduleWindowPosition } = useWindowResize(
@@ -252,7 +430,12 @@ export function CommandPalette() {
     expandedMetadataRef,
     capabilityModeRef,
     capabilityStreamingRef,
-    onCapabilityCancel: capabilityStream.cancel,
+    onCapabilityCancel:
+      textCapabilityMode !== null
+        ? capabilityStream.cancel
+        : commandCapabilityMode !== null
+          ? genCommandState.cancel
+          : suggestNextState.cancel,
     inputRef,
     containerRef,
     closeSecondaryMenu,
@@ -307,6 +490,82 @@ export function CommandPalette() {
     setOnboardingOpen,
   });
 
+  const handleInputQueryChange = React.useCallback(
+    (value: string) => {
+      setSmartNextDismissed(false);
+      setSmartCommandDismissedKey(null);
+      void handleQueryChange(value);
+    },
+    [handleQueryChange, setSmartCommandDismissedKey, setSmartNextDismissed],
+  );
+
+  const clearCapabilityQuery = React.useCallback(() => {
+    handleQueryChange("");
+  }, [handleQueryChange]);
+
+  const editGeneratedCommand = React.useCallback(
+    (command: string) => {
+      setCmdResult(null);
+      setSmartCommandDismissedKey(command.trim());
+      handleQueryChange(command);
+      requestAnimationFrame(() => inputRef.current?.select());
+    },
+    [handleQueryChange, setSmartCommandDismissedKey],
+  );
+
+  const runGeneratedCommand = React.useCallback(
+    (command: string) => {
+      clearCapabilityQuery();
+      setCmdResult({
+        text: command,
+        ui_type: {
+          type: "Terminal",
+          value: buildGeneratedCommandLaunchSpec(command),
+        },
+      });
+    },
+    [clearCapabilityQuery],
+  );
+
+  const runSuggestedWorkflow = React.useCallback(
+    (index: number) => {
+      const item = suggestNext.data[index];
+      if (!item?.replay) return;
+      if (item.replay.route !== "cmd.run") return;
+      const name = typeof item.replay.payload.name === "string" ? item.replay.payload.name : "";
+      const args = typeof item.replay.payload.args === "string" ? item.replay.payload.args : "";
+      if (!name) return;
+      clearCapabilityQuery();
+      void execCommand(name, args);
+    },
+    [clearCapabilityQuery, execCommand, suggestNext.data],
+  );
+
+  const closeCapabilitySurface = React.useCallback(() => {
+    if (explicitCapabilityMode?.id === "next") {
+      setSmartNextDismissed(true);
+    }
+    if (capabilityMode?.source === "smart" && capabilityMode.id === "next") {
+      setSmartNextDismissed(true);
+      return;
+    }
+    // REF.6.J - any smart-surfaced capability (cmd / explain / summarize / fix)
+    // dismisses on the same trimmed-query key so the user does not lose their
+    // typed input when they close the card.
+    if (capabilityMode?.source === "smart" && capabilityMode.id !== "next") {
+      setSmartCommandDismissedKey(trimmedQuery);
+      return;
+    }
+    clearCapabilityQuery();
+  }, [
+    capabilityMode,
+    clearCapabilityQuery,
+    explicitCapabilityMode?.id,
+    setSmartCommandDismissedKey,
+    setSmartNextDismissed,
+    trimmedQuery,
+  ]);
+
   const {
     visibleResults,
     safeSelected,
@@ -347,6 +606,11 @@ export function CommandPalette() {
     );
     return results.filter((u) => keep.has(u.id));
   }, [results, visibleResults]);
+
+  const safeCapabilitySuggestionSelected =
+    nextCapabilityMode === null
+      ? 0
+      : Math.min(capabilitySuggestionSelected, Math.max(suggestNext.data.length - 1, 0));
 
   const { liveTranslationPanel, PanelComponent, panelInitialArgs, terminalLaunchSpec, panelKey } =
     usePalettePanels({ mode, cmdName, cmdArgs, spaceIdx, cmdResult });
@@ -420,22 +684,32 @@ export function CommandPalette() {
     runFirstSecondary,
     runPipeline,
     execCommand,
-    capabilityMode: paletteMode.kind === "capability",
-    onCapabilitySubmit: capabilityStream.submit,
+    capabilityMode: capabilityMode !== null,
+    capabilityListMode: nextCapabilityMode !== null,
+    capabilityListCount: suggestNext.data.length,
+    capabilityListSelected: safeCapabilitySuggestionSelected,
+    setCapabilityListSelected: setCapabilitySuggestionSelected,
+    onCapabilitySubmit:
+      commandCapabilityMode !== null ? genCommandState.submit : capabilityStream.submit,
+    onCapabilityRunSelected: () => runSuggestedWorkflow(safeCapabilitySuggestionSelected),
     keepLauncherOpen,
   });
 
-  const capabilityMode = paletteMode.kind === "capability" ? paletteMode : null;
   const showCapabilityResult = capabilityMode !== null;
   const showCapabilityHintLine =
-    paletteMode.kind === "search" && mode === "search" && query === "" && showCapabilityHint;
+    paletteMode.kind === "search" &&
+    mode === "search" &&
+    query === "" &&
+    showCapabilityHint &&
+    !showCapabilityResult;
   const showSearchEmptyState =
     paletteMode.kind === "search" &&
     mode === "search" &&
     query.trim() !== "" &&
     results.length === 0 &&
     !pipelineRunning &&
-    !pipelineResult;
+    !pipelineResult &&
+    !showCapabilityResult;
   const showEmptyFilterState =
     paletteMode.kind === "search" &&
     mode === "search" &&
@@ -473,21 +747,49 @@ export function CommandPalette() {
             mode={mode}
             query={query}
             inputRef={inputRef}
-            onQueryChange={(value) => void handleQueryChange(value)}
+            onQueryChange={(value) => void handleInputQueryChange(value)}
             onKeyDown={onKeyDown}
             onFocus={() => void keepLauncherOpen()}
             hasContentBelow={hasPaletteContentBelow}
           />
 
           {capabilityMode && (
-            <CapabilityResultArea
-              key={capabilityMode.id}
-              id={capabilityMode.id}
-              args={capabilityMode.args}
-              stream={capabilityStream}
-              dispatch={dispatch}
-              onClose={() => setQuery("")}
-            />
+            <Suspense
+              fallback={
+                <div className="kn-panel-shell h-[120px] rounded-t-none border-t-0" />
+              }
+            >
+              <CapabilityResultArea
+                key={capabilityMode.id}
+                mode={capabilityMode}
+                answerStream={capabilityStream}
+                commandCard={{
+                  status: genCommandState.status,
+                  data: genCommand.data,
+                  error: genCommand.error,
+                  startedAtMs: genCommandState.startedAtMs,
+                  completedAtMs: genCommandState.completedAtMs,
+                  riskRequiresConfirmation: Boolean(genCommand.risk?.requires_confirmation),
+                  onSubmit: genCommandState.submit,
+                  onCancel: genCommandState.cancel,
+                  onEditBefore: editGeneratedCommand,
+                  onRun: runGeneratedCommand,
+                }}
+                listCard={{
+                  status: suggestNextState.status,
+                  items: suggestNext.data,
+                  error: suggestNext.error,
+                  startedAtMs: suggestNextState.startedAtMs,
+                  completedAtMs: suggestNextState.completedAtMs,
+                  selectedIndex: safeCapabilitySuggestionSelected,
+                  onSelectIndex: setCapabilitySuggestionSelected,
+                  onRunSelected: runSuggestedWorkflow,
+                  onCancel: suggestNextState.cancel,
+                }}
+                dispatch={dispatch}
+                onClose={closeCapabilitySurface}
+              />
+            </Suspense>
           )}
 
           {/* REF.6.B — capability prefix discovery hint, shown on empty
@@ -569,11 +871,23 @@ export function CommandPalette() {
             visible={hover !== null}
           />
 
-          {/* ONBOARD.1.A — first-run tour overlay (conditional mount resets step) */}
-          {onboardingOpen && <OnboardingTour onClose={() => setOnboardingOpen(false)} />}
+          {/* ONBOARD.1.A — first-run tour overlay (conditional mount resets step).
+              PERF.1: lazy-loaded; while the chunk arrives, the overlay simply
+              does not appear yet — acceptable since the tour is informational
+              and the trigger (first-run) is non-time-critical. */}
+          {onboardingOpen && (
+            <Suspense fallback={null}>
+              <OnboardingTour onClose={() => setOnboardingOpen(false)} />
+            </Suspense>
+          )}
 
-          {/* ONBOARD.1.B — `?` cheatsheet overlay */}
-          {cheatsheetOpen && <CheatsheetOverlay onClose={() => setCheatsheetOpen(false)} />}
+          {/* ONBOARD.1.B — `?` cheatsheet overlay, lazy-loaded; user-triggered
+              overlay tolerates a one-frame delay before the chunk paints. */}
+          {cheatsheetOpen && (
+            <Suspense fallback={null}>
+              <CheatsheetOverlay onClose={() => setCheatsheetOpen(false)} />
+            </Suspense>
+          )}
 
           {/* Command suggestions */}
           {hasCmdSuggestions && (

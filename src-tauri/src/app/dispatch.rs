@@ -7,13 +7,14 @@ use tauri::Manager;
 use crate::app::autostart::sync_autostart;
 use crate::app::shortcuts::setup_global_shortcuts;
 use crate::app::state::AppState;
+use crate::app::window::{hide_launcher_window, show_launcher_window};
 use crate::core::automation_engine::AutomationEngine;
 use crate::core::config_manager::{ConfigChange, ConfigManager};
 use crate::core::knowledge_store::WorkflowHistoryEntry;
 use crate::core::observability;
 use crate::core::workflow_memory;
 use crate::core::{ActionLogEntry, AppEvent, IpcError};
-use crate::models::action::{ActionKind, ActionRef, ActionResult};
+use crate::models::action::{Action, ActionKind, ActionRef, ActionResult};
 use crate::models::builtin_command::{BuiltinCommandResult, CommandUiType};
 pub(crate) fn cmd_dispatch_impl(
     route: String,
@@ -223,7 +224,8 @@ fn run_action_command(
             // resolved human-readable label that the central hook in
             // `cmd_dispatch_impl` cannot see for action.run.
             if result.is_ok() {
-                record_workflow_event(state.inner(), "action.run", &action.label, Some(&payload));
+                let workflow_label = workflow_label_for_action(&action);
+                record_workflow_event(state.inner(), "action.run", &workflow_label, Some(&payload));
             }
             if let Ok(mut workspace) = state._workspace_manager.lock() {
                 workspace.record_action(action.id);
@@ -303,18 +305,11 @@ pub(crate) fn cmd_ping_impl(
 }
 
 pub(crate) fn cmd_hide_launcher_impl(window: tauri::WebviewWindow) -> Result<(), IpcError> {
-    window
-        .hide()
-        .map_err(|e| IpcError::tauri_api("window.hide", e.to_string()))
+    hide_launcher_window(&window)
 }
 
 pub(crate) fn cmd_show_launcher_impl(window: tauri::WebviewWindow) -> Result<(), IpcError> {
-    window
-        .show()
-        .map_err(|e| IpcError::tauri_api("window.show", e.to_string()))?;
-    window
-        .set_focus()
-        .map_err(|e| IpcError::tauri_api("window.set_focus", e.to_string()))
+    show_launcher_window(&window)
 }
 
 pub(crate) fn cmd_keep_launcher_open_impl(
@@ -326,12 +321,7 @@ pub(crate) fn cmd_keep_launcher_open_impl(
         // (200ms throttle) renew guard，blur 後 sleep 完檢查時 guard 還有效。
         *guard = Some(Instant::now() + Duration::from_millis(2000));
     }
-    window
-        .show()
-        .map_err(|e| IpcError::tauri_api("window.show", e.to_string()))?;
-    window
-        .set_focus()
-        .map_err(|e| IpcError::tauri_api("window.set_focus", e.to_string()))
+    show_launcher_window(&window)
 }
 
 fn builtin_control_command<'a>(route: &str, payload: &'a Value) -> Option<&'a str> {
@@ -542,19 +532,113 @@ fn record_workflow_event(
 // human-readable label is available.
 fn maybe_record_central_workflow(route: &str, payload: &Value, state: &AppState) {
     let label = match route {
-        "cmd.run" => payload
-            .get("name")
-            .and_then(Value::as_str)
-            .map(str::to_owned)
-            .unwrap_or_else(|| "cmd".into()),
-        "capability.call" => payload
-            .get("id")
-            .and_then(Value::as_str)
-            .map(str::to_owned)
-            .unwrap_or_else(|| "capability".into()),
+        "cmd.run" => workflow_label_for_cmd_payload(payload),
+        "capability.call" => workflow_label_for_capability_payload(payload),
         _ => return,
     };
     record_workflow_event(state, route, &label, Some(payload));
+}
+
+fn workflow_label_for_cmd_payload(payload: &Value) -> String {
+    let name = payload
+        .get("name")
+        .and_then(Value::as_str)
+        .filter(|value| !value.trim().is_empty())
+        .unwrap_or("cmd");
+    let args = payload
+        .get("args")
+        .and_then(Value::as_str)
+        .map(str::trim)
+        .filter(|value| !value.is_empty());
+    match args {
+        Some(args) => format!("/{name} {args}"),
+        None => format!("/{name}"),
+    }
+}
+
+fn workflow_label_for_capability_payload(payload: &Value) -> String {
+    let id = payload
+        .get("id")
+        .and_then(Value::as_str)
+        .filter(|value| !value.trim().is_empty())
+        .unwrap_or("capability");
+    let body = payload
+        .get("payload")
+        .and_then(capability_payload_excerpt)
+        .unwrap_or_default();
+    if body.is_empty() {
+        id.to_string()
+    } else {
+        format!("{id} {body}")
+    }
+}
+
+fn capability_payload_excerpt(payload: &Value) -> Option<String> {
+    let raw = ["text", "intent", "raw_output", "question"]
+        .into_iter()
+        .find_map(|key| payload.get(key).and_then(Value::as_str))?;
+    let single_line = raw.split_whitespace().collect::<Vec<_>>().join(" ");
+    Some(truncate_workflow_label(single_line, 48))
+}
+
+fn workflow_label_for_action(action: &Action) -> String {
+    match &action.kind {
+        ActionKind::LaunchPath { path } => {
+            let path = path.replace('\\', "/");
+            let tail = path.rsplit('/').next().unwrap_or(path.as_str());
+            format!("Open {tail}")
+        }
+        ActionKind::OpenPanel { panel, .. } => format!("Open {panel}"),
+        ActionKind::CommandRoute { route, payload } if route == "cmd.run" => {
+            workflow_label_for_cmd_payload(payload)
+        }
+        ActionKind::CommandRoute { route, .. } => format!("Run {route}"),
+        ActionKind::Inline { text } => truncate_workflow_label(text.trim().to_string(), 48),
+        ActionKind::Noop { reason } => truncate_workflow_label(reason.trim().to_string(), 48),
+    }
+}
+
+fn truncate_workflow_label(value: String, max_chars: usize) -> String {
+    let mut iter = value.chars();
+    let truncated: String = iter.by_ref().take(max_chars).collect();
+    if iter.next().is_some() {
+        format!("{truncated}...")
+    } else {
+        truncated
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+
+    #[test]
+    fn workflow_label_for_cmd_payload_keeps_args() {
+        let payload = json!({ "name": "setting", "args": "launcher.opacity 0.9" });
+        assert_eq!(
+            workflow_label_for_cmd_payload(&payload),
+            "/setting launcher.opacity 0.9"
+        );
+    }
+
+    #[test]
+    fn workflow_label_for_capability_payload_includes_excerpt() {
+        let payload = json!({
+            "id": "explain",
+            "payload": { "text": "rust hashmap remove with ownership rules" }
+        });
+        assert_eq!(
+            workflow_label_for_capability_payload(&payload),
+            "explain rust hashmap remove with ownership rules"
+        );
+    }
+
+    #[test]
+    fn workflow_label_for_action_uses_launch_target_name() {
+        let action = Action::launch_path("C:/work/keynova/src-tauri/src/main.rs");
+        assert_eq!(workflow_label_for_action(&action), "Open main.rs");
+    }
 }
 
 pub(crate) fn schedule_shutdown(app: &tauri::AppHandle) {

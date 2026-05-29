@@ -2,7 +2,7 @@ use tauri::Manager;
 use tauri_plugin_opener::OpenerExt;
 
 const REPO_URL: &str = "https://github.com/aionyx02/keynova";
-
+use crate::app::window::show_launcher_window;
 pub(crate) fn setup_tray(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>> {
     use tauri::menu::{Menu, MenuItem, PredefinedMenuItem};
     use tauri::tray::TrayIconBuilder;
@@ -34,8 +34,7 @@ pub(crate) fn setup_tray(app: &tauri::App) -> Result<(), Box<dyn std::error::Err
         .on_menu_event(move |_tray, event| match event.id.as_ref() {
             "show" => {
                 if let Some(win) = handle.get_webview_window("main") {
-                    let _ = win.show();
-                    let _ = win.set_focus();
+                    let _ = show_launcher_window(&win);
                 }
             }
             "about" => {

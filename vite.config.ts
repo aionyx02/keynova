@@ -29,4 +29,34 @@ export default defineConfig(async () => ({
       ignored: ["**/src-tauri/**"],
     },
   },
+  build: {
+    // PERF.1 — Bumped from the rollup default 500 KB. The post-split main
+    // chunk is well under but the xterm-backed TerminalPanel chunk is
+    // intentionally ~330 KB; the warning is noise here.
+    chunkSizeWarningLimit: 800,
+    rollupOptions: {
+      output: {
+        // PERF.1 — manualChunks splits the React runtime + markdown stack out
+        // of the eager index chunk so first paint loads less JS into the
+        // WebView2 renderer. Each chunk is fetched on demand the first time a
+        // module in its bucket is imported.
+        manualChunks: (id) => {
+          if (!id.includes("node_modules")) return undefined;
+          if (id.includes("react-markdown") || id.includes("remark-") || id.includes("rehype-")) {
+            return "markdown-vendor";
+          }
+          if (id.includes("highlight.js")) return "markdown-vendor";
+          if (id.includes("@xterm")) return "terminal-vendor";
+          if (
+            id.includes("/react/") ||
+            id.includes("/react-dom/") ||
+            id.includes("/scheduler/")
+          ) {
+            return "react-vendor";
+          }
+          return undefined;
+        },
+      },
+    },
+  },
 }));

@@ -116,6 +116,22 @@ impl CommandHandler for AgentHandler {
                     if !enabled {
                         return Err("Agent 功能已停用。請前往 /setting → Features 開啟。".into());
                     }
+                    // REF.7.A — legacy chat-first agent gate. Default off; the
+                    // stateless capability layer (palette prefix / NL surfaces)
+                    // is now canonical. Setting `ai.legacy_agent = true` keeps
+                    // the legacy AiPanel reachable for the observation window.
+                    let legacy_on = cfg
+                        .get("ai.legacy_agent")
+                        .as_deref()
+                        .map(|v| v.eq_ignore_ascii_case("true"))
+                        .unwrap_or(false);
+                    if !legacy_on {
+                        return Err("Legacy chat-first agent is disabled. Use palette \
+                             prefixes (explain / summarize / fix / cmd / next) \
+                             or NL queries instead. Set `ai.legacy_agent = true` \
+                             in /setting → AI to restore the legacy panel."
+                            .into());
+                    }
                 }
                 let prompt = payload
                     .get("prompt")

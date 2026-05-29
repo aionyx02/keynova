@@ -2,7 +2,7 @@
 type: decision_index
 status: active
 priority: p1
-updated: 2026-05-29
+updated: 2026-05-30
 context_policy: retrieve_only
 owner: project
 ---
@@ -71,6 +71,7 @@ owner: project
 | [0030](adr/0030-backend-risk-tag-contract.md) | Backend Risk Tag Contract For UI-Owned Confirmation | 接受 | 2026-05-20 |
 | [0039](adr/0039-startup-preflight-snapshot.md) | Startup Preflight Snapshot | 提議 | 2026-05-29 |
 | [0038](adr/0038-currency-online-rates.md) | Currency Online Rates Network Boundary | 提議 | 2026-05-18 |
+| [0040](adr/0040-adr-template-slim.md) | ADR Template Slim — 4-Section Default | 提議 | 2026-05-29 |
 
 ---
 

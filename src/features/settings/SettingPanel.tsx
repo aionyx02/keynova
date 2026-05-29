@@ -1,7 +1,7 @@
-import React, { useCallback, useEffect, useRef, useState } from "react";
+﻿import React, { useCallback, useEffect, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
-import type { PanelProps } from "../types/panel";
+import type { PanelProps } from "../../types/panel";
 
 interface SettingEntry {
   key: string;
@@ -50,6 +50,7 @@ const DEFAULT_SECTIONS = [
   "notes",
   "history",
   "system",
+  "performance",
 ];
 
 const SECTION_LABELS: Record<string, string> = {
@@ -65,6 +66,7 @@ const SECTION_LABELS: Record<string, string> = {
   notes: "Notes",
   history: "History",
   system: "System",
+  performance: "Performance",
 };
 
 const FEATURE_DESCRIPTIONS: Record<string, string> = {
@@ -75,6 +77,7 @@ const FEATURE_DESCRIPTIONS: Record<string, string> = {
   "features.history": "剪貼簿歷史記錄",
   "features.calculator": "即時運算機",
   "features.system": "系統資訊與控制",
+  "performance.low_memory_mode": "跳過 terminal prewarm、延後 startup indexing，並縮短預設 Ollama keep-alive",
 };
 
 const SECTION_EFFECT_HINT: Record<string, string> = {
@@ -90,6 +93,7 @@ const SECTION_EFFECT_HINT: Record<string, string> = {
   notes: "Affects note storage and editor integration.",
   history: "Controls clipboard history retention.",
   system: "Controls system panel capabilities.",
+  performance: "May apply immediately or on the next terminal / AI request.",
 };
 
 function sectionDisplayLabel(section: string): string {

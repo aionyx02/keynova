@@ -173,7 +173,9 @@ pub fn search_icon_data_url(icon_key: &str, kind: &str, path: &str) -> Option<St
     }
 
     let base64 = extract_shell_icon_base64(path, kind);
-    let data_url = base64.as_ref().map(|b| format!("data:image/png;base64,{b}"));
+    let data_url = base64
+        .as_ref()
+        .map(|b| format!("data:image/png;base64,{b}"));
 
     // Only persist successful extractions. Missing icons stay in the in-mem
     // None bucket so we don't repeat PowerShell calls this session, but a

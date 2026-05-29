@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type Dispatch, type SetStateAction } from "react";
 import { listen } from "@tauri-apps/api/event";
 import { invoke } from "@tauri-apps/api/core";
-import type { PanelProps } from "../types/panel";
+import type { PanelProps } from "../../types/panel";
 
 interface HardwareInfo {
   ram_mb: number;
