@@ -4,6 +4,7 @@ use serde_json::json;
 use tauri::{Emitter, Manager};
 
 use crate::app::state::AppState;
+use crate::app::window::{hide_launcher_window, show_launcher_window};
 pub(crate) fn setup_global_shortcuts(app: &tauri::AppHandle, reset_existing: bool) {
     use tauri_plugin_global_shortcut::{GlobalShortcutExt, ShortcutState};
 
@@ -44,10 +45,9 @@ pub(crate) fn setup_global_shortcuts(app: &tauri::AppHandle, reset_existing: boo
             if event.state() == ShortcutState::Pressed {
                 if let Some(win) = handle_k.get_webview_window("main") {
                     if win.is_visible().unwrap_or(false) {
-                        let _ = win.hide();
+                        let _ = hide_launcher_window(&win);
                     } else {
-                        let _ = win.show();
-                        let _ = win.set_focus();
+                        let _ = show_launcher_window(&win);
                     }
                 }
             }

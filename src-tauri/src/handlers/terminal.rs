@@ -1,3 +1,4 @@
+use crate::core::config_manager::ConfigManager;
 use crate::core::{CommandHandler, CommandResult};
 use crate::managers::{
     terminal_manager::{start_prewarm, TerminalManager},
@@ -12,17 +13,28 @@ use std::sync::{Arc, Mutex};
 pub struct TerminalHandler {
     manager: Arc<Mutex<TerminalManager>>,
     workspace_manager: Arc<Mutex<WorkspaceManager>>,
+    config_manager: Arc<Mutex<ConfigManager>>,
 }
 
 impl TerminalHandler {
     pub fn new(
         manager: Arc<Mutex<TerminalManager>>,
         workspace_manager: Arc<Mutex<WorkspaceManager>>,
+        config_manager: Arc<Mutex<ConfigManager>>,
     ) -> Self {
         Self {
             manager,
             workspace_manager,
+            config_manager,
         }
+    }
+
+    fn low_memory_mode(&self) -> bool {
+        self.config_manager
+            .lock()
+            .ok()
+            .and_then(|cfg| cfg.get_bool("performance.low_memory_mode"))
+            .unwrap_or(false)
     }
 }
 
@@ -46,7 +58,7 @@ impl CommandHandler for TerminalHandler {
                 if let Ok(mut workspace) = self.workspace_manager.lock() {
                     workspace.record_terminal_session(id.clone());
                 }
-                if req.launch_spec.is_none() {
+                if req.launch_spec.is_none() && !self.low_memory_mode() {
                     start_prewarm(Arc::clone(&self.manager));
                 }
                 Ok(json!({ "id": id, "initial_output": initial_output }))

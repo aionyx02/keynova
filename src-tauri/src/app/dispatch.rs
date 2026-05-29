@@ -6,6 +6,7 @@ use tauri::Manager;
 
 use crate::app::shortcuts::setup_global_shortcuts;
 use crate::app::state::AppState;
+use crate::app::window::{hide_launcher_window, show_launcher_window};
 use crate::core::automation_engine::AutomationEngine;
 use crate::core::config_manager::{ConfigChange, ConfigManager};
 use crate::core::knowledge_store::WorkflowHistoryEntry;
@@ -303,18 +304,11 @@ pub(crate) fn cmd_ping_impl(
 }
 
 pub(crate) fn cmd_hide_launcher_impl(window: tauri::WebviewWindow) -> Result<(), IpcError> {
-    window
-        .hide()
-        .map_err(|e| IpcError::tauri_api("window.hide", e.to_string()))
+    hide_launcher_window(&window)
 }
 
 pub(crate) fn cmd_show_launcher_impl(window: tauri::WebviewWindow) -> Result<(), IpcError> {
-    window
-        .show()
-        .map_err(|e| IpcError::tauri_api("window.show", e.to_string()))?;
-    window
-        .set_focus()
-        .map_err(|e| IpcError::tauri_api("window.set_focus", e.to_string()))
+    show_launcher_window(&window)
 }
 
 pub(crate) fn cmd_keep_launcher_open_impl(
@@ -326,12 +320,7 @@ pub(crate) fn cmd_keep_launcher_open_impl(
         // (200ms throttle) renew guard，blur 後 sleep 完檢查時 guard 還有效。
         *guard = Some(Instant::now() + Duration::from_millis(2000));
     }
-    window
-        .show()
-        .map_err(|e| IpcError::tauri_api("window.show", e.to_string()))?;
-    window
-        .set_focus()
-        .map_err(|e| IpcError::tauri_api("window.set_focus", e.to_string()))
+    show_launcher_window(&window)
 }
 
 fn builtin_control_command<'a>(route: &str, payload: &'a Value) -> Option<&'a str> {

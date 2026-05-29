@@ -4699,7 +4699,7 @@ dependencies = [
 
 [[package]]
 name = "tauri-app"
-version = "0.1.0"
+version = "0.3.0"
 dependencies = [
  "anyhow",
  "base64 0.22.1",
@@ -4735,7 +4735,9 @@ dependencies = [
  "trash",
  "urlencoding",
  "uuid",
+ "webview2-com",
  "windows 0.58.0",
+ "windows-core 0.61.2",
 ]
 
 [[package]]
