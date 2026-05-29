@@ -8,7 +8,7 @@
 
 import { useCallback } from "react";
 
-import { resetOnboarding } from "../../../components/OnboardingTour";
+import { resetOnboarding } from "../../../shared/components/OnboardingTour";
 import type { BuiltinCommandResult } from "../../../hooks/useCommands";
 
 interface Deps {

@@ -1,6 +1,6 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+﻿import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
-import type { PanelProps } from "../types/panel";
+import type { PanelProps } from "../../types/panel";
 
 interface LocalModel {
   name: string;

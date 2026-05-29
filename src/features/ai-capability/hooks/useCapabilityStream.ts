@@ -38,6 +38,15 @@ export interface UseCapabilityStreamDeps {
   args: { text: string } | null;
 }
 
+// REF.6.D — `fix_error` backend uses a different payload shape
+// (`{ raw_output }`) than `explain` / `summarize` (`{ text }`). The card UX
+// is identical, so we keep one streaming hook and just remap the payload
+// here based on capability id.
+function buildPayload(id: CapabilityId, text: string): Record<string, unknown> {
+  if (id === "fix_error") return { raw_output: text };
+  return { text };
+}
+
 export interface UseCapabilityStream {
   status: CapabilityStreamStatus;
   text: string;
@@ -147,8 +156,8 @@ export function useCapabilityStream({
     setCancelled(false);
     setHasRunOnce(true);
     lastSubmittedKeyRef.current = argsKey;
-    void run({ text: argsKey }, { stream: true });
-  }, [argsKey, run, innerCancel]);
+    void run(buildPayload(id, argsKey), { stream: true });
+  }, [argsKey, id, run, innerCancel]);
 
   let status: CapabilityStreamStatus;
   if (!hasRunOnce) {

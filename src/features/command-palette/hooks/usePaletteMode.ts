@@ -14,12 +14,12 @@ import { useMemo } from "react";
 import { parseInputMode } from "../../../hooks/useInputMode";
 import {
   parseCapabilityPrefix,
-  type CapabilityPrefixId,
+  type CapabilityPrefixMatch,
 } from "../utils/parseCapabilityPrefix";
 
 export type PaletteMode =
   | { kind: "search" }
-  | { kind: "capability"; id: CapabilityPrefixId; args: { text: string } };
+  | ({ kind: "capability" } & CapabilityPrefixMatch);
 
 const SEARCH_MODE: PaletteMode = { kind: "search" };
 
@@ -29,6 +29,6 @@ export function usePaletteMode(query: string): PaletteMode {
     if (inputMode.mode !== "search") return SEARCH_MODE;
     const match = parseCapabilityPrefix(query);
     if (!match) return SEARCH_MODE;
-    return { kind: "capability", id: match.id, args: match.args };
+    return { kind: "capability", ...match };
   }, [query]);
 }

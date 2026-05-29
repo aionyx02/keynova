@@ -1,4 +1,4 @@
-import { useMouseControl } from "../hooks/useMouseControl";
+﻿import { useMouseControl } from "../../hooks/useMouseControl";
 
 /** 顯示全域滑鼠控制模式狀態（Alt+M 切換，Alt+W/A/S/D 移動）。目前未掛載至 UI。 */
 export function MouseControlOverlay() {
