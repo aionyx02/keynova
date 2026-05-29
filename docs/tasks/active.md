@@ -27,9 +27,9 @@ tags: [refactor, ai-capability, search-first, p0]
   - [x] `REF.6.B` prefix dispatcher + `explain` / `summarize` end-to-end (`CapabilityAnswerCard`, `parseCapabilityPrefix`, `usePaletteMode`, `useCapabilityStream`, hint line). Unit tests green; manual `tauri dev` smoke pending.
   - [x] `REF.6.C` backend `gen_command` + `suggest_next` capabilities + IPC + hooks. Unit tests green; `gen_command` live smoke passed on the local `qwen3:0.6b` model.
   - [x] `REF.6.D` `fix <error>` prefix wired to `CapabilityAnswerCard`. Backend payload remap (`raw_output` vs `text`) lives in `useCapabilityStream`; UI shares the existing answer card with a new `fix` label. Final manual validation still needs `npm run tauri dev`.
-  - [x] `REF.6.E` `next` prefix + `CapabilityListCard` for `suggest_next`. Prefix wiring landed first; 2026-05-29 follow-through now auto-mounts the same card on empty palette so `next` is visible without typing the keyword. Final manual validation still needs `npm run tauri dev` because capability IPC requires Tauri runtime.
-  - [x] `REF.6.F` `cmd <intent>` prefix + `CapabilityCommandCard` for `gen_command`. Prefix wiring landed first; 2026-05-29 follow-through now auto-surfaces the same card for no-result natural-language action queries, so Enter can generate without typing `cmd`. Final manual validation still needs `npm run tauri dev` because capability IPC requires Tauri runtime.
-  - [ ] `REF.6.G` remove `AiPanel` / `TerminalPanel` mounts from the palette hot path; UI-owned `ConfirmRequirement`.
+  - [x] `REF.6.E` `next` prefix + `CapabilityListCard`. Auto-mounts on empty palette. Tauri smoke pending.
+  - [x] `REF.6.F` `cmd <intent>` prefix + `CapabilityCommandCard`. No-result NL queries auto-surface. Tauri smoke pending.
+  - [x] `REF.6.G` palette hot-path mounts + UI-owned confirm — current-state audit confirmed criteria already satisfied by prior batches. Unified `useActionConfirm` hook deferred.
   - [~] `REF.6.H` feature-first directory migration. 11 panels + 3 model panels relocated to `src/features/<feature>/`; 7 shared components moved to `src/shared/components/`. Model-manager tab consolidation deferred.
   - [x] `REF.6.I` ADR-0040 (proposed) template slimming to 4 sections (ADR-0030 slot was already taken by Backend Risk Tag Contract; reassigned to 0040).
   - [x] `REF.6.J` rule-based NL intent router (fallback). `classifyNlIntent` routes no-result NL queries to `explain` / `summarize` / `fix` / `cmd` so the user no longer needs the explicit prefix for common asks. Re-uses the existing stabilization debounce + dismissed-key gate; explicit prefixes still take priority.
@@ -56,6 +56,6 @@ Keep `active.md` compact. Put batch-level task detail in `docs/tasks/refactor-ai
 
 ## Next Phase Candidates
 
-- After `REF.6.D` / `.E` / `.F` / `.J`, finish the pending smoke/validation pass before `REF.6.G`.
-- After `REF.7`, revalidate parked feature tracks from `docs/tasks/backlog.md`.
+- Finish the pending `tauri dev` smoke/validation pass for the REF.6 batch, then start `REF.7`.
+- After `REF.7`, revalidate parked tracks from `docs/tasks/backlog.md`.
 - After `REF.8`, refresh affected ADR statuses and architecture docs.
