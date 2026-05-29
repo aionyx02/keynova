@@ -156,6 +156,27 @@ impl BuiltinCommand for ModelListCommand {
     }
 }
 
+/// REF.7.A — Legacy chat-first agent panel command. Registered at boot only
+/// when `ai.legacy_agent = true`; routes to `panel:ai_legacy` so the existing
+/// `AiPanel.tsx` (kept as legacy fallback per REF.6.G) becomes reachable for
+/// the observation window.
+pub struct AiLegacyChatCommand;
+
+impl BuiltinCommand for AiLegacyChatCommand {
+    fn name(&self) -> &'static str {
+        "ai_legacy_chat"
+    }
+    fn description(&self) -> &'static str {
+        "Open the legacy AI chat panel (compatibility)"
+    }
+    fn execute(&self, _args: &str) -> BuiltinCommandResult {
+        BuiltinCommandResult {
+            text: String::new(),
+            ui_type: CommandUiType::Panel("ai_legacy".into()),
+        }
+    }
+}
+
 pub struct ModelRemoveCommand {
     manager: Arc<ModelManager>,
     config: Arc<Mutex<ConfigManager>>,
@@ -1113,11 +1134,13 @@ mod tests {
     }
 
     #[test]
-    fn note_lazyvim_missing_nvim_returns_inline_guidance() {
+    fn note_lazyvim_missing_nvim_routes_to_download_panel() {
         let (manager, root) = temp_note_manager();
         let result = run_note_command("lazyvim", &manager, None, None, &|_| None);
-        assert!(matches!(result.ui_type, CommandUiType::Inline));
-        assert!(result.text.contains("Neovim was not found"));
+        assert!(
+            matches!(result.ui_type, CommandUiType::Panel(ref name) if name == "nvim_download")
+        );
+        assert!(result.text.is_empty());
         let _ = std::fs::remove_dir_all(root);
     }
 

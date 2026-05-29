@@ -18,10 +18,10 @@ use crate::handlers::{
     ai_capability::{AiCapabilityHandler, AiCapabilityHandlerDeps},
     automation::AutomationHandler,
     builtin_cmd::{
-        BuiltinCmdHandler, CalCommand, DownCommand, HelpCommand, HistoryCommand,
-        ModelDownloadCommand, ModelListCommand, ModelRemoveCommand, NoteCommand, OnboardCommand,
-        RebuildSearchIndexCommand, ReloadCommand, SettingCommand, SysCtlCommand, SysMonitorCommand,
-        TrCommand,
+        AiLegacyChatCommand, BuiltinCmdHandler, CalCommand, DownCommand, HelpCommand,
+        HistoryCommand, ModelDownloadCommand, ModelListCommand, ModelRemoveCommand, NoteCommand,
+        OnboardCommand, RebuildSearchIndexCommand, ReloadCommand, SettingCommand, SysCtlCommand,
+        SysMonitorCommand, TrCommand,
     },
     calculator::CalculatorHandler,
     dev_utils_cmd::{
@@ -239,6 +239,20 @@ fn build_builtin_registry(
     // `ai.model` config still feeds the capability layer via /model_list.
     // If chat ever returns, re-register here and reinstate
     // `PanelRegistry["ai"]`.
+    //
+    // REF.7.A — `/ai_legacy_chat` builtin registers only when
+    // `ai.legacy_agent = true`. Routes to `panel:ai_legacy`, which the
+    // frontend PanelRegistry resolves to the retained `AiPanel.tsx`.
+    // Re-evaluated at boot; runtime toggle requires app restart.
+    let legacy_agent_on = config_manager
+        .lock()
+        .ok()
+        .and_then(|cfg| cfg.get("ai.legacy_agent"))
+        .map(|v| v.eq_ignore_ascii_case("true"))
+        .unwrap_or(false);
+    if legacy_agent_on {
+        reg.register(Box::new(AiLegacyChatCommand));
+    }
     reg.register(Box::new(ModelDownloadCommand));
     reg.register(Box::new(ModelListCommand));
     reg.register(Box::new(ModelRemoveCommand::new(
@@ -306,10 +320,12 @@ fn build_command_router(
     router.register(Arc::new(TerminalHandler::new(
         Arc::clone(&bundle.terminal_manager),
         Arc::clone(&bundle.workspace_manager),
+        Arc::clone(&bundle.config_manager),
     )));
-    router.register(Arc::new(FeatureHandler::new(Arc::clone(
-        &bundle.terminal_manager,
-    ))));
+    router.register(Arc::new(FeatureHandler::new(
+        Arc::clone(&bundle.terminal_manager),
+        Arc::clone(&bundle.config_manager),
+    )));
     router.register(Arc::new(MouseHandler::new(Arc::clone(
         &bundle.mouse_manager,
     ))));

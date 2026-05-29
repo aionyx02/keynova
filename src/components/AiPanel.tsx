@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
-import { Markdown } from "./Markdown";
+import { Markdown } from "../shared/components/Markdown";
 import { classifyAiError, type ClassifiedAiError } from "../utils/aiErrors";
 import { useAgent } from "../hooks/useAgent";
 import { useLocalHistory } from "../hooks/useLocalHistory";

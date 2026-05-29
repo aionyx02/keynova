@@ -81,7 +81,15 @@ where
             .unwrap_or(30),
     };
 
+    let low_memory_mode = get("performance.low_memory_mode")
+        .map(|v| v.trim().eq_ignore_ascii_case("true"))
+        .unwrap_or(false);
     let ollama_keep_alive = get("ai.ollama_keep_alive").unwrap_or_else(|| "5m".into());
+    let ollama_keep_alive = if low_memory_mode && ollama_keep_alive == "5m" {
+        "0s".into()
+    } else {
+        ollama_keep_alive
+    };
 
     let stream_enabled = get("ai.stream_enabled")
         .map(|v| !v.trim().eq_ignore_ascii_case("false"))
@@ -1323,6 +1331,37 @@ mod tests {
                 stream_enabled: true,
             }
         );
+    }
+
+    #[test]
+    fn low_memory_mode_shrinks_default_ollama_keep_alive() {
+        let config = HashMap::from([
+            ("ai.provider", "ollama"),
+            ("ai.model", "qwen2.5:7b"),
+            ("performance.low_memory_mode", "true"),
+        ]);
+
+        let resolved =
+            resolve_ai_runtime_config(|key| config.get(key).map(|value| value.to_string()))
+                .expect("resolve config");
+
+        assert_eq!(resolved.ollama_keep_alive, "0s");
+    }
+
+    #[test]
+    fn low_memory_mode_preserves_custom_ollama_keep_alive() {
+        let config = HashMap::from([
+            ("ai.provider", "ollama"),
+            ("ai.model", "qwen2.5:7b"),
+            ("ai.ollama_keep_alive", "30s"),
+            ("performance.low_memory_mode", "true"),
+        ]);
+
+        let resolved =
+            resolve_ai_runtime_config(|key| config.get(key).map(|value| value.to_string()))
+                .expect("resolve config");
+
+        assert_eq!(resolved.ollama_keep_alive, "30s");
     }
 
     // ─── tool-call parsing tests (5.5.A3 / A4) ───────────────────────────────

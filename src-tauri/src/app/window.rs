@@ -2,18 +2,34 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use tauri::{Emitter, Manager};
+#[cfg(target_os = "windows")]
+use webview2_com::Microsoft::Web::WebView2::Win32::{
+    ICoreWebView2_19, COREWEBVIEW2_MEMORY_USAGE_TARGET_LEVEL,
+};
+#[cfg(target_os = "windows")]
+use windows_core_compat::Interface;
 
 use crate::app::state::AppState;
 use crate::core::IpcError;
-
 const LAUNCHER_NARROW_WIDTH: f64 = 700.0;
 const LAUNCHER_LEFT_SHIFT: i32 = 36;
+
+#[derive(Clone, Copy)]
+enum LauncherMemoryLevel {
+    Normal,
+    Low,
+}
 
 pub(crate) fn show_launcher(app: &tauri::AppHandle) -> Result<(), IpcError> {
     let window = app
         .get_webview_window("main")
         .ok_or_else(|| IpcError::new("window_not_found", "main window not found"))?;
+    show_launcher_window(&window)
+}
+
+pub(crate) fn show_launcher_window(window: &tauri::WebviewWindow) -> Result<(), IpcError> {
     let _ = window.unminimize();
+    set_launcher_memory_level(window, LauncherMemoryLevel::Normal);
     window
         .show()
         .map_err(|e| IpcError::tauri_api("window.show", e.to_string()))?;
@@ -22,7 +38,13 @@ pub(crate) fn show_launcher(app: &tauri::AppHandle) -> Result<(), IpcError> {
         .map_err(|e| IpcError::tauri_api("window.set_focus", e.to_string()))
 }
 
-// ─── Entry point ─────────────────────────────────────────────────────────────
+pub(crate) fn hide_launcher_window(window: &tauri::WebviewWindow) -> Result<(), IpcError> {
+    window
+        .hide()
+        .map_err(|e| IpcError::tauri_api("window.hide", e.to_string()))?;
+    set_launcher_memory_level(window, LauncherMemoryLevel::Low);
+    Ok(())
+}
 
 pub(crate) fn setup_main_window(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>> {
     let window = app
@@ -43,21 +65,10 @@ pub(crate) fn setup_main_window(app: &tauri::App) -> Result<(), Box<dyn std::err
     let blur_guard = app.state::<AppState>().launcher_focus_guard.clone();
     window.on_window_event(move |event| match event {
         tauri::WindowEvent::Focused(true) => {
+            set_launcher_memory_level(&window_focused, LauncherMemoryLevel::Normal);
             let _ = window_focused.emit("window-focused", ());
         }
         tauri::WindowEvent::Focused(false) => {
-            // Bug-fix 2026-05-19 (round 2) — 真根因不是 IME composition：使用者
-            // 回報英文打字、滑鼠不動、單純坐著都會觸發。WebView2 transparent
-            // window 在 Windows 11 任何 keystroke / accessibility subprocess
-            // 切換 / popup 都可能 emit 短暫 Focused(false) blip。先前的 400ms
-            // grace + 只 hook onComposition* 的 frontend guard 覆蓋不到英文
-            // typing path。
-            //
-            // 修法：grace 拉到 1500ms（覆蓋幾乎所有觀察到的 blip），配合 frontend
-            // 在 input onFocus + 每個 keydown（200ms throttle）主動把 launcher_focus_guard
-            // 更新成 2s TTL — 任何使用者互動都會把 guard 推到未來，sleep 完才
-            // 檢查 guard 時保證 guard 還有效 → 不 hide。真要 dismiss 用 Esc /
-            // Ctrl+K toggle / 等 1.5s 點別處兩種路徑。
             let window_blur = window_blur.clone();
             let blur_guard = Arc::clone(&blur_guard);
             tauri::async_runtime::spawn(async move {
@@ -77,18 +88,59 @@ pub(crate) fn setup_main_window(app: &tauri::App) -> Result<(), Box<dyn std::err
                     })
                     .unwrap_or(false);
                 if should_keep_open {
-                    let _ = window_blur.show();
-                    let _ = window_blur.set_focus();
+                    let _ = show_launcher_window(&window_blur);
                     return;
                 }
                 if window_blur.is_focused().unwrap_or(false) {
                     return;
                 }
-                let _ = window_blur.hide();
+                let _ = hide_launcher_window(&window_blur);
             });
         }
         _ => {}
     });
 
+    if window.is_visible().unwrap_or(false) {
+        set_launcher_memory_level(&window, LauncherMemoryLevel::Normal);
+    } else {
+        set_launcher_memory_level(&window, LauncherMemoryLevel::Low);
+    }
+
     Ok(())
+}
+
+#[cfg(target_os = "windows")]
+fn set_launcher_memory_level(window: &tauri::WebviewWindow, level: LauncherMemoryLevel) {
+    let target_label = match level {
+        LauncherMemoryLevel::Normal => "normal",
+        LauncherMemoryLevel::Low => "low",
+    };
+    let result = window.with_webview(move |webview| {
+        if let Err(error) = apply_memory_usage_level(webview, level) {
+            eprintln!("[keynova] webview memory level {target_label} failed: {error}");
+        }
+    });
+    if let Err(error) = result {
+        eprintln!("[keynova] webview memory level {target_label} dispatch failed: {error}");
+    }
+}
+
+#[cfg(not(target_os = "windows"))]
+fn set_launcher_memory_level(_window: &tauri::WebviewWindow, _level: LauncherMemoryLevel) {}
+
+#[cfg(target_os = "windows")]
+fn apply_memory_usage_level(
+    webview: tauri::webview::PlatformWebview,
+    level: LauncherMemoryLevel,
+) -> Result<(), String> {
+    let webview = unsafe { webview.controller().CoreWebView2() }.map_err(|e| e.to_string())?;
+    let webview = webview
+        .cast::<ICoreWebView2_19>()
+        .map_err(|e| e.to_string())?;
+    let level = match level {
+        LauncherMemoryLevel::Normal => 0,
+        LauncherMemoryLevel::Low => 1,
+    };
+    let level = COREWEBVIEW2_MEMORY_USAGE_TARGET_LEVEL(level);
+    unsafe { webview.SetMemoryUsageTargetLevel(level) }.map_err(|e| e.to_string())
 }

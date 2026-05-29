@@ -42,7 +42,12 @@ function makeDeps(overrides: Partial<UseKeyboardNavDeps> = {}): UseKeyboardNavDe
     runPipeline: vi.fn(async () => undefined),
     execCommand: vi.fn(async () => undefined),
     capabilityMode: false,
+    capabilityListMode: false,
+    capabilityListCount: 0,
+    capabilityListSelected: 0,
+    setCapabilityListSelected: setNoop as never,
     onCapabilitySubmit: vi.fn(),
+    onCapabilityRunSelected: vi.fn(),
     keepLauncherOpen: vi.fn(),
     ...overrides,
   };
@@ -58,6 +63,21 @@ function fakeEnter(opts: { shiftKey?: boolean; isComposing?: boolean } = {}): Re
     altKey: false,
     preventDefault,
     nativeEvent: { isComposing: opts.isComposing ?? false } as KeyboardEvent,
+  } as unknown as React.KeyboardEvent<HTMLInputElement>;
+}
+
+function fakeArrow(
+  key: "ArrowDown" | "ArrowUp",
+): React.KeyboardEvent<HTMLInputElement> {
+  const preventDefault = vi.fn();
+  return {
+    key,
+    shiftKey: false,
+    ctrlKey: false,
+    metaKey: false,
+    altKey: false,
+    preventDefault,
+    nativeEvent: { isComposing: false } as KeyboardEvent,
   } as unknown as React.KeyboardEvent<HTMLInputElement>;
 }
 
@@ -123,6 +143,46 @@ describe("useKeyboardNav — capability Enter routing (REF.6.B)", () => {
       ),
     );
     result.current.onKeyDown(fakeEnter({ shiftKey: true }));
+    expect(onCapabilitySubmit).not.toHaveBeenCalled();
+  });
+
+  it("routes next-mode ArrowDown to list selection", () => {
+    const setCapabilityListSelected = vi.fn();
+    const { result } = renderHook(() =>
+      useKeyboardNav(
+        makeDeps({
+          capabilityMode: true,
+          capabilityListMode: true,
+          capabilityListCount: 3,
+          setCapabilityListSelected: setCapabilityListSelected as never,
+        }),
+      ),
+    );
+    const e = fakeArrow("ArrowDown");
+    result.current.onKeyDown(e);
+    expect(e.preventDefault).toHaveBeenCalledTimes(1);
+    expect(setCapabilityListSelected).toHaveBeenCalledTimes(1);
+  });
+
+  it("runs the selected next suggestion on Enter", () => {
+    const onCapabilityRunSelected = vi.fn();
+    const onCapabilitySubmit = vi.fn();
+    const { result } = renderHook(() =>
+      useKeyboardNav(
+        makeDeps({
+          capabilityMode: true,
+          capabilityListMode: true,
+          capabilityListCount: 2,
+          capabilityListSelected: 1,
+          onCapabilityRunSelected,
+          onCapabilitySubmit,
+        }),
+      ),
+    );
+    const e = fakeEnter();
+    result.current.onKeyDown(e);
+    expect(e.preventDefault).toHaveBeenCalledTimes(1);
+    expect(onCapabilityRunSelected).toHaveBeenCalledTimes(1);
     expect(onCapabilitySubmit).not.toHaveBeenCalled();
   });
 });

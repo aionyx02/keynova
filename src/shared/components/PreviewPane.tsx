@@ -1,6 +1,6 @@
-import { convertFileSrc } from "@tauri-apps/api/core";
+﻿import { convertFileSrc } from "@tauri-apps/api/core";
 
-import type { FilePreviewResult, SearchResult } from "../types/search";
+import type { FilePreviewResult, SearchResult } from "../../types/search";
 
 interface Props {
   result: SearchResult | null;

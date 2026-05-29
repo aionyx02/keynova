@@ -400,11 +400,11 @@
   "workflow": {
     "name": "P0 Refactor: AI Capability Layer And Unified Search",
     "zh_name": "P0 重構：AI 能力層與統一搜尋主線",
-    "current_task": "REF.4",
+    "current_task": "REF.6",
     "progress": {
-      "done": 5,
+      "done": 6,
       "total": 9,
-      "percent": 56
+      "percent": 67
     },
     "rules": [
       "Markdown remains the authority.",
@@ -634,7 +634,7 @@
       "title": "Command Palette Feature Split — DONE (with documented deviation)",
       "priority": "P0",
       "status": "done",
-      "summary": "split `CommandPalette.tsx` (landed 598 lines; `\u003c 250` dropped — see plan)",
+      "summary": "split `CommandPalette.tsx` (landed 598 lines; `\u003c 250` dropped, see plan)",
       "depends_on": [
         "REF.1"
       ],
@@ -673,10 +673,10 @@
     },
     {
       "id": "REF.4",
-      "title": "Stateless AI Capability Layer — PARTIALLY DONE",
+      "title": "Stateless AI Capability Layer - DONE",
       "priority": "P0",
-      "status": "planned",
-      "summary": "Stateless AI Capability Layer — PARTIALLY DONE",
+      "status": "done",
+      "summary": "stateless AI capability layer. All 5 capabilities are now live behind one `call_capability` entry: `explain`, `summarize`, `fix_error`, `gen_command`, `suggest_next`",
       "depends_on": [
         "REF.3"
       ],
@@ -697,7 +697,7 @@
       "title": "Workflow Memory — DONE",
       "priority": "P0",
       "status": "done",
-      "summary": "workflow memory schema v4 + `record`/`suggest`",
+      "summary": "workflow memory schema v4 + `record` / `suggest`",
       "depends_on": [
         "REF.1"
       ],
@@ -719,8 +719,8 @@
       "id": "REF.6",
       "title": "Search Box As Pure Dispatcher (in progress)",
       "priority": "P0",
-      "status": "open",
-      "summary": "search box = pure dispatcher. Sub-batches:",
+      "status": "planned",
+      "summary": "Search Box As Pure Dispatcher (in progress)",
       "depends_on": [
         "REF.4",
         "REF.5"
@@ -737,11 +737,7 @@
         "No UI surface wiring (that is REF.6.E / REF.6.F).",
         "No autonomous chain — capabilities still single-step."
       ],
-      "done_criteria": [
-        "5 / 5 capabilities live behind one `call_capability` entry.",
-        "Unit tests cover typed payload contracts.",
-        "Live Ollama smoke green for both new capabilities."
-      ],
+      "done_criteria": [],
       "notes": [],
       "impact": {
         "user": "搜尋框會更像純 dispatcher，結果列 action chip 成為主要互動方式。",
@@ -753,32 +749,28 @@
       "id": "REF.7",
       "title": "Quantitative Gates And Legacy Default Off",
       "priority": "P0",
-      "status": "open",
-      "summary": "quantitative gates, default `ai.legacy_agent = false`, observe one release cycle",
+      "status": "planned",
+      "summary": "Quantitative Gates And Legacy Default Off",
       "depends_on": [
         "REF.6"
       ],
       "parallel_with": [],
       "source": "docs/tasks/refactor-ai-capability.md",
       "scope": [
-        "Add performance bench scripts and CI-friendly file-size gates (per docx §8).",
-        "Default `ai.legacy_agent = false`.",
-        "Keep legacy agent/chat available behind the flag for one release cycle.",
-        "Run manual regression for Bug A/B class race conditions.",
-        "Update release notes and docs for the new AI interaction model.",
-        "Take formal P50 / P95 reading on `qwen2.5:7b` (the deferred ADR-0029 §8"
+        "Append two `SettingSchema::new(...)` rows to `settings_schema.rs`:",
+        "Read `ai.legacy_agent` via `ConfigManager` in `handlers/agent/planning.rs`",
+        "Register `ai_legacy_chat` builtin command only when the flag is `true`",
+        "Add `ai_legacy` entry to `PanelRegistry.tsx` with `React.lazy` import",
+        "Extend `useLauncherSettings.WATCHED_KEYS` with `\"ai.legacy_agent\"`."
       ],
       "non_goals": [
-        "Do not physically remove legacy agent/chat code during the observation cycle."
+        "Do not physically remove legacy agent/chat code during the observation cycle.",
+        "Do not introduce a \"Once\" confirm taxonomy on `ActionChip` — REF.6.G"
       ],
       "done_criteria": [
-        "`handlers/agent/mod.rs` ≤ 616 lines (current) or trimmed below `\u003c 600`.",
-        "`agent_runtime.rs` \u003c 400 lines during observation or justified pending removal.",
-        "AI inline P50 \u003c 800 ms and P95 \u003c 1500 ms on `qwen2.5:7b`.",
-        "Palette cold open \u003c 200 ms and warm open \u003c 50 ms.",
-        "Search first chunk P50 \u003c 80 ms.",
-        "Idle RSS \u003c 150 MB after 10 minutes and \u003c 200 MB after 1 hour, excluding",
-        "One release cycle completes without P0 regression reports."
+        "Default-off: typing `/ai_legacy_chat` reports unknown command.",
+        "Flag-on after config reload: typing `/ai_legacy_chat` opens AiPanel.",
+        "`cargo clippy --lib -- -D warnings`, `cargo test --lib`, `npm run lint`,"
       ],
       "notes": [],
       "impact": {
@@ -792,7 +784,7 @@
       "title": "Physical Removal",
       "priority": "P0",
       "status": "open",
-      "summary": "physical removal decision (AiPanel deletion, agent_runtime trim, flag removal)",
+      "summary": "physical removal decision (`AiPanel` deletion, `agent_runtime` trim, flag removal)",
       "depends_on": [
         "REF.7"
       ],

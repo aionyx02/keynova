@@ -1,5 +1,5 @@
-import { UiIcon } from "./icons/UiIcon";
-import { useWorkspace } from "../hooks/useWorkspace";
+﻿import { UiIcon } from "../../components/icons/UiIcon";
+import { useWorkspace } from "../../hooks/useWorkspace";
 
 export function WorkspaceIndicator() {
   const { current, switchTo } = useWorkspace();

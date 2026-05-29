@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
-import { useI18n } from "../i18n/useI18n";
-import type { PanelProps } from "../types/panel";
+import { useI18n } from "../../i18n/useI18n";
+import type { PanelProps } from "../../types/panel";
 
 interface VolumeInfo {
   level: number;
@@ -46,7 +46,10 @@ export function SystemPanel({ onClose }: PanelProps) {
 
   useEffect(() => {
     rootRef.current?.focus();
-    void load();
+    const timer = window.setTimeout(() => {
+      void load();
+    }, 0);
+    return () => window.clearTimeout(timer);
   }, [load]);
 
   async function setVolumeLevel(level: number) {

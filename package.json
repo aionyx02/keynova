@@ -1,7 +1,7 @@
 {
   "name": "tauri-app",
   "private": true,
-  "version": "0.2.1",
+  "version": "0.3.0",
   "type": "module",
   "scripts": {
     "clean:local": "node scripts/clean-local-artifacts.mjs",
@@ -20,7 +20,9 @@
     "test:watch": "vitest",
     "rust:test": "cargo test --manifest-path src-tauri/Cargo.toml",
     "rust:clippy": "cargo clippy --manifest-path src-tauri/Cargo.toml -- -D warnings",
-    "verify": "npm run docs:refresh && npm run check && npm run test && npm run rust:test && npm run rust:clippy",
+    "guard:size": "node scripts/code-guard-size.mjs",
+    "bench:ai": "node scripts/bench-ai-capability.mjs",
+    "verify": "npm run docs:refresh && npm run check && npm run test && npm run rust:test && npm run rust:clippy && npm run guard:size",
     "docs:sync": "node scripts/docs-sync.mjs",
     "docs:guard": "node scripts/docs-guard.mjs",
     "docs:guard-size": "node scripts/docs-guard-size.mjs",

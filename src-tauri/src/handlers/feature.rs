@@ -2,6 +2,7 @@ use std::sync::{Arc, Mutex};
 
 use serde_json::{json, Value};
 
+use crate::core::config_manager::ConfigManager;
 use crate::core::{CommandHandler, CommandResult};
 use crate::managers::terminal_manager::{start_prewarm, TerminalManager};
 
@@ -11,11 +12,26 @@ use crate::managers::terminal_manager::{start_prewarm, TerminalManager};
 /// service level (e.g. `start_prewarm` checks for an existing warm session).
 pub struct FeatureHandler {
     terminal_manager: Arc<Mutex<TerminalManager>>,
+    config_manager: Arc<Mutex<ConfigManager>>,
 }
 
 impl FeatureHandler {
-    pub fn new(terminal_manager: Arc<Mutex<TerminalManager>>) -> Self {
-        Self { terminal_manager }
+    pub fn new(
+        terminal_manager: Arc<Mutex<TerminalManager>>,
+        config_manager: Arc<Mutex<ConfigManager>>,
+    ) -> Self {
+        Self {
+            terminal_manager,
+            config_manager,
+        }
+    }
+
+    fn low_memory_mode(&self) -> bool {
+        self.config_manager
+            .lock()
+            .ok()
+            .and_then(|cfg| cfg.get_bool("performance.low_memory_mode"))
+            .unwrap_or(false)
     }
 }
 
@@ -34,8 +50,11 @@ impl CommandHandler for FeatureHandler {
                     .to_string();
                 match key.as_str() {
                     "terminal" => {
-                        // Deferred from bootstrap — prewarm starts on first panel open.
-                        start_prewarm(Arc::clone(&self.terminal_manager));
+                        // Deferred from bootstrap — prewarm starts on first panel open
+                        // unless low-memory mode explicitly disables the warm shell.
+                        if !self.low_memory_mode() {
+                            start_prewarm(Arc::clone(&self.terminal_manager));
+                        }
                     }
                     "ai" | "agent" | "notes" | "nvim" | "system_monitor" => {
                         // These services initialize on demand; activation is a no-op here.

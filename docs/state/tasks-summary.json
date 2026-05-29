@@ -22,11 +22,11 @@
   "workflow": {
     "name": "P0 Refactor: AI Capability Layer And Unified Search",
     "zh_name": "P0 重構：AI 能力層與統一搜尋主線",
-    "current_task": "REF.4",
+    "current_task": "REF.6",
     "progress": {
-      "done": 5,
+      "done": 6,
       "total": 9,
-      "percent": 56
+      "percent": 67
     },
     "rules": [
       "Markdown remains the authority.",
@@ -40,22 +40,11 @@
   },
   "open_tasks": [
     {
-      "id": "REF.4",
-      "title": "Stateless AI Capability Layer — PARTIALLY DONE",
-      "priority": "P0",
-      "status": "planned",
-      "summary": "Stateless AI Capability Layer — PARTIALLY DONE",
-      "depends_on": [
-        "REF.3"
-      ],
-      "parallel_with": []
-    },
-    {
       "id": "REF.6",
       "title": "Search Box As Pure Dispatcher (in progress)",
       "priority": "P0",
-      "status": "open",
-      "summary": "search box = pure dispatcher. Sub-batches:",
+      "status": "planned",
+      "summary": "Search Box As Pure Dispatcher (in progress)",
       "depends_on": [
         "REF.4",
         "REF.5"
@@ -66,8 +55,8 @@
       "id": "REF.7",
       "title": "Quantitative Gates And Legacy Default Off",
       "priority": "P0",
-      "status": "open",
-      "summary": "quantitative gates, default `ai.legacy_agent = false`, observe one release cycle",
+      "status": "planned",
+      "summary": "Quantitative Gates And Legacy Default Off",
       "depends_on": [
         "REF.6"
       ],
@@ -78,7 +67,7 @@
       "title": "Physical Removal",
       "priority": "P0",
       "status": "open",
-      "summary": "physical removal decision (AiPanel deletion, agent_runtime trim, flag removal)",
+      "summary": "physical removal decision (`AiPanel` deletion, `agent_runtime` trim, flag removal)",
       "depends_on": [
         "REF.7"
       ],
@@ -90,6 +79,7 @@
     "REF.1",
     "REF.2",
     "REF.3",
+    "REF.4",
     "REF.5"
   ]
 }
