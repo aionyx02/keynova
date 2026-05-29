@@ -326,16 +326,15 @@ Done:
   through `ConfirmRequirement`, not backend state polling.
 - Manual regression: Bug B delete verification still requires two confirms.
 
-#### REF.6.H — Feature-first directory migration (docx §3.5, §6.1)
+#### REF.6.H — Feature-first directory migration (docx §3.5, §6.1) — DONE (with deferral)
 
 Scope:
 - Move remaining `src/components/*.tsx` panels to `src/features/<feature>/`:
-  `calculator`, `history` (simplified to source-filter view), `learning`,
-  `mouse-control`, `notes`, `nvim`, `settings`, `system`, `system-monitor`,
-  `terminal`, `translation`.
+  `calculator`, `history`, `learning`, `mouse-control`, `notes`, `nvim`,
+  `settings`, `system`, `system-monitor`, `terminal`, `translation`.
 - Consolidate `ModelDownloadPanel` + `ModelListPanel` + `ModelRemovePanel`
-  into `src/features/model-manager/ModelManagerPanel.tsx` (single entry, three
-  internal tabs/views).
+  into `src/features/model-manager/ModelManagerPanel.tsx` (single entry,
+  three internal tabs/views). **Deferred — see below.**
 - Establish `src/shared/{components,hooks,types}` for cross-feature reuse:
   `PreviewPane`, `RankTooltip`, `Markdown`, `ErrorBoundary`,
   `CheatsheetOverlay`, `OnboardingTour`, `WorkspaceIndicator`.
@@ -346,10 +345,54 @@ Non-goals:
 - Do not rename internal exports in a way that breaks deep imports outside
   the moved file.
 
-Done:
-- `src/components/` contains only `FloatingWindow.tsx`, `AppContainer.tsx`,
-  and `AiPanel.tsx` (legacy fallback, slated for REF.8).
-- All test files + imports update; `npm run test` and `npm run lint` green.
+Landed:
+- All 11 panels moved via `git mv` (preserves file history). New layout:
+  - `src/features/calculator/CalculatorPanel.tsx`
+  - `src/features/history/HistoryPanel.tsx`
+  - `src/features/learning/LearningMaterialPanel.tsx`
+  - `src/features/mouse-control/MouseControlOverlay.tsx`
+  - `src/features/notes/NoteEditor.tsx`
+  - `src/features/nvim/NvimDownloadPanel.tsx`
+  - `src/features/settings/SettingPanel.tsx`
+  - `src/features/system/SystemPanel.tsx`
+  - `src/features/system-monitor/SystemMonitoringPanel.tsx`
+  - `src/features/terminal/TerminalPanel.tsx`
+  - `src/features/translation/TranslationPanel.tsx`
+- 3 model panels relocated to `src/features/model-manager/` (still 3
+  separate files; tab consolidation deferred).
+- 7 shared components moved to `src/shared/components/`.
+- `src/components/` now contains only `AppContainer.tsx`, `CommandPalette.tsx`,
+  `AiPanel.tsx` (legacy fallback, slated for REF.8), `FloatingWindow.tsx`,
+  plus `icons/` and `panel/` sub-directories.
+- All consumer imports updated:
+  `src/components/panel/PanelRegistry.tsx`, `src/components/AppContainer.tsx`,
+  `src/components/AiPanel.tsx`, `src/components/CommandPalette.tsx`,
+  `src/features/ai-capability/CapabilityAnswerCard.tsx`,
+  `src/features/command-palette/SearchResultsList.tsx`,
+  `src/features/command-palette/PaletteInputBar.tsx`,
+  `src/features/command-palette/hooks/useExecCommand.ts`.
+- Each moved file's internal `from "../<x>"` paths rewritten to
+  `from "../../<x>"` to compensate for the extra directory depth.
+
+Deferred (REF.6.H-1 candidate):
+- **Model-manager tab consolidation.** The docx asks for a single
+  `ModelManagerPanel.tsx` with three internal tabs/views replacing the three
+  separate panels. Skipped this session because it is a UX refactor (tab
+  layout / state / keyboard nav) rather than a file move. PanelRegistry still
+  routes `model_download` / `model_list` / `model_remove` to the three
+  panels individually, so backend command flow is unchanged. Reopen as a
+  follow-up batch once the consolidated layout is designed.
+
+Verification:
+- `npm run lint` clean.
+- `npm run test` shows 157 pass + 1 pre-existing skip (no regression from
+  this batch).
+- No `cargo` changes; backend untouched.
+
+Pending:
+- Manual `npm run tauri dev` smoke to confirm each panel still mounts via
+  PanelRegistry (calculator, history, settings, terminal, translation,
+  model-download, etc.).
 
 #### REF.6.J — Rule-based NL intent router (fallback) — DONE (unit-level)
 

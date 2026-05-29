@@ -1,7 +1,7 @@
-import React, { useCallback, useEffect, useRef, useState } from "react";
+﻿import React, { useCallback, useEffect, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
-import type { PanelProps } from "../types/panel";
+import type { PanelProps } from "../../types/panel";
 
 interface SettingEntry {
   key: string;

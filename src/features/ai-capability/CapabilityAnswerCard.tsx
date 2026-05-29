@@ -8,7 +8,7 @@
 import { useEffect, useState, type ReactElement } from "react";
 
 import { UiIcon } from "../../components/icons/UiIcon";
-import { Markdown } from "../../components/Markdown";
+import { Markdown } from "../../shared/components/Markdown";
 import type { DispatchFn } from "../../context/IPCContext";
 import type { CapabilityStreamStatus } from "./hooks/useCapabilityStream";
 

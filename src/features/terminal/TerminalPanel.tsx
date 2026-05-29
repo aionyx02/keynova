@@ -1,4 +1,4 @@
-import {
+﻿import {
   useEffect,
   useMemo,
   useRef,
@@ -9,13 +9,13 @@ import { Terminal } from "@xterm/xterm";
 import { FitAddon } from "@xterm/addon-fit";
 import "@xterm/xterm/css/xterm.css";
 import { listen } from "@tauri-apps/api/event";
-import { UiIcon } from "./icons/UiIcon";
-import { useIPC } from "../hooks/useIPC";
-import { useFeature } from "../context/FeatureContext";
-import { useTerminalTheme } from "../hooks/useTerminalTheme";
-import { IPC } from "../ipc/routes";
-import type { SettingEntry, TerminalOpenResponse } from "../ipc/types";
-import type { TerminalLaunchSpec } from "../types/terminal";
+import { UiIcon } from "../../components/icons/UiIcon";
+import { useIPC } from "../../hooks/useIPC";
+import { useFeature } from "../../context/FeatureContext";
+import { useTerminalTheme } from "../../hooks/useTerminalTheme";
+import { IPC } from "../../ipc/routes";
+import type { SettingEntry, TerminalOpenResponse } from "../../ipc/types";
+import type { TerminalLaunchSpec } from "../../types/terminal";
 
 interface OutputPayload {
   id: string;

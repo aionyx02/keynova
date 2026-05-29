@@ -1,7 +1,7 @@
 import type React from "react";
 
 import { UiIcon } from "../../components/icons/UiIcon";
-import { WorkspaceIndicator } from "../../components/WorkspaceIndicator";
+import { WorkspaceIndicator } from "../../shared/components/WorkspaceIndicator";
 import type { SearchBackendInfo } from "../../ipc/types";
 
 interface Props {
