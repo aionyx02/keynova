@@ -17,6 +17,37 @@ describe("parseCapabilityPrefix", () => {
     });
   });
 
+  it("matches cmd prefix with body", () => {
+    expect(parseCapabilityPrefix("cmd push current branch to origin")).toEqual({
+      id: "cmd",
+      args: { text: "push current branch to origin" },
+    });
+  });
+
+  it("matches fix prefix with raw error body", () => {
+    expect(parseCapabilityPrefix("fix error[E0308]: mismatched types")).toEqual({
+      id: "fix",
+      args: { text: "error[E0308]: mismatched types" },
+    });
+  });
+
+  it("returns null on bare fix without trailing body", () => {
+    expect(parseCapabilityPrefix("fix")).toBeNull();
+    expect(parseCapabilityPrefix("fix ")).toBeNull();
+    expect(parseCapabilityPrefix("fix    ")).toBeNull();
+  });
+
+  it("matches next with or without trailing whitespace", () => {
+    expect(parseCapabilityPrefix("next")).toEqual({
+      id: "next",
+      args: {},
+    });
+    expect(parseCapabilityPrefix("next   ")).toEqual({
+      id: "next",
+      args: {},
+    });
+  });
+
   it("is case-insensitive on the keyword", () => {
     expect(parseCapabilityPrefix("EXPLAIN test")).toEqual({
       id: "explain",
@@ -50,6 +81,8 @@ describe("parseCapabilityPrefix", () => {
   it("returns null on bare keyword without trailing space", () => {
     expect(parseCapabilityPrefix("explain")).toBeNull();
     expect(parseCapabilityPrefix("summarize")).toBeNull();
+    expect(parseCapabilityPrefix("cmd")).toBeNull();
+    // fix bare case covered in its own block above
   });
 
   it("returns null when keyword is glued to body (no separator)", () => {
@@ -71,10 +104,8 @@ describe("parseCapabilityPrefix", () => {
     });
   });
 
-  it("returns null for prefixes not wired in this batch", () => {
-    expect(parseCapabilityPrefix("next")).toBeNull();
-    expect(parseCapabilityPrefix("fix some error")).toBeNull();
-    expect(parseCapabilityPrefix("cmd git push origin")).toBeNull();
+  it("returns null when next has extra body text", () => {
+    expect(parseCapabilityPrefix("next later")).toBeNull();
   });
 
   it("returns null for arbitrary search queries", () => {

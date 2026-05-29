@@ -2,7 +2,7 @@
 type: architecture_spec
 status: active
 priority: p1
-updated: 2026-05-23
+updated: 2026-05-29
 context_policy: retrieve_only
 owner: project
 ---
@@ -74,28 +74,36 @@ Keynova 是以鍵盤為核心的生產力啟動器，採用 **Tauri 2.x + React 
 src/
 ├── main.tsx               # React 入口，掛載 <App>
 ├── App.tsx                # 頂層元件，管理 CommandPalette + FloatingWindow
-├── components/
-│   ├── CommandPalette.tsx # 核心 UI：搜尋框 + 結果列表
-│   ├── CommandSuggestions.tsx
-│   ├── FloatingWindow.tsx # 浮動視窗容器
-│   ├── TerminalPanel.tsx
-│   ├── AiPanel.tsx
-│   ├── NoteEditor.tsx
-│   ├── ModelDownloadPanel.tsx
-│   ├── NvimDownloadPanel.tsx
-│   ├── HistoryPanel.tsx
-│   ├── SettingPanel.tsx
-│   ├── SystemPanel.tsx
-│   ├── SystemMonitoringPanel.tsx
-│   ├── CalculatorPanel.tsx
-│   ├── TranslationPanel.tsx
-│   ├── WorkspaceIndicator.tsx
+├── components/                  # REF.6.H 後僅保留 app shell + legacy fallback
+│   ├── AppContainer.tsx         # IPCProvider + FeatureProvider + ErrorBoundary 組裝
+│   ├── CommandPalette.tsx       # 核心 UI：搜尋框 + 結果列表（feature 拆分後的主進入點）
+│   ├── AiPanel.tsx              # REF.6.G/REF.8: legacy ai.legacy_agent fallback 才掛載
+│   ├── FloatingWindow.tsx       # 浮動視窗容器
+│   ├── icons/                   # UiIcon + 圖示資產
 │   └── panel/
-│       └── PanelRegistry.tsx  # Panel 名稱 → React.lazy 映射
-├── hooks/                 # 自訂 React hooks
-├── stores/                # Zustand 狀態管理
-├── services/              # IPC/backend API clients
-└── types/                 # TypeScript 型別定義
+│       └── PanelRegistry.tsx    # Panel 名稱 → React.lazy 映射（後端 panel_name 進入點）
+├── features/                    # REF.6.H: feature-first 分層
+│   ├── ai-capability/           # REF.4 / REF.6.B-F/J: stateless capability cards + hooks
+│   ├── calculator/              # CalculatorPanel
+│   ├── command-palette/         # REF.2: palette 子元件 + hooks + utils
+│   ├── history/                 # HistoryPanel
+│   ├── learning/                # LearningMaterialPanel
+│   ├── model-manager/           # 3 model panels（tab 合併保留為 REF.6.H follow-up）
+│   ├── mouse-control/           # MouseControlOverlay
+│   ├── notes/                   # NoteEditor
+│   ├── nvim/                    # NvimDownloadPanel
+│   ├── settings/                # SettingPanel
+│   ├── system/                  # SystemPanel
+│   ├── system-monitor/          # SystemMonitoringPanel
+│   ├── terminal/                # TerminalPanel
+│   ├── translation/             # TranslationPanel
+│   └── workflow-memory/         # REF.5: workflow_history 前端組件
+├── shared/                      # REF.6.H: 跨 feature 共用層
+│   └── components/              # PreviewPane / RankTooltip / Markdown / ErrorBoundary / CheatsheetOverlay / OnboardingTour / WorkspaceIndicator
+├── hooks/                       # 自訂 React hooks
+├── stores/                      # Zustand 狀態管理
+├── services/                    # IPC/backend API clients
+└── types/                       # TypeScript 型別定義
 ```
 
 **前端邊界規則：**
@@ -139,13 +147,15 @@ src-tauri/src/
 │   ├── dev_runner.rs      # REF.3: bounded read-only dev command runner (run_bounded_dev_cmd / extract_compiler_errors / bound_output_n); consumed by fix_error capability (REF.4)
 │   ├── ai_capability/     # REF.4: stateless single-shot capability layer (ADR-0029). call_capability(req, deps) dispatched on a compile-time enum match.
 │   │   ├── mod.rs              # public entry + match on CapabilityId
-│   │   ├── registry.rs         # CapabilityId::{Explain,Summarize,FixError} + static CapabilityMeta {audit, accepts_context_hash} per ADR-0030 §4
+│   │   ├── registry.rs         # CapabilityId::{Explain,Summarize,FixError,GenCommand,SuggestNext} + static CapabilityMeta {audit, accepts_context_hash} per ADR-0030 §4
 │   │   ├── contract.rs         # CapabilityRequest/Response/Output/Error/Deps; ChatProvider trait (test-stubbable); AiManagerChatProvider production adapter
 │   │   ├── prompt.rs           # CAPABILITY_PROMPT_BUDGET_CHARS=1400; build_prompt drops context block on overrun; maybe_audit gated by CapabilityMeta.audit
 │   │   ├── capabilities/       # one file per capability
 │   │   │   ├── explain.rs           # local_context-grounded explanation; audit=true; risk=none
 │   │   │   ├── summarize.rs         # pure text transform; audit=false; risk=none
-│   │   │   └── fix_error.rs         # raw_output OR allowlisted dev re-run via dev_runner; "apply" variant rejected as UnsupportedAction in v1; audit=true; risk=none
+│   │   │   ├── fix_error.rs         # raw_output OR allowlisted dev re-run via dev_runner; "apply" variant rejected as UnsupportedAction in v1; audit=true; risk=none
+│   │   │   ├── gen_command.rs       # REF.6.C: typed {intent, ctx} → structured {command, confidence, rationale}; JSON-first parse with fallback; conservative RiskTag (read-only allowlist sets requires_confirmation=false); audit=true
+│   │   │   └── suggest_next.rs      # REF.6.C: typed {ctx:{limit?}} → Vec<SuggestedNextAction>; reads workflow_memory::suggest, re-ranks, emits best-effort replay descriptors for cmd.run rows; audit=false; risk=none
 │   │   └── live_tests.rs       # cfg(feature="live-ai"), #[ignore]: live Ollama qwen2.5:7b smoke tests (P50/P95 print to stdout for REF.7)
 │   ├── workflow_memory.rs # REF.5: workflow_history (schema v4) record + suggest + compute_context_hash + digest_payload. Heuristic recency-only ranking; coarse hash(workspace_id, mode, panel).
 │   └── ipc_error.rs

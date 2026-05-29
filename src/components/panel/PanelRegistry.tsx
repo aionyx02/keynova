@@ -1,5 +1,5 @@
 import React from "react";
-import { SettingPanel } from "../SettingPanel";
+import { SettingPanel } from "../../features/settings/SettingPanel";
 import type { PanelProps } from "../../types/panel";
 
 export type { PanelProps };
@@ -8,34 +8,34 @@ export type { PanelProps };
 // component file is retained (deletion is REF.8 territory pending the
 // observation cycle) but no palette command routes to it anymore.
 const ModelDownloadPanel = React.lazy(() =>
-  import("../ModelDownloadPanel").then((m) => ({ default: m.ModelDownloadPanel })),
+  import("../../features/model-manager/ModelDownloadPanel").then((m) => ({ default: m.ModelDownloadPanel })),
 );
 const ModelListPanel = React.lazy(() =>
-  import("../ModelListPanel").then((m) => ({ default: m.ModelListPanel })),
+  import("../../features/model-manager/ModelListPanel").then((m) => ({ default: m.ModelListPanel })),
 );
 const TranslationPanel = React.lazy(() =>
-  import("../TranslationPanel").then((m) => ({ default: m.TranslationPanel })),
+  import("../../features/translation/TranslationPanel").then((m) => ({ default: m.TranslationPanel })),
 );
 const NoteEditor = React.lazy(() =>
-  import("../NoteEditor").then((m) => ({ default: m.NoteEditor })),
+  import("../../features/notes/NoteEditor").then((m) => ({ default: m.NoteEditor })),
 );
 const CalculatorPanel = React.lazy(() =>
-  import("../CalculatorPanel").then((m) => ({ default: m.CalculatorPanel })),
+  import("../../features/calculator/CalculatorPanel").then((m) => ({ default: m.CalculatorPanel })),
 );
 const HistoryPanel = React.lazy(() =>
-  import("../HistoryPanel").then((m) => ({ default: m.HistoryPanel })),
+  import("../../features/history/HistoryPanel").then((m) => ({ default: m.HistoryPanel })),
 );
 const SystemPanel = React.lazy(() =>
-  import("../SystemPanel").then((m) => ({ default: m.SystemPanel })),
+  import("../../features/system/SystemPanel").then((m) => ({ default: m.SystemPanel })),
 );
 const ModelRemovePanel = React.lazy(() =>
-  import("../ModelRemovePanel").then((m) => ({ default: m.ModelRemovePanel })),
+  import("../../features/model-manager/ModelRemovePanel").then((m) => ({ default: m.ModelRemovePanel })),
 );
 const SystemMonitoringPanel = React.lazy(() =>
-  import("../SystemMonitoringPanel").then((m) => ({ default: m.SystemMonitoringPanel })),
+  import("../../features/system-monitor/SystemMonitoringPanel").then((m) => ({ default: m.SystemMonitoringPanel })),
 );
 const NvimDownloadPanel = React.lazy(() =>
-  import("../NvimDownloadPanel").then((m) => ({ default: m.NvimDownloadPanel })),
+  import("../../features/nvim/NvimDownloadPanel").then((m) => ({ default: m.NvimDownloadPanel })),
 );
 
 /** 將後端回傳的 panel name 對應至 React 元件。新增面板只需在此 Record 加一筆。 */

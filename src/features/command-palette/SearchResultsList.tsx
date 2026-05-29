@@ -2,7 +2,7 @@ import type React from "react";
 import type { ReactNode } from "react";
 
 import { UiIcon, type UiIconName } from "../../components/icons/UiIcon";
-import { PreviewPane } from "../../components/PreviewPane";
+import { PreviewPane } from "../../shared/components/PreviewPane";
 import type {
   FilePreviewResult,
   SearchIconAsset,

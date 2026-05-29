@@ -37,6 +37,21 @@ describe("CapabilityAnswerCard", () => {
     expect(header.textContent).toContain("0.8s");
   });
 
+  it("renders the Fix label when capabilityLabel is fix", () => {
+    render(
+      <CapabilityAnswerCard
+        {...baseProps}
+        capabilityLabel="fix"
+        status="complete"
+        text="root cause: missing semicolon"
+        startedAtMs={1000}
+        firstChunkAtMs={1300}
+        completedAtMs={1800}
+      />,
+    );
+    expect(screen.getByText(/Fix/)).not.toBeNull();
+  });
+
   it("renders pending placeholder when no chunk has arrived", () => {
     render(<CapabilityAnswerCard {...baseProps} status="pending" text="" />);
     expect(screen.getByText(/Asking model/i)).not.toBeNull();
