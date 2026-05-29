@@ -398,22 +398,32 @@ Pending:
   "list files in this project" all fire the right capability and that
   dismissing a smart card does not lose input.
 
-#### REF.6.I — ADR-0030 template slimming (docx §9.2 push back 2)
+#### REF.6.I — ADR template slimming (docx §9.2 push back 2) — DONE
+
+Number reassigned: docx specified ADR-0030 but that slot was already accepted
+for Backend Risk Tag Contract (2026-05-20). 0031–0037 are pre-reserved for
+CLIP / SNIP / WIN / UTIL.3 / external-auth / git-sync / inline-AI tracks
+(see `docs/decisions.md` Post-FEAT.11 table), and 0039 is the PREFLIGHT
+runtime ADR. Picked ADR-0040 as the next free slot.
 
 Scope:
-- Draft `docs/adr/0030-adr-template-slim.md` proposing the 4-section template:
+- Draft `docs/adr/0040-adr-template-slim.md` proposing the 4-section default:
   `Context` / `Decision` / `Consequences` / `Rollback`.
-- Move `Alternatives` to PR description guidance; move `Validation` /
-  `Implementation` tracking to task files.
-- Status `proposed` only; awaits developer acceptance.
+- Move `Alternatives` to PR description guidance; move `Implementation` /
+  `Validation` / `Open Questions` tracking to `docs/tasks/<feature>.md`.
+- Status `提議` (proposed) only; awaits developer acceptance.
 
 Non-goals:
 - Do not retroactively rewrite existing ADRs.
-- Do not modify ADR-0029 or any accepted ADR.
+- Do not modify ADR-0029, ADR-0030 (Risk Tag Contract), or any accepted ADR.
+- No `docs:guard-schema` change to enforce the slim shape — slim is the
+  authoring default, not a guard rule.
 
-Done:
-- ADR-0030 file exists with `status: proposed`.
-- `docs/decisions.md` indexes it.
+Landed:
+- `docs/adr/0040-adr-template-slim.md` exists with `狀態: 提議`. The ADR is
+  itself authored in the slim 4-section format as a dogfood demonstration.
+- `docs/decisions.md` indexes it next to ADR-0038 and bumps the `updated`
+  frontmatter to 2026-05-29.
 
 ### REF.7 - Quantitative Gates And Legacy Default Off
 
