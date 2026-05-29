@@ -12,8 +12,10 @@ import { Markdown } from "../../components/Markdown";
 import type { DispatchFn } from "../../context/IPCContext";
 import type { CapabilityStreamStatus } from "./hooks/useCapabilityStream";
 
+export type AnswerCardCapability = "explain" | "summarize" | "fix";
+
 interface Props {
-  capabilityLabel: "explain" | "summarize";
+  capabilityLabel: AnswerCardCapability;
   status: CapabilityStreamStatus;
   text: string;
   error: string | null;
@@ -27,9 +29,10 @@ interface Props {
   onClose: () => void;
 }
 
-const LABEL_TITLE: Record<"explain" | "summarize", string> = {
+const LABEL_TITLE: Record<AnswerCardCapability, string> = {
   explain: "Explain",
   summarize: "Summarize",
+  fix: "Fix",
 };
 
 function formatLatencyMs(ms: number): string {

@@ -180,3 +180,49 @@ fn ai_capability_live_fix_error_explains_compiler_error() {
     }
     assert!(!resp.risk_tag.requires_confirmation);
 }
+
+#[test]
+#[ignore]
+fn ai_capability_live_gen_command_returns_structured_output() {
+    let req = CapabilityRequest {
+        id: CapabilityId::GenCommand,
+        payload: serde_json::json!({
+            "intent": "show the current git branch status",
+            "ctx": { "shell": "powershell", "os": "windows" }
+        }),
+        context_hash: None,
+    };
+    let started = Instant::now();
+    let resp = ai_capability::call_capability(req, &deps_with_chat(build_chat()))
+        .expect("gen_command should succeed against live Ollama");
+    let elapsed_ms = started.elapsed().as_millis();
+    println!(
+        "[ai_capability_live] model={} gen_command latency = {elapsed_ms} ms",
+        live_ai_model()
+    );
+    match resp.output {
+        CapabilityOutput::Structured { value } => {
+            let command = value
+                .get("command")
+                .and_then(|v| v.as_str())
+                .unwrap_or("")
+                .trim();
+            let confidence = value
+                .get("confidence")
+                .and_then(|v| v.as_f64())
+                .unwrap_or(0.0);
+            let rationale = value
+                .get("rationale")
+                .and_then(|v| v.as_str())
+                .unwrap_or("")
+                .trim();
+            assert!(!command.is_empty(), "expected non-empty generated command");
+            assert!(
+                (0.0..=1.0).contains(&confidence),
+                "confidence must stay within [0, 1]"
+            );
+            assert!(!rationale.is_empty(), "expected non-empty rationale");
+        }
+        _ => panic!("expected structured output"),
+    }
+}

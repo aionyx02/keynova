@@ -64,8 +64,15 @@ export interface UseKeyboardNavDeps {
   execCommand: (name: string, args?: string) => Promise<void>;
   /** REF.6.B — true when palette is in capability mode (prefix matched). */
   capabilityMode: boolean;
+  /** REF.6.E — true when capability mode is showing a navigable suggestion list. */
+  capabilityListMode: boolean;
+  capabilityListCount: number;
+  capabilityListSelected: number;
+  setCapabilityListSelected: React.Dispatch<React.SetStateAction<number>>;
   /** REF.6.B — invoke the active capability stream's submit (Enter-to-ask). */
   onCapabilitySubmit: () => void;
+  /** REF.6.E — invoke the selected list-row replay action. */
+  onCapabilityRunSelected: () => void;
   // Bug A focus-guard renewal (must be invoked on every keydown, throttled).
   keepLauncherOpen: () => Promise<void> | void;
 }
@@ -103,15 +110,35 @@ export function useKeyboardNav(deps: UseKeyboardNavDeps) {
       // The `isComposing` guard lets a Chinese / Japanese IME commit its
       // candidate on the first Enter without triggering submit — the
       // subsequent Enter (post-commit) reaches us with isComposing === false.
-      if (
-        deps.capabilityMode &&
-        e.key === "Enter" &&
-        !e.shiftKey &&
-        !e.nativeEvent.isComposing
-      ) {
-        e.preventDefault();
-        deps.onCapabilitySubmit();
-        return;
+      if (deps.capabilityMode && !e.shiftKey && !e.nativeEvent.isComposing) {
+        if (deps.capabilityListMode) {
+          if (e.key === "ArrowDown") {
+            e.preventDefault();
+            deps.setCapabilityListSelected((i) =>
+              Math.min(i + 1, Math.max(deps.capabilityListCount - 1, 0)),
+            );
+            return;
+          }
+          if (e.key === "ArrowUp") {
+            e.preventDefault();
+            deps.setCapabilityListSelected((i) => Math.max(i - 1, 0));
+            return;
+          }
+          if (e.key === "Enter") {
+            e.preventDefault();
+            if (
+              deps.capabilityListSelected >= 0 &&
+              deps.capabilityListSelected < deps.capabilityListCount
+            ) {
+              deps.onCapabilityRunSelected();
+            }
+            return;
+          }
+        } else if (e.key === "Enter") {
+          e.preventDefault();
+          deps.onCapabilitySubmit();
+          return;
+        }
       }
 
       if (deps.mode === "search") {

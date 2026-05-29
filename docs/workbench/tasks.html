@@ -400,11 +400,11 @@
   "workflow": {
     "name": "P0 Refactor: AI Capability Layer And Unified Search",
     "zh_name": "P0 重構：AI 能力層與統一搜尋主線",
-    "current_task": "REF.4",
+    "current_task": "REF.6",
     "progress": {
-      "done": 5,
+      "done": 6,
       "total": 9,
-      "percent": 56
+      "percent": 67
     },
     "rules": [
       "Markdown remains the authority.",
@@ -634,7 +634,7 @@
       "title": "Command Palette Feature Split — DONE (with documented deviation)",
       "priority": "P0",
       "status": "done",
-      "summary": "split `CommandPalette.tsx` (landed 598 lines; `\u003c 250` dropped — see plan)",
+      "summary": "split `CommandPalette.tsx` (landed 598 lines; `\u003c 250` dropped, see plan)",
       "depends_on": [
         "REF.1"
       ],
@@ -673,10 +673,10 @@
     },
     {
       "id": "REF.4",
-      "title": "Stateless AI Capability Layer — PARTIALLY DONE",
+      "title": "Stateless AI Capability Layer - DONE",
       "priority": "P0",
-      "status": "planned",
-      "summary": "Stateless AI Capability Layer — PARTIALLY DONE",
+      "status": "done",
+      "summary": "stateless AI capability layer. All 5 capabilities are now live behind one `call_capability` entry: `explain`, `summarize`, `fix_error`, `gen_command`, `suggest_next`",
       "depends_on": [
         "REF.3"
       ],
@@ -697,7 +697,7 @@
       "title": "Workflow Memory — DONE",
       "priority": "P0",
       "status": "done",
-      "summary": "workflow memory schema v4 + `record`/`suggest`",
+      "summary": "workflow memory schema v4 + `record` / `suggest`",
       "depends_on": [
         "REF.1"
       ],
@@ -719,8 +719,8 @@
       "id": "REF.6",
       "title": "Search Box As Pure Dispatcher (in progress)",
       "priority": "P0",
-      "status": "open",
-      "summary": "search box = pure dispatcher. Sub-batches:",
+      "status": "planned",
+      "summary": "Search Box As Pure Dispatcher (in progress)",
       "depends_on": [
         "REF.4",
         "REF.5"
@@ -738,9 +738,9 @@
         "No autonomous chain — capabilities still single-step."
       ],
       "done_criteria": [
-        "5 / 5 capabilities live behind one `call_capability` entry.",
-        "Unit tests cover typed payload contracts.",
-        "Live Ollama smoke green for both new capabilities."
+        "Palette no longer mounts `AiPanel` or `TerminalPanel` when",
+        "Destructive action UX (delete file, run command with side effects) routes",
+        "Manual regression: Bug B delete verification still requires two confirms."
       ],
       "notes": [],
       "impact": {
@@ -792,7 +792,7 @@
       "title": "Physical Removal",
       "priority": "P0",
       "status": "open",
-      "summary": "physical removal decision (AiPanel deletion, agent_runtime trim, flag removal)",
+      "summary": "physical removal decision (`AiPanel` deletion, `agent_runtime` trim, flag removal)",
       "depends_on": [
         "REF.7"
       ],
