@@ -529,7 +529,16 @@ Landed:
 
 Priority: P0
 
-Scope:
+Sub-batch split (2026-05-29 planning):
+
+- **REF.7.A** — Flag default + schema + legacy mount gate (codeable now)
+- **REF.7.B** — Size guard + bench harness (codeable now)
+- **REF.7.C** — Manual smoke + release notes + ADR measurement appendix
+  (waits on observation + REF.7.D reading)
+- **REF.7.D** — Formal `qwen2.5:7b` P50/P95 reading (user-action, requires
+  4.7 GB model pull)
+
+Scope (original):
 - Add performance bench scripts and CI-friendly file-size gates (per docx §8).
 - Default `ai.legacy_agent = false`.
 - Keep legacy agent/chat available behind the flag for one release cycle.
@@ -540,19 +549,131 @@ Scope:
 
 Non-goals:
 - Do not physically remove legacy agent/chat code during the observation cycle.
+- Do not introduce a "Once" confirm taxonomy on `ActionChip` — REF.6.G
+  deferral remains in force.
 
-Done:
-- `handlers/agent/mod.rs` ≤ 616 lines (current) or trimmed below `< 600`.
-- `agent_runtime.rs` < 400 lines during observation or justified pending removal.
-- AI inline P50 < 800 ms and P95 < 1500 ms on `qwen2.5:7b`.
-- Palette cold open < 200 ms and warm open < 50 ms.
-- Search first chunk P50 < 80 ms.
-- Idle RSS < 150 MB after 10 minutes and < 200 MB after 1 hour, excluding
-  documented budget exceptions.
-- One release cycle completes without P0 regression reports.
+Done (codeable parts):
+- `handlers/agent/mod.rs` stays at the current line count or trims
+  opportunistically. Hard `< 600` gate is REF.8.
+- AI inline P50 < 800 ms and P95 < 1500 ms on `qwen2.5:7b` — REF.7.D
+  records, REF.7.C asserts.
+- Palette cold open < 200 ms and warm open < 50 ms — REF.7.C records;
+  user-action smoke required.
+- Search first chunk P50 < 80 ms — REF.7.C records.
+- File-size guard script enforces per-file ceilings (current + 10%) as
+  drift detector. REF.8 can ratchet down.
+
+Done (observation, not codeable in REF.7 branch):
+- One release cycle completes without P0 regression reports. Window =
+  one minor release tag + 14 calendar days, whichever longer (ADR-0029
+  §2.5). Marked `[~] pending observation` until that closes.
+- Idle RSS < 150 MB after 10 minutes and < 200 MB after 1 hour. Requires
+  the running app over the measurement window; user-action.
+
+Removed from done criteria:
+- `agent_runtime.rs < 400 lines`. The file does not exist in the repo as
+  of 2026-05-29. Treated as a docx-vs-repo divergence on the same level
+  as the `CommandPalette.tsx < 250` documented deviation in the re-planning
+  note above. Authority to drop: file-not-found + [[feedback-task-persistence]].
+  Surfaced to user 2026-05-29.
 
 Note: `CommandPalette.tsx < 250` is *not* a REF.7 gate (per re-planning note
 above). The 598-line landing is accepted.
+
+#### REF.7.A — Flag default + schema + legacy mount gate
+
+Goal: `ai.legacy_agent` becomes an actual runtime flag with default `false`.
+Setting it to `true` keeps the legacy chat surface reachable via a hidden
+builtin command `ai_legacy_chat`. Also fixes the REF.6.B latent-bug missing
+schema entry for `launcher.show_capability_hint`.
+
+Scope:
+- Append two `SettingSchema::new(...)` rows to `settings_schema.rs`:
+  `ai.legacy_agent` (Boolean, default `"false"`) and
+  `launcher.show_capability_hint` (Boolean, default `"true"`).
+- Read `ai.legacy_agent` via `ConfigManager` in `handlers/agent/planning.rs`
+  and `handlers/agent/answers.rs` legacy entry points; early-return when
+  the flag is `false`.
+- Register `ai_legacy_chat` builtin command only when the flag is `true`
+  at config-load time; command routes to `panel:ai_legacy`.
+- Add `ai_legacy` entry to `PanelRegistry.tsx` with `React.lazy` import
+  of `AiPanel` (zero bundle cost when flag off).
+- Extend `useLauncherSettings.WATCHED_KEYS` with `"ai.legacy_agent"`.
+
+Non-goals:
+- Do not change `AgentRuntime` behavior when the flag is `true`.
+- Do not remove `AiPanel.tsx` source (REF.8).
+
+Done:
+- Default-off: typing `/ai_legacy_chat` reports unknown command.
+- Flag-on after config reload: typing `/ai_legacy_chat` opens AiPanel.
+- `cargo clippy --lib -- -D warnings`, `cargo test --lib`, `npm run lint`,
+  `npm run test`, `npm run build` all green.
+
+#### REF.7.B — Size guard script + bench harness
+
+Goal: ship the CI-friendly drift detector for REF.6 file sizes, and ship
+the bench harness that REF.7.D will run.
+
+Scope:
+- New `scripts/code-guard-size.mjs` (hard-fail). Per-file ceiling = current
+  size rounded up to the next 1 KB boundary + 10% buffer. Initial entries
+  cover `handlers/agent/mod.rs`, `CommandPalette.tsx`, `AiPanel.tsx`,
+  `TranslationPanel.tsx`, `SettingPanel.tsx`, `builtin_cmd.rs`.
+- New `scripts/bench-ai-capability.mjs`. Shells out
+  `cargo test --features live-ai --manifest-path src-tauri/Cargo.toml --
+  --ignored ai_capability_live --nocapture`, parses
+  `/^\[ai_capability_live\] model=(\S+) (\S+) latency = (\d+) ms/` lines,
+  aggregates per-capability P50/P95 over N runs (default `--runs 10`).
+  Default human table; `--json` emits CI-ingestible payload.
+- `package.json` script wires: `guard:size` and `bench:ai`.
+
+Non-goals:
+- Do not gate the size check in CI yet (script lands here; CI wiring is a
+  separate operational task, not REF.7).
+- Do not assert P50/P95 thresholds in the bench script itself — REF.7.C
+  records the qwen2.5:7b reading against the ADR-0029 §8 numbers.
+
+Done:
+- `npm run guard:size` passes against current tree.
+- `npm run bench:ai -- --runs 1 --model qwen3:0.6b` produces a parseable
+  table + `--json` payload smoke against the small model already used in
+  REF.6.C live smoke.
+
+#### REF.7.C — Bug A/B smoke + release notes + ADR measurement appendix
+
+Waits on REF.7.D reading + user-side Bug A/B manual smoke.
+
+Scope:
+- New `docs/release-notes/` directory + `REF.7-ai-interaction-model.md`
+  + `README.md` index.
+- Append `## Measurement (REF.7)` section to `docs/adr/0029-ai-capability-layer.md`
+  with the qwen2.5:7b reading. ADR-0029 stays `accepted`; data fill only.
+- Append `## COMPLETED: REF.7.{A,B,C}` markers to the session log with the
+  Bug A/B smoke result.
+- Flip REF.7 codeable items in this plan and `active.md` to `[x]`; keep
+  observation-window items at `[~]` with `pending observation`.
+
+Non-goals:
+- Do not draft a new ADR for the measurement (it is data, not a decision
+  change).
+- Do not modify `current.md` beyond the "Current Focus" one-line update.
+
+Done:
+- Release notes file lands.
+- ADR-0029 §8 measurement filled.
+- `npm run docs:refresh` clean.
+
+#### REF.7.D — Formal qwen2.5:7b P50/P95 reading (user-action)
+
+Not a coding step. User runs:
+
+```
+ollama pull qwen2.5:7b
+npm run bench:ai -- --runs 10 --model qwen2.5:7b
+```
+
+then pastes the output back so REF.7.C records it in ADR-0029.
 
 ### REF.8 - Physical Removal
 

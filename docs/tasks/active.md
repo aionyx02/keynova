@@ -33,7 +33,7 @@ tags: [refactor, ai-capability, search-first, p0]
   - [~] `REF.6.H` feature-first directory migration. 11 panels + 3 model panels relocated to `src/features/<feature>/`; 7 shared components moved to `src/shared/components/`. Model-manager tab consolidation deferred.
   - [x] `REF.6.I` ADR-0040 (proposed) template slimming to 4 sections (ADR-0030 slot was already taken by Backend Risk Tag Contract; reassigned to 0040).
   - [x] `REF.6.J` rule-based NL intent router (fallback). `classifyNlIntent` routes no-result NL queries to `explain` / `summarize` / `fix` / `cmd` so the user no longer needs the explicit prefix for common asks. Re-uses the existing stabilization debounce + dismissed-key gate; explicit prefixes still take priority.
-- [ ] `REF.7` quantitative gates, default `ai.legacy_agent = false`, observe one release cycle.
+- [~] `REF.7` quantitative gates, default `ai.legacy_agent = false`. Split into .A flag+schema+mount gate, .B size guard+bench harness, .C release notes+ADR measurement, .D user-action qwen2.5:7b bench reading. `agent_runtime.rs` criterion dropped (file not in repo).
 - [ ] `REF.8` physical removal decision (`AiPanel` deletion, `agent_runtime` trim, flag removal).
 
 Detailed batch definitions, done criteria, non-goals, file map, and validation gates live in `docs/tasks/refactor-ai-capability.md`.

@@ -77,7 +77,7 @@ src/
 ├── components/                  # REF.6.H 後僅保留 app shell + legacy fallback
 │   ├── AppContainer.tsx         # IPCProvider + FeatureProvider + ErrorBoundary 組裝
 │   ├── CommandPalette.tsx       # 核心 UI：搜尋框 + 結果列表（feature 拆分後的主進入點）
-│   ├── AiPanel.tsx              # REF.6.G/REF.8: legacy ai.legacy_agent fallback 才掛載
+│   ├── AiPanel.tsx              # REF.6.G / REF.7.A / REF.8: ai.legacy_agent=true 時透過 PanelRegistry["ai_legacy"] + /ai_legacy_chat 進入
 │   ├── FloatingWindow.tsx       # 浮動視窗容器
 │   ├── icons/                   # UiIcon + 圖示資產
 │   └── panel/
