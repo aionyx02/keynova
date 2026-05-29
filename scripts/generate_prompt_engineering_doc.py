@@ -15,7 +15,7 @@ from docx.oxml import OxmlElement
 from docx.oxml.ns import qn
 from docx.shared import Cm, Pt, RGBColor
 
-OUTPUT = Path(__file__).resolve().parent.parent / "Prompt_Engineering_Init_Template.docx"
+OUTPUT = Path(__file__).resolve().parent.parent / "docs" / "templates" / "Prompt_Engineering_Init_Template.docx"
 
 
 def add_heading(doc: Document, text: str, level: int) -> None:
@@ -86,6 +86,7 @@ def add_table(doc: Document, headers: list[str], rows: list[list[str]]) -> None:
 
 
 def build_doc() -> None:
+    OUTPUT.parent.mkdir(parents=True, exist_ok=True)
     doc = Document()
 
     style = doc.styles["Normal"]

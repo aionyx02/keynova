@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-label="Keynova">
+  <rect width="128" height="128" rx="28" fill="#0f1118" />
+  <circle cx="64" cy="54" r="36" fill="none" stroke="#55c7bc" stroke-width="4.5" />
+  <path
+    d="M49 92V35l27 11v46M49 92H38M76 92h11"
+    fill="none"
+    stroke="#55c7bc"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+    stroke-width="5"
+  />
+</svg>

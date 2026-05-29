@@ -1,18 +1,21 @@
-# ── Cargo build output ────────────────────────────────
+# Cargo build output
 /target/
 
-# ── Tauri generated files ─────────────────────────────
+# Tauri generated files
 /gen/schemas
 
-# ── Code-signing keys ─────────────────────────────────
+# Code-signing keys
 *.pem
 *.key
 *.pfx
 *.p12
 
-# ── Windows installer tooling (auto-downloaded) ───────
+# Windows installer tooling (auto-downloaded)
 WixTools/
 
-# ── Mobile icon artifacts (desktop-only project) ──────
+# Mobile icon artifacts (desktop-only project)
 icons/android/
 icons/ios/
+
+# Local runtime traces
+.keynova-terminal-debug*.log
