@@ -14,7 +14,7 @@ tags: [refactor, ai-capability, search-first, p0]
 
 ### P0
 
-- [~] `PERF.1.FU` idle-memory trim. Renderer lazy-loading + Windows native follow-up shipped in v0.3.0. Debug app-only re-measure is below goal; only the release/user smoke remains.
+- [~] `PERF.1.FU` idle-memory trim. v0.3.0 shipped the follow-up. Debug re-check passed (`63.7 MB WS / 124.7 MB PM` hidden; start `~10-13 ms`), but the direct release binary still shows high WS (`273.6 MB` hidden / `334.7 MB` active) with PM `~126-129 MB`.
 
 `PREFLIGHT` and `BRAND.ICON` completed in v0.3.0 (see `sessions/2026-05-30.md` COMPLETED markers).
 - [x] `REF.0` lock ADR-0029 as the governing decision for the AI capability refactor.
@@ -51,13 +51,13 @@ Detailed batch definitions, done criteria, non-goals, file map, and validation g
 
 Keynova's active priority is the search-first workflow refactor: AI is a stateless capability layer invoked inline from unified result rows and prefix-keyword palette flows; chat-first surfaces leave the hot path.
 
-Until `REF.7` is complete, freeze new feature work unless it is required for the refactor, fixing a P0 regression, or protecting a safety boundary. `PREFLIGHT` and `BRAND.ICON` shipped in v0.3.0; `PERF.1.FU` remains an approved override pending its release/user smoke.
+Until `REF.7` is complete, freeze new feature work unless it is required for the refactor, fixing a P0 regression, or protecting a safety boundary. `PREFLIGHT` and `BRAND.ICON` shipped in v0.3.0; `PERF.1.FU` remains an approved override pending release WS investigation + user smoke.
 
 Keep `active.md` compact. Put batch-level task detail in `docs/tasks/refactor-ai-capability.md`, detailed implementation notes in `docs/memory/sessions/YYYY-MM-DD.md`, and future non-refactor ideas in `docs/tasks/backlog.md`.
 
 ## Next Phase Candidates
 
-- Verify the new idle-memory behavior in `tauri dev`, then decide whether a release-build measurement is enough to close `PERF.1.FU`.
+- Investigate direct-release WS inflation (`~274 MB` hidden / `~335 MB` active; PM `~126-129 MB`) before closing `PERF.1.FU`.
 - Run `REF.7.D` (`ollama pull qwen2.5:7b && npm run bench:ai -- --runs 10 --model qwen2.5:7b`), then fill ADR-0029 §10 to close `REF.7.C`.
 - After `REF.7`, revalidate parked tracks from `docs/tasks/backlog.md`.
 - After `REF.8`, refresh affected ADR statuses and architecture docs.
