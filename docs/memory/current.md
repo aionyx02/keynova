@@ -23,7 +23,8 @@ owner: project
 - REF.6 closed at unit level 2026-05-29 (merged into `dev` as `31786eb`). All 5 capabilities live (`explain` / `summarize` / `fix_error` / `gen_command` / `suggest_next`); palette is a prefix + NL-fallback dispatcher; src layout migrated to feature-first + `src/shared/`; ADR-0040 (slim template) proposed.
 - REF.7.A/.B + `BRAND.ICON` + `PREFLIGHT` are merged to `main` and shipped as tag `v0.3.0`. `dev` is strictly behind `main`. Active close-out work is on `feature/ref-7-closeout` (forked from `main`, since REF.7/v0.3.0 do not exist on `dev`). REF.7.C release notes shipped as `docs/release-notes/v0.3.0.md`; ADR-0029 §10 measurement is scaffolded and `pending REF.7.D`.
 - User-directed memory follow-up is active on this branch. The pass started with eager WebView2 renderer JS/DOM trimming, then moved into Windows-native WebView2 memory controls once bundle wins flattened out.
-- Latest Windows debug app-only measurements are now below the user's `200 MB` goal: hidden steady state is about `77.7 MB WS / 126.7 MB PM`, and re-activating the launcher measured about `148.2 MB WS / 125.7 MB PM`.
+- Latest Windows `tauri-app.exe` re-check still meets the user's `200 MB` goal on debug: cold hidden launch measured about `63.7 MB WS / 124.7 MB PM`, `keynova start` returned in about `10-13 ms`, and post-wake samples stayed around `93-106 MB WS / 124.4-124.9 MB PM`.
+- A direct `cargo build --release` binary pass did not reproduce the same WS profile: PM stayed around `124-129 MB`, but WS stayed much higher (`273.6 MB` hidden after a warm hide and `334.7 MB` active), so the release baseline is still unresolved.
 - `agent_runtime.rs < 400` REF.7 criterion is dropped because that file does not exist in repo. Documented in the REF.7 plan as the same class of docx-vs-repo divergence as the `CommandPalette.tsx < 250` deviation.
 - `current.md` and `active.md` are current-state indexes only. REF.6 batch detail lives in `docs/memory/sessions/2026-05-29.md`.
 
@@ -38,7 +39,7 @@ owner: project
 
 ## Next Step
 
-- Validate the new WebView2 idle-memory path in a real `tauri dev` session, then decide whether a release build pass or additional WebView2 flags are still worth the UX tradeoff.
+- Investigate why the direct `target/release/tauri-app.exe` path still shows `~274-335 MB WS` while PM stays near the debug reading before promoting a release baseline or adding more WebView2 flags.
 - REF.7.D is still user-action: `ollama pull qwen2.5:7b && npm run bench:ai -- --runs 10 --model qwen2.5:7b`. Only `qwen3:0.6b` is local.
 - REF.7.C closes by filling ADR-0029 §10 from the REF.7.D output (one follow-up edit) + user-side Bug A/B smoke.
 - REF.8 stays gated on the observation window (1 minor release tag + 14 days, no P0 regression).

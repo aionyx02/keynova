@@ -30,8 +30,24 @@ Keynova 的核心目標很直接：讓你少切視窗、少摸滑鼠、少在工
 - AI 互動正式變成 search-first capability flow：`explain`、`summarize`、`fix`、`cmd`、`next` 都能直接從 palette 進入，不需要把舊 chat-first 流程放回 hot path。
 - 自然語言入口更低摩擦：空白 palette 會直接顯示 `next` 建議；查無結果的操作意圖查詢會自動升級成 AI command generation。
 - Workflow memory 現在能對近期命令型操作做 replay / follow-up ranking，不再只是一個被動紀錄。
-- Windows idle-memory pass 已落地：hidden steady state 約 `77.7 MB` working set，重新喚醒約 `148.2 MB` working set；production 主入口 eager chunk 約 `104.69 kB`。
+- Windows idle-memory pass 已落地：最新 debug re-check 顯示冷隱藏約 `63.7 MB` working set / `124.7 MB` private memory，`keynova start` 喚醒約 `10-13 ms`，暖喚醒後約 `93-106 MB` working set；production 主入口 eager chunk 約 `104.28 kB`。
+- 目前 direct `cargo build --release` binary 的 working-set baseline 仍在追查中；private-memory 量級已接近 debug re-check，但 release working set 仍偏高。
 - `npm run tauri dev` 會重用既有的 Keynova dev server，並在啟動前清掉卡住的 debug app，避免 `1420` port collision 和 Windows file-lock 問題。
+
+## 記憶體用量（Windows）
+
+下表整理的是 2026-05-30 這輪 Windows 測量結果，方便直接從 README 查閱目前的常駐記憶體狀態：
+
+| 情境 | Working Set | Private Memory | 備註 |
+| ---- | ----------- | -------------- | ---- |
+| Debug `tauri-app.exe` 冷隱藏（30s） | `63.7 MB` | `124.7 MB` | 新的 WebView2 low-memory 路徑已命中 |
+| Debug `keynova start` 喚醒後 | `104.8-105.7 MB` | `124.7-124.8 MB` | control-plane handoff 約 `10.2 ms` |
+| Debug 暖隱藏（`Ctrl+K`） | `90.8 MB` | `124.5 MB` | 代表常用切換路徑已低於 `200 MB` 目標 |
+| Direct release binary 冷隱藏 | `337.7 MB` | `124.8 MB` | direct `cargo build --release` 路徑，WS 異常偏高 |
+| Direct release binary 喚醒後 | `334.7 MB` | `129.1 MB` | PM 接近 debug，但 WS 仍偏高 |
+| Direct release binary 暖隱藏 | `273.6 MB` | `126.3 MB` | release WS baseline 仍待追查 |
+
+目前可以先把 debug 路徑視為已達成 Windows idle-memory 目標；README 也刻意保留 release row，因為這條路徑的 working set 還沒有收斂到和 debug 一致。
 
 ## 下載與安裝（Beta）
 
@@ -78,7 +94,7 @@ Keynova 目前處於底層架構重構與快速迭代階段，但已開始提供
 | Notes                      | Markdown 筆記與工作區脈絡                            | 已可用         |
 | Calculator / Dev Utilities | 常用計算、轉換與開發者小工具                         | 已可用         |
 | Onboarding                 | 首次使用引導、空狀態 CTA、cheatsheet                 | 已可用         |
-| Legacy AI Chat / Agent     | 舊版 chat-first / ReAct agent，相容期保留，但預設關閉 | 相容模式，實現中 |
+| Legacy AI Chat / Agent     | 舊版 chat-first / ReAct agent，相容期保留，但預設關閉 | 相容模式（可用） |
 | AI Capability Layer        | `explain` / `summarize` / `fix_error` / `gen_command` / `suggest_next` 五個 capability 已上線 | 已可用         |
 | Inline Capability & NL Flow | prefix (`explain` / `summarize` / `fix`) + 空白 `next` + 查無結果自然語言 fallback | 已可用         |
 | Unified Result Schema      | 統一 result、preview、rank signal、action chip       | 已可用         |
@@ -147,7 +163,7 @@ jwt
 - 已可用：`cmd` 會生成可複製、可編輯、可送進附加終端機的命令卡；`next` 會顯示近期工作流建議並支援 replay。
 - 已可用：每次 AI 呼叫都是單步 capability，不保留 session memory，不自主連續執行工具。
 - 已可用：舊版 chat-first AI 仍能透過 `ai.legacy_agent = true` 啟用，但目前預設為關閉，後續會在觀察期結束後實體移除。
-- 實現中：backend 標記 risk level，UI 負責二階段 confirmation，仍在收尾。
+- 已可用：刪除 / 重新命名 / 移動等 destructive file action 已走 UI confirmation gate；更泛化的 data-driven action confirm 仍在後續 capability action 收尾。
 
 這代表 Keynova 不會試圖取代 ChatGPT 或 Claude 的長對話場景。它會把 AI 放在你正在工作的地方，幫你解釋錯誤、摘要內容、產生命令或補上下一步建議。
 
@@ -224,6 +240,8 @@ network_allowlist = ""
 
 `legacy_agent` 目前已預設為 `false`；需要相容模式時可手動打開，但這條路徑預計在觀察期結束後移除。
 
+`performance.low_memory_mode = true` 會跳過 terminal prewarm、延後 startup indexing，並把預設 Ollama keep-alive 從 `5m` 縮到 `0s`。如果你在 Windows 上比較在意常駐記憶體，這是目前最直接的降載開關。
+
 ## 架構方向
 
 ```mermaid
@@ -259,14 +277,14 @@ graph TD
 | `REF.4` | Stateless AI Capability Layer                  | 已完成（5/5 capabilities live）       |
 | `REF.5` | Workflow Memory                                | 已完成                                |
 | `REF.6` | Search box as pure dispatcher                  | 大致完成（`cmd` / `next` / NL fallback 已落地，仍有收尾） |
-| `REF.7` | Quantitative gates + legacy default off        | 進行中（A/B done，release/bench 收尾） |
+| `REF.7` | Quantitative gates + legacy default off        | 進行中（A/B done；release WS investigation + qwen2.5:7b benchmark 待補） |
 | `REF.8` | Physical removal of deprecated chat/agent code | 實現中                                |
 
 量化目標：
 
 - `CommandPalette.tsx`：原訂 250 行以下，REF.2 landed 在 598 行後決定接受現狀，`< 250 / < 400` 重新留給 REF.6 收尾。
 - `handlers/agent/mod.rs`：2406 行先降到 600 行以下（REF.3 landed 616），觀察期後刪除或壓到 100 行以下。
-- `agent_runtime.rs`：觀察期降到 400 行以下，最終移除。
+- `agent_runtime.rs`：原本 docx 的 `< 400` 門檻已移除；repo 現況改以 `REF.8` 的舊路徑清理為準。
 - `AiPanel.tsx`：相容期後移除。
 - Palette cold open：200 ms 以下。
 - Search first chunk P50：80 ms 以下。
