@@ -84,3 +84,14 @@ windows = { version = "0.58", features = [
   "Win32_System_JobObjects",
   "Win32_Security",
 ] }
+
+# PERF.1.FU — release footprint pass. There was no release profile, so release
+# used cargo defaults (no LTO, codegen-units = 16, symbols kept), inflating the
+# binary + its mapped image. These are runtime-quality-neutral (they shrink the
+# binary and improve codegen); only release build time grows. Intentionally NOT
+# using opt-level = "z" (trades speed) or panic = "abort" (changes crash
+# semantics) so quality is unaffected.
+[profile.release]
+strip = true
+lto = "thin"
+codegen-units = 1
