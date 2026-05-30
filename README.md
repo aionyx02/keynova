@@ -25,6 +25,14 @@ Keynova 的核心目標很直接：讓你少切視窗、少摸滑鼠、少在工
 
 目前最高優先級是 P0 架構重構：把舊的 chat-first agent 降級為 stateless inline capability，並把 unified search / unified result schema 變成產品主軸。未完成項目在本 README 皆標為「實現中」。
 
+## v0.3.0 重點
+
+- AI 互動正式變成 search-first capability flow：`explain`、`summarize`、`fix`、`cmd`、`next` 都能直接從 palette 進入，不需要把舊 chat-first 流程放回 hot path。
+- 自然語言入口更低摩擦：空白 palette 會直接顯示 `next` 建議；查無結果的操作意圖查詢會自動升級成 AI command generation。
+- Workflow memory 現在能對近期命令型操作做 replay / follow-up ranking，不再只是一個被動紀錄。
+- Windows idle-memory pass 已落地：hidden steady state 約 `77.7 MB` working set，重新喚醒約 `148.2 MB` working set；production 主入口 eager chunk 約 `104.69 kB`。
+- `npm run tauri dev` 會重用既有的 Keynova dev server，並在啟動前清掉卡住的 debug app，避免 `1420` port collision 和 Windows file-lock 問題。
+
 ## 下載與安裝（Beta）
 
 Keynova 目前處於底層架構重構與快速迭代階段，但已開始提供預先編譯的安裝檔，方便不想配置 Node.js / Rust 環境的使用者直接試用。
@@ -51,10 +59,10 @@ Keynova 目前處於底層架構重構與快速迭代階段，但已開始提供
 | -------------------------------------------------- | -------------------------------------------------------------- | -------------- |
 | 工作時一直切換 IDE、檔案總管、終端機、瀏覽器與筆記 | 用單一 command palette 聚合搜尋、啟動與 action                 | 已可用         |
 | 搜尋結果來源太分散，前端需要適配多種 result shape  | 統一成 `UnifiedResult`，所有來源共用 result/action schema      | 已可用         |
-| AI Chat 迫使使用者離開當前 workflow                | AI 改為 inline capability，由 prefix keyword 觸發（如 `explain <text>` / `summarize <text>`） | 已可用，實現中 |
+| AI Chat 迫使使用者離開當前 workflow                | AI 改為 inline capability，支援 prefix 與自然語言 fallback（如 `explain <text>`、`fix <error>`、`cmd`、`next`） | 已可用         |
 | autonomous agent 行為不可預測，安全邊界難掌控      | AI capability 改成單步、stateless、typed input/output          | 實現中         |
 | destructive action 容易誤觸                        | action 使用風險標記與 UI confirmation gate                     | 已可用，實現中 |
-| 使用越久沒有變快                                   | workflow memory 記錄近期操作，提供可預測的 recent/suggestion   | 實現中         |
+| 使用越久沒有變快                                   | workflow memory 記錄近期操作，提供可預測的 recent/suggestion 與 replay | 已可用，實現中 |
 | 本機隱私與外部服務邊界不清楚                       | local-first，外部 provider 與網路能力需明確 opt-in             | 已可用，實現中 |
 
 ## 目前能力狀態
@@ -70,11 +78,11 @@ Keynova 目前處於底層架構重構與快速迭代階段，但已開始提供
 | Notes                      | Markdown 筆記與工作區脈絡                            | 已可用         |
 | Calculator / Dev Utilities | 常用計算、轉換與開發者小工具                         | 已可用         |
 | Onboarding                 | 首次使用引導、空狀態 CTA、cheatsheet                 | 已可用         |
-| Legacy AI Chat / Agent     | 舊版 chat-first / ReAct agent，相容期保留            | 已可用，實現中 |
-| AI Capability Layer        | Explain / Summarize / Fix error 三個 capability 已上線；`gen_command` / `suggest_next` 仍在實作 | 已可用，實現中 |
-| Inline Capability Prefix   | 在 launcher 直接輸入 `explain <text>` / `summarize <text>` 觸發            | 已可用         |
+| Legacy AI Chat / Agent     | 舊版 chat-first / ReAct agent，相容期保留，但預設關閉 | 相容模式，實現中 |
+| AI Capability Layer        | `explain` / `summarize` / `fix_error` / `gen_command` / `suggest_next` 五個 capability 已上線 | 已可用         |
+| Inline Capability & NL Flow | prefix (`explain` / `summarize` / `fix`) + 空白 `next` + 查無結果自然語言 fallback | 已可用         |
 | Unified Result Schema      | 統一 result、preview、rank signal、action chip       | 已可用         |
-| Workflow Memory            | recent workflow、context hash、suggestion ranking    | 已可用         |
+| Workflow Memory            | recent workflow、context hash、suggestion ranking、replay descriptor | 已可用         |
 | Model Manager 整合         | 下載、列表、移除模型整合成單一管理面板               | 實現中         |
 | 舊 Agent / AiPanel 退場    | `ai.legacy_agent` 相容期後移除 chat-first surface    | 實現中         |
 
@@ -135,9 +143,10 @@ jwt
   ```
 
   capability 是單步、stateless，呼叫後串流回答到 result area，可一鍵 Copy 為 Markdown 或存到筆記。
+- 已可用：空白 palette 會直接顯示 `next` 建議；查無結果的自然語言意圖會自動判斷成 `explain` / `summarize` / `fix` / `cmd`。
+- 已可用：`cmd` 會生成可複製、可編輯、可送進附加終端機的命令卡；`next` 會顯示近期工作流建議並支援 replay。
 - 已可用：每次 AI 呼叫都是單步 capability，不保留 session memory，不自主連續執行工具。
-- 已可用：舊版 chat-first AI 仍能透過 `ai.legacy_agent = true` 啟用，但 REF.7 之後預設關閉，REF.8 之後實體移除。
-- 實現中：`cmd <intent>`、`next` 兩個 prefix 與對應 capability card 仍在做（REF.6.C/E/F）。
+- 已可用：舊版 chat-first AI 仍能透過 `ai.legacy_agent = true` 啟用，但目前預設為關閉，後續會在觀察期結束後實體移除。
 - 實現中：backend 標記 risk level，UI 負責二階段 confirmation，仍在收尾。
 
 這代表 Keynova 不會試圖取代 ChatGPT 或 Claude 的長對話場景。它會把 AI 放在你正在工作的地方，幫你解釋錯誤、摘要內容、產生命令或補上下一步建議。
@@ -160,6 +169,8 @@ jwt
 npm install
 npm run tauri dev
 ```
+
+`npm run tauri dev` 目前會先重用既有的 `1420` Keynova Vite server，並在 Windows 上主動關閉卡住的 debug `tauri-app.exe`，降低反覆開發時的啟動失敗率。
 
 ### 自行建置 release bundle
 
@@ -199,7 +210,7 @@ npm run verify           # docs + frontend + Rust verification
 provider = "ollama"
 model = "qwen2.5:7b"
 ollama_url = "http://localhost:11434"
-legacy_agent = true
+legacy_agent = false
 
 [performance]
 low_memory_mode = false
@@ -211,7 +222,7 @@ backend = "auto"
 network_allowlist = ""
 ```
 
-`legacy_agent` 會在 AI capability refactor 完成後預設改為 `false`，並在觀察期結束後移除。
+`legacy_agent` 目前已預設為 `false`；需要相容模式時可手動打開，但這條路徑預計在觀察期結束後移除。
 
 ## 架構方向
 
@@ -245,10 +256,10 @@ graph TD
 | `REF.1` | Unified Result Schema                          | 已完成                                |
 | `REF.2` | Command Palette 拆分                           | 已完成（landed 598 行）               |
 | `REF.3` | Agent handler module split                     | 已完成                                |
-| `REF.4` | Stateless AI Capability Layer                  | 部分（3/5 capabilities live）         |
+| `REF.4` | Stateless AI Capability Layer                  | 已完成（5/5 capabilities live）       |
 | `REF.5` | Workflow Memory                                | 已完成                                |
-| `REF.6` | Search box as pure dispatcher                  | 進行中（A/B done，C–I 排程中）        |
-| `REF.7` | Quantitative gates + legacy default off        | 實現中                                |
+| `REF.6` | Search box as pure dispatcher                  | 大致完成（`cmd` / `next` / NL fallback 已落地，仍有收尾） |
+| `REF.7` | Quantitative gates + legacy default off        | 進行中（A/B done，release/bench 收尾） |
 | `REF.8` | Physical removal of deprecated chat/agent code | 實現中                                |
 
 量化目標：
@@ -259,7 +270,7 @@ graph TD
 - `AiPanel.tsx`：相容期後移除。
 - Palette cold open：200 ms 以下。
 - Search first chunk P50：80 ms 以下。
-- AI inline P50：800 ms 以下（REF.7 補上正式量測）。
+- AI inline P50：800 ms 以下（REF.7 仍需補正式 qwen2.5:7b 量測）。
 
 ## 平台支援
 
