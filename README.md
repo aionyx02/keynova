@@ -31,22 +31,23 @@ Keynova 的核心目標很直接：讓你少切視窗、少摸滑鼠、少在工
 - 自然語言入口更低摩擦：空白 palette 會直接顯示 `next` 建議；查無結果的操作意圖查詢會自動升級成 AI command generation。
 - Workflow memory 現在能對近期命令型操作做 replay / follow-up ranking，不再只是一個被動紀錄。
 - Windows idle-memory pass 已落地：最新 debug re-check 顯示冷隱藏約 `63.7 MB` working set / `124.7 MB` private memory，`keynova start` 喚醒約 `10-13 ms`，暖喚醒後約 `93-106 MB` working set；production 主入口 eager chunk 約 `104.28 kB`。
-- 先前「release working set 偏高」已釐清：那個 `~273-337 MB` 是**整棵行程樹**（host + WebView2 子行程）的總和，不是 host 本身。實測 release `tauri-app.exe` host 行程只有 `~32 MB` WS / `~11 MB` PM，遠低於 `200 MB` 目標；其餘 `~290 MB` 落在 6 個 WebView2 子行程。
+- 先前「release working set 偏高」已釐清：那個 `~273-337 MB` 是**整棵行程樹**的工作集總和，且其中大部分是多行程**重複計數的共享頁**。實測整棵樹 `WS = 322.8 MB`，但真正獨占的 `Private-WS` 只有 `~80 MB`（host `~8 MB` + WebView2 子行程 `~71 MB`）；另外 `~243 MB` 是 Edge/Chromium runtime 的共享 DLL 頁，OS 只存一份、和系統上其他 WebView2 應用共用，被每個子行程的工作集各算一次。Keynova 真實的常駐足跡是 `~80 MB`，遠低於 `200 MB` 目標。
 - `npm run tauri dev` 會重用既有的 Keynova dev server，並在啟動前清掉卡住的 debug app，避免 `1420` port collision 和 Windows file-lock 問題。
 
 ## 記憶體用量（Windows）
 
-關鍵區分：**host 行程 `tauri-app.exe`** 是 Keynova 的背景核心；**整棵行程樹**還包含 WebView2 子行程（`msedgewebview2.exe`）。專案的 background-core 記憶體預算刻意排除 active WebView，所以該看的是 host 行程。
+關鍵區分：**Working Set（工作集）** 含多行程共享的 DLL 頁，會被每個行程各算一次而虛胖；**Private Working Set（Private-WS，獨占常駐）** 才是 Keynova 真正多花掉的 RAM。專案的 background-core 預算刻意排除 active WebView 的共享 runtime。
 
-下表是 2026-05-30 release（`cargo build --release`，已含 `[profile.release]` strip+LTO）實測：
+下表是 2026-05-31 release（`cargo build --release`，已含 `[profile.release]` strip+LTO）實測；WebView2 子行程以「啟動前後 `msedgewebview2` PID 差集」隔離出 Keynova 自己擁有的那幾個：
 
-| 情境 | Working Set | Private Memory | 備註 |
+| 情境 | Working Set | **Private-WS（獨占）** | 備註 |
 | ---- | ----------- | -------------- | ---- |
-| Release host `tauri-app.exe`（顯示中） | `~32 MB` | `~9 MB` | 背景核心；遠低於 `200 MB` 目標 |
-| Release host `tauri-app.exe`（隱藏） | `~32-35 MB` | `~11 MB` | 顯示/隱藏同量級 |
-| Release 整棵行程樹（host + 6 個 WebView2） | `~324 MB` | — | 先前誤記的「`273-337 MB`」其實是這個；約 `290 MB` 在 WebView2 子行程 |
+| Release host `tauri-app.exe` | `~32 MB` | `~8 MB` | 背景核心 |
+| Keynova 擁有的 7 個 WebView2 子行程 | `~292 MB` | `~71 MB` | renderer / Blink / V8 / network 等必要底盤 |
+| **整棵行程樹合計** | `322.8 MB` | **`79.7 MB`** | 帳面 `324 MB`，**真實獨占 `~80 MB`** |
+| 其中共享頁（WS − Private） | `243.1 MB` | — | Edge/Chromium runtime DLL，OS 只存一份、跨應用共用、被重複計數 |
 
-結論：先前以為的「release WS 偏高」是把整棵樹當成 host 來看的量測誤差——release host 核心其實穩定在 `~32 MB`，已達成 idle-memory 目標。真正吃量的是 WebView2 子行程，這部分由隱藏時的 `SetMemoryUsageTargetLevel(Low)` 與 GPU-off 管理，且本來就排除在 background-core 預算之外。
+結論：先前以為的「release WS 偏高」是 WebView2 多行程把同一份共享 runtime 頁重複計數造成的假象。Keynova 真實獨占足跡是 `~80 MB`，遠低於 `200 MB` 目標，已達成 idle-memory 目標。額外管理：`[profile.release]`（strip + thin-LTO，binary 25.1 → 22.5 MB）、隱藏時 host `EmptyWorkingSet` + WebView2 `SetMemoryUsageTargetLevel(Low)`、`--disable-gpu`。
 
 ## 下載與安裝（Beta）
 
