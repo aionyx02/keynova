@@ -43,8 +43,30 @@ pub(crate) fn hide_launcher_window(window: &tauri::WebviewWindow) -> Result<(), 
         .hide()
         .map_err(|e| IpcError::tauri_api("window.hide", e.to_string()))?;
     set_launcher_memory_level(window, LauncherMemoryLevel::Low);
+    trim_host_working_set();
     Ok(())
 }
+
+/// Push the host process's resident pages out of the working set while the
+/// launcher is hidden. This trims the `tauri-app.exe` working set that the
+/// WebView2 `SetMemoryUsageTargetLevel` call cannot reach (that one only
+/// targets the webview child processes). Commit / private bytes are unchanged;
+/// the pages fault back in on the next wake. Best-effort: failures are logged,
+/// not surfaced.
+#[cfg(target_os = "windows")]
+fn trim_host_working_set() {
+    use windows::Win32::System::ProcessStatus::EmptyWorkingSet;
+    use windows::Win32::System::Threading::GetCurrentProcess;
+
+    unsafe {
+        if let Err(error) = EmptyWorkingSet(GetCurrentProcess()) {
+            eprintln!("[keynova] EmptyWorkingSet failed: {error}");
+        }
+    }
+}
+
+#[cfg(not(target_os = "windows"))]
+fn trim_host_working_set() {}
 
 pub(crate) fn setup_main_window(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>> {
     let window = app

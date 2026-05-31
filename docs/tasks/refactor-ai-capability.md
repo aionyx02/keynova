@@ -666,6 +666,16 @@ Done:
 - ADR-0029 §8 measurement filled.
 - `npm run docs:refresh` clean.
 
+Status (2026-05-30 close-out):
+- Release notes shipped as version-named `docs/release-notes/v0.3.0.md` (with a
+  `README.md` index in that directory), **not** the originally specified
+  `REF.7-ai-interaction-model.md`. Documented deviation, not a regression — same
+  class as the other REF.7 docx-vs-repo divergences. The v0.3.0 notes already
+  cover the AI-interaction-model change REF.7.C called for.
+- ADR-0029 §10 `Measurement (REF.7)` scaffold added; every cell is `pending REF.7.D`.
+  Filling it from the formal `qwen2.5:7b` reading is the one remaining REF.7.C edit.
+- Bug A/B manual smoke remains user-action.
+
 #### REF.7.D — Formal qwen2.5:7b P50/P95 reading (user-action)
 
 Not a coding step. User runs:
