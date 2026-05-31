@@ -32,9 +32,10 @@ fn tool_label(_tool: &str) -> &'static str {
 fn tool_keys(tool: &str) -> Result<(&'static str, &'static str), String> {
     match tool {
         "ai" | "chat" => Ok(("ai.provider", "ai.model")),
-        "translation" | "tr" => {
-            Err("Translation no longer has configurable models; /tr uses Google Translate.".into())
-        }
+        "translation" | "tr" => Err(
+            "Translation no longer has configurable models; /tr uses Google Cloud Translation."
+                .into(),
+        ),
         other => Err(format!("unsupported ai tool '{other}'")),
     }
 }
@@ -42,9 +43,10 @@ fn tool_keys(tool: &str) -> Result<(&'static str, &'static str), String> {
 fn normalized_tool(tool: Option<&str>) -> Result<&'static str, String> {
     match tool.unwrap_or("ai") {
         "ai" | "chat" => Ok("ai"),
-        "translation" | "tr" => {
-            Err("Translation no longer has configurable models; /tr uses Google Translate.".into())
-        }
+        "translation" | "tr" => Err(
+            "Translation no longer has configurable models; /tr uses Google Cloud Translation."
+                .into(),
+        ),
         other => Err(format!("unsupported ai tool '{other}'")),
     }
 }
@@ -206,16 +208,18 @@ impl CommandHandler for ModelHandler {
                 self.startup_preflight.force_refresh();
                 Ok(json!(self.startup_preflight.current_status()))
             }
-            "detect_hardware" => Ok(json!(self.startup_preflight.model_hardware_snapshot_or_live())),
+            "detect_hardware" => Ok(json!(self
+                .startup_preflight
+                .model_hardware_snapshot_or_live())),
             "recommend" => {
                 self.startup_preflight.ensure_started();
                 let hardware = self.startup_preflight.model_hardware_snapshot_or_live();
                 let publish = Arc::clone(&self.publish_event);
                 self.manager
                     .refresh_catalog_async(hardware.clone(), publish);
-                Ok(json!(
-                    self.startup_preflight.recommended_models_snapshot_or_live()
-                ))
+                Ok(json!(self
+                    .startup_preflight
+                    .recommended_models_snapshot_or_live()))
             }
             "list_local" => {
                 let tool = normalized_tool(payload.get("tool").and_then(Value::as_str))?;

@@ -18,10 +18,10 @@ use crate::handlers::{
     ai_capability::{AiCapabilityHandler, AiCapabilityHandlerDeps},
     automation::AutomationHandler,
     builtin_cmd::{
-        BuiltinCmdHandler, CalCommand, DownCommand, HelpCommand,
-        HistoryCommand, ModelDownloadCommand, ModelListCommand, ModelRemoveCommand, NoteCommand,
-        OnboardCommand, RebuildSearchIndexCommand, ReloadCommand, SettingCommand, SysCtlCommand,
-        SysMonitorCommand, TrCommand,
+        BuiltinCmdHandler, CalCommand, DownCommand, HelpCommand, HistoryCommand,
+        ModelDownloadCommand, ModelListCommand, ModelRemoveCommand, NoteCommand, OnboardCommand,
+        RebuildSearchIndexCommand, ReloadCommand, SettingCommand, SysCtlCommand, SysMonitorCommand,
+        TrCommand,
     },
     calculator::CalculatorHandler,
     dev_utils_cmd::{

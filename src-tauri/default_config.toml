@@ -66,7 +66,8 @@ approval_timeout_secs = 300          # Approval auto-times-out after N seconds; 
 [translation]
 default_src = "auto"
 default_dst = "zh-TW"
-provider = "google_free"
+provider = "google_cloud_v2"
+api_key = ""
 timeout_secs = 30
 
 [notes]

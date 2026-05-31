@@ -1,11 +1,12 @@
 use std::sync::Arc;
 
+use serde::Serialize;
 use serde_json::Value;
 
 use crate::core::AppEvent;
 
 /// BCP-47 language code → display name (Traditional Chinese).
-/// Covers all languages supported by Google Translate free API.
+/// Covers all languages supported by Google Cloud Translation.
 pub const SUPPORTED_LANGS: &[(&str, &str)] = &[
     ("auto", "自動偵測"),
     ("af", "南非荷蘭語"),
@@ -124,10 +125,25 @@ pub struct TranslateRequest {
     pub dst_lang: String,
     pub text: String,
     pub timeout_secs: u64,
+    pub provider: String,
+    pub api_key: String,
 }
 
 pub struct TranslationManager {
     publish_event: Arc<dyn Fn(AppEvent) + Send + Sync>,
+}
+
+enum TranslationProviderKind {
+    GoogleCloudV2,
+}
+
+#[derive(Serialize)]
+struct GoogleCloudV2TranslateBody<'a> {
+    q: &'a str,
+    target: &'a str,
+    format: &'static str,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    source: Option<&'a str>,
 }
 
 impl TranslationManager {
@@ -142,12 +158,18 @@ impl TranslationManager {
                 .enable_all()
                 .build()
                 .expect("tokio rt for translation");
-            let result = rt.block_on(translate_google_free(
-                &req.src_lang,
-                &req.dst_lang,
-                &req.text,
-                req.timeout_secs,
-            ));
+            let result = match normalize_translation_provider(&req.provider) {
+                Ok(TranslationProviderKind::GoogleCloudV2) => {
+                    rt.block_on(translate_google_cloud_v2(
+                        &req.src_lang,
+                        &req.dst_lang,
+                        &req.text,
+                        &req.api_key,
+                        req.timeout_secs,
+                    ))
+                }
+                Err(error) => Err(error),
+            };
             let payload = match result {
                 Ok(translated) => serde_json::json!({
                     "request_id": req.request_id,
@@ -167,50 +189,67 @@ impl TranslationManager {
     }
 }
 
-async fn translate_google_free(
+fn normalize_translation_provider(provider: &str) -> Result<TranslationProviderKind, String> {
+    match provider.trim() {
+        "" | "google_cloud_v2" => Ok(TranslationProviderKind::GoogleCloudV2),
+        other => Err(format!(
+            "Unsupported translation provider '{other}'. Use /setting translation.provider to choose a supported provider."
+        )),
+    }
+}
+
+async fn translate_google_cloud_v2(
     src: &str,
     dst: &str,
     text: &str,
+    api_key: &str,
     timeout_secs: u64,
 ) -> Result<String, String> {
+    if api_key.trim().is_empty() {
+        return Err(
+            "Translation API key not configured. Use /setting translation.api_key to set it."
+                .into(),
+        );
+    }
+
     let client = build_client(timeout_secs)?;
+    let body = build_google_cloud_v2_request_body(src, dst, text);
+
     let response = client
-        .get("https://translate.googleapis.com/translate_a/single")
-        .query(&[
-            ("client", "gtx"),
-            ("sl", if src.trim().is_empty() { "auto" } else { src }),
-            ("tl", dst),
-            ("dt", "t"),
-            ("ie", "UTF-8"),
-            ("oe", "UTF-8"),
-            ("q", text),
-        ])
+        .post("https://translation.googleapis.com/language/translate/v2")
+        .json(&body)
         .header("accept", "application/json")
-        .header("user-agent", "Mozilla/5.0 (Keynova)")
+        .header("x-goog-api-key", api_key.trim())
+        .header("user-agent", "Keynova/0.3.0")
         .send()
         .await
-        .map_err(|e| format!("GoogleFree request failed: {e}"))?;
+        .map_err(|e| format!("Google Cloud Translation request failed: {e}"))?;
 
     let status = response.status();
     let body_text = response
         .text()
         .await
-        .map_err(|e| format!("GoogleFree response read failed: {e}"))?;
+        .map_err(|e| format!("Google Cloud Translation response read failed: {e}"))?;
 
     if is_google_rate_limited(status, &body_text) {
-        return Err("GoogleFree rate limit reached. Please retry later.".into());
+        return Err(
+            "Google Cloud Translation quota or rate limit reached. Please retry later or check quotas."
+                .into(),
+        );
     }
 
     if !status.is_success() {
         return Err(format!(
-            "GoogleFree API error {status}: {}",
-            compact_error_body(&body_text)
+            "Google Cloud Translation API error {status}: {}",
+            extract_google_error_message(&body_text)
+                .or_else(|| extract_html_error_title(&body_text))
+                .unwrap_or_else(|| compact_error_body(&body_text))
         ));
     }
 
     let value: Value = serde_json::from_str(&body_text)
-        .map_err(|e| format!("GoogleFree response parsing failed: {e}"))?;
-    extract_google_free_translation(&value)
+        .map_err(|e| format!("Google Cloud Translation response parsing failed: {e}"))?;
+    extract_google_cloud_translation(&value)
 }
 
 fn build_client(timeout_secs: u64) -> Result<reqwest::Client, String> {
@@ -220,32 +259,70 @@ fn build_client(timeout_secs: u64) -> Result<reqwest::Client, String> {
         .map_err(|e| e.to_string())
 }
 
-fn extract_google_free_translation(value: &Value) -> Result<String, String> {
-    let Some(segments) = value
-        .as_array()
-        .and_then(|items| items.first())
+fn build_google_cloud_v2_request_body<'a>(
+    src: &'a str,
+    dst: &'a str,
+    text: &'a str,
+) -> GoogleCloudV2TranslateBody<'a> {
+    GoogleCloudV2TranslateBody {
+        q: text,
+        target: dst,
+        format: "text",
+        source: if !src.trim().is_empty() && !src.eq_ignore_ascii_case("auto") {
+            Some(src)
+        } else {
+            None
+        },
+    }
+}
+
+fn extract_google_cloud_translation(value: &Value) -> Result<String, String> {
+    let Some(translations) = value
+        .get("data")
+        .and_then(|data| data.get("translations"))
         .and_then(Value::as_array)
     else {
-        return Err("GoogleFree returned an unexpected response format.".into());
+        return Err("Google Cloud Translation returned an unexpected response format.".into());
     };
 
-    let mut translated = String::new();
-    for segment in segments {
-        let Some(piece) = segment
-            .as_array()
-            .and_then(|items| items.first())
-            .and_then(Value::as_str)
-        else {
-            continue;
-        };
-        translated.push_str(piece);
-    }
-
-    let translated = translated.trim().to_string();
+    let translated = translations
+        .first()
+        .and_then(|item| item.get("translatedText"))
+        .and_then(Value::as_str)
+        .unwrap_or("")
+        .trim()
+        .to_string();
     if translated.is_empty() {
-        Err("GoogleFree returned an empty translation.".into())
+        Err("Google Cloud Translation returned an empty translation.".into())
     } else {
         Ok(translated)
+    }
+}
+
+fn extract_google_error_message(body: &str) -> Option<String> {
+    let value: Value = serde_json::from_str(body).ok()?;
+    value
+        .get("error")
+        .and_then(|error| error.get("message"))
+        .and_then(Value::as_str)
+        .map(str::trim)
+        .filter(|message| !message.is_empty())
+        .map(ToOwned::to_owned)
+}
+
+fn extract_html_error_title(body: &str) -> Option<String> {
+    let lower = body.to_ascii_lowercase();
+    let start = lower.find("<title>")? + "<title>".len();
+    let end = start + lower[start..].find("</title>")?;
+    let title = body[start..end]
+        .split_whitespace()
+        .collect::<Vec<_>>()
+        .join(" ");
+    let cleaned = title.trim().trim_end_matches("!!1").trim();
+    if cleaned.is_empty() {
+        None
+    } else {
+        Some(cleaned.to_string())
     }
 }
 
@@ -277,34 +354,74 @@ mod tests {
     use super::*;
 
     #[test]
-    fn extracts_google_free_translation_from_nested_response() {
-        let value = serde_json::json!([
-            [[
-                "hola",
-                "hello",
-                null,
-                null,
-                11,
-                null,
-                null,
-                [[]],
-                [[["84b1db8c3c94d5ff25f228b8bdffe536", "zh_zh-hant_2023q3.md"]]]
-            ]],
-            null,
-            "en",
-            null,
-            null,
-            null,
-            1,
-            [],
-            [["en"], null, [1], ["en"]]
-        ]);
-
-        assert_eq!(extract_google_free_translation(&value).unwrap(), "hola");
+    fn normalizes_google_cloud_v2_provider() {
+        assert!(matches!(
+            normalize_translation_provider("google_cloud_v2").unwrap(),
+            TranslationProviderKind::GoogleCloudV2
+        ));
     }
 
     #[test]
-    fn detects_google_free_rate_limit_messages() {
+    fn extracts_google_cloud_translation_from_v2_response() {
+        let value = serde_json::json!({
+            "data": {
+                "translations": [{
+                    "translatedText": "hola",
+                    "detectedSourceLanguage": "en"
+                }]
+            }
+        });
+
+        assert_eq!(extract_google_cloud_translation(&value).unwrap(), "hola");
+    }
+
+    #[test]
+    fn extracts_google_error_message_from_structured_response() {
+        let body = r#"{"error":{"code":403,"message":"Daily Limit Exceeded","errors":[]}}"#;
+        assert_eq!(
+            extract_google_error_message(body).as_deref(),
+            Some("Daily Limit Exceeded")
+        );
+    }
+
+    #[test]
+    fn extracts_html_title_from_google_error_page() {
+        let body = r#"<!DOCTYPE html><html lang=en><head><title>Error 411 (Length Required)!!1</title></head><body></body></html>"#;
+        assert_eq!(
+            extract_html_error_title(body).as_deref(),
+            Some("Error 411 (Length Required)")
+        );
+    }
+
+    #[test]
+    fn builds_json_body_without_source_for_auto_detection() {
+        let body = build_google_cloud_v2_request_body("auto", "zh-TW", "hello");
+        assert_eq!(
+            serde_json::to_value(&body).unwrap(),
+            serde_json::json!({
+                "q": "hello",
+                "target": "zh-TW",
+                "format": "text"
+            })
+        );
+    }
+
+    #[test]
+    fn builds_json_body_with_explicit_source_language() {
+        let body = build_google_cloud_v2_request_body("en", "zh-TW", "hello");
+        assert_eq!(
+            serde_json::to_value(&body).unwrap(),
+            serde_json::json!({
+                "q": "hello",
+                "target": "zh-TW",
+                "format": "text",
+                "source": "en"
+            })
+        );
+    }
+
+    #[test]
+    fn detects_google_rate_limit_messages() {
         assert!(is_google_rate_limited(
             reqwest::StatusCode::TOO_MANY_REQUESTS,
             ""

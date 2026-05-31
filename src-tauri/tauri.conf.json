@@ -30,7 +30,7 @@
       }
     ],
     "security": {
-      "csp": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self' ipc: http://ipc.localhost http://localhost:* ws://localhost:* https://translate.googleapis.com https://api.anthropic.com https://api.openai.com; img-src 'self' data: asset: https://asset.localhost; object-src 'none'; frame-src 'none'; base-uri 'self'; worker-src 'none'",
+      "csp": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self' ipc: http://ipc.localhost http://localhost:* ws://localhost:* https://translation.googleapis.com https://translate.googleapis.com https://api.anthropic.com https://api.openai.com; img-src 'self' data: asset: https://asset.localhost; object-src 'none'; frame-src 'none'; base-uri 'self'; worker-src 'none'",
       "assetProtocol": {
         "enable": true,
         "scope": ["**"]
