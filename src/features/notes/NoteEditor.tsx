@@ -147,7 +147,7 @@ export function NoteEditor({ onClose, initialArgs }: PanelProps) {
               }}
               className={`kn-sidebar-item w-full truncate px-2 py-1.5 text-left text-xs ${
                 selectedNote === note.name
-                  ? "text-white"
+                  ? "text-[color:var(--kn-text)]"
                   : "text-[color:var(--kn-text-muted)]"
               }`}
               data-active={selectedNote === note.name ? "true" : "false"}
@@ -174,7 +174,7 @@ export function NoteEditor({ onClose, initialArgs }: PanelProps) {
             />
             <button
               onClick={() => void handleCreate()}
-              className="text-[10px] text-[color:var(--kn-accent)] hover:text-white"
+              className="text-[10px] text-[color:var(--kn-accent)] transition-colors hover:text-[color:var(--kn-accent-strong)]"
             >
               Create
             </button>
@@ -197,10 +197,16 @@ export function NoteEditor({ onClose, initialArgs }: PanelProps) {
                 {confirmDelete ? (
                   <span className="flex gap-2 text-[10px] text-[color:var(--kn-danger)]">
                     Delete?
-                    <button onClick={() => void handleDelete()} className="hover:text-red-300">
+                    <button
+                      onClick={() => void handleDelete()}
+                      className="transition-colors hover:text-[color:var(--kn-danger-strong)]"
+                    >
                       Yes
                     </button>
-                    <button onClick={() => setConfirmDelete(false)} className="hover:text-gray-300">
+                    <button
+                      onClick={() => setConfirmDelete(false)}
+                      className="text-[color:var(--kn-text-muted)] transition-colors hover:text-[color:var(--kn-text-soft)]"
+                    >
                       No
                     </button>
                   </span>

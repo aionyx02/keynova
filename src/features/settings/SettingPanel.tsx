@@ -1,22 +1,9 @@
-﻿import React, { useCallback, useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import type { PanelProps } from "../../types/panel";
-
-interface SettingEntry {
-  key: string;
-  value: string;
-  sensitive?: boolean;
-}
-
-interface SettingSchema {
-  key: string;
-  section: string;
-  label: string;
-  value_type: "string" | "integer" | "boolean" | "hotkey" | "secret";
-  sensitive: boolean;
-  options: string[];
-}
+import type { SettingEntry, SettingSchema } from "./settingTypes";
+import { SettingRow, type SettingControlKind } from "./SettingRow";
 
 interface ConfigReloadedPayload {
   source: string;
@@ -67,17 +54,7 @@ const SECTION_LABELS: Record<string, string> = {
   history: "History",
   system: "System",
   performance: "Performance",
-};
-
-const FEATURE_DESCRIPTIONS: Record<string, string> = {
-  "features.ai": "需要 Ollama 或 API Key",
-  "features.agent": "需要 Ollama 或支援工具呼叫的模型",
-  "features.translation": "Google Translate 免費 API",
-  "features.notes": "內建筆記與 LazyVim 整合",
-  "features.history": "剪貼簿歷史記錄",
-  "features.calculator": "即時運算機",
-  "features.system": "系統資訊與控制",
-  "performance.low_memory_mode": "跳過 terminal prewarm、延後 startup indexing，並縮短預設 Ollama keep-alive",
+  security: "Security",
 };
 
 const SECTION_EFFECT_HINT: Record<string, string> = {
@@ -94,6 +71,7 @@ const SECTION_EFFECT_HINT: Record<string, string> = {
   history: "Controls clipboard history retention.",
   system: "Controls system panel capabilities.",
   performance: "May apply immediately or on the next terminal / AI request.",
+  security: "Controls outbound network boundaries.",
 };
 
 function sectionDisplayLabel(section: string): string {
@@ -124,6 +102,7 @@ export function SettingPanel({ initialArgs }: PanelProps) {
     initialDraft.key?.split(".")[0] ?? "hotkeys",
   );
   const [schema, setSchema] = useState<SettingSchema[]>([]);
+  const [filter, setFilter] = useState("");
   const [edits, setEdits] = useState<Record<string, string>>(() =>
     initialDraft.key && initialDraft.value !== undefined
       ? { [initialDraft.key]: initialDraft.value }
@@ -136,6 +115,7 @@ export function SettingPanel({ initialArgs }: PanelProps) {
   const originalRef = useRef<Record<string, string>>({});
   const savedFlashRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const inputRefs = useRef<Array<HTMLElement | null>>([]);
+  const filterRef = useRef<HTMLInputElement>(null);
 
   const loadSettings = useCallback(async () => {
     if (!window.__TAURI_INTERNALS__) return;
@@ -186,7 +166,21 @@ export function SettingPanel({ initialArgs }: PanelProps) {
 
   const sections =
     schema.length > 0 ? Array.from(new Set(schema.map((entry) => entry.section))) : DEFAULT_SECTIONS;
-  const visible = entries.filter((entry) => entry.key.startsWith(`${activeSection}.`));
+
+  const query = filter.trim().toLowerCase();
+  const filtering = query.length > 0;
+  const schemaFor = useCallback(
+    (key: string) => schema.find((item) => item.key === key),
+    [schema],
+  );
+  const rows = filtering
+    ? entries.filter((entry) => {
+        const label = schemaFor(entry.key)?.label ?? "";
+        return (
+          entry.key.toLowerCase().includes(query) || label.toLowerCase().includes(query)
+        );
+      })
+    : entries.filter((entry) => entry.key.startsWith(`${activeSection}.`));
 
   useEffect(() => {
     if (entries.length === 0) return;
@@ -207,7 +201,7 @@ export function SettingPanel({ initialArgs }: PanelProps) {
     key: string,
     rowIdx: number,
     displayValue: string,
-    isHotkey: boolean,
+    kind: SettingControlKind,
   ) {
     if (e.key === "ArrowDown") {
       e.preventDefault();
@@ -216,36 +210,41 @@ export function SettingPanel({ initialArgs }: PanelProps) {
     }
     if (e.key === "ArrowUp") {
       e.preventDefault();
-      inputRefs.current[rowIdx - 1]?.focus();
+      if (rowIdx === 0) filterRef.current?.focus();
+      else inputRefs.current[rowIdx - 1]?.focus();
       return;
     }
     if (e.key === "ArrowLeft") {
-      const input = e.currentTarget as HTMLInputElement;
-      if (isHotkey || (input.selectionStart === 0 && input.selectionEnd === 0)) {
-        e.preventDefault();
-        switchSection(-1);
+      if (kind === "text") {
+        const input = e.currentTarget as HTMLInputElement;
+        if (input.selectionStart !== 0 || input.selectionEnd !== 0) return;
       }
+      e.preventDefault();
+      if (!filtering) switchSection(-1);
       return;
     }
     if (e.key === "ArrowRight") {
-      if (isHotkey) {
-        e.preventDefault();
-        switchSection(1);
-      } else {
+      if (kind === "text") {
         const input = e.currentTarget as HTMLInputElement;
         const len = input.value.length;
-        if (input.selectionStart === len && input.selectionEnd === len) {
-          e.preventDefault();
-          switchSection(1);
-        }
+        if (input.selectionStart !== len || input.selectionEnd !== len) return;
       }
+      e.preventDefault();
+      if (!filtering) switchSection(1);
       return;
     }
-    if (isHotkey) {
+    if (kind === "hotkey") {
       captureHotkey(e, key);
       return;
     }
-    if (e.key === "Enter") {
+    if (kind === "toggle") {
+      if (e.key === " " || e.key === "Enter") {
+        e.preventDefault();
+        void saveValue(key, displayValue === "true" ? "false" : "true");
+      }
+      return;
+    }
+    if (kind === "text" && e.key === "Enter") {
       e.preventDefault();
       void saveValue(key, displayValue);
     }
@@ -278,6 +277,16 @@ export function SettingPanel({ initialArgs }: PanelProps) {
     }
   }
 
+  async function resetValue(key: string, defaultValue: string) {
+    setEdits((prev) => {
+      if (!(key in prev)) return prev;
+      const next = { ...prev };
+      delete next[key];
+      return next;
+    });
+    await saveValue(key, defaultValue);
+  }
+
   async function handleBlur(key: string) {
     const edited = edits[key];
     if (edited === undefined) return;
@@ -308,9 +317,12 @@ export function SettingPanel({ initialArgs }: PanelProps) {
             {sections.map((section) => (
               <button
                 key={section}
-                onClick={() => setActiveSection(section)}
+                onClick={() => {
+                  setActiveSection(section);
+                  setFilter("");
+                }}
                 className={`shrink-0 border-b-2 px-3 py-2 text-[12px] font-semibold whitespace-nowrap transition-colors ${
-                  activeSection === section
+                  !filtering && activeSection === section
                     ? "border-[color:var(--kn-accent)] text-[color:var(--kn-text)]"
                     : "border-transparent text-[color:var(--kn-text-faint)] hover:text-[color:var(--kn-text-soft)]"
                 }`}
@@ -322,104 +334,57 @@ export function SettingPanel({ initialArgs }: PanelProps) {
         </div>
       </div>
 
-      <div className="px-4 pt-2 pb-0">
-        <span className="text-[10px] text-[color:var(--kn-text-faint)]">
-          {SECTION_EFFECT_HINT[activeSection] ?? "Applies after the next relevant action."}
+      <div className="flex items-center gap-2 px-4 pt-2 pb-0">
+        <input
+          ref={filterRef}
+          value={filter}
+          onChange={(e) => setFilter(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "ArrowDown") {
+              e.preventDefault();
+              inputRefs.current[0]?.focus();
+            } else if (e.key === "Escape" && filter) {
+              e.preventDefault();
+              setFilter("");
+            }
+          }}
+          placeholder="Filter settings… (name or key)"
+          className="kn-field flex-1 px-2 py-1 text-[11px]"
+          spellCheck={false}
+        />
+        <span className="shrink-0 text-[10px] text-[color:var(--kn-text-faint)]">
+          {filtering
+            ? `${rows.length} match${rows.length === 1 ? "" : "es"}`
+            : (SECTION_EFFECT_HINT[activeSection] ?? "Applies after the next relevant action.")}
         </span>
       </div>
 
-      <div className="kn-scroll max-h-[260px] overflow-y-auto px-4 py-3 space-y-3">
-        {visible.length === 0 && (
+      <div className="kn-scroll max-h-[260px] space-y-3 overflow-y-auto px-4 py-3">
+        {rows.length === 0 && (
           <p className="py-4 text-center text-xs text-[color:var(--kn-text-faint)]">
-            No settings in this section.
+            {filtering ? "No settings match." : "No settings in this section."}
           </p>
         )}
-        {visible.map(({ key, value, sensitive }, rowIdx) => {
-          const fieldSchema = schema.find((item) => item.key === key);
-          const label = fieldSchema?.label ?? key.split(".").slice(1).join(".");
-          const displayValue = edits[key] ?? value;
-          const isHotkey =
-            fieldSchema?.value_type === "hotkey" || key.startsWith("hotkeys.");
-          const isSecret = Boolean(sensitive || fieldSchema?.sensitive);
-          const isBoolean = fieldSchema?.value_type === "boolean";
-          const description = FEATURE_DESCRIPTIONS[key];
-
-          if (isBoolean) {
-            const isOn = displayValue === "true";
-            return (
-              <div key={key} className="flex items-center gap-3 py-0.5">
-                <div className="flex-1 min-w-0">
-                  <div className="truncate text-xs text-[color:var(--kn-text-soft)]">{label}</div>
-                  {description && (
-                    <div className="truncate text-[10px] text-[color:var(--kn-text-faint)]">{description}</div>
-                  )}
-                </div>
-                <button
-                  ref={(el) => { inputRefs.current[rowIdx] = el; }}
-                  role="switch"
-                  aria-checked={isOn}
-                  onClick={() => void saveValue(key, isOn ? "false" : "true")}
-                  onKeyDown={(e) => {
-                    if (e.key === "ArrowDown") { e.preventDefault(); inputRefs.current[rowIdx + 1]?.focus(); }
-                    if (e.key === "ArrowUp") { e.preventDefault(); inputRefs.current[rowIdx - 1]?.focus(); }
-                    if (e.key === " " || e.key === "Enter") { e.preventDefault(); void saveValue(key, isOn ? "false" : "true"); }
-                  }}
-                  className={`relative inline-flex h-5 w-9 shrink-0 items-center rounded-full border transition-colors ${
-                    isOn
-                      ? "border-[color:rgba(138,168,255,0.24)] bg-[color:var(--kn-accent)]"
-                      : "border-[color:var(--kn-border)] bg-white/[0.08]"
-                  } ${saving === key ? "opacity-60" : ""}`}
-                >
-                  <span
-                    className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white shadow transition-transform ${
-                      isOn ? "translate-x-[18px]" : "translate-x-[2px]"
-                    }`}
-                  />
-                </button>
-                {saving === key && (
-                  <span className="shrink-0 text-[10px] text-[color:var(--kn-text-muted)]">Saving</span>
-                )}
-                {savedKey === key && saving !== key && (
-                  <span className="shrink-0 text-[10px] text-[color:var(--kn-success)]">Saved</span>
-                )}
-              </div>
-            );
-          }
-
-          return (
-            <div key={key} className="flex items-center gap-3">
-              <label className="w-44 shrink-0 truncate text-xs text-[color:var(--kn-text-muted)]">{label}</label>
-              <input
-                ref={(el) => {
-                  inputRefs.current[rowIdx] = el;
-                }}
-                value={displayValue}
-                readOnly={isHotkey}
-                type={isSecret ? "password" : "text"}
-                onChange={isHotkey ? undefined : (e) => handleChange(key, e.target.value)}
-                onKeyDown={(e) => handleInputKeyDown(e, key, rowIdx, displayValue, isHotkey)}
-                onBlur={isHotkey ? undefined : () => void handleBlur(key)}
-                placeholder={
-                  isHotkey
-                    ? "Press the shortcut"
-                    : isSecret
-                      ? "Enter a new secret value"
-                      : undefined
-                }
-                className={`kn-field flex-1 px-2 py-1 text-sm ${
-                  isHotkey ? "cursor-pointer" : ""
-                } ${saving === key ? "opacity-60" : ""}`}
-                spellCheck={false}
-              />
-              {saving === key && (
-                <span className="shrink-0 text-[10px] text-[color:var(--kn-text-muted)]">Saving</span>
-              )}
-              {savedKey === key && saving !== key && (
-                <span className="shrink-0 text-[10px] text-[color:var(--kn-success)]">Saved</span>
-              )}
-            </div>
-          );
-        })}
+        {rows.map((entry, rowIdx) => (
+          <SettingRow
+            key={entry.key}
+            entry={entry}
+            fieldSchema={schemaFor(entry.key)}
+            displayValue={edits[entry.key] ?? entry.value}
+            rowIdx={rowIdx}
+            saving={saving === entry.key}
+            saved={savedKey === entry.key && saving !== entry.key}
+            showSection={filtering}
+            registerRef={(el) => {
+              inputRefs.current[rowIdx] = el;
+            }}
+            onChange={handleChange}
+            onSave={(key, value) => void saveValue(key, value)}
+            onReset={(key, defaultValue) => void resetValue(key, defaultValue)}
+            onBlur={(key) => void handleBlur(key)}
+            onKeyDown={handleInputKeyDown}
+          />
+        ))}
       </div>
 
       <div className="kn-panel-footer">

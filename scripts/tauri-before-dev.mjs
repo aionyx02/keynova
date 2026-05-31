@@ -122,10 +122,13 @@ async function maybeStopExistingDebugApp() {
 }
 
 function spawnDevServer() {
-  const command = process.platform === "win32" ? "npm.cmd" : "npm";
-  const child = spawn(command, ["run", "dev"], {
+  // On Windows, `npm` is a `.cmd` shim. Since the CVE-2024-27980 fix
+  // (Node 18.20+/20.12+/21.7+/24), `spawn()` throws EINVAL when launching a
+  // `.cmd`/`.bat` without a shell, so route the dev server through the shell.
+  const isWindows = process.platform === "win32";
+  const child = spawn("npm", ["run", "dev"], {
     stdio: "inherit",
-    shell: false,
+    shell: isWindows,
   });
 
   const forwardSignal = (signal) => {

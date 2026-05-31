@@ -207,3 +207,26 @@ Rollback 需求：見 §7。
 
 - [x] `core/agent_audit.rs` 的最終命名與模組位置 → **採用 `core/agent_audit.rs`，作用域嚴格為「legacy agent approval audit 歷史紀錄查詢」**；新 capability 的 audit 不混入此模組（見 §4）。
 - [x] `ActionChip` 在 UI 層 user-driven chaining 是否需要 telemetry / 防誤觸節流 → **不採用 time-based throttle 或 telemetry**；改用 state-based「in-flight 期間 chip disabled」（見 §4）。REF.7 量化 gate 若需使用率資料再另行評估 telemetry。
+
+## 10. Measurement（REF.7 量化讀數）
+
+REF.7.C 的資料填充區。本節僅記錄量測讀數，不變更 §4 Decision；ADR 狀態維持 `accepted`。
+
+正式讀數由 REF.7.D（user-action）產生：
+
+```
+ollama pull qwen2.5:7b
+npm run bench:ai -- --runs 10 --model qwen2.5:7b
+```
+
+將輸出貼回後填入下表（目標見 §8 與 `docs/tasks/refactor-ai-capability.md` Validation Matrix）。
+
+| 指標 | 目標 | 讀數 (qwen2.5:7b, runs=10) | 狀態 |
+|------|------|---------------------------|------|
+| inline P50 | < 800 ms | — | pending REF.7.D |
+| inline P95 | < 1500 ms | — | pending REF.7.D |
+| palette cold open | < 200 ms | — | pending REF.7.D |
+| palette warm open | < 50 ms | — | pending REF.7.D |
+| search first chunk P50 | < 80 ms | — | pending REF.7.D |
+
+觀察窗口項目（`ai.legacy_agent` 預設關閉一個 release cycle、idle RSS 10min < 150 MB / 1h < 200 MB）於 REF.8 開窗時記錄，維持 `pending observation`。
