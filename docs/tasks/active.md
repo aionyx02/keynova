@@ -14,9 +14,7 @@ tags: [refactor, ai-capability, search-first, p0]
 
 ### P0
 
-- [~] `PERF.1.FU` idle-memory trim. Release re-measure (2026-05-30) showed the prior `273-335 MB` was the **process tree** (host + 6 WebView2 ≈ `324 MB`); the host core is `~32 MB WS / ~11 MB PM`, under the `200 MB` goal. Shipped `[profile.release]` (strip+LTO, 25.1→22.5 MB) + host `EmptyWorkingSet` on hide.
-
-`PREFLIGHT` and `BRAND.ICON` completed in v0.3.0 (see `sessions/2026-05-30.md` COMPLETED markers).
+`PERF.1.FU`, `PREFLIGHT`, and `BRAND.ICON` completed in v0.3.0 (see `sessions/2026-05-30.md` COMPLETED markers). `PERF.1.FU` closed: real unique footprint is `~80 MB` (the `324 MB` was a shared-page counting artifact across WebView2 processes), under the `200 MB` goal.
 - [x] `REF.0` lock ADR-0029 as the governing decision for the AI capability refactor.
 - [x] `REF.1` define `UnifiedResult` as the shared result/action contract.
 - [x] `REF.2` split `CommandPalette.tsx` (landed 598 lines; `< 250` dropped, see plan).
@@ -51,13 +49,12 @@ Detailed batch definitions, done criteria, non-goals, file map, and validation g
 
 Keynova's active priority is the search-first workflow refactor: AI is a stateless capability layer invoked inline from unified result rows and prefix-keyword palette flows; chat-first surfaces leave the hot path.
 
-Until `REF.7` is complete, freeze new feature work unless it is required for the refactor, fixing a P0 regression, or protecting a safety boundary. `PREFLIGHT` and `BRAND.ICON` shipped in v0.3.0; `PERF.1.FU` remains an approved override pending release WS investigation + user smoke.
+Until `REF.7` is complete, freeze new feature work unless it is required for the refactor, fixing a P0 regression, or protecting a safety boundary. `PREFLIGHT`, `BRAND.ICON`, and `PERF.1.FU` shipped/closed in v0.3.0.
 
 Keep `active.md` compact. Put batch-level task detail in `docs/tasks/refactor-ai-capability.md`, detailed implementation notes in `docs/memory/sessions/YYYY-MM-DD.md`, and future non-refactor ideas in `docs/tasks/backlog.md`.
 
 ## Next Phase Candidates
 
-- `PERF.1.FU` release-WS resolved (tree-vs-host); host core meets the goal. Only remaining lever is the WebView2 children.
 - Run `REF.7.D` (`ollama pull qwen2.5:7b && npm run bench:ai -- --runs 10 --model qwen2.5:7b`), then fill ADR-0029 §10 to close `REF.7.C`.
 - After `REF.7`, revalidate parked tracks from `docs/tasks/backlog.md`.
 - After `REF.8`, refresh affected ADR statuses and architecture docs.
