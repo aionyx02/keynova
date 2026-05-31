@@ -110,7 +110,10 @@ impl StartupPreflight {
     }
 
     pub fn current_snapshot(&self) -> Option<StartupPreflightSnapshot> {
-        self.state.lock().ok().and_then(|state| state.snapshot.clone())
+        self.state
+            .lock()
+            .ok()
+            .and_then(|state| state.snapshot.clone())
     }
 
     pub fn current_status(&self) -> StartupPreflightStatus {
@@ -207,7 +210,12 @@ impl StartupPreflight {
 
         std::thread::spawn(move || {
             let started = Instant::now();
-            let mut snapshot = build_snapshot(&config, &model_manager, &current_boot_id, &current_source_mode);
+            let mut snapshot = build_snapshot(
+                &config,
+                &model_manager,
+                &current_boot_id,
+                &current_source_mode,
+            );
             if let Err(error) = save_snapshot_to_disk(&snapshot) {
                 snapshot.status = "partial".to_string();
                 snapshot
@@ -267,7 +275,12 @@ fn build_snapshot(
         app_version: env!("CARGO_PKG_VERSION").to_string(),
         boot_id: boot_id.to_string(),
         source_mode: source_mode.to_string(),
-        status: if errors.is_empty() { "ready" } else { "partial" }.to_string(),
+        status: if errors.is_empty() {
+            "ready"
+        } else {
+            "partial"
+        }
+        .to_string(),
         generated_at: Utc::now().to_rfc3339(),
         paths,
         hardware,
@@ -291,7 +304,10 @@ fn collect_paths(
         .map(PathBuf::from)
         .unwrap_or_else(|| crate::platform_dirs::keynova_data_dir().join("notes"));
     let search_index_dir = {
-        let configured = config.lock().ok().and_then(|cfg| cfg.get("search.index_dir"));
+        let configured = config
+            .lock()
+            .ok()
+            .and_then(|cfg| cfg.get("search.index_dir"));
         crate::managers::tantivy_index::resolve_index_dir(configured.as_deref())
     };
     let config_dir = crate::platform_dirs::keynova_config_dir();

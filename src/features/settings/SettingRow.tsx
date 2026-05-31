@@ -6,7 +6,7 @@ export type SettingControlKind = "text" | "hotkey" | "toggle" | "select";
 const FEATURE_DESCRIPTIONS: Record<string, string> = {
   "features.ai": "需要 Ollama 或 API Key",
   "features.agent": "需要 Ollama 或支援工具呼叫的模型",
-  "features.translation": "Google Translate 免費 API",
+  "features.translation": "Google Cloud Translation API（需 API key）",
   "features.notes": "內建筆記與 LazyVim 整合",
   "features.history": "剪貼簿歷史記錄",
   "features.calculator": "即時運算機",

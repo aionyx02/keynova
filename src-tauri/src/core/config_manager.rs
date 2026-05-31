@@ -1,4 +1,4 @@
-use std::collections::{HashMap, HashSet};
+use std::collections::{BTreeMap, HashMap, HashSet};
 use std::path::PathBuf;
 
 use serde::Serialize;
@@ -110,23 +110,45 @@ impl ConfigManager {
     }
 
     pub fn list_all(&self) -> Vec<(String, String)> {
-        let mut pairs: Vec<_> = self
+        let mut pairs: BTreeMap<String, String> = self
             .data
             .iter()
             .map(|(k, v)| (k.clone(), v.clone()))
             .collect();
-        pairs.sort_by(|a, b| a.0.cmp(&b.0));
-        pairs
+
+        for schema in builtin_setting_schema() {
+            pairs
+                .entry(schema.key.to_string())
+                .or_insert_with(|| schema.default_value.to_string());
+        }
+
+        pairs.into_iter().collect()
     }
 
     pub fn list_all_redacted(&self) -> Vec<(String, String, bool)> {
-        let mut pairs: Vec<_> = self
-            .data
-            .iter()
-            .map(|(k, v)| (k.clone(), redact_setting_value(k, v), is_sensitive_key(k)))
-            .collect();
-        pairs.sort_by(|a, b| a.0.cmp(&b.0));
+        let mut pairs: BTreeMap<String, (String, bool)> = BTreeMap::new();
+
+        for schema in builtin_setting_schema() {
+            pairs.insert(
+                schema.key.to_string(),
+                (
+                    redact_setting_value(schema.key, schema.default_value),
+                    schema.sensitive,
+                ),
+            );
+        }
+
+        for (key, value) in &self.data {
+            pairs.insert(
+                key.clone(),
+                (redact_setting_value(key, value), is_sensitive_key(key)),
+            );
+        }
+
         pairs
+            .into_iter()
+            .map(|(key, (value, sensitive))| (key, value, sensitive))
+            .collect()
     }
 
     pub fn schema(&self) -> Vec<SettingSchema> {
@@ -227,4 +249,41 @@ fn flatten_table(table: &toml::Table, prefix: &str) -> HashMap<String, String> {
         }
     }
     map
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn make_config(data: &[(&str, &str)]) -> ConfigManager {
+        ConfigManager {
+            data: data
+                .iter()
+                .map(|(key, value)| ((*key).to_string(), (*value).to_string()))
+                .collect(),
+            config_path: PathBuf::from("config.toml"),
+        }
+    }
+
+    #[test]
+    fn list_all_includes_schema_defaults_for_missing_keys() {
+        let cfg = make_config(&[]);
+        let values = cfg.list_all();
+        assert!(values
+            .iter()
+            .any(|(key, value)| { key == "translation.api_key" && value.is_empty() }));
+    }
+
+    #[test]
+    fn list_all_redacted_masks_secret_values() {
+        let cfg = make_config(&[("translation.api_key", "secret-value")]);
+        let entry = cfg
+            .list_all_redacted()
+            .into_iter()
+            .find(|(key, _, _)| key == "translation.api_key")
+            .expect("translation.api_key row");
+
+        assert_eq!(entry.1, "");
+        assert!(entry.2);
+    }
 }

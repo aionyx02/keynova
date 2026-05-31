@@ -12,18 +12,30 @@ pub struct TranslationHandler {
     config: Arc<Mutex<ConfigManager>>,
 }
 
+struct TranslationRuntimeConfig {
+    timeout_secs: u64,
+    provider: String,
+    api_key: String,
+}
+
 impl TranslationHandler {
     pub fn new(manager: Arc<TranslationManager>, config: Arc<Mutex<ConfigManager>>) -> Self {
         Self { manager, config }
     }
 
-    fn timeout_secs(&self) -> Result<u64, String> {
+    fn runtime_config(&self) -> Result<TranslationRuntimeConfig, String> {
         let cfg = self.config.lock().map_err(|e| e.to_string())?;
-        Ok(cfg
-            .get("translation.timeout_secs")
-            .or_else(|| cfg.get("ai.timeout_secs"))
-            .and_then(|v| v.parse::<u64>().ok())
-            .unwrap_or(30))
+        Ok(TranslationRuntimeConfig {
+            timeout_secs: cfg
+                .get("translation.timeout_secs")
+                .or_else(|| cfg.get("ai.timeout_secs"))
+                .and_then(|v| v.parse::<u64>().ok())
+                .unwrap_or(30),
+            provider: cfg
+                .get("translation.provider")
+                .unwrap_or_else(|| "google_cloud_v2".to_string()),
+            api_key: cfg.get("translation.api_key").unwrap_or_default(),
+        })
     }
 }
 
@@ -64,13 +76,15 @@ impl CommandHandler for TranslationHandler {
                     .ok_or_else(|| "missing 'text'".to_string())?
                     .to_string();
 
-                let timeout = self.timeout_secs()?;
+                let runtime = self.runtime_config()?;
                 self.manager.translate_async(TranslateRequest {
                     request_id: request_id.clone(),
                     src_lang: src,
                     dst_lang: dst,
                     text,
-                    timeout_secs: timeout,
+                    timeout_secs: runtime.timeout_secs,
+                    provider: runtime.provider,
+                    api_key: runtime.api_key,
                 });
                 Ok(json!({ "status": "pending", "request_id": request_id }))
             }
