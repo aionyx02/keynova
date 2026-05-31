@@ -31,23 +31,22 @@ Keynova 的核心目標很直接：讓你少切視窗、少摸滑鼠、少在工
 - 自然語言入口更低摩擦：空白 palette 會直接顯示 `next` 建議；查無結果的操作意圖查詢會自動升級成 AI command generation。
 - Workflow memory 現在能對近期命令型操作做 replay / follow-up ranking，不再只是一個被動紀錄。
 - Windows idle-memory pass 已落地：最新 debug re-check 顯示冷隱藏約 `63.7 MB` working set / `124.7 MB` private memory，`keynova start` 喚醒約 `10-13 ms`，暖喚醒後約 `93-106 MB` working set；production 主入口 eager chunk 約 `104.28 kB`。
-- 目前 direct `cargo build --release` binary 的 working-set baseline 仍在追查中；private-memory 量級已接近 debug re-check，但 release working set 仍偏高。
+- 先前「release working set 偏高」已釐清：那個 `~273-337 MB` 是**整棵行程樹**（host + WebView2 子行程）的總和，不是 host 本身。實測 release `tauri-app.exe` host 行程只有 `~32 MB` WS / `~11 MB` PM，遠低於 `200 MB` 目標；其餘 `~290 MB` 落在 6 個 WebView2 子行程。
 - `npm run tauri dev` 會重用既有的 Keynova dev server，並在啟動前清掉卡住的 debug app，避免 `1420` port collision 和 Windows file-lock 問題。
 
 ## 記憶體用量（Windows）
 
-下表整理的是 2026-05-30 這輪 Windows 測量結果，方便直接從 README 查閱目前的常駐記憶體狀態：
+關鍵區分：**host 行程 `tauri-app.exe`** 是 Keynova 的背景核心；**整棵行程樹**還包含 WebView2 子行程（`msedgewebview2.exe`）。專案的 background-core 記憶體預算刻意排除 active WebView，所以該看的是 host 行程。
+
+下表是 2026-05-30 release（`cargo build --release`，已含 `[profile.release]` strip+LTO）實測：
 
 | 情境 | Working Set | Private Memory | 備註 |
 | ---- | ----------- | -------------- | ---- |
-| Debug `tauri-app.exe` 冷隱藏（30s） | `63.7 MB` | `124.7 MB` | 新的 WebView2 low-memory 路徑已命中 |
-| Debug `keynova start` 喚醒後 | `104.8-105.7 MB` | `124.7-124.8 MB` | control-plane handoff 約 `10.2 ms` |
-| Debug 暖隱藏（`Ctrl+K`） | `90.8 MB` | `124.5 MB` | 代表常用切換路徑已低於 `200 MB` 目標 |
-| Direct release binary 冷隱藏 | `337.7 MB` | `124.8 MB` | direct `cargo build --release` 路徑，WS 異常偏高 |
-| Direct release binary 喚醒後 | `334.7 MB` | `129.1 MB` | PM 接近 debug，但 WS 仍偏高 |
-| Direct release binary 暖隱藏 | `273.6 MB` | `126.3 MB` | release WS baseline 仍待追查 |
+| Release host `tauri-app.exe`（顯示中） | `~32 MB` | `~9 MB` | 背景核心；遠低於 `200 MB` 目標 |
+| Release host `tauri-app.exe`（隱藏） | `~32-35 MB` | `~11 MB` | 顯示/隱藏同量級 |
+| Release 整棵行程樹（host + 6 個 WebView2） | `~324 MB` | — | 先前誤記的「`273-337 MB`」其實是這個；約 `290 MB` 在 WebView2 子行程 |
 
-目前可以先把 debug 路徑視為已達成 Windows idle-memory 目標；README 也刻意保留 release row，因為這條路徑的 working set 還沒有收斂到和 debug 一致。
+結論：先前以為的「release WS 偏高」是把整棵樹當成 host 來看的量測誤差——release host 核心其實穩定在 `~32 MB`，已達成 idle-memory 目標。真正吃量的是 WebView2 子行程，這部分由隱藏時的 `SetMemoryUsageTargetLevel(Low)` 與 GPU-off 管理，且本來就排除在 background-core 預算之外。
 
 ## 下載與安裝（Beta）
 
