@@ -33,9 +33,11 @@ export function CommandResultArea({
   onPanelClose,
   onPanelCommandResult,
 }: Props) {
+  const showArgsHint = isArgsPhase && exactCmd && !cmdResult && !PanelComponent;
+
   return (
     <>
-      {isArgsPhase && exactCmd && !cmdResult && (
+      {showArgsHint && (
         <div className="border-t border-[color:var(--kn-border)] bg-white/[0.02] px-4 py-2 text-[11px] text-[color:var(--kn-text-muted)]">
           <span className="font-semibold text-[color:var(--kn-accent)]">/{exactCmd.name}</span>
           {exactCmd.args_hint && (

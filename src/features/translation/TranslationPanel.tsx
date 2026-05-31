@@ -11,6 +11,10 @@ interface TranslationResponsePayload {
   error?: string;
 }
 
+interface ConfigReloadedPayload {
+  changed_keys: string[];
+}
+
 interface ParsedTrArgs {
   src: string;
   dst: string;
@@ -27,6 +31,11 @@ type FocusTarget = "command" | "source" | "output";
 const DEFAULT_SRC = "auto";
 const DEFAULT_DST = "zh-TW";
 const LANGUAGE_TOKEN_PATTERN = /^(auto|[a-z]{2,3}(?:-[a-z0-9]+)?)$/i;
+const TRANSLATION_SETTING_KEYS = [
+  "translation.api_key",
+  "translation.provider",
+  "translation.timeout_secs",
+];
 
 async function ipcDispatch<T>(route: string, payload?: Record<string, unknown>): Promise<T> {
   return invoke<T>("cmd_dispatch", { route, payload: payload ?? null });
@@ -302,6 +311,7 @@ export function TranslationPanel({ onClose, initialArgs }: PanelProps) {
         setResult(translated);
         setError("");
       } else {
+        lastSentKeyRef.current = "";
         setError(err ?? t.translation.error);
       }
     });
@@ -342,6 +352,7 @@ export function TranslationPanel({ onClose, initialArgs }: PanelProps) {
         if (pendingIdRef.current === requestId) {
           pendingIdRef.current = null;
           clientTimeoutRef.current = null;
+          lastSentKeyRef.current = "";
           setLoading(false);
           setError("翻譯請求逾時（35 秒），請確認網路連線或稍後再試。");
         }
@@ -361,6 +372,7 @@ export function TranslationPanel({ onClose, initialArgs }: PanelProps) {
         }
         if (pendingIdRef.current === requestId) {
           pendingIdRef.current = null;
+          lastSentKeyRef.current = "";
           setLoading(false);
           setError(String(err));
         }
@@ -431,6 +443,19 @@ export function TranslationPanel({ onClose, initialArgs }: PanelProps) {
     return () => window.clearTimeout(timer);
   }, [initialArgs, translate]);
 
+  useEffect(() => {
+    if (!window.__TAURI_INTERNALS__) return;
+    const unlisten = listen<ConfigReloadedPayload>("config-reloaded", (event) => {
+      const keys = event.payload.changed_keys;
+      if (keys.length === 0 || TRANSLATION_SETTING_KEYS.some((key) => keys.includes(key))) {
+        void translate(src, dst, text, true);
+      }
+    });
+    return () => {
+      unlisten.then((fn) => fn());
+    };
+  }, [dst, src, text, translate]);
+
   return (
     <div className="kn-panel-shell flex min-h-[350px] flex-col gap-3 rounded-t-none border-t-0 p-4">
       <div className="flex items-center justify-between gap-2">
@@ -438,7 +463,7 @@ export function TranslationPanel({ onClose, initialArgs }: PanelProps) {
           {t.translation.title}
         </span>
         <span className="text-[10px] text-[color:var(--kn-text-muted)]">
-          Google Translate | {src || DEFAULT_SRC} -&gt; {dst || DEFAULT_DST}
+          Google Cloud Translation | {src || DEFAULT_SRC} -&gt; {dst || DEFAULT_DST}
           {loading ? ` | ${t.translation.translating}` : ""}
         </span>
       </div>
@@ -512,9 +537,16 @@ export function TranslationPanel({ onClose, initialArgs }: PanelProps) {
       />
 
       {error && (
-        <p className="rounded-[8px] border border-red-400/20 bg-[color:var(--kn-danger-wash)] px-3 py-2 text-xs text-red-200">
-          {error}
-        </p>
+        <div className="flex items-center justify-between gap-3 rounded-[8px] border border-red-400/20 bg-[color:var(--kn-danger-wash)] px-3 py-2 text-xs text-red-200">
+          <p className="min-w-0 flex-1">{error}</p>
+          <button
+            type="button"
+            onClick={() => void translate(src, dst, text, true)}
+            className="kn-button px-2 py-1 text-[11px]"
+          >
+            Retry
+          </button>
+        </div>
       )}
 
       <textarea
@@ -537,7 +569,7 @@ export function TranslationPanel({ onClose, initialArgs }: PanelProps) {
             focusSection("command");
           }
         }}
-        placeholder={loading ? t.translation.translating : "Google Translate output"}
+        placeholder={loading ? t.translation.translating : "Google Cloud Translation output"}
         rows={5}
         className="kn-textarea kn-scroll overflow-y-auto text-sm selection:bg-blue-500/40 selection:text-white"
         style={{ fontFamily: "'Segoe UI', 'Microsoft JhengHei', 'PingFang TC', 'Malgun Gothic', 'Hiragino Sans', 'Noto Sans', sans-serif" }}

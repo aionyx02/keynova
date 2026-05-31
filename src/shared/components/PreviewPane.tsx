@@ -1,4 +1,5 @@
-﻿import { convertFileSrc } from "@tauri-apps/api/core";
+import { convertFileSrc } from "@tauri-apps/api/core";
+import { useState } from "react";
 
 import type { FilePreviewResult, SearchResult } from "../../types/search";
 
@@ -21,6 +22,8 @@ function formatMtime(ms?: number): string {
 }
 
 export function PreviewPane({ result, preview, loading }: Props) {
+  const [failedImagePath, setFailedImagePath] = useState<string | null>(null);
+
   if (!result) {
     return (
       <div className="flex h-full items-center justify-center px-6 text-sm text-[color:var(--kn-text-muted)]">
@@ -52,15 +55,24 @@ export function PreviewPane({ result, preview, loading }: Props) {
   }
 
   if (preview.kind === "image") {
+    const imageSrc = convertFileSrc(preview.path);
+    const imageLoadFailed = failedImagePath === preview.path;
     return (
       <div className="flex h-full flex-col p-3">
         <div className="flex flex-1 items-center justify-center overflow-hidden rounded-[8px] border border-[color:var(--kn-border)] bg-white/[0.03] shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]">
-          <img
-            src={convertFileSrc(result.path)}
-            alt=""
-            className="max-h-full max-w-full object-contain"
-            draggable={false}
-          />
+          {imageLoadFailed ? (
+            <div className="px-5 text-center text-sm text-[color:var(--kn-text-muted)]">
+              Image preview failed to load
+            </div>
+          ) : (
+            <img
+              src={imageSrc}
+              alt=""
+              className="max-h-full max-w-full object-contain"
+              draggable={false}
+              onError={() => setFailedImagePath(preview.path)}
+            />
+          )}
         </div>
         <div className="mt-2 truncate text-[11px] text-[color:var(--kn-text-muted)]">
           {formatBytes(preview.size_bytes)} / {formatMtime(preview.modified_ms)}
