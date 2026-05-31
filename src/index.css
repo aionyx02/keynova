@@ -252,6 +252,21 @@ body,
     padding: 0.55rem 0.75rem;
   }
 
+  select.kn-field {
+    color-scheme: dark;
+    background-color: rgb(31 34 40);
+  }
+
+  select.kn-field option,
+  select.kn-field optgroup {
+    background-color: rgb(24 26 31);
+    color: var(--kn-text);
+  }
+
+  select.kn-field option:disabled {
+    color: var(--kn-text-faint);
+  }
+
   .kn-textarea {
     padding: 0.7rem 0.8rem;
   }

@@ -1,3 +1,4 @@
+import { useState } from "react";
 import type React from "react";
 import type { ReactNode } from "react";
 
@@ -101,6 +102,8 @@ export function SearchResultsList({
   selectedMetadata,
   footerHint,
 }: Props) {
+  const [brokenIconKeys, setBrokenIconKeys] = useState<Record<string, true>>({});
+
   return (
     <div
       className={`kn-panel-shell rounded-t-none border-t-0 ${
@@ -115,7 +118,9 @@ export function SearchResultsList({
             {visibleResults.map((result, index) => {
               const isSelected = index === safeSelected;
               const badge = KIND_BADGE[result.kind] ?? KIND_BADGE.file;
-              const icon = result.icon_key ? iconsByKey[result.icon_key] : null;
+              const iconKey = result.icon_key ?? "";
+              const icon = iconKey ? iconsByKey[iconKey] : null;
+              const showIconImage = Boolean(icon && !brokenIconKeys[iconKey]);
               const unified = unifiedVisible[index];
               const title = hasEncodingError(result.title ?? result.name)
                 ? "Unavailable text"
@@ -142,13 +147,19 @@ export function SearchResultsList({
                   onMouseLeave={onHoverEnd}
                   className="kn-result-row flex cursor-pointer items-center gap-3 px-3 py-2.5"
                 >
-                  {icon ? (
+                  {showIconImage ? (
                     <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[8px] border border-white/5 bg-white/[0.035] shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]">
                       <img
-                        src={icon.data_url}
+                        src={icon?.data_url}
                         alt=""
                         className="h-7 w-7 shrink-0 rounded-[7px]"
                         draggable={false}
+                        onError={() => {
+                          if (!iconKey) return;
+                          setBrokenIconKeys((prev) =>
+                            prev[iconKey] ? prev : { ...prev, [iconKey]: true },
+                          );
+                        }}
                       />
                     </div>
                   ) : (
