@@ -8,7 +8,9 @@ use rusqlite::{params, Connection};
 use serde::{Deserialize, Serialize};
 use tokio::sync::oneshot;
 
-const CURRENT_SCHEMA_VERSION: u32 = 4;
+use crate::models::settings_schema::builtin_setting_schema;
+
+const CURRENT_SCHEMA_VERSION: u32 = 5;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ActionLogEntry {
@@ -454,7 +456,7 @@ fn open_connection(path: &Path) -> Result<Connection, String> {
     if let Some(parent) = path.parent() {
         std::fs::create_dir_all(parent).map_err(|e| e.to_string())?;
     }
-    let conn = Connection::open(path).map_err(|e| e.to_string())?;
+    let mut conn = Connection::open(path).map_err(|e| e.to_string())?;
     conn.pragma_update(None, "busy_timeout", 2500)
         .map_err(|e| e.to_string())?;
     conn.pragma_update(None, "foreign_keys", "ON")
@@ -470,6 +472,9 @@ fn open_connection(path: &Path) -> Result<Connection, String> {
     conn.pragma_update(None, "journal_mode", "WAL")
         .map_err(|e| e.to_string())?;
     init_schema(&conn)?;
+    if previous_version < CURRENT_SCHEMA_VERSION {
+        sanitize_sensitive_workflow_history_labels(&mut conn)?;
+    }
     if previous_version < CURRENT_SCHEMA_VERSION {
         record_schema_migration(
             &conn,
@@ -641,6 +646,27 @@ fn migration_backup_path(path: &Path, previous_version: u32, version: u32) -> Pa
     parent
         .join("backups")
         .join(format!("{stem}-v{previous_version}-to-v{version}-{id}.db"))
+}
+
+fn sanitize_sensitive_workflow_history_labels(conn: &mut Connection) -> Result<(), String> {
+    let tx = conn.transaction().map_err(|e| e.to_string())?;
+    for key in builtin_setting_schema()
+        .into_iter()
+        .filter(|schema| schema.sensitive)
+        .map(|schema| schema.key)
+    {
+        tx.execute(
+            "UPDATE workflow_history
+             SET action_label = ?1
+             WHERE action_label LIKE ?2",
+            params![
+                format!("/setting {key} [redacted]"),
+                format!("/setting {key} %")
+            ],
+        )
+        .map_err(|e| e.to_string())?;
+    }
+    tx.commit().map_err(|e| e.to_string())
 }
 
 fn copy_sidecar_if_present(source_db: &Path, backup_db: &Path, suffix: &str) -> Result<(), String> {
@@ -972,6 +998,44 @@ mod tests {
             )
             .unwrap();
         assert!(PathBuf::from(backup_path).exists());
+        drop(conn);
+        cleanup_db_path(&path);
+    }
+
+    #[test]
+    fn migration_redacts_sensitive_setting_workflow_labels() {
+        let path = test_db_path("sanitize-workflow-history");
+        {
+            let conn = Connection::open(&path).unwrap();
+            conn.execute_batch(
+                r#"
+                CREATE TABLE workflow_history (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    context_hash TEXT,
+                    route TEXT NOT NULL,
+                    action_label TEXT NOT NULL,
+                    payload_digest TEXT,
+                    workspace_id INTEGER,
+                    executed_at INTEGER NOT NULL DEFAULT (strftime('%s','now'))
+                );
+                INSERT INTO workflow_history (route, action_label)
+                VALUES ('cmd.run', '/setting translation.api_key secret-value');
+                PRAGMA user_version = 4;
+                "#,
+            )
+            .unwrap();
+        }
+
+        let conn = open_connection(&path).unwrap();
+        let label: String = conn
+            .query_row(
+                "SELECT action_label FROM workflow_history LIMIT 1",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(label, "/setting translation.api_key [redacted]");
+        assert_eq!(read_user_version(&conn).unwrap(), CURRENT_SCHEMA_VERSION);
         drop(conn);
         cleanup_db_path(&path);
     }

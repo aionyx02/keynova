@@ -11,6 +11,7 @@ use crate::managers::{
     model_manager::ModelManager, note_manager::NoteManager, search_manager::SearchManager,
 };
 use crate::models::builtin_command::{BuiltinCommandResult, CommandUiType};
+use crate::models::settings_schema::is_sensitive_key;
 use crate::models::terminal::{TerminalEnvVar, TerminalLaunchSpec};
 
 pub struct HelpCommand;
@@ -330,6 +331,23 @@ fn inline_result(text: String) -> BuiltinCommandResult {
         text,
         ui_type: CommandUiType::Inline,
     }
+}
+
+fn setting_assignment_result_text(key: &str, value: &str) -> String {
+    if is_sensitive_key(key) && !value.is_empty() {
+        format!("✓ {key} updated locally")
+    } else {
+        format!("✓ {key} = {value}")
+    }
+}
+
+fn setting_lookup_result_text(key: &str, current: Option<String>) -> String {
+    let value = match current {
+        Some(value) if is_sensitive_key(key) && !value.is_empty() => "********".to_string(),
+        Some(value) => value,
+        None => "(not set)".to_string(),
+    };
+    format!("{key} = {value}")
 }
 
 fn parse_note_args(args: &str) -> Result<NoteCommandMode, String> {
@@ -914,15 +932,14 @@ impl CommandHandler for BuiltinCmdHandler {
                             let mut cfg = self.config.lock().map_err(|e| e.to_string())?;
                             cfg.set(key, value).map_err(|e| e.to_string())?;
                             Ok(json!(BuiltinCommandResult {
-                                text: format!("✓ {} = {}", key, value),
+                                text: setting_assignment_result_text(key, value),
                                 ui_type: CommandUiType::Inline,
                             }))
                         }
                         None => {
                             let cfg = self.config.lock().map_err(|e| e.to_string())?;
-                            let current = cfg.get(key).unwrap_or_else(|| "(not set)".to_string());
                             Ok(json!(BuiltinCommandResult {
-                                text: format!("{} = {}", key, current),
+                                text: setting_lookup_result_text(key, cfg.get(key)),
                                 ui_type: CommandUiType::Inline,
                             }))
                         }
@@ -1175,5 +1192,21 @@ mod tests {
 
     fn normalize_path_for_assertion(path: &str) -> String {
         path.replace('\\', "/")
+    }
+
+    #[test]
+    fn sensitive_setting_assignment_result_redacts_value() {
+        assert_eq!(
+            setting_assignment_result_text("translation.api_key", "secret-value"),
+            "✓ translation.api_key updated locally"
+        );
+    }
+
+    #[test]
+    fn sensitive_setting_lookup_result_masks_value() {
+        assert_eq!(
+            setting_lookup_result_text("translation.api_key", Some("secret-value".into())),
+            "translation.api_key = ********"
+        );
     }
 }
