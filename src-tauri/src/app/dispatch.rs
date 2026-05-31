@@ -16,6 +16,7 @@ use crate::core::workflow_memory;
 use crate::core::{ActionLogEntry, AppEvent, IpcError};
 use crate::models::action::{Action, ActionKind, ActionRef, ActionResult};
 use crate::models::builtin_command::{BuiltinCommandResult, CommandUiType};
+use crate::models::settings_schema::is_sensitive_key;
 pub(crate) fn cmd_dispatch_impl(
     route: String,
     payload: Option<Value>,
@@ -550,9 +551,32 @@ fn workflow_label_for_cmd_payload(payload: &Value) -> String {
         .and_then(Value::as_str)
         .map(str::trim)
         .filter(|value| !value.is_empty());
+    if name == "setting" {
+        return workflow_label_for_setting_cmd_args(args);
+    }
     match args {
         Some(args) => format!("/{name} {args}"),
         None => format!("/{name}"),
+    }
+}
+
+fn workflow_label_for_setting_cmd_args(args: Option<&str>) -> String {
+    let Some(args) = args else {
+        return "/setting".into();
+    };
+    let Some(split_idx) = args
+        .char_indices()
+        .find(|(_, ch)| ch.is_whitespace())
+        .map(|(idx, _)| idx)
+    else {
+        return format!("/setting {args}");
+    };
+    let key = args[..split_idx].trim();
+    let value = args[split_idx..].trim();
+    if is_sensitive_key(key) && !value.is_empty() {
+        format!("/setting {key} [redacted]")
+    } else {
+        format!("/setting {args}")
     }
 }
 
@@ -619,6 +643,15 @@ mod tests {
         assert_eq!(
             workflow_label_for_cmd_payload(&payload),
             "/setting launcher.opacity 0.9"
+        );
+    }
+
+    #[test]
+    fn workflow_label_for_cmd_payload_redacts_sensitive_setting_values() {
+        let payload = json!({ "name": "setting", "args": "translation.api_key secret-value" });
+        assert_eq!(
+            workflow_label_for_cmd_payload(&payload),
+            "/setting translation.api_key [redacted]"
         );
     }
 
