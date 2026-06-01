@@ -153,7 +153,7 @@ function InstalledView({ onClose }: ViewProps) {
   }
 
   return (
-    <div ref={rootRef} tabIndex={-1} onKeyDown={handleKeyDown} className="flex flex-1 flex-col outline-none">
+    <div ref={rootRef} tabIndex={-1} onKeyDown={handleKeyDown} className="flex min-h-0 flex-1 flex-col outline-none">
       <div className="kn-panel-subtitle px-4 py-2">
         {data
           ? `${data.tool_label}: ${data.active_provider}:${data.active_model}`
@@ -162,7 +162,7 @@ function InstalledView({ onClose }: ViewProps) {
             : "Inspect the active AI Chat model"}
       </div>
 
-      <div className="kn-scroll flex-1 overflow-y-auto px-2 py-2">
+      <div className="kn-scroll min-h-0 flex-1 overflow-y-auto px-2 py-2">
         {rows.length === 0 ? (
           <div className="flex h-full min-h-[200px] items-center justify-center px-4 text-center text-xs text-[color:var(--kn-text-faint)]">
             {loading ? "Loading available models..." : "No models are currently available."}
@@ -560,7 +560,7 @@ function BrowseView({ onClose }: ViewProps) {
   }
 
   return (
-    <div ref={rootRef} tabIndex={-1} onKeyDown={handleKeyDown} className="flex flex-1 flex-col outline-none">
+    <div ref={rootRef} tabIndex={-1} onKeyDown={handleKeyDown} className="flex min-h-0 flex-1 flex-col outline-none">
       <div className="flex items-center justify-between gap-2 px-4 py-2">
         <span className="kn-panel-subtitle">Pick a local or hosted model for AI Chat</span>
         <span className="flex items-center gap-2">
@@ -595,7 +595,7 @@ function BrowseView({ onClose }: ViewProps) {
         </div>
       </div>
 
-      <div className="kn-scroll flex-1 overflow-y-auto px-2 py-2">
+      <div className="kn-scroll min-h-0 flex-1 overflow-y-auto px-2 py-2">
         <div className="space-y-1">
           {options.map((option, index) => {
             const isSelected = index === selected;
@@ -776,7 +776,7 @@ function RemoveView({ onClose }: ViewProps) {
   }
 
   return (
-    <div ref={rootRef} tabIndex={-1} onKeyDown={handleKeyDown} className="flex flex-1 flex-col outline-none">
+    <div ref={rootRef} tabIndex={-1} onKeyDown={handleKeyDown} className="flex min-h-0 flex-1 flex-col outline-none">
       <div className="kn-panel-subtitle px-4 py-2">
         {models.length > 0
           ? `${models.length} local model${models.length === 1 ? "" : "s"} available`
@@ -785,7 +785,7 @@ function RemoveView({ onClose }: ViewProps) {
             : "Delete local Ollama models"}
       </div>
 
-      <div className="kn-scroll flex-1 overflow-y-auto px-2 py-2">
+      <div className="kn-scroll min-h-0 flex-1 overflow-y-auto px-2 py-2">
         {models.length === 0 ? (
           <div className="flex h-full min-h-[200px] items-center justify-center px-4 text-center text-xs text-[color:var(--kn-text-faint)]">
             {loading ? "Loading local models..." : "No local models to remove."}
