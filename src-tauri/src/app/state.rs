@@ -18,10 +18,9 @@ use crate::handlers::{
     ai_capability::{AiCapabilityHandler, AiCapabilityHandlerDeps},
     automation::AutomationHandler,
     builtin_cmd::{
-        BuiltinCmdHandler, CalCommand, DownCommand, HelpCommand, HistoryCommand,
-        ModelDownloadCommand, ModelListCommand, ModelRemoveCommand, NoteCommand, OnboardCommand,
-        RebuildSearchIndexCommand, ReloadCommand, SettingCommand, SysCtlCommand, SysMonitorCommand,
-        TrCommand,
+        BuiltinCmdHandler, CalCommand, DownCommand, HelpCommand, HistoryCommand, ModelCommand,
+        NoteCommand, OnboardCommand, RebuildSearchIndexCommand, ReloadCommand, SettingCommand,
+        SysCtlCommand, SysMonitorCommand, TrCommand,
     },
     calculator::CalculatorHandler,
     dev_utils_cmd::{
@@ -221,7 +220,6 @@ fn create_managers(event_bus: &EventBus, knowledge_store: &KnowledgeStoreHandle)
 }
 
 fn build_builtin_registry(
-    model_manager: &Arc<ModelManager>,
     config_manager: &Arc<Mutex<ConfigManager>>,
     note_manager: &Arc<Mutex<NoteManager>>,
 ) -> Arc<Mutex<BuiltinCommandRegistry>> {
@@ -236,19 +234,14 @@ fn build_builtin_registry(
     // REF.6.B follow-up — `/ai` builtin removed: legacy chat panel does not
     // belong on the keyboard-first hot path (docx §4.6). Inline AI is now
     // invoked via prefix keyword (`explain <q>` / `summarize <text>`); the
-    // `ai.model` config still feeds the capability layer via /model_list.
+    // `ai.model` config still feeds the capability layer via /model.
     // If chat ever returns, re-register here and reinstate
     // `PanelRegistry["ai"]`.
     // REF.8 — the `/ai_legacy_chat` builtin + AiPanel chat UI were removed. The
     // backend agent_runtime + handlers/agent are retained (dormant) behind the
     // reserved `ai.legacy_agent` config flag, but there is no command/panel entry
     // point in this build, so nothing is registered here.
-    reg.register(Box::new(ModelDownloadCommand));
-    reg.register(Box::new(ModelListCommand));
-    reg.register(Box::new(ModelRemoveCommand::new(
-        Arc::clone(model_manager),
-        Arc::clone(config_manager),
-    )));
+    reg.register(Box::new(ModelCommand));
     reg.register(Box::new(NoteCommand::new(
         Arc::clone(note_manager),
         Arc::clone(config_manager),
@@ -285,7 +278,6 @@ fn build_command_router(
     knowledge_store: &KnowledgeStoreHandle,
 ) -> CommandRouter {
     let builtin_registry = build_builtin_registry(
-        &bundle.model_manager,
         &bundle.config_manager,
         &bundle.note_manager,
     );

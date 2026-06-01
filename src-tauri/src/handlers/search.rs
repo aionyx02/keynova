@@ -750,7 +750,7 @@ impl SearchHandler {
             let action = Action::open_panel(
                 format!("model:{}", model.name),
                 "Open model",
-                "model_list",
+                "model",
                 model.name.clone(),
             );
             let action_ref = self.action_arena.insert(session, action)?;

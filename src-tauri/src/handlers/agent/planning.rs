@@ -228,7 +228,7 @@ impl AgentHandler {
                 label: "Open model download".into(),
                 summary: "Open model download after explicit approval.".into(),
                 payload: json!({
-                    "panel": "model_download",
+                    "panel": "model",
                     "initial_args": prompt,
                 }),
             });
@@ -244,7 +244,7 @@ impl AgentHandler {
                 label: "Open model list".into(),
                 summary: "Open model management after explicit approval.".into(),
                 payload: json!({
-                    "panel": "model_list",
+                    "panel": "model",
                     "initial_args": prompt,
                 }),
             });
@@ -266,7 +266,7 @@ impl AgentHandler {
         } else if contains_any(&lower, &["calculator", "calculate", "計算", "计算"]) {
             ("calculator", "Open calculator panel")
         } else if contains_any(&lower, &["model list", "models", "模型列表", "模型"]) {
-            ("model_list", "Open model list panel")
+            ("model", "Open model panel")
         } else if contains_any(&lower, &["ai", "agent", "chat"]) {
             ("ai", "Open AI panel")
         } else {
