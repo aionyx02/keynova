@@ -51,7 +51,7 @@ Keynova 是一個 unified workflow entry：把搜尋、啟動、檔案操作、�
 
 | 平台 | 檔案 | 安裝方式 |
 | --- | --- | --- |
-| Windows | `Keynova_<version>_x64-setup.exe`（NSIS）或 `_x64.msi` | 雙擊執行 → 一鍵安裝；卸載走「設定 → 應用程式」 |
+| Windows | `Keynova_<version>_x64-setup.exe`（NSIS）| 雙擊執行 → 一鍵安裝；卸載走「設定 → 應用程式」 |
 | macOS | `Keynova_<version>_universal.dmg` | 開啟 `.dmg` → 拖入「應用程式」資料夾 |
 | Linux | `keynova_<version>_amd64.deb` / `keynova_<version>_amd64.AppImage` | `sudo apt install ./*.deb`，或賦予 `.AppImage` 執行權限後執行 |
 
