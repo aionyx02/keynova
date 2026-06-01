@@ -25,8 +25,10 @@ Keynova 的核心目標很直接：讓你少切視窗、少摸滑鼠、少在工
 
 目前最高優先級是 P0 架構重構：把舊的 chat-first agent 降級為 stateless inline capability，並把 unified search / unified result schema 變成產品主軸。未完成項目在本 README 皆標為「實現中」。
 
-## v0.3.0 重點
+## v0.4.0 重點
 
+- 移除舊版 chat-first AI 介面（`AiPanel`）：`ai_legacy_chat` 命令與 chat 面板已實體刪除，AI 互動完全收斂到 search-first capability flow。後端 agent runtime（typed-tool + approval 框架）保留為休眠資產，`ai.legacy_agent` 改為無 UI 入口的保留旗標，日後若 capability 需要 tool-using 可重新接上。
+- Linux / macOS release 修復：先前 `v0.3.0` 的 Linux（apt 套件衝突）與 macOS universal（二進位命名）build 失敗、等於只出了 Windows；本版修好跨平台 CI，三平台 artifact 一起出貨。
 - AI 互動正式變成 search-first capability flow：`explain`、`summarize`、`fix`、`cmd`、`next` 都能直接從 palette 進入，不需要把舊 chat-first 流程放回 hot path。
 - 自然語言入口更低摩擦：空白 palette 會直接顯示 `next` 建議；查無結果的操作意圖查詢會自動升級成 AI command generation。
 - Workflow memory 現在能對近期命令型操作做 replay / follow-up ranking，不再只是一個被動紀錄。
@@ -91,13 +93,13 @@ Keynova 目前處於底層架構重構與快速迭代階段，但已開始提供
 | Notes                      | Markdown 筆記與工作區脈絡                            | 已可用         |
 | Calculator / Dev Utilities | 常用計算、轉換與開發者小工具                         | 已可用         |
 | Onboarding                 | 首次使用引導、空狀態 CTA、cheatsheet                 | 已可用         |
-| Legacy AI Chat / Agent     | 舊版 chat-first / ReAct agent，相容期保留，但預設關閉 | 相容模式（可用） |
+| Legacy AI Chat (AiPanel)   | chat-first 介面已於 REF.8 移除（`ai_legacy_chat` 命令 + `AiPanel` 刪除） | 已移除 |
 | AI Capability Layer        | `explain` / `summarize` / `fix_error` / `gen_command` / `suggest_next` 五個 capability 已上線 | 已可用         |
 | Inline Capability & NL Flow | prefix (`explain` / `summarize` / `fix`) + 空白 `next` + 查無結果自然語言 fallback | 已可用         |
 | Unified Result Schema      | 統一 result、preview、rank signal、action chip       | 已可用         |
 | Workflow Memory            | recent workflow、context hash、suggestion ranking、replay descriptor | 已可用         |
 | Model Manager 整合         | 下載、列表、移除模型整合成單一管理面板               | 實現中         |
-| 舊 Agent / AiPanel 退場    | `ai.legacy_agent` 相容期後移除 chat-first surface    | 實現中         |
+| Agent 後端（休眠）         | typed-tool + approval 框架保留為休眠資產，無 UI 入口，`ai.legacy_agent` 為保留旗標 | 保留（休眠）   |
 
 ## 使用方式
 
@@ -145,7 +147,7 @@ jwt
 
 ### 5. AI 使用方式
 
-目前舊版 AI Chat / Agent 仍保留作相容用途，但產品方向已改變：
+舊版 chat-first AI Chat 介面已移除，AI 完全走 inline capability：
 
 - 已可用：在 launcher 直接輸入 prefix keyword 觸發 inline capability，例如：
 
@@ -159,7 +161,7 @@ jwt
 - 已可用：空白 palette 會直接顯示 `next` 建議；查無結果的自然語言意圖會自動判斷成 `explain` / `summarize` / `fix` / `cmd`。
 - 已可用：`cmd` 會生成可複製、可編輯、可送進附加終端機的命令卡；`next` 會顯示近期工作流建議並支援 replay。
 - 已可用：每次 AI 呼叫都是單步 capability，不保留 session memory，不自主連續執行工具。
-- 已可用：舊版 chat-first AI 仍能透過 `ai.legacy_agent = true` 啟用，但目前預設為關閉，後續會在觀察期結束後實體移除。
+- chat-first 介面已移除：`AiPanel` 與 `ai_legacy_chat` 命令已在 REF.8 刪除。`ai.legacy_agent` 現為保留的後端旗標（無 UI 入口）；後端 agent runtime 保留為休眠資產，供日後 tool-using capability 重新接用。
 - 已可用：刪除 / 重新命名 / 移動等 destructive file action 已走 UI confirmation gate；更泛化的 data-driven action confirm 仍在後續 capability action 收尾。
 
 這代表 Keynova 不會試圖取代 ChatGPT 或 Claude 的長對話場景。它會把 AI 放在你正在工作的地方，幫你解釋錯誤、摘要內容、產生命令或補上下一步建議。
@@ -235,7 +237,7 @@ backend = "auto"
 network_allowlist = ""
 ```
 
-`legacy_agent` 目前已預設為 `false`；需要相容模式時可手動打開，但這條路徑預計在觀察期結束後移除。
+`legacy_agent` 預設為 `false`，且 chat-first UI 已在 REF.8 移除，此旗標現為無 UI 入口的保留後端 gate；後端 agent runtime 保留為休眠資產，日後 tool-using capability 可重新接用。
 
 `performance.low_memory_mode = true` 會跳過 terminal prewarm、延後 startup indexing，並把預設 Ollama keep-alive 從 `5m` 縮到 `0s`。如果你在 Windows 上比較在意常駐記憶體，這是目前最直接的降載開關。
 
@@ -274,15 +276,15 @@ graph TD
 | `REF.4` | Stateless AI Capability Layer                  | 已完成（5/5 capabilities live）       |
 | `REF.5` | Workflow Memory                                | 已完成                                |
 | `REF.6` | Search box as pure dispatcher                  | 大致完成（`cmd` / `next` / NL fallback 已落地，仍有收尾） |
-| `REF.7` | Quantitative gates + legacy default off        | 進行中（A/B done；release WS investigation + qwen2.5:7b benchmark 待補） |
-| `REF.8` | Physical removal of deprecated chat/agent code | 實現中                                |
+| `REF.7` | Quantitative gates + legacy default off        | 進行中（A/B done、release WS 已收斂為真實 ~80 MB；僅剩 qwen2.5:7b 正式 benchmark 待補） |
+| `REF.8` | Physical removal of deprecated chat/agent code | 部分完成（`AiPanel` / chat UI 已刪；agent 後端保留休眠） |
 
 量化目標：
 
 - `CommandPalette.tsx`：原訂 250 行以下，REF.2 landed 在 598 行後決定接受現狀，`< 250 / < 400` 重新留給 REF.6 收尾。
 - `handlers/agent/mod.rs`：2406 行先降到 600 行以下（REF.3 landed 616），觀察期後刪除或壓到 100 行以下。
 - `agent_runtime.rs`：原本 docx 的 `< 400` 門檻已移除；repo 現況改以 `REF.8` 的舊路徑清理為準。
-- `AiPanel.tsx`：相容期後移除。
+- `AiPanel.tsx`：已於 REF.8 移除（979 行）；後端 agent runtime 保留為休眠資產。
 - Palette cold open：200 ms 以下。
 - Search first chunk P50：80 ms 以下。
 - AI inline P50：800 ms 以下（REF.7 仍需補正式 qwen2.5:7b 量測）。
