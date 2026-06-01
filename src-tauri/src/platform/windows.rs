@@ -122,9 +122,14 @@ if ([string]::IsNullOrWhiteSpace($path)) {
 $attrs = 0
 if ($kind -eq "folder") {
     $attrs = 0x10
+} elseif ($kind -eq "file") {
+    $attrs = 0x80
 }
 
 $flags = 0x100
+if ($env:KEYNOVA_ICON_USE_ATTRS -eq "1") {
+    $flags = $flags -bor 0x10
+}
 $info = New-Object KeynovaShellIcon+SHFILEINFO
 [void][KeynovaShellIcon]::SHGetFileInfo(
     $path,
@@ -240,30 +245,106 @@ fn write_icon_disk_cache(icon_key: &str, base64: &str) {
 }
 
 fn extract_shell_icon_base64(path: &str, kind: &str) -> Option<String> {
-    let output = std::process::Command::new("powershell.exe")
-        .args([
-            "-NoProfile",
-            "-NonInteractive",
-            "-ExecutionPolicy",
-            "Bypass",
-            "-Command",
-            SEARCH_ICON_SCRIPT,
-        ])
-        .env("KEYNOVA_ICON_PATH", path)
-        .env("KEYNOVA_ICON_KIND", kind)
-        .output()
-        .ok()?;
+    run_icon_script(path, kind, false)
+}
 
+fn run_icon_script(path: &str, kind: &str, use_attrs: bool) -> Option<String> {
+    let mut cmd = std::process::Command::new("powershell.exe");
+    cmd.args([
+        "-NoProfile",
+        "-NonInteractive",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-Command",
+        SEARCH_ICON_SCRIPT,
+    ])
+    .env("KEYNOVA_ICON_PATH", path)
+    .env("KEYNOVA_ICON_KIND", kind);
+    if use_attrs {
+        cmd.env("KEYNOVA_ICON_USE_ATTRS", "1");
+    }
+    let output = cmd.output().ok()?;
     if !output.status.success() {
         return None;
     }
-
     let text = String::from_utf8(output.stdout).ok()?;
     let base64 = text.trim();
     if base64.is_empty() {
         return None;
     }
     Some(base64.to_string())
+}
+
+// ─── Icon cache pre-warm ────────────────────────────────────────────────────
+//
+// Cold-cache first-render jank fix: after app scan completes at startup, walk
+// the candidate set and write disk-cache entries before the user opens the
+// palette. icon_key shape (see handlers::search::icon_key_for_item):
+//   - folder → "folder"
+//   - file:{ext} → shared across all files of the same extension
+//   - app:{hash} → one per .lnk path
+//
+// File-ext warming uses SHGFI_USEFILEATTRIBUTES so we get the system default
+// icon for that extension without touching a real file (env-gated; runtime
+// path still queries the actual file).
+
+const WARM_FILE_EXTENSIONS: &[&str] = &[
+    "txt", "md", "pdf", "doc", "docx", "xls", "xlsx", "ppt", "pptx", "png", "jpg", "jpeg", "gif",
+    "mp4", "mp3", "zip", "rar", "7z", "exe", "rs", "py", "js", "ts", "tsx", "jsx", "json", "html",
+    "css", "yaml", "yml", "toml",
+];
+
+/// Pre-warm the icon disk cache for folder + common file extensions + every
+/// scanned app. Skips work when the on-disk cache already has the key. Safe to
+/// run repeatedly; designed to be spawned on a background thread at startup.
+pub fn warm_icon_cache() {
+    warm_folder_icon();
+    warm_file_ext_icons();
+    warm_app_icons();
+}
+
+fn warm_folder_icon() {
+    use crate::handlers::search::icon_key_for_item;
+    use crate::models::search_result::ResultKind;
+    let probe = dirs::home_dir()
+        .map(|p| p.to_string_lossy().into_owned())
+        .unwrap_or_else(|| "C:\\".to_string());
+    let key = icon_key_for_item("warmcache", &probe, &ResultKind::Folder);
+    if read_icon_disk_cache(&key).is_some() {
+        return;
+    }
+    if let Some(base64) = run_icon_script(&probe, "folder", false) {
+        write_icon_disk_cache(&key, &base64);
+    }
+}
+
+fn warm_file_ext_icons() {
+    use crate::handlers::search::icon_key_for_item;
+    use crate::models::search_result::ResultKind;
+    for ext in WARM_FILE_EXTENSIONS {
+        let dummy = format!("probe.{ext}");
+        let key = icon_key_for_item("warmcache", &dummy, &ResultKind::File);
+        if read_icon_disk_cache(&key).is_some() {
+            continue;
+        }
+        if let Some(base64) = run_icon_script(&dummy, "file", true) {
+            write_icon_disk_cache(&key, &base64);
+        }
+    }
+}
+
+fn warm_app_icons() {
+    use crate::handlers::search::icon_key_for_item;
+    use crate::models::search_result::ResultKind;
+    for app in scan_applications() {
+        let key = icon_key_for_item("warmcache", &app.path, &ResultKind::App);
+        if read_icon_disk_cache(&key).is_some() {
+            continue;
+        }
+        if let Some(base64) = run_icon_script(&app.path, "app", false) {
+            write_icon_disk_cache(&key, &base64);
+        }
+    }
 }
 
 pub fn launch_app(path: &str) -> Result<(), String> {
@@ -1029,5 +1110,36 @@ mod tests {
             stem.chars().all(|c| c.is_ascii_hexdigit()),
             "expected lowercase hex stem, got {stem}"
         );
+    }
+
+    #[test]
+    fn warm_file_extensions_are_lowercase_unique_and_dotless() {
+        use std::collections::HashSet;
+        let set: HashSet<&&str> = WARM_FILE_EXTENSIONS.iter().collect();
+        assert_eq!(
+            set.len(),
+            WARM_FILE_EXTENSIONS.len(),
+            "duplicate extension in WARM_FILE_EXTENSIONS"
+        );
+        for ext in WARM_FILE_EXTENSIONS {
+            assert!(!ext.is_empty(), "empty extension entry");
+            assert!(!ext.starts_with('.'), "extension must not start with dot: {ext}");
+            assert_eq!(
+                *ext,
+                ext.to_ascii_lowercase(),
+                "extension must be lowercase: {ext}"
+            );
+        }
+    }
+
+    #[test]
+    fn warm_ext_keys_match_search_handler_format() {
+        use crate::handlers::search::icon_key_for_item;
+        use crate::models::search_result::ResultKind;
+        for ext in WARM_FILE_EXTENSIONS {
+            let dummy = format!("probe.{ext}");
+            let key = icon_key_for_item("warmcache", &dummy, &ResultKind::File);
+            assert_eq!(key, format!("file:{ext}"));
+        }
     }
 }
