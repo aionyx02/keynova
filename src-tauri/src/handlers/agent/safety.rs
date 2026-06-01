@@ -47,7 +47,7 @@ pub(super) fn is_allowlisted_safe_builtin(name: &str, args: &str) -> bool {
     args.trim().is_empty()
         && matches!(
             name,
-            "help" | "note" | "history" | "cal" | "tr" | "ai" | "model_list"
+            "help" | "note" | "history" | "cal" | "tr" | "ai" | "model"
         )
 }
 

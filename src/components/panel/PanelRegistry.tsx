@@ -10,11 +10,8 @@ export type { PanelProps };
 const SettingPanel = React.lazy(() =>
   import("../../features/settings/SettingPanel").then((m) => ({ default: m.SettingPanel })),
 );
-const ModelDownloadPanel = React.lazy(() =>
-  import("../../features/model-manager/ModelDownloadPanel").then((m) => ({ default: m.ModelDownloadPanel })),
-);
-const ModelListPanel = React.lazy(() =>
-  import("../../features/model-manager/ModelListPanel").then((m) => ({ default: m.ModelListPanel })),
+const ModelPanel = React.lazy(() =>
+  import("../../features/model-manager/ModelPanel").then((m) => ({ default: m.ModelPanel })),
 );
 const TranslationPanel = React.lazy(() =>
   import("../../features/translation/TranslationPanel").then((m) => ({ default: m.TranslationPanel })),
@@ -31,9 +28,6 @@ const HistoryPanel = React.lazy(() =>
 const SystemPanel = React.lazy(() =>
   import("../../features/system/SystemPanel").then((m) => ({ default: m.SystemPanel })),
 );
-const ModelRemovePanel = React.lazy(() =>
-  import("../../features/model-manager/ModelRemovePanel").then((m) => ({ default: m.ModelRemovePanel })),
-);
 const SystemMonitoringPanel = React.lazy(() =>
   import("../../features/system-monitor/SystemMonitoringPanel").then((m) => ({ default: m.SystemMonitoringPanel })),
 );
@@ -44,9 +38,7 @@ const NvimDownloadPanel = React.lazy(() =>
 /** 將後端回傳的 panel name 對應至 React 元件。新增面板只需在此 Record 加一筆。 */
 export const PanelRegistry: Record<string, React.ComponentType<PanelProps>> = {
   setting: SettingPanel as React.ComponentType<PanelProps>,
-  model_download: ModelDownloadPanel,
-  model_list: ModelListPanel,
-  model_remove: ModelRemovePanel,
+  model: ModelPanel,
   translation: TranslationPanel,
   note: NoteEditor,
   calculator: CalculatorPanel,
