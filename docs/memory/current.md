@@ -41,5 +41,5 @@ owner: project
 
 - REF.7.D is still user-action: `ollama pull qwen2.5:7b && npm run bench:ai -- --runs 10 --model qwen2.5:7b`. Only `qwen3:0.6b` is local.
 - REF.7.C closes by filling ADR-0029 §10 from the REF.7.D output (one follow-up edit) + user-side Bug A/B smoke.
-- REF.8 AiPanel removal landed on `feature/ref-8-aipanel-removal` (forked from `main`): chat-first `AiPanel.tsx` + `ai_legacy` panel route + `ai_legacy_chat` builtin deleted; `agent_runtime.rs` + `handlers/agent/` + the `ai.legacy_agent` flag are retained as a dormant backend asset with no UI entry point. Observation-gate lifted by explicit developer instruction (2026-06-01). Backend agent deletion + flag removal are intentionally NOT done.
+- `v0.4.0` shipped (merged to `main` `479ebf8`, tagged → release CI running): REF.8 (partial) deleted chat-first `AiPanel` + `ai_legacy_chat` (agent backend + `ai.legacy_agent` flag retained dormant, no UI; gate lifted by dev 2026-06-01). Also carries Linux (apt conflict) + macOS (`mainBinaryName` universal bundle) fixes — first build expected to ship all 3 platforms. UNSIGNED; signing pending dev-supplied certs. Detail in `sessions/2026-06-01.md`.
 - Run `npm run docs:refresh` before commit or handoff.
