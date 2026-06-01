@@ -654,15 +654,15 @@ pub fn builtin_setting_schema() -> Vec<SettingSchema> {
             false,
             &[],
         ),
-        // REF.7.A — compatibility flag for the chat-first agent path. Default off:
-        // the stateless capability layer (REF.4-REF.6) is now canonical. When true,
-        // legacy /ai_legacy_chat command + AiPanel mount become reachable; legacy
-        // ConfigManager-gated paths in handlers/agent/planning.rs and
-        // handlers/agent/answers.rs early-return on false.
+        // REF.8 — reserved backend flag for the retained legacy agent path. The
+        // chat-first UI (AiPanel + /ai_legacy_chat command) was removed in REF.8;
+        // agent_runtime + handlers/agent are kept as a dormant capability asset.
+        // When true, the ConfigManager-gated paths in handlers/agent/planning.rs
+        // and handlers/agent/answers.rs stay active. No UI entry point in this build.
         SettingSchema::new(
             "ai.legacy_agent",
             "ai",
-            "Legacy chat-first agent (compatibility)",
+            "Legacy agent backend (reserved, no UI)",
             Boolean,
             "false",
             false,
