@@ -400,22 +400,16 @@
     },
     {
       "id": "REF.8",
-      "title": "Physical Removal",
-      "priority": "P0",
-      "status": "open",
-      "summary": "physical removal decision (`AiPanel` deletion, `agent_runtime` trim, flag removal)",
+      "title": "Physical Removal — PARTIAL (2026-06-01)",
+      "priority": "P0 after observation",
+      "status": "planned",
+      "summary": "Physical Removal — PARTIAL (2026-06-01)",
       "depends_on": [
         "REF.7"
       ],
       "parallel_with": [],
       "source": "docs/tasks/refactor-ai-capability.md",
-      "scope": [
-        "Decide AiPanel deletion based on observation-cycle telemetry. If",
-        "Delete or shrink `agent_runtime.rs` to the remaining archival/audit",
-        "Delete migrated `handlers/agent/` legacy content.",
-        "Remove `ai.legacy_agent`.",
-        "Mark superseded ADRs (0011 / 0016 / 0022 / 0026) according to the accepted"
-      ],
+      "scope": [],
       "non_goals": [
         "Do not remove audit log tables or historical user data."
       ],

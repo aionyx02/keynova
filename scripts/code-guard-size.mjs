@@ -24,7 +24,6 @@ const LIMITS = new Map([
   ["src-tauri/src/handlers/agent/sources.rs", 13_312],
   ["src-tauri/src/handlers/agent/tools.rs", 23_552],
   ["src-tauri/src/handlers/builtin_cmd.rs", 44_032],
-  ["src/components/AiPanel.tsx", 41_984],
   ["src/components/CommandPalette.tsx", 36_864],
   ["src/features/settings/SettingPanel.tsx", 18_432],
   ["src/features/translation/TranslationPanel.tsx", 21_504],

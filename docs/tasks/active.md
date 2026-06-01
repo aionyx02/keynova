@@ -2,7 +2,7 @@
 type: task_index
 status: active
 priority: p0
-updated: 2026-05-31
+updated: 2026-06-01
 context_policy: always_retrievable
 owner: project
 tags: [refactor, ai-capability, search-first, p0]
@@ -33,7 +33,7 @@ tags: [refactor, ai-capability, search-first, p0]
   - [x] `REF.6.I` ADR-0040 (proposed) template slimming to 4 sections (ADR-0030 slot was already taken by Backend Risk Tag Contract; reassigned to 0040).
   - [x] `REF.6.J` rule-based NL intent router (fallback). `classifyNlIntent` routes no-result NL queries to `explain` / `summarize` / `fix` / `cmd` so the user no longer needs the explicit prefix for common asks. Re-uses the existing stabilization debounce + dismissed-key gate; explicit prefixes still take priority.
 - [~] `REF.7` quantitative gates, default `ai.legacy_agent = false`. .A + .B shipped in v0.3.0 (tag `v0.3.0`, merged to `main`). .C release notes shipped as `docs/release-notes/v0.3.0.md`; ADR-0029 §10 measurement scaffolded, `pending REF.7.D`. .D is user-action (`qwen2.5:7b` 4.7 GB bench). Observation-window items (`ai.legacy_agent` off, idle RSS) stay `pending observation`.
-- [ ] `REF.8` physical removal decision (`AiPanel` deletion, `agent_runtime` trim, flag removal).
+- [~] `REF.8` physical removal. Done: `AiPanel.tsx` + `ai_legacy` route + `ai_legacy_chat` builtin deleted (developer lifted the observation gate 2026-06-01). Retained by developer decision: `agent_runtime.rs` + `handlers/agent/` + `ai.legacy_agent` flag (dormant, no UI entry). Not done: backend agent trim/removal, flag removal, superseding ADRs 0011/0016/0022/0026.
 
 Detailed batch definitions, done criteria, non-goals, file map, and validation gates live in `docs/tasks/refactor-ai-capability.md`.
 

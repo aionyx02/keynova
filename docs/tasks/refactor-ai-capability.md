@@ -2,7 +2,7 @@
 type: task_plan
 status: active
 priority: p0
-updated: 2026-05-30
+updated: 2026-06-01
 context_policy: on_demand
 owner: project
 tags: [refactor, ai-capability, unified-result, workflow-memory, search-first]
@@ -687,11 +687,35 @@ npm run bench:ai -- --runs 10 --model qwen2.5:7b
 
 then pastes the output back so REF.7.C records it in ADR-0029.
 
-### REF.8 - Physical Removal
+### REF.8 - Physical Removal — PARTIAL (2026-06-01)
 
 Priority: P0 after observation
 
-Scope:
+Status (2026-06-01): Developer lifted the observation gate and scoped REF.8 to the
+frontend chat-UI removal only, retaining the agent backend as a dormant asset for
+possible future reuse. Landed on `feature/ref-8-aipanel-removal` (forked from
+`main`):
+
+- **Deleted**: `src/components/AiPanel.tsx` (979 lines), the `ai_legacy`
+  `PanelRegistry` route + `AiPanelLazy` import, the `ai_legacy_chat` builtin
+  (`AiLegacyChatCommand`) + its flag-gated boot registration in `app/state.rs`,
+  the `ai.legacy_agent` frontend watch key, and the `AiPanel.tsx` size-guard entry.
+- **Retained (developer decision)**: `core/agent_runtime.rs` + `handlers/agent/`
+  (typed-tool + approval framework — real reuse value if the stateless
+  capabilities ever go tool-using) and the `ai.legacy_agent` config flag, now a
+  reserved backend gate with no UI entry point. `handlers/agent/mod.rs` still
+  honours the flag for the backend run path; its disabled-state message was
+  updated to stop promising a panel that no longer exists.
+- **Not done** (remain open, no longer gated but deferred as a product decision):
+  backend agent trim/removal, `ai.legacy_agent` flag removal, and superseding
+  ADRs 0011 / 0016 / 0022 / 0026.
+
+Verification: `cargo clippy --lib -- -D warnings` clean; `cargo test --lib` 411
+passed; `npm run lint`, `npm run guard:size`, `npm run build` clean and the
+AiPanel chunk is gone; `npm run test` 162 passed (the one failure is the
+unrelated untracked `SettingPanel.test.tsx` secret-redaction WIP).
+
+Original scope (for the still-open backend items):
 - Decide AiPanel deletion based on observation-cycle telemetry. If
   `ai.legacy_agent = true` selection rate < 1% across the observation
   window, delete `src/components/AiPanel.tsx` entirely. Otherwise retain as
