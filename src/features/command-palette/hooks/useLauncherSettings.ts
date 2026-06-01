@@ -25,12 +25,6 @@ const WATCHED_KEYS: ReadonlyArray<string> = [
   "search.preview_enabled",
   "search.show_rank_breakdown",
   "launcher.show_capability_hint",
-  // REF.7.A — observability only on this branch. The legacy AiPanel mount
-  // gate lives backend-side (BuiltinCommandRegistry registers
-  // `ai_legacy_chat` at boot only when the flag is true), so the frontend
-  // does not need to branch on this value yet. Watching it now keeps the
-  // setting reachable through `setting.list_all` for the settings UI.
-  "ai.legacy_agent",
 ];
 
 export interface UseLauncherSettingsDeps {

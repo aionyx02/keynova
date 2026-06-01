@@ -110,8 +110,8 @@ pub struct AgentPlannedAction {
 }
 
 /// `status` is the canonical pending/approved/rejected/approval_timeout string.
-/// Frontend (`stepStatusBadge` in AiPanel) already recognises `approval_timeout`;
-/// keeping `String` here avoids a TS discriminated-union migration.
+/// Kept as `String` (not a discriminated union) on the retained dormant agent
+/// backend; the legacy `AiPanel` consumer was removed in REF.8.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AgentApproval {
     pub id: String,

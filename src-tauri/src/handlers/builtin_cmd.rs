@@ -156,27 +156,6 @@ impl BuiltinCommand for ModelListCommand {
     }
 }
 
-/// REF.7.A — Legacy chat-first agent panel command. Registered at boot only
-/// when `ai.legacy_agent = true`; routes to `panel:ai_legacy` so the existing
-/// `AiPanel.tsx` (kept as legacy fallback per REF.6.G) becomes reachable for
-/// the observation window.
-pub struct AiLegacyChatCommand;
-
-impl BuiltinCommand for AiLegacyChatCommand {
-    fn name(&self) -> &'static str {
-        "ai_legacy_chat"
-    }
-    fn description(&self) -> &'static str {
-        "Open the legacy AI chat panel (compatibility)"
-    }
-    fn execute(&self, _args: &str) -> BuiltinCommandResult {
-        BuiltinCommandResult {
-            text: String::new(),
-            ui_type: CommandUiType::Panel("ai_legacy".into()),
-        }
-    }
-}
-
 pub struct ModelRemoveCommand {
     manager: Arc<ModelManager>,
     config: Arc<Mutex<ConfigManager>>,

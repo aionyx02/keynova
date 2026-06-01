@@ -116,10 +116,13 @@ impl CommandHandler for AgentHandler {
                     if !enabled {
                         return Err("Agent 功能已停用。請前往 /setting → Features 開啟。".into());
                     }
-                    // REF.7.A — legacy chat-first agent gate. Default off; the
+                    // REF.8 — legacy chat-first agent gate. Default off; the
                     // stateless capability layer (palette prefix / NL surfaces)
-                    // is now canonical. Setting `ai.legacy_agent = true` keeps
-                    // the legacy AiPanel reachable for the observation window.
+                    // is now canonical. The chat-first `AiPanel` UI was removed
+                    // in REF.8, so this backend agent runtime is retained as a
+                    // dormant asset with no UI entry point in this build. The
+                    // `ai.legacy_agent` flag still gates the backend run path so
+                    // the agent can be re-enabled if a future surface consumes it.
                     let legacy_on = cfg
                         .get("ai.legacy_agent")
                         .as_deref()
@@ -128,8 +131,9 @@ impl CommandHandler for AgentHandler {
                     if !legacy_on {
                         return Err("Legacy chat-first agent is disabled. Use palette \
                              prefixes (explain / summarize / fix / cmd / next) \
-                             or NL queries instead. Set `ai.legacy_agent = true` \
-                             in /setting → AI to restore the legacy panel."
+                             or NL queries instead. The legacy chat panel was removed \
+                             in REF.8; the agent backend is retained but has no UI \
+                             entry point in this build."
                             .into());
                     }
                 }
