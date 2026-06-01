@@ -41,5 +41,5 @@ owner: project
 
 - REF.7.D is still user-action: `ollama pull qwen2.5:7b && npm run bench:ai -- --runs 10 --model qwen2.5:7b`. Only `qwen3:0.6b` is local.
 - REF.7.C closes by filling ADR-0029 §10 from the REF.7.D output (one follow-up edit) + user-side Bug A/B smoke.
-- `v0.4.0` shipped (merged to `main` `479ebf8`, tagged → release CI running): REF.8 (partial) deleted chat-first `AiPanel` + `ai_legacy_chat` (agent backend + `ai.legacy_agent` flag retained dormant, no UI; gate lifted by dev 2026-06-01). Also carries Linux (apt conflict) + macOS (`mainBinaryName` universal bundle) fixes — first build expected to ship all 3 platforms. UNSIGNED; signing pending dev-supplied certs. Detail in `sessions/2026-06-01.md`.
+- `v0.5.0` tagged from `main` — the release that actually carries everything: REF.8 (AiPanel/chat removed, agent backend dormant), all 3 release-CI fixes (Linux apt conflict, macOS `mainBinaryName`, Windows NSIS-only/no-MSI), consolidated features (Google Translate v2, single-tab ModelPanel, setting redaction, icon-warm), and the AGPL-3.0 relicense. `v0.4.0` (`479ebf8`) failed CI (Windows MSI) and is superseded. UNSIGNED. 22 fully-merged branches + brand-icon (unmergeable, icons already on main) pending cleanup decision. Detail in `sessions/2026-06-01.md`.
 - Run `npm run docs:refresh` before commit or handoff.
