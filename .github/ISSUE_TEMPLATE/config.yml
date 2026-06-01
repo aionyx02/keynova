@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: 📖 安裝 / 使用問題
+    url: https://github.com/aionyx02/keynova/blob/main/README.md
+    about: 安裝、第一次執行（SmartScreen/Gatekeeper）、設定等問題，請先看 README。
+  - name: 🔒 安全性問題
+    url: https://github.com/aionyx02/keynova/blob/main/docs/security.md
+    about: 涉及安全漏洞的問題請勿開公開 issue，請參考安全政策以私下回報。

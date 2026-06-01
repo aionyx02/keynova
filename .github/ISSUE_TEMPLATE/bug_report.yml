@@ -1,0 +1,102 @@
+name: 🐛 Bug 回報
+description: 回報錯誤、崩潰或非預期行為
+title: "[Bug] "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        感謝回報問題。請盡量填寫以下欄位——可重現的步驟與環境資訊能大幅加快修復速度。
+        回報前請先在 [既有 issues](https://github.com/aionyx02/keynova/issues) 搜尋是否已有相同問題。
+
+  - type: textarea
+    id: summary
+    attributes:
+      label: 問題描述
+      description: 簡述發生了什麼事。
+      placeholder: 例如：在搜尋框輸入中文時，launcher 會自動收起。
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: 重現步驟
+      description: 請列出能穩定重現問題的步驟。
+      placeholder: |
+        1. 按 Ctrl+K 開啟 launcher
+        2. 輸入「...」
+        3. 觀察到「...」
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: 預期行為
+      placeholder: 我預期會發生什麼。
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: 實際行為
+      placeholder: 實際發生了什麼（含錯誤訊息）。
+
+  - type: dropdown
+    id: os
+    attributes:
+      label: 作業系統
+      options:
+        - Windows
+        - Linux (X11)
+        - Linux (Wayland)
+        - macOS
+    validations:
+      required: true
+
+  - type: input
+    id: os_version
+    attributes:
+      label: 作業系統版本
+      placeholder: 例如 Windows 11 23H2 / Ubuntu 22.04 / macOS 14.5
+
+  - type: input
+    id: app_version
+    attributes:
+      label: Keynova 版本
+      description: 見 /setting 或安裝檔名；從原始碼建置請填 commit。
+      placeholder: 例如 v0.5.0
+    validations:
+      required: true
+
+  - type: dropdown
+    id: install_method
+    attributes:
+      label: 安裝方式
+      options:
+        - Windows NSIS (.exe)
+        - macOS (.dmg)
+        - Linux (.deb)
+        - Linux (.AppImage)
+        - 從原始碼建置 (npm run tauri dev/build)
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: 相關 log / console 輸出
+      description: 若有，請貼上終端機 stderr、DevTools console，或崩潰訊息。會自動以程式碼區塊呈現。
+      render: shell
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: 確認事項
+      options:
+        - label: 我已搜尋過既有 issues，確認沒有重複。
+          required: true
+        - label: 我使用的是最新版本（或已說明所用版本）。
+          required: true
