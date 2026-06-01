@@ -160,6 +160,11 @@ pub(crate) fn prescan_apps(app: &tauri::App) {
             .command_router
             .dispatch("launcher.list_all", Value::Null);
     });
+
+    #[cfg(target_os = "windows")]
+    std::thread::spawn(|| {
+        crate::platform::windows::warm_icon_cache();
+    });
 }
 
 pub(crate) fn start_file_index() {
