@@ -1,0 +1,61 @@
+name: ✨ 功能建議
+description: 提出新功能或改進想法
+title: "[Feature] "
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        感謝你的想法。Keynova 是鍵盤優先的 unified workflow 入口，產品方向是
+        **搜尋優先、AI 作為 capability 而非核心**。提案前請先在
+        [既有 issues](https://github.com/aionyx02/keynova/issues) 搜尋是否已被提出。
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: 想解決的問題
+      description: 你遇到什麼痛點？這個功能要解決什麼情境？
+      placeholder: 例如：我常需要在搜尋結果上直接……，但目前得切到別的工具。
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: 建議的方案
+      description: 你希望 Keynova 怎麼做？盡量具體（觸發方式、鍵盤操作、預期結果）。
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: 替代方案 / 既有做法
+      placeholder: 你目前怎麼繞過這個問題？有沒有其他可行做法？
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: 相關模組
+      options:
+        - Command Palette / 搜尋
+        - File Actions / 預覽
+        - Terminal / Dev Utilities
+        - Notes
+        - AI Capability (explain/summarize/fix/cmd/next)
+        - Translation
+        - Model Manager
+        - 設定 / 平台整合
+        - 其他 / 不確定
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: 確認事項
+      options:
+        - label: 我已搜尋過既有 issues，確認沒有重複。
+          required: true
+        - label: 這個建議符合「搜尋優先、AI 為 capability」的產品方向（而非把 AI 變回 chat 核心）。
+          required: true
