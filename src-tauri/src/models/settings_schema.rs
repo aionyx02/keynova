@@ -741,7 +741,29 @@ pub fn validate_user_setting_value(key: &str, value: &str) -> Result<(), String>
         ));
     }
 
+    // Security wave B (#2 residual): command-path settings (`terminal.default_shell`,
+    // `notes.lazyvim_command`) feed the program field of a backend-issued
+    // TerminalLaunchSpec. Terminal launch is already gated to backend-issued
+    // specs, but reject shell metacharacters / control chars here as
+    // defense-in-depth so a stored setting can't smuggle extra commands into any
+    // current or future launch path. Spaces and quotes (paths) remain allowed.
+    if is_command_setting_key(key) && contains_unsafe_command_chars(trimmed) {
+        return Err(format!(
+            "setting '{key}' must be a plain command or path without shell metacharacters"
+        ));
+    }
+
     Ok(())
+}
+
+fn is_command_setting_key(key: &str) -> bool {
+    matches!(key, "terminal.default_shell" | "notes.lazyvim_command")
+}
+
+fn contains_unsafe_command_chars(value: &str) -> bool {
+    value
+        .chars()
+        .any(|c| c.is_control() || matches!(c, ';' | '&' | '|' | '<' | '>' | '`' | '$'))
 }
 
 pub fn redact_setting_value(key: &str, value: &str) -> String {

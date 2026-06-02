@@ -33,14 +33,18 @@ export function useFilePreview(results: SearchResult[], selected: number) {
       dispatch<FilePreviewResult>(IPC.FILE_PREVIEW, { path: result.path })
         .then((preview) => {
           if (cancelled) return;
+          // Key the cache by the requested result path; image previews no longer
+          // echo a `path` field (security wave B #1), and keying by request is
+          // correct regardless.
+          const key = result.path;
           setPreviewByPath((prev) => {
             // Skip if a racing fetch already filled it.
-            if (prev[preview.path]) return prev;
-            const next = { ...prev, [preview.path]: preview };
-            orderRef.current.push(preview.path);
+            if (prev[key]) return prev;
+            const next = { ...prev, [key]: preview };
+            orderRef.current.push(key);
             while (orderRef.current.length > CACHE_CAP) {
               const evicted = orderRef.current.shift();
-              if (evicted && evicted !== preview.path) {
+              if (evicted && evicted !== key) {
                 delete next[evicted];
               }
             }

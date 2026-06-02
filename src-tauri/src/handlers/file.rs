@@ -3,6 +3,7 @@ use std::io::Read;
 use std::path::{Path, PathBuf};
 use std::time::UNIX_EPOCH;
 
+use base64::Engine as _;
 use serde_json::{json, Value};
 use sha2::{Digest, Sha256};
 
@@ -232,14 +233,39 @@ impl CommandHandler for FileHandler {
                     .map(|d| d.as_millis() as i64);
                 let kind = classify_path(p, &meta);
                 match kind {
-                    PreviewKind::Image => Ok(json!({
-                        "path": path,
-                        "kind": "image",
-                        "size_bytes": size_bytes,
-                        "modified_ms": modified_ms,
-                        "mime": guess_image_mime(p),
-                        "truncated": false,
-                    })),
+                    PreviewKind::Image => {
+                        // Security wave B (#1): deliver the image inline as a
+                        // bounded base64 data URL instead of returning a raw
+                        // filesystem path the renderer loads via the asset
+                        // protocol. The asset protocol is disabled (see
+                        // tauri.conf.json), so the renderer can no longer reach
+                        // arbitrary paths through `convertFileSrc`. Oversized
+                        // images fall back to metadata-only to bound IPC/memory.
+                        const MAX_INLINE_IMAGE_BYTES: u64 = 8 * 1024 * 1024;
+                        let mime = guess_image_mime(p);
+                        if size_bytes > MAX_INLINE_IMAGE_BYTES {
+                            Ok(json!({
+                                "kind": "image",
+                                "size_bytes": size_bytes,
+                                "modified_ms": modified_ms,
+                                "mime": mime,
+                                "truncated": false,
+                                "oversized": true,
+                            }))
+                        } else {
+                            let bytes =
+                                fs::read(p).map_err(|e| format!("read image failed: {e}"))?;
+                            let b64 = base64::engine::general_purpose::STANDARD.encode(&bytes);
+                            Ok(json!({
+                                "kind": "image",
+                                "size_bytes": size_bytes,
+                                "modified_ms": modified_ms,
+                                "mime": mime,
+                                "truncated": false,
+                                "data_url": format!("data:{mime};base64,{b64}"),
+                            }))
+                        }
+                    }
                     PreviewKind::Text => {
                         let max_bytes = req.max_bytes.unwrap_or(4096).min(64 * 1024);
                         let max_lines = req.max_lines.unwrap_or(500).min(2000);

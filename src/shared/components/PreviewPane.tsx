@@ -1,4 +1,3 @@
-import { convertFileSrc } from "@tauri-apps/api/core";
 import { useState } from "react";
 
 import type { FilePreviewResult, SearchResult } from "../../types/search";
@@ -22,7 +21,7 @@ function formatMtime(ms?: number): string {
 }
 
 export function PreviewPane({ result, preview, loading }: Props) {
-  const [failedImagePath, setFailedImagePath] = useState<string | null>(null);
+  const [imageFailed, setImageFailed] = useState(false);
 
   if (!result) {
     return (
@@ -55,14 +54,14 @@ export function PreviewPane({ result, preview, loading }: Props) {
   }
 
   if (preview.kind === "image") {
-    const imageSrc = convertFileSrc(preview.path);
-    const imageLoadFailed = failedImagePath === preview.path;
+    const imageSrc = preview.data_url;
+    const imageUnavailable = imageFailed || !imageSrc;
     return (
       <div className="flex h-full flex-col p-3">
         <div className="flex flex-1 items-center justify-center overflow-hidden rounded-[8px] border border-[color:var(--kn-border)] bg-white/[0.03] shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]">
-          {imageLoadFailed ? (
+          {imageUnavailable ? (
             <div className="px-5 text-center text-sm text-[color:var(--kn-text-muted)]">
-              Image preview failed to load
+              {preview.oversized ? "Image too large to preview" : "Image preview failed to load"}
             </div>
           ) : (
             <img
@@ -70,7 +69,7 @@ export function PreviewPane({ result, preview, loading }: Props) {
               alt=""
               className="max-h-full max-w-full object-contain"
               draggable={false}
-              onError={() => setFailedImagePath(preview.path)}
+              onError={() => setImageFailed(true)}
             />
           )}
         </div>
