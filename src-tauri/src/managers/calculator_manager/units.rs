@@ -1,8 +1,7 @@
 //! Currency table, base/value parsing, unit + temperature conversion, and
 //! number formatting (UTIL.1.A / UTIL.1.B).
 //!
-//! Extracted from `calculator_manager.rs` (REF.9.B) as a pure structural move;
-//! behavior unchanged.
+//! Focused unit conversion module used by the calculator manager.
 
 use std::collections::HashMap;
 

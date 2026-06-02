@@ -8,7 +8,7 @@ const DEBOUNCE_MS = 80;
 const CACHE_CAP = 64;
 
 /**
- * LAUNCH.1.C — fetches `file.preview` for the focused result, debounced so
+ * Fetches `file.preview` for the focused result, debounced so
  * rapid ↑/↓ collapses to one IPC dispatch. Caches by path (LRU, cap 64) and
  * skips non-previewable kinds (app / command / history / model).
  *

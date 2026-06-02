@@ -1,4 +1,4 @@
-// REF.2.P3 — Secondary-action menu state.
+// Secondary-action menu state.
 //
 // Owns the five state pieces that move together when the user presses
 // `→` / `Tab` on a search result to expand the secondary-action menu:

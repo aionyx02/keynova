@@ -27,33 +27,33 @@ Keynova 是一個 unified workflow entry：把搜尋、啟動、檔案操作、�
 
 ## 主要功能
 
-| 模組 | 能力 |
-| --- | --- |
-| Command Palette | 全域快捷鍵開啟、模糊搜尋、結果瀏覽、鍵盤操作 |
-| Workspace Search | 工作區感知搜尋、app 與檔案結果、串流回傳 |
-| File Actions | 開啟、在檔案總管顯示、預覽、重新命名、移動、刪除（含真實刪除驗證）|
-| Secondary Action Menu | 結果列上的二級操作與 confirmation flow |
-| Preview Pane | 文字、圖片與檔案 metadata 預覽 |
-| Terminal | 內嵌終端機面板、lazy runtime、附加 launch spec |
-| Notes | Markdown 筆記與工作區脈絡 |
-| Calculator / Dev Utilities | 計算、轉換與開發者小工具（hash / uuid / regex / jwt / killport 等）|
-| Translation | 文字翻譯，採用 Google Cloud Translation v2 |
-| Model Manager | 單一分頁式 `/model` 面板：下載、列出、移除本機模型 |
-| AI Capability Layer | `explain` / `summarize` / `fix_error` / `gen_command` / `suggest_next` 五個單步 capability |
-| Inline / NL Flow | prefix（`explain` / `summarize` / `fix` / `cmd`）+ 空白 `next` + 查無結果時的自然語言 fallback |
-| Unified Result | 所有來源共用 result / preview / rank signal / action chip schema |
-| Workflow Memory | 記錄近期操作、context hash、suggestion ranking、可重播的 replay descriptor |
-| Onboarding | 首次使用引導、空狀態 CTA、cheatsheet |
+| 模組                       | 能力                                                                                           |
+| -------------------------- | ---------------------------------------------------------------------------------------------- |
+| Command Palette            | 全域快捷鍵開啟、模糊搜尋、結果瀏覽、鍵盤操作                                                   |
+| Workspace Search           | 工作區感知搜尋、app 與檔案結果、串流回傳                                                       |
+| File Actions               | 開啟、在檔案總管顯示、預覽、重新命名、移動、刪除（含真實刪除驗證）                             |
+| Secondary Action Menu      | 結果列上的二級操作與 confirmation flow                                                         |
+| Preview Pane               | 文字、圖片與檔案 metadata 預覽                                                                 |
+| Terminal                   | 內嵌終端機面板、lazy runtime、附加 launch spec                                                 |
+| Notes                      | Markdown 筆記與工作區脈絡                                                                      |
+| Calculator / Dev Utilities | 計算、轉換與開發者小工具（hash / uuid / regex / jwt / killport 等）                            |
+| Translation                | 文字翻譯，採用 Google Cloud Translation v2                                                     |
+| Model Manager              | 單一分頁式 `/model` 面板：下載、列出、移除本機模型                                             |
+| AI Capability Layer        | `explain` / `summarize` / `fix_error` / `gen_command` / `suggest_next` 五個單步 capability     |
+| Inline / NL Flow           | prefix（`explain` / `summarize` / `fix` / `cmd`）+ 空白 `next` + 查無結果時的自然語言 fallback |
+| Unified Result             | 所有來源共用 result / preview / rank signal / action chip schema                               |
+| Workflow Memory            | 記錄近期操作、context hash、suggestion ranking、可重播的 replay descriptor                     |
+| Onboarding                 | 首次使用引導、空狀態 CTA、cheatsheet                                                           |
 
 ## 下載與安裝
 
 預先編譯的安裝檔都在 [GitHub Releases](https://github.com/aionyx02/keynova/releases)，方便不想配置 Node.js / Rust 環境的使用者直接試用。
 
-| 平台 | 檔案 | 安裝方式 |
-| --- | --- | --- |
-| Windows | `Keynova_<version>_x64-setup.exe`（NSIS）| 雙擊執行 → 一鍵安裝；卸載走「設定 → 應用程式」 |
-| macOS | `Keynova_<version>_universal.dmg` | 開啟 `.dmg` → 拖入「應用程式」資料夾 |
-| Linux | `keynova_<version>_amd64.deb` / `keynova_<version>_amd64.AppImage` | `sudo apt install ./*.deb`，或賦予 `.AppImage` 執行權限後執行 |
+| 平台    | 檔案                                                               | 安裝方式                                                      |
+| ------- | ------------------------------------------------------------------ | ------------------------------------------------------------- |
+| Windows | `Keynova_<version>_x64-setup.exe`（NSIS）                          | 雙擊執行 → 一鍵安裝；卸載走「設定 → 應用程式」                |
+| macOS   | `Keynova_<version>_universal.dmg`                                  | 開啟 `.dmg` → 拖入「應用程式」資料夾                          |
+| Linux   | `keynova_<version>_amd64.deb` / `keynova_<version>_amd64.AppImage` | `sudo apt install ./*.deb`，或賦予 `.AppImage` 執行權限後執行 |
 
 ### 第一次執行
 
@@ -153,11 +153,11 @@ npm run verify           # docs + frontend + Rust 一次驗證
 
 設定檔位於平台 config 目錄：
 
-| 平台 | 路徑 |
-| --- | --- |
-| Windows | `%APPDATA%\Keynova\config.toml` |
-| Linux | `~/.config/keynova/config.toml` |
-| macOS | `~/Library/Application Support/Keynova/config.toml` |
+| 平台    | 路徑                                                |
+| ------- | --------------------------------------------------- |
+| Windows | `%APPDATA%\Keynova\config.toml`                     |
+| Linux   | `~/.config/keynova/config.toml`                     |
+| macOS   | `~/Library/Application Support/Keynova/config.toml` |
 
 常見設定範例：
 
@@ -208,20 +208,20 @@ graph TD
 
 ## 計畫中
 
-| 項目 | 說明 |
-| --- | --- |
-| Code signing / 公證 | Windows Authenticode + macOS Developer ID 公證，讓下載不被 SmartScreen / Gatekeeper 攔 |
-| Auto-updater | 應用內自動更新，取代手動下載 |
-| 機密 at-rest 儲存 | 把 API 金鑰等機密從明文 config 移到 OS keychain（ADR-0041，提案中）|
-| 更深的 macOS / Linux 整合 | OS 層 integration 依平台權限逐步補齊 |
+| 項目                      | 說明                                                                                   |
+| ------------------------- | -------------------------------------------------------------------------------------- |
+| Code signing / 公證       | Windows Authenticode + macOS Developer ID 公證，讓下載不被 SmartScreen / Gatekeeper 攔 |
+| Auto-updater              | 應用內自動更新，取代手動下載                                                           |
+| 機密 at-rest 儲存         | 把 API 金鑰等機密從明文 config 移到 OS keychain（ADR-0041，提案中）                    |
+| 更深的 macOS / Linux 整合 | OS 層 integration 依平台權限逐步補齊                                                   |
 
 ## 平台支援
 
-| 平台 | 狀態 | 備註 |
-| --- | --- | --- |
-| Windows 10+ | 主要開發平台 | Everything / WebView2 工作流 |
-| Linux X11 / Wayland | 支援（建置已於 v0.4.0 修復）| 跨平台搜尋與系統 fallback |
-| macOS 11+ | 支援（universal 建置已於 v0.4.0 修復）| 部分 OS integration 持續補齊 |
+| 平台                | 狀態                                   | 備註                         |
+| ------------------- | -------------------------------------- | ---------------------------- |
+| Windows 10+         | 主要開發平台                           | Everything / WebView2 工作流 |
+| Linux X11 / Wayland | 支援（建置已於 v0.4.0 修復）           | 跨平台搜尋與系統 fallback    |
+| macOS 11+           | 支援（universal 建置已於 v0.4.0 修復） | 部分 OS integration 持續補齊 |
 
 ## 記憶體足跡（Windows）
 
@@ -233,15 +233,15 @@ Keynova 的真實常駐足跡（獨占 RAM，Private Working Set）約 **80 MB**
 
 ## 文件導覽
 
-| 文件 | 用途 |
-| --- | --- |
-| [docs/index.md](docs/index.md) | 文件路由入口 |
-| [docs/memory/current.md](docs/memory/current.md) | 當前策略與限制 |
-| [docs/tasks/active.md](docs/tasks/active.md) | 目前 active queue |
-| [docs/architecture.md](docs/architecture.md) | 架構參考 |
-| [docs/security.md](docs/security.md) | 安全與 permission boundary |
-| [docs/decisions.md](docs/decisions.md) | ADR 索引 |
-| [docs/license-compliance.md](docs/license-compliance.md) | 第三方授權與合規說明 |
+| 文件                                                     | 用途                       |
+| -------------------------------------------------------- | -------------------------- |
+| [docs/index.md](docs/index.md)                           | 文件路由入口               |
+| [docs/memory/current.md](docs/memory/current.md)         | 當前策略與限制             |
+| [docs/tasks/active.md](docs/tasks/active.md)             | 目前 active queue          |
+| [docs/architecture.md](docs/architecture.md)             | 架構參考                   |
+| [docs/security.md](docs/security.md)                     | 安全與 permission boundary |
+| [docs/decisions.md](docs/decisions.md)                   | ADR 索引                   |
+| [docs/license-compliance.md](docs/license-compliance.md) | 第三方授權與合規說明       |
 
 ## 貢獻與開發原則
 

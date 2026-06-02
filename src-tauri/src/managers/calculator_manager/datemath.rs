@@ -1,7 +1,6 @@
 //! Date-arithmetic helpers (UTIL.1.C).
 //!
-//! Extracted from `calculator_manager.rs` (REF.9.B) as a pure structural move;
-//! behavior unchanged.
+//! Focused date math module used by the calculator manager.
 
 use chrono::{Datelike, Days, Months, NaiveDate, Weekday};
 

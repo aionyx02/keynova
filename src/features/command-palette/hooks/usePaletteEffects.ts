@@ -1,4 +1,4 @@
-// REF.2.P5 — Misc small effects that orchestrate other hooks.
+// Misc small effects that orchestrate other hooks.
 //
 // Five short effects that have nothing else to live next to:
 //   1. one-shot focus on mount
@@ -102,7 +102,7 @@ export function usePaletteEffects(deps: Deps) {
     deps.inlineInput,
   ]);
 
-  // LAUNCH.1.C — preview pane width sync.
+  // Preview pane width sync.
   useEffect(() => {
     paletteWidthRef.current = showPreview ? PALETTE_WIDTH_WIDE : PALETTE_WIDTH_NARROW;
     scheduleWindowResize();

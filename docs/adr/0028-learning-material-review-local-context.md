@@ -4,6 +4,7 @@
 **日期：** 2026-05-15  
 **決策者：** 開發者  
 **相關文件：**
+
 - docs/security.md
 - docs/architecture.md
 - docs/tasks/backlog.md (FEAT.11)
@@ -16,6 +17,7 @@ Keynova 的 agent 已具備 `keynova.search`、`filesystem.search`、`filesystem
 但缺乏對使用者本機學習資料（筆記、報告、簡報、憑證、專案）進行有組織盤點的能力。
 
 目前問題：
+
 - 使用者無法讓 agent 以受控、有邊界的方式列舉工作區的學習材料。
 - `filesystem.search` 是無結構的索引搜尋，不支援分類或元資料彙整。
 - 無法從掃描結果直接建立筆記草稿或匯出報告。
@@ -40,11 +42,13 @@ Keynova 的 agent 已具備 `keynova.search`、`filesystem.search`、`filesystem
 ### 方案 B：獨立 LearningMaterialManager + approval-gated tool（採用）
 
 **優點：**
+
 - 明確的安全邊界（enabled 旗標 + approved roots + denylist）。
 - 分類邏輯集中在一個模組，易測試。
 - approval-gated 確保 agent 不能在未經使用者確認的情況下掃描。
 
 **缺點：**
+
 - 增加新模組與 handler，提高維護成本。
 
 **風險：** 若 canonicalize 未正確實作，存在 symlink escape 風險 → 已納入測試。
@@ -54,6 +58,7 @@ Keynova 的 agent 已具備 `keynova.search`、`filesystem.search`、`filesystem
 選擇：**方案 B**
 
 原因：
+
 - 安全邊界明確，符合 docs/security.md §3 路徑安全規則。
 - approval-gated 工具符合 ADR-022 的 Agent Approval Boundary。
 - 元資料優先掃描符合低記憶體背景模式政策（PERF.1）。
@@ -66,14 +71,17 @@ Rollback：刪除 `learning_material_manager.rs`、`handlers/learning_material.r
 ## 5. Consequences（系統影響與副作用）
 
 ### 正面影響
+
 - 使用者可在 agent 引導下，以受控方式盤點工作區學習材料。
 - 可直接從報告建立筆記草稿。
 
 ### 負面影響 / 技術債
+
 - 新增 `agent.local_context.*` 設定群組，Setting 面板多 5 個項目。
 - 掃描邏輯使用 `std::fs::read_dir` 遞迴，需要明確測試邊界案例。
 
 ### 對安全性的影響
+
 - 新增 **使用者可控制路徑的遞迴讀取** → 必須嚴格執行 canonicalize + root prefix 檢查。
 - 所有 agent 呼叫此工具都需要使用者 approval（`AgentToolApprovalPolicy::Required`）。
 - `agent.local_context.enabled = false` 作為預設值確保最小曝露面。
@@ -96,14 +104,14 @@ Rollback：刪除 `learning_material_manager.rs`、`handlers/learning_material.r
 
 ## 8. Validation Plan（驗證方式）
 
-| 測試類型 | 覆蓋目標 | 指令 |
-|---------|---------|------|
-| Unit | denied root, symlink escape, denylist, classifier | `cargo test learning_material` |
-| Unit | secret filter, preview byte cap | `cargo test learning_material` |
-| Unit | report markdown formatting | `cargo test learning_material` |
-| Security | 非 workspace root 路徑拒絕 | 手動 + 測試 |
-| Manual | Setting 面板顯示新設定 | 手動 |
-| Manual | Agent 觸發工具需要 approval | 手動 |
+| 測試類型 | 覆蓋目標                                          | 指令                           |
+| -------- | ------------------------------------------------- | ------------------------------ |
+| Unit     | denied root, symlink escape, denylist, classifier | `cargo test learning_material` |
+| Unit     | secret filter, preview byte cap                   | `cargo test learning_material` |
+| Unit     | report markdown formatting                        | `cargo test learning_material` |
+| Security | 非 workspace root 路徑拒絕                        | 手動 + 測試                    |
+| Manual   | Setting 面板顯示新設定                            | 手動                           |
+| Manual   | Agent 觸發工具需要 approval                       | 手動                           |
 
 ## 9. Open Questions（未解問題）
 

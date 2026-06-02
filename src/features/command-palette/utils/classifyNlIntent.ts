@@ -1,4 +1,4 @@
-// REF.6.J - Rule-based NL intent classifier for the smart capability fallback.
+// Rule-based NL intent classifier for the smart capability fallback.
 //
 // Layered on top of `looksLikeAiCommandIntent` (the existing `cmd` heuristic).
 // Runs only in the "no search results + stabilization debounce" fallback path

@@ -14,7 +14,9 @@ import { useCapability } from "./useCapability";
 describe("useCapability", () => {
   it("dispatches capability.call with id and payload", async () => {
     const dispatch = vi.fn().mockResolvedValue({ status: "pending", request_id: "rid-1" });
-    const { result } = renderHook(() => useCapability({ dispatch: dispatch as DispatchFn, id: "explain" }));
+    const { result } = renderHook(() =>
+      useCapability({ dispatch: dispatch as DispatchFn, id: "explain" }),
+    );
 
     await act(async () => {
       await result.current.run({ text: "what is rg?" });
@@ -23,7 +25,11 @@ describe("useCapability", () => {
     expect(dispatch).toHaveBeenCalledTimes(1);
     const [route, payload] = dispatch.mock.calls[0]!;
     expect(route).toBe(IPC.CAPABILITY_CALL);
-    expect(payload).toMatchObject({ id: "explain", payload: { text: "what is rg?" }, stream: false });
+    expect(payload).toMatchObject({
+      id: "explain",
+      payload: { text: "what is rg?" },
+      stream: false,
+    });
     expect(typeof (payload as { request_id: string }).request_id).toBe("string");
   });
 
@@ -35,7 +41,9 @@ describe("useCapability", () => {
           resolveDispatch = resolve;
         }),
     );
-    const { result } = renderHook(() => useCapability({ dispatch: dispatch as DispatchFn, id: "summarize" }));
+    const { result } = renderHook(() =>
+      useCapability({ dispatch: dispatch as DispatchFn, id: "summarize" }),
+    );
 
     // Start the call but do not await — we want to observe the in-flight state.
     let runPromise!: Promise<void>;
@@ -56,7 +64,9 @@ describe("useCapability", () => {
 
   it("dispatch failure sets error and fail-safe risk tag", async () => {
     const dispatch = vi.fn().mockRejectedValue(new Error("backend offline"));
-    const { result } = renderHook(() => useCapability({ dispatch: dispatch as DispatchFn, id: "fix_error" }));
+    const { result } = renderHook(() =>
+      useCapability({ dispatch: dispatch as DispatchFn, id: "fix_error" }),
+    );
 
     await act(async () => {
       await result.current.run({ raw_output: "error: oops" });
@@ -70,7 +80,9 @@ describe("useCapability", () => {
 
   it("cancel dispatches capability.cancel for the active request id", async () => {
     const dispatch = vi.fn().mockResolvedValue({ status: "pending", request_id: "rid-c" });
-    const { result } = renderHook(() => useCapability({ dispatch: dispatch as DispatchFn, id: "explain" }));
+    const { result } = renderHook(() =>
+      useCapability({ dispatch: dispatch as DispatchFn, id: "explain" }),
+    );
 
     await act(async () => {
       await result.current.run({ text: "x" });
@@ -88,7 +100,9 @@ describe("useCapability", () => {
 
   it("cancel is a no-op when there is no active request", async () => {
     const dispatch = vi.fn();
-    const { result } = renderHook(() => useCapability({ dispatch: dispatch as DispatchFn, id: "explain" }));
+    const { result } = renderHook(() =>
+      useCapability({ dispatch: dispatch as DispatchFn, id: "explain" }),
+    );
     await act(async () => {
       await result.current.cancel();
     });

@@ -83,7 +83,9 @@ export function SystemPanel({ onClose }: PanelProps) {
       <div className="kn-panel-header">
         <div>
           <div className="kn-panel-title">{t.system.title}</div>
-          <div className="kn-panel-subtitle">Quick access to system controls and wireless state</div>
+          <div className="kn-panel-subtitle">
+            Quick access to system controls and wireless state
+          </div>
         </div>
         <button type="button" onClick={() => void load()} className="kn-button py-1 text-[10px]">
           Refresh
@@ -101,7 +103,11 @@ export function SystemPanel({ onClose }: PanelProps) {
           <div className="kn-muted-surface px-3 py-3">
             <div className="mb-2 flex items-center justify-between">
               <span className="kn-section-label">{t.system.volume}</span>
-              <button type="button" onClick={() => void toggleMute()} className="kn-button px-2 py-1 text-[10px]">
+              <button
+                type="button"
+                onClick={() => void toggleMute()}
+                className="kn-button px-2 py-1 text-[10px]"
+              >
                 {volume.muted ? t.system.unmute : t.system.mute}
               </button>
             </div>
@@ -147,7 +153,9 @@ export function SystemPanel({ onClose }: PanelProps) {
                   <div className="min-w-0">
                     <div
                       className={`truncate text-sm ${
-                        network.connected ? "text-[color:var(--kn-text)]" : "text-[color:var(--kn-text-soft)]"
+                        network.connected
+                          ? "text-[color:var(--kn-text)]"
+                          : "text-[color:var(--kn-text-soft)]"
                       }`}
                     >
                       {network.ssid}
@@ -174,7 +182,9 @@ export function SystemPanel({ onClose }: PanelProps) {
 
       <div className="kn-panel-footer">
         <span>Esc closes</span>
-        <span>{loading ? "Refreshing status..." : "Controls update the current machine immediately"}</span>
+        <span>
+          {loading ? "Refreshing status..." : "Controls update the current machine immediately"}
+        </span>
       </div>
     </div>
   );

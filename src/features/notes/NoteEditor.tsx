@@ -120,10 +120,7 @@ export function NoteEditor({ onClose, initialArgs }: PanelProps) {
   }
 
   return (
-    <div
-      className="kn-panel-shell flex rounded-t-none border-t-0"
-      style={{ height: 380 }}
-    >
+    <div className="kn-panel-shell flex rounded-t-none border-t-0" style={{ height: 380 }}>
       <div className="flex w-40 flex-col border-r border-[color:var(--kn-border)] bg-white/[0.015]">
         <div className="flex items-center justify-between border-b border-[color:var(--kn-border)] px-2 py-2">
           <span className="text-[10px] font-semibold uppercase text-[color:var(--kn-text-faint)]">
@@ -156,7 +153,9 @@ export function NoteEditor({ onClose, initialArgs }: PanelProps) {
             </button>
           ))}
           {notes.length === 0 && (
-            <p className="mt-4 text-center text-[10px] text-[color:var(--kn-text-faint)]">No notes yet.</p>
+            <p className="mt-4 text-center text-[10px] text-[color:var(--kn-text-faint)]">
+              No notes yet.
+            </p>
           )}
         </div>
         {showCreate && (
@@ -186,7 +185,9 @@ export function NoteEditor({ onClose, initialArgs }: PanelProps) {
         {selectedNote ? (
           <>
             <div className="flex items-center justify-between border-b border-[color:var(--kn-border)] bg-white/[0.015] px-3 py-1.5">
-              <span className="text-xs font-medium text-[color:var(--kn-text-soft)]">{selectedNote}.md</span>
+              <span className="text-xs font-medium text-[color:var(--kn-text-soft)]">
+                {selectedNote}.md
+              </span>
               <div className="flex items-center gap-3">
                 {saveStatus === "saved" && (
                   <span className="text-[10px] text-[color:var(--kn-success)]">{t.note.saved}</span>

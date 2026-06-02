@@ -13,6 +13,7 @@ owner: project
 **Date:** 2026-06-01
 **Decision makers:** AI agent draft; developer acceptance required
 **Related documents:**
+
 - `docs/security.md`
 - `docs/adr/0010-config-manager-toml.md`
 - `docs/CLAUDE.md`
@@ -28,7 +29,7 @@ in `%APPDATA%\Keynova\config.toml` by `ConfigManager::persist()`
 this as a known limitation with a planned move to an OS keychain, and §4.3 names
 config secret fields as data that should not sit in plaintext.
 
-Recent work already closed the *display/transport* surface: IPC responses redact
+Recent work already closed the _display/transport_ surface: IPC responses redact
 secrets (`setting.get` → `********`, `list_all_redacted()` empties values), the
 settings/model UI uses `type="password"`, workflow-history labels are redacted,
 payloads are hashed, and logs emit metrics only. The renderer no longer retains

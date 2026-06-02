@@ -1,4 +1,4 @@
-// REF.2.P5 — `<input>` change handler.
+// `<input>` change handler.
 //
 // Resets all the transient state that should disappear on every keystroke
 // (cmdResult, copy/pipeline hints, command/arg suggestion indices, the
@@ -7,7 +7,7 @@
 // not in search mode.
 //
 // Pulled out of the palette body because it touches eight setters and the
-// LAUNCH.1.B "fresh search context clears suppress-list" reasoning belongs
+// "Fresh search context clears suppress-list" reasoning belongs
 // near the kill-set entry point.
 
 import { useCallback } from "react";
@@ -41,13 +41,13 @@ export function useQueryChange(deps: Deps) {
       deps.setSelectedCmd(0);
       deps.setSelectedArg(0);
       deps.setArgSuggestions([]);
-      // LAUNCH.1.B bugfix — typing a new query enters a fresh search
+      // Typing a new query enters a fresh search
       // context; suppress-list is no longer relevant.
       deps.clearRecentlyDeleted();
       const { mode: newMode, rawInput: ri } = parseInputMode(value);
       // Direct shell terminal mode is disabled; terminal sessions now require
       // backend-issued launch specs.
-      // REF.6.B — capability prefix takes over the result area; suppress
+      // Capability prefix takes over the result area; suppress
       // search backend calls so the prefix body doesn't double-fire as a
       // search query.
       if (newMode === "search" && parseCapabilityPrefix(value)) {

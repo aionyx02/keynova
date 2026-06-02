@@ -1,8 +1,7 @@
 //! Basic in-memory file index: directory tree scanning (no Everything needed),
 //! user/Dropbox/OneDrive/WSL search-root discovery, and cached query lookup.
 //!
-//! Extracted from `platform/windows.rs` (REF.9.C) as a pure structural move;
-//! behavior unchanged.
+//! Focused Windows file-index helpers re-exported by the platform facade.
 
 use std::path::Path;
 use std::sync::{Arc, Mutex, OnceLock};

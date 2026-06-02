@@ -69,10 +69,7 @@ describe("usePipeline", () => {
       await result.current.runPipeline("foo | bar");
     });
     await waitFor(() =>
-      expect(spy.mock.calls[0]).toEqual([
-        "automation.execute_pipeline",
-        { text: "foo | bar" },
-      ]),
+      expect(spy.mock.calls[0]).toEqual(["automation.execute_pipeline", { text: "foo | bar" }]),
     );
   });
 });

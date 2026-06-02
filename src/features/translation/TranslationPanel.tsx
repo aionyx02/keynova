@@ -59,7 +59,11 @@ function parseTranslationArgs(raw: string): ParsedTrArgs | null {
   }
 
   const spacedDashMatch = input.match(/^\s*(\S+)\s+-\s+(\S+)(?:\s+([\s\S]*))?$/);
-  if (spacedDashMatch && isLanguageToken(spacedDashMatch[1]) && isLanguageToken(spacedDashMatch[2])) {
+  if (
+    spacedDashMatch &&
+    isLanguageToken(spacedDashMatch[1]) &&
+    isLanguageToken(spacedDashMatch[2])
+  ) {
     return {
       src: spacedDashMatch[1] || DEFAULT_SRC,
       dst: spacedDashMatch[2] || DEFAULT_DST,
@@ -87,7 +91,9 @@ function formatCommandLine(src: string, dst: string, text: string): string {
   const normalizedSrc = src.trim() || DEFAULT_SRC;
   const normalizedDst = dst.trim() || DEFAULT_DST;
   const oneLineText = text.replace(/\s+/g, " ").trim();
-  return oneLineText ? `${normalizedSrc} ${normalizedDst} ${oneLineText}` : `${normalizedSrc} ${normalizedDst}`;
+  return oneLineText
+    ? `${normalizedSrc} ${normalizedDst} ${oneLineText}`
+    : `${normalizedSrc} ${normalizedDst}`;
 }
 
 function isAtStart(textarea: HTMLTextAreaElement): boolean {
@@ -123,10 +129,7 @@ function LangPicker({ value, onChange, langs, allowAuto = false }: LangPickerPro
   const options = allowAuto ? langs : langs.filter((l) => l.code !== "auto");
   const filtered = options
     .filter(
-      (l) =>
-        !query ||
-        l.code.toLowerCase().includes(query.toLowerCase()) ||
-        l.name.includes(query),
+      (l) => !query || l.code.toLowerCase().includes(query.toLowerCase()) || l.name.includes(query),
     )
     .slice(0, 10);
 
@@ -231,7 +234,9 @@ function LangPicker({ value, onChange, langs, allowAuto = false }: LangPickerPro
                     : "text-[color:var(--kn-text-soft)] hover:bg-white/[0.05]"
                 }`}
               >
-                <span className="w-10 shrink-0 font-mono text-[color:var(--kn-text-muted)]">{l.code}</span>
+                <span className="w-10 shrink-0 font-mono text-[color:var(--kn-text-muted)]">
+                  {l.code}
+                </span>
                 <span className="truncate">{l.name}</span>
               </button>
             ))}
@@ -269,7 +274,9 @@ export function TranslationPanel({ onClose, initialArgs }: PanelProps) {
   // Load language list once on mount
   useEffect(() => {
     const timer = window.setTimeout(() => {
-      void ipcDispatch<Lang[]>("translation.list_langs").then(setLangs).catch(() => {});
+      void ipcDispatch<Lang[]>("translation.list_langs")
+        .then(setLangs)
+        .catch(() => {});
     }, 0);
     return () => window.clearTimeout(timer);
   }, []);
@@ -459,9 +466,7 @@ export function TranslationPanel({ onClose, initialArgs }: PanelProps) {
   return (
     <div className="kn-panel-shell flex min-h-[350px] flex-col gap-3 rounded-t-none border-t-0 p-4">
       <div className="flex items-center justify-between gap-2">
-        <span className="kn-panel-title">
-          {t.translation.title}
-        </span>
+        <span className="kn-panel-title">{t.translation.title}</span>
         <span className="text-[10px] text-[color:var(--kn-text-muted)]">
           Google Cloud Translation | {src || DEFAULT_SRC} -&gt; {dst || DEFAULT_DST}
           {loading ? ` | ${t.translation.translating}` : ""}
@@ -502,11 +507,7 @@ export function TranslationPanel({ onClose, initialArgs }: PanelProps) {
             allowAuto
           />
           <span className="text-xs text-[color:var(--kn-text-faint)]">→</span>
-          <LangPicker
-            value={dst}
-            onChange={(code) => updateFromPicker(src, code)}
-            langs={langs}
-          />
+          <LangPicker value={dst} onChange={(code) => updateFromPicker(src, code)} langs={langs} />
         </div>
       )}
 
@@ -533,7 +534,9 @@ export function TranslationPanel({ onClose, initialArgs }: PanelProps) {
         placeholder={t.translation.textPlaceholder}
         rows={5}
         className="kn-textarea kn-scroll overflow-y-auto text-sm"
-        style={{ fontFamily: "'Segoe UI', 'Microsoft JhengHei', 'PingFang TC', 'Noto Sans', sans-serif" }}
+        style={{
+          fontFamily: "'Segoe UI', 'Microsoft JhengHei', 'PingFang TC', 'Noto Sans', sans-serif",
+        }}
       />
 
       {error && (
@@ -572,11 +575,16 @@ export function TranslationPanel({ onClose, initialArgs }: PanelProps) {
         placeholder={loading ? t.translation.translating : "Google Cloud Translation output"}
         rows={5}
         className="kn-textarea kn-scroll overflow-y-auto text-sm selection:bg-blue-500/40 selection:text-white"
-        style={{ fontFamily: "'Segoe UI', 'Microsoft JhengHei', 'PingFang TC', 'Malgun Gothic', 'Hiragino Sans', 'Noto Sans', sans-serif" }}
+        style={{
+          fontFamily:
+            "'Segoe UI', 'Microsoft JhengHei', 'PingFang TC', 'Malgun Gothic', 'Hiragino Sans', 'Noto Sans', sans-serif",
+        }}
       />
 
       <div className="text-[10px] text-[color:var(--kn-text-faint)]">
-        Command：&lt;src&gt; &lt;dst&gt; &lt;text&gt;，例如 <span className="text-[color:var(--kn-text-muted)]">en ja 你好</span>。↑↓ 切換區域 · Esc 關閉
+        Command：&lt;src&gt; &lt;dst&gt; &lt;text&gt;，例如{" "}
+        <span className="text-[color:var(--kn-text-muted)]">en ja 你好</span>。↑↓ 切換區域 · Esc
+        關閉
       </div>
     </div>
   );

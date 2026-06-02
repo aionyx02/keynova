@@ -1,10 +1,9 @@
-// REF.5 — `useRecentWorkflows` / `useSuggestedWorkflows` thin wrappers
-// around the `workflow.*` IPC namespace. Mount lands in REF.6; this hook
-// exists so REF.5 backend can be exercised end-to-end and unit-tested.
+// `useRecentWorkflows` / `useSuggestedWorkflows` thin wrappers around the
+// `workflow.*` IPC namespace.
 //
 // Outside Tauri (`window.__TAURI_INTERNALS__` absent) the hook short-
 // circuits to an empty state, matching the jsdom pattern in
-// `useSearchBackend` and REF.4's `useCapability`.
+// `useSearchBackend` and `useCapability`.
 
 import { useCallback, useEffect, useState } from "react";
 
@@ -25,9 +24,7 @@ export interface UseWorkflowMemory {
   refresh: () => Promise<void>;
 }
 
-function makeWorkflowQueryHook(
-  route: typeof IPC.WORKFLOW_RECENT | typeof IPC.WORKFLOW_SUGGEST,
-) {
+function makeWorkflowQueryHook(route: typeof IPC.WORKFLOW_RECENT | typeof IPC.WORKFLOW_SUGGEST) {
   return function useWorkflowQueryImpl({
     dispatch,
     limit,

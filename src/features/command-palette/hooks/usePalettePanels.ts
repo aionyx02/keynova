@@ -1,4 +1,4 @@
-// REF.2.P5 — Derived panel + terminal launch spec.
+// Derived panel + terminal launch spec.
 //
 // The command palette can host:
 //   - a Panel ui_type result from a builtin command (rendered in
@@ -49,11 +49,7 @@ export function usePalettePanels({
         : "";
   const PanelComponent = activePanelName ? (PanelRegistry[activePanelName] ?? null) : null;
   const panelInitialArgs =
-    cmdResult?.ui_type.type === "Panel"
-      ? cmdResult.text
-      : liveTranslationPanel
-        ? cmdArgs
-        : "";
+    cmdResult?.ui_type.type === "Panel" ? cmdResult.text : liveTranslationPanel ? cmdArgs : "";
   const terminalLaunchSpec: TerminalLaunchSpec | null =
     cmdResult?.ui_type.type === "Terminal" ? cmdResult.ui_type.value : null;
   const panelKey = `${cmdResult ? "command" : "live"}:${activePanelName}:${panelInitialArgs}`;

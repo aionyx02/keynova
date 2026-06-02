@@ -1,4 +1,4 @@
-// REF.2.P3 — Transient UI hint state for clipboard / status messages.
+// Transient UI hint state for clipboard / status messages.
 //
 // Owns two short-lived strings rendered in the palette footer area:
 //   - `copiedPath`  — last path successfully copied via secondary-menu copy actions
@@ -36,25 +36,19 @@ export function useCopyHint(): UseCopyHint {
     [],
   );
 
-  const flashCopiedPath = useCallback(
-    (path: string, durationMs: number = DEFAULT_FLASH_MS) => {
-      setCopiedPath(path);
-      setCopyHint(null);
-      if (timerRef.current) clearTimeout(timerRef.current);
-      timerRef.current = setTimeout(() => setCopiedPath(null), durationMs);
-    },
-    [],
-  );
+  const flashCopiedPath = useCallback((path: string, durationMs: number = DEFAULT_FLASH_MS) => {
+    setCopiedPath(path);
+    setCopyHint(null);
+    if (timerRef.current) clearTimeout(timerRef.current);
+    timerRef.current = setTimeout(() => setCopiedPath(null), durationMs);
+  }, []);
 
-  const flashCopyHint = useCallback(
-    (message: string, durationMs: number = DEFAULT_FLASH_MS) => {
-      setCopiedPath(null);
-      setCopyHint(message);
-      if (timerRef.current) clearTimeout(timerRef.current);
-      timerRef.current = setTimeout(() => setCopyHint(null), durationMs);
-    },
-    [],
-  );
+  const flashCopyHint = useCallback((message: string, durationMs: number = DEFAULT_FLASH_MS) => {
+    setCopiedPath(null);
+    setCopyHint(message);
+    if (timerRef.current) clearTimeout(timerRef.current);
+    timerRef.current = setTimeout(() => setCopyHint(null), durationMs);
+  }, []);
 
   const clear = useCallback(() => {
     if (timerRef.current) clearTimeout(timerRef.current);

@@ -1,11 +1,11 @@
-// REF.2.P5 — File / search-result action handlers.
+// File and search-result action handlers.
 //
 // Bundles the IPC-backed file actions launched from the result row (primary
 // launch + 9-way secondary action switch + first-secondary shortcut) into a
 // single hook so the palette body stops being a 250-line `switch` followed by
 // six standalone async functions.
 //
-// LAUNCH.1.B render-time kill set (Bug B): the `refreshAfterFileMutation`
+// Render-time kill set: the `refreshAfterFileMutation`
 // helper still calls `markPathDeleted` + `setSelected(0)`. Re-firing the
 // search would resurrect trashed paths because Everything still indexes
 // Recycle Bin entries; the kill set is the only authoritative gate. The
@@ -51,7 +51,7 @@ export interface UseFileActionsDeps {
   flashCopyHint: (hint: string, durationMs?: number) => void;
   clearCopyHint: () => void;
   setQuery: (q: string) => void;
-  /** REF.6.A — palette state now holds `UnifiedResult[]`; this hook only ever
+  /** Palette state now holds `UnifiedResult[]`; this hook only ever
    * clears results, so the prop matches the canonical setter signature. */
   setResults: React.Dispatch<React.SetStateAction<UnifiedResult[]>>;
   setCmdResult: (result: BuiltinCommandResult | null) => void;
@@ -228,10 +228,7 @@ export function useFileActions(deps: UseFileActionsDeps): UseFileActions {
               path: result.path,
             });
             await navigator.clipboard.writeText(res.hex);
-            showHint(
-              `SHA-256 copied: ${res.hex.slice(0, 12)}… (${res.bytes} bytes)`,
-              2500,
-            );
+            showHint(`SHA-256 copied: ${res.hex.slice(0, 12)}… (${res.bytes} bytes)`, 2500);
           } catch (err) {
             showHint(`Hash failed: ${(err as Error).message}`, 2500);
           }
@@ -245,10 +242,11 @@ export function useFileActions(deps: UseFileActionsDeps): UseFileActions {
           }
           const confirm = pendingConfirm === "rename";
           try {
-            const res = await dispatch<{ preview?: boolean; target?: string }>(
-              IPC.FILE_RENAME,
-              { path: result.path, new_name: inlineInput.value, confirm },
-            );
+            const res = await dispatch<{ preview?: boolean; target?: string }>(IPC.FILE_RENAME, {
+              path: result.path,
+              new_name: inlineInput.value,
+              confirm,
+            });
             if (!confirm) {
               showHint(
                 `⚠ Press Enter again to rename → ${res.target ?? inlineInput.value} · Esc cancel`,
@@ -274,10 +272,11 @@ export function useFileActions(deps: UseFileActionsDeps): UseFileActions {
           }
           const confirm = pendingConfirm === "move";
           try {
-            const res = await dispatch<{ preview?: boolean; target?: string }>(
-              IPC.FILE_MOVE,
-              { path: result.path, target_dir: inlineInput.value, confirm },
-            );
+            const res = await dispatch<{ preview?: boolean; target?: string }>(IPC.FILE_MOVE, {
+              path: result.path,
+              target_dir: inlineInput.value,
+              confirm,
+            });
             if (!confirm) {
               showHint(
                 `⚠ Press Enter again to move → ${res.target ?? inlineInput.value} · Esc cancel`,
@@ -317,10 +316,7 @@ export function useFileActions(deps: UseFileActionsDeps): UseFileActions {
               // re-enumerate on SHCNE_DELETE (OneDrive redirect, Defender scan,
               // multi-instance Explorer). File IS in Recycle Bin; the icon may
               // linger until F5. Hint surfaces that so user is not confused.
-              showHint(
-                "Moved to recycle bin · Press F5 on desktop if icon lingers",
-                2500,
-              );
+              showHint("Moved to recycle bin · Press F5 on desktop if icon lingers", 2500);
               closeSecondaryMenu();
               refreshAfterFileMutation(result.path);
             }

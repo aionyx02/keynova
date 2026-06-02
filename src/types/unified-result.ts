@@ -1,7 +1,7 @@
-// REF.1 — Frontend twin of `src-tauri/src/models/unified_result.rs`.
+// Frontend twin of `src-tauri/src/models/unified_result.rs`.
 //
 // Shape must stay in sync with the Rust side. Schema evolution is additive only
-// per ADR-0030 §4; new fields go in as optional. REF.6 will switch the palette
+// per ADR-0030 §4; new fields go in as optional. Palette migration can switch
 // to consume these types.
 
 import type { ActionRef, ResultKind, ScoreBreakdown } from "./search";
@@ -13,7 +13,7 @@ export interface RiskTag {
   reason?: string;
 }
 
-/** REF.1 alias for RiskTag. Use either name; they are the same shape. */
+/** Alias for RiskTag. Use either name; they are the same shape. */
 export type ConfirmRequirement = RiskTag;
 
 /** ADR-0030 §4 fail-safe: unknown / malformed risk tag → require confirmation. */
@@ -38,10 +38,7 @@ export type ResultSource =
   | { type: "other"; name: string };
 
 /** Flattened builtin command UI hint. Drops `TerminalLaunchSpec` payload by design. */
-export type BuiltinUi =
-  | { type: "inline" }
-  | { type: "panel"; name: string }
-  | { type: "terminal" };
+export type BuiltinUi = { type: "inline" } | { type: "panel"; name: string } | { type: "terminal" };
 
 /** An action exposed inline on a result row. */
 export interface ActionChip {
@@ -61,7 +58,7 @@ export type PreviewPayload =
   | { kind: "image"; data_url: string }
   | { kind: "binary"; size_bytes: number };
 
-/** Ranking signals. `workflow_boost` stays 0 until REF.5 wires workflow memory. */
+/** Ranking signals. `workflow_boost` stays 0 until workflow memory uses it. */
 export interface RankSignals {
   score: number;
   breakdown?: ScoreBreakdown;
@@ -73,11 +70,11 @@ export interface SourceMetadata {
   tags?: string[];
   modified_ms?: number;
   size_bytes?: number;
-  /** REF.6.A — count of hidden actions reachable via Tab / secondary menu. */
+  /** Count of hidden actions reachable via Tab / secondary menu. */
   secondary_action_count?: number;
 }
 
-/** Unified result/action contract (REF.1). */
+/** Unified result/action contract. */
 export interface UnifiedResult {
   id: string;
   source: ResultSource;
@@ -87,7 +84,7 @@ export interface UnifiedResult {
   actions: ActionChip[];
   preview?: PreviewPayload;
   rank?: RankSignals;
-  /** Optional workflow-memory context hash (REF.5). */
+  /** Optional workflow-memory context hash. */
   context_hash?: string;
   source_metadata?: SourceMetadata;
 }

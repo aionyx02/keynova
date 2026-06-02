@@ -1,10 +1,7 @@
 import { act, renderHook } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import {
-  RECENTLY_DELETED_TTL_MS,
-  useRecentlyDeleted,
-} from "./useRecentlyDeleted";
+import { RECENTLY_DELETED_TTL_MS, useRecentlyDeleted } from "./useRecentlyDeleted";
 
 describe("useRecentlyDeleted", () => {
   beforeEach(() => {

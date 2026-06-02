@@ -1,4 +1,4 @@
-// REF.5 — Frontend twin of `src-tauri/src/core/knowledge_store.rs::WorkflowHistoryRow`
+// Frontend twin of `src-tauri/src/core/knowledge_store.rs::WorkflowHistoryRow`.
 // and the response shape returned by `workflow.recent` / `workflow.suggest`.
 //
 // Schema is additive-only per ADR-0029 §4 evolution rule. New fields are

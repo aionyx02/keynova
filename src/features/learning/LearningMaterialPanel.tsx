@@ -33,7 +33,12 @@ const CLASS_LABELS: Record<MaterialCandidate["class"], string> = {
 };
 
 const CLASS_ORDER: MaterialCandidate["class"][] = [
-  "project", "note", "report", "presentation", "certificate", "unknown",
+  "project",
+  "note",
+  "report",
+  "presentation",
+  "certificate",
+  "unknown",
 ];
 
 function formatBytes(bytes: number): string {
@@ -88,9 +93,7 @@ export function LearningMaterialPanel({ onClose }: PanelProps) {
   }, [dispatch, report]);
 
   const displayed =
-    report?.candidates.filter(
-      (c) => activeClass === "all" || c.class === activeClass
-    ) ?? [];
+    report?.candidates.filter((c) => activeClass === "all" || c.class === activeClass) ?? [];
 
   return (
     <div
@@ -132,9 +135,7 @@ export function LearningMaterialPanel({ onClose }: PanelProps) {
             {loading ? "Scanning…" : "Scan"}
           </button>
         </div>
-        {error && (
-          <p className="mt-1 text-[10px] text-red-400 leading-tight">{error}</p>
-        )}
+        {error && <p className="mt-1 text-[10px] text-red-400 leading-tight">{error}</p>}
       </div>
 
       {/* Stats bar */}
@@ -157,21 +158,21 @@ export function LearningMaterialPanel({ onClose }: PanelProps) {
             >
               All
             </button>
-            {CLASS_ORDER.filter((cls) =>
-              report.candidates.some((c) => c.class === cls)
-            ).map((cls) => (
-              <button
-                key={cls}
-                onClick={() => setActiveClass(cls)}
-                className={`px-2 py-0.5 rounded text-[10px] transition-colors ${
-                  activeClass === cls
-                    ? "bg-violet-800/70 text-violet-200"
-                    : "text-gray-500 hover:text-gray-300"
-                }`}
-              >
-                {CLASS_LABELS[cls]}
-              </button>
-            ))}
+            {CLASS_ORDER.filter((cls) => report.candidates.some((c) => c.class === cls)).map(
+              (cls) => (
+                <button
+                  key={cls}
+                  onClick={() => setActiveClass(cls)}
+                  className={`px-2 py-0.5 rounded text-[10px] transition-colors ${
+                    activeClass === cls
+                      ? "bg-violet-800/70 text-violet-200"
+                      : "text-gray-500 hover:text-gray-300"
+                  }`}
+                >
+                  {CLASS_LABELS[cls]}
+                </button>
+              ),
+            )}
           </div>
         </div>
       )}
@@ -184,14 +185,10 @@ export function LearningMaterialPanel({ onClose }: PanelProps) {
           </p>
         )}
         {loading && (
-          <p className="text-[11px] text-gray-500 px-4 py-4 text-center animate-pulse">
-            Scanning…
-          </p>
+          <p className="text-[11px] text-gray-500 px-4 py-4 text-center animate-pulse">Scanning…</p>
         )}
         {report && displayed.length === 0 && (
-          <p className="text-[11px] text-gray-600 px-4 py-4 text-center">
-            No candidates found.
-          </p>
+          <p className="text-[11px] text-gray-600 px-4 py-4 text-center">No candidates found.</p>
         )}
         {displayed.map((item) => (
           <div
@@ -221,11 +218,7 @@ export function LearningMaterialPanel({ onClose }: PanelProps) {
           >
             Export as Note
           </button>
-          {exportNote && (
-            <span className="text-[10px] text-green-400">
-              Saved: {exportNote}
-            </span>
-          )}
+          {exportNote && <span className="text-[10px] text-green-400">Saved: {exportNote}</span>}
         </div>
       )}
     </div>

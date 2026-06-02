@@ -1,8 +1,7 @@
 //! Shell icon extraction (PowerShell + SHGetFileInfo) with in-memory + on-disk
 //! PNG caching.
 //!
-//! Extracted from `platform/windows.rs` (REF.9.C) as a pure structural move;
-//! behavior unchanged.
+//! Focused Windows icon helpers re-exported by the platform facade.
 
 use std::collections::HashMap;
 use std::sync::{Mutex, OnceLock};

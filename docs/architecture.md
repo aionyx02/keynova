@@ -54,14 +54,14 @@ Keynova 是以鍵盤為核心的生產力啟動器，採用 **Tauri 2.x + React 
 
 ### 1.2 技術棧
 
-| 層次 | 技術 |
-|------|------|
-| Frontend | React 18, TypeScript, Zustand |
-| Desktop bridge | Tauri 2.x |
-| Backend runtime | Rust (stable), Tokio async runtime |
-| Local AI | Ollama (via HTTP), llama.cpp (計劃中) |
-| Search index | Tantivy (Rust 原生全文索引) |
-| Persistent store | SQLite (rusqlite), TOML config |
+| 層次               | 技術                                  |
+| ------------------ | ------------------------------------- |
+| Frontend           | React 18, TypeScript, Zustand         |
+| Desktop bridge     | Tauri 2.x                             |
+| Backend runtime    | Rust (stable), Tokio async runtime    |
+| Local AI           | Ollama (via HTTP), llama.cpp (計劃中) |
+| Search index       | Tantivy (Rust 原生全文索引)           |
+| Persistent store   | SQLite (rusqlite), TOML config        |
 | Editor integration | Neovim (portable, on-demand download) |
 
 ---
@@ -107,6 +107,7 @@ src/
 ```
 
 **前端邊界規則：**
+
 - 所有後端呼叫必須透過 `ipcDispatch(route, payload)` 統一入口
 - 元件不直接操作 Tauri API；透過 service 層封裝
 - EventBus 事件透過 `listen(topic, handler)` 訂閱（Tauri event system）
@@ -289,40 +290,40 @@ KnowledgeStore::try_log_action()  (非同步 SQLite 寫入)
 
 ### 4.1 統一入口
 
-| Tauri command | 簽章 | 用途 |
-|--------------|------|------|
-| `cmd_dispatch` | `(route: String, payload: Option<Value>) → Result<Value, IpcError>` | 所有業務命令 |
-| `cmd_ping` | `(name: Option<String>) → Result<String, IpcError>` | 健康檢查 |
-| `cmd_show_launcher` | `() → Result<(), IpcError>` | 顯示視窗 |
-| `cmd_hide_launcher` | `() → Result<(), IpcError>` | 隱藏視窗 |
-| `cmd_keep_launcher_open` | `() → Result<(), IpcError>` | 防止視窗自動關閉 |
+| Tauri command            | 簽章                                                                | 用途             |
+| ------------------------ | ------------------------------------------------------------------- | ---------------- |
+| `cmd_dispatch`           | `(route: String, payload: Option<Value>) → Result<Value, IpcError>` | 所有業務命令     |
+| `cmd_ping`               | `(name: Option<String>) → Result<String, IpcError>`                 | 健康檢查         |
+| `cmd_show_launcher`      | `() → Result<(), IpcError>`                                         | 顯示視窗         |
+| `cmd_hide_launcher`      | `() → Result<(), IpcError>`                                         | 隱藏視窗         |
+| `cmd_keep_launcher_open` | `() → Result<(), IpcError>`                                         | 防止視窗自動關閉 |
 
 **Route 格式：** `"namespace.command"`，例如 `"launcher.list"`, `"search.query"`, `"ai.chat"`。
 
 ### 4.2 已註冊 Handler namespace 一覽
 
-| namespace | handler 檔案 | 主要功能 |
-|-----------|-------------|---------|
-| `system` | system_control.rs | ping, shutdown, info |
-| `launcher` | launcher.rs | list, launch, search apps |
-| `hotkey` | hotkey.rs | register, unregister |
-| `terminal` | terminal.rs | spawn, write, kill |
-| `mouse` | mouse.rs | move, click, scroll |
-| `search` | search.rs | query, index, rebuild |
-| `model` | model.rs | list, download, remove |
-| `cmd` | builtin_cmd.rs | run built-in commands |
-| `setting` | setting.rs | get, set |
-| `calculator` | calculator.rs | eval |
-| `workspace` | workspace.rs | list, switch, create |
-| `note` | note.rs | list, get, save, delete |
-| `history` | history.rs | list, clear |
-| `ai` | ai.rs | chat, stream |
-| `translation` | translation.rs | translate |
-| `agent` | agent/mod.rs | run, cancel, status |
-| `system_monitoring` | system_monitoring.rs | start, stop, snapshot |
-| `nvim` | nvim.rs | detect, download |
-| `automation` | automation.rs | execute |
-| `plugin` | plugin.rs | list, load |
+| namespace           | handler 檔案         | 主要功能                  |
+| ------------------- | -------------------- | ------------------------- |
+| `system`            | system_control.rs    | ping, shutdown, info      |
+| `launcher`          | launcher.rs          | list, launch, search apps |
+| `hotkey`            | hotkey.rs            | register, unregister      |
+| `terminal`          | terminal.rs          | spawn, write, kill        |
+| `mouse`             | mouse.rs             | move, click, scroll       |
+| `search`            | search.rs            | query, index, rebuild     |
+| `model`             | model.rs             | list, download, remove    |
+| `cmd`               | builtin_cmd.rs       | run built-in commands     |
+| `setting`           | setting.rs           | get, set                  |
+| `calculator`        | calculator.rs        | eval                      |
+| `workspace`         | workspace.rs         | list, switch, create      |
+| `note`              | note.rs              | list, get, save, delete   |
+| `history`           | history.rs           | list, clear               |
+| `ai`                | ai.rs                | chat, stream              |
+| `translation`       | translation.rs       | translate                 |
+| `agent`             | agent/mod.rs         | run, cancel, status       |
+| `system_monitoring` | system_monitoring.rs | start, stop, snapshot     |
+| `nvim`              | nvim.rs              | detect, download          |
+| `automation`        | automation.rs        | execute                   |
+| `plugin`            | plugin.rs            | list, load                |
 
 ### 4.3 IpcError 格式
 
@@ -338,24 +339,24 @@ KnowledgeStore::try_log_action()  (非同步 SQLite 寫入)
 
 ## 5. EventBus Topics
 
-| Topic | 觸發時機 | payload 主要欄位 |
-|-------|---------|----------------|
-| `terminal.output` | terminal 有輸出 | `{ id, output }` |
-| `config.reloaded` | 設定重新載入 | `{ source, changed_keys, changes }` |
-| `config.reload_failed` | 設定載入失敗 | `{ source, code, error }` |
-| `system.ping.completed` | ping 成功 | `{ message, registered_handlers }` |
-| `ai.stream.chunk` | AI 串流回覆片段 | `{ session_id, chunk }` |
-| `ai.stream.done` | AI 串流完成 | `{ session_id }` |
-| `ai.stream.error` | AI 串流失敗 | `{ session_id, error }` |
-| `agent.step` | ReAct agent 執行步驟 | `{ run_id, step, thought, action }` |
-| `agent.done` | ReAct agent 完成 | `{ run_id, answer }` |
-| `agent.error` | ReAct agent 失敗 | `{ run_id, error }` |
-| `model.download.progress` | 模型下載進度 | `{ name, pct, stage }` |
-| `model.download.done` | 模型下載完成 | `{ name, path }` |
-| `model.download.error` | 模型下載失敗 | `{ name, error }` |
-| `nvim-download-progress` | Neovim 下載進度 | `{ stage, pct, error? }` |
-| `system_monitoring.snapshot` | 系統資源快照 | `{ cpu_pct, mem_mb, … }` |
-| `translation.done` | 翻譯完成 | `{ text, target_lang }` |
+| Topic                        | 觸發時機             | payload 主要欄位                    |
+| ---------------------------- | -------------------- | ----------------------------------- |
+| `terminal.output`            | terminal 有輸出      | `{ id, output }`                    |
+| `config.reloaded`            | 設定重新載入         | `{ source, changed_keys, changes }` |
+| `config.reload_failed`       | 設定載入失敗         | `{ source, code, error }`           |
+| `system.ping.completed`      | ping 成功            | `{ message, registered_handlers }`  |
+| `ai.stream.chunk`            | AI 串流回覆片段      | `{ session_id, chunk }`             |
+| `ai.stream.done`             | AI 串流完成          | `{ session_id }`                    |
+| `ai.stream.error`            | AI 串流失敗          | `{ session_id, error }`             |
+| `agent.step`                 | ReAct agent 執行步驟 | `{ run_id, step, thought, action }` |
+| `agent.done`                 | ReAct agent 完成     | `{ run_id, answer }`                |
+| `agent.error`                | ReAct agent 失敗     | `{ run_id, error }`                 |
+| `model.download.progress`    | 模型下載進度         | `{ name, pct, stage }`              |
+| `model.download.done`        | 模型下載完成         | `{ name, path }`                    |
+| `model.download.error`       | 模型下載失敗         | `{ name, error }`                   |
+| `nvim-download-progress`     | Neovim 下載進度      | `{ stage, pct, error? }`            |
+| `system_monitoring.snapshot` | 系統資源快照         | `{ cpu_pct, mem_mb, … }`            |
+| `translation.done`           | 翻譯完成             | `{ text, target_lang }`             |
 
 > Tauri emit topic：將 `.` 替換為 `-`（`legacy_tauri_topic()`）。
 
@@ -365,13 +366,13 @@ KnowledgeStore::try_log_action()  (非同步 SQLite 寫入)
 
 ### 6.1 目錄佈局
 
-| 路徑（Windows） | 用途 |
-|---------------|------|
-| `%APPDATA%\Roaming\Keynova\config.toml` | 使用者設定 |
-| `%LOCALAPPDATA%\Keynova\knowledge.db` | SQLite（action log, agent memory, clipboard metadata） |
-| `%LOCALAPPDATA%\Keynova\notes\` | Markdown 筆記檔案 |
-| `%LOCALAPPDATA%\Keynova\search\tantivy\` | Tantivy 全文索引 |
-| `%LOCALAPPDATA%\Keynova\nvim\` | Portable Neovim 執行檔 |
+| 路徑（Windows）                          | 用途                                                   |
+| ---------------------------------------- | ------------------------------------------------------ |
+| `%APPDATA%\Roaming\Keynova\config.toml`  | 使用者設定                                             |
+| `%LOCALAPPDATA%\Keynova\knowledge.db`    | SQLite（action log, agent memory, clipboard metadata） |
+| `%LOCALAPPDATA%\Keynova\notes\`          | Markdown 筆記檔案                                      |
+| `%LOCALAPPDATA%\Keynova\search\tantivy\` | Tantivy 全文索引                                       |
+| `%LOCALAPPDATA%\Keynova\nvim\`           | Portable Neovim 執行檔                                 |
 
 Linux/macOS 對應：`~/.config/keynova/` 與 `~/.local/share/keynova/`。
 
@@ -406,13 +407,13 @@ nvim_bin = ""         # 空白則 detect → portable 下載
 
 ### 6.3 knowledge.db Schema（版本 3）
 
-| 資料表 | 主要欄位 | 用途 |
-|-------|---------|------|
-| `schema_version` | version INTEGER | schema 版本管理 |
-| `action_log` | action_id, label, status, duration_ms, error | action 執行記錄 |
-| `agent_audit` | run_id, event_type, status, summary, payload_json | ReAct audit trail |
-| `agent_memory` | id, scope, workspace_id, title, content, visibility | Agent 長期記憶 |
-| `clipboard_metadata` | item_id, content_type, workspace_id | 剪貼簿 metadata |
+| 資料表               | 主要欄位                                            | 用途              |
+| -------------------- | --------------------------------------------------- | ----------------- |
+| `schema_version`     | version INTEGER                                     | schema 版本管理   |
+| `action_log`         | action_id, label, status, duration_ms, error        | action 執行記錄   |
+| `agent_audit`        | run_id, event_type, status, summary, payload_json   | ReAct audit trail |
+| `agent_memory`       | id, scope, workspace_id, title, content, visibility | Agent 長期記憶    |
+| `clipboard_metadata` | item_id, content_type, workspace_id                 | 剪貼簿 metadata   |
 
 ---
 
@@ -443,6 +444,7 @@ SearchManager
 ```
 
 **搜尋後端切換：**
+
 - `backend = "tantivy"`（跨平台，預設）
 - `backend = "everything"`（Windows 限定，使用 Everything SDK）
 
@@ -484,6 +486,7 @@ KnowledgeStore: agent_audit 寫入 SQLite
 **AgentArchiveSink** (Phase 7a, 2026-05-16)：`AgentRuntime::insert_run` 以 FIFO cap（預設 `agent.run_history_cap = 20`）限制 in-memory `runs`，溢出時透過 `AgentArchiveSink::archive(&AgentRun)` 寫入 `agent_archive` SQLite 表，並 emit `agent.run.archived` 事件。生產線（`app/state.rs`）注入 `KnowledgeStoreArchiveSink`；測試以 `NoopArchiveSink` 或 mock 替代。設計保持 runtime 不直接耦合 KnowledgeStore。
 
 **Approval streaming + cancel** (Phase 7a, 2026-05-16)：
+
 - `AiManager::chat_async` 接受 `cancel_flag: Option<Arc<AtomicBool>>` 與 `cancel_registry: Option<CancelRegistry>`；handler 註冊 per-request flag，`ai.cancel` 設旗並從 registry 移除；spawned thread 在 thread 起點與 `do_chat` 後 check flag，cancelled 時 rollback user message 並 emit `ai.response { cancelled:true }`。
 - `ai.stream_enabled` (default `true`) 切換到 streaming：三家 provider chunked HTTP，逐 chunk emit `ai.stream.chunk { request_id, delta }`，完成時照舊 emit `ai.response` 收尾。前端 `useAi` 維持單一 `pendingIdRef` guard，stray chunk 自動被丟棄。
 - `wait_for_react_approval` 達到 `agent.approval_timeout_secs`（default 300）時 mutate approval `status = "approval_timeout"` 並 emit `agent.approval.timeout`；approve(remember=true) 在 ReAct 下一個同 `tool_name` 的 gate 被短路為 `Approved`。
@@ -494,26 +497,26 @@ KnowledgeStore: agent_audit 寫入 SQLite
 
 新功能透過以下四個機制加入系統，**不修改 Core**：
 
-| 機制 | 擴展方式 |
-|------|---------|
-| `CommandRouter` | 實作 `CommandHandler` trait，在 `app/state.rs` 呼叫 `command_router.register()` |
-| `EventBus` | 呼叫 `event_bus.publish(AppEvent::new(topic, payload))`，前端 `listen()` 訂閱 |
-| `ConfigManager` | 在 config.toml 新增 key，Handler 在初始化時讀取 |
-| `SearchRegistry` | 實作 `SearchProvider` trait 並註冊至 `SearchManager` |
-| `BuiltinCommandRegistry` | 實作 `BuiltinCommand` trait，呼叫 `reg.register(Box::new(...))` |
-| `PanelRegistry.tsx` | 新增 `React.lazy` 映射，`CommandRouter` 回傳 `CommandUiType::Panel("name")` |
+| 機制                     | 擴展方式                                                                        |
+| ------------------------ | ------------------------------------------------------------------------------- |
+| `CommandRouter`          | 實作 `CommandHandler` trait，在 `app/state.rs` 呼叫 `command_router.register()` |
+| `EventBus`               | 呼叫 `event_bus.publish(AppEvent::new(topic, payload))`，前端 `listen()` 訂閱   |
+| `ConfigManager`          | 在 config.toml 新增 key，Handler 在初始化時讀取                                 |
+| `SearchRegistry`         | 實作 `SearchProvider` trait 並註冊至 `SearchManager`                            |
+| `BuiltinCommandRegistry` | 實作 `BuiltinCommand` trait，呼叫 `reg.register(Box::new(...))`                 |
+| `PanelRegistry.tsx`      | 新增 `React.lazy` 映射，`CommandRouter` 回傳 `CommandUiType::Panel("name")`     |
 
 ---
 
 ## 10. 平台差異
 
-| 功能 | Windows | Linux | macOS |
-|------|---------|-------|-------|
-| 全域快捷鍵 | WinAPI | X11/Wayland | Accessibility API |
-| 系統應用程式列表 | Registry + Start Menu | .desktop files | LaunchServices |
-| 全文搜尋 | tantivy 或 Everything | tantivy | tantivy |
-| 滑鼠控制 | WinAPI SendInput | xdotool | CGEvent |
-| Neovim portable | nvim-win64.zip | nvim-linux64.tar.gz | nvim-macos.tar.gz |
+| 功能             | Windows               | Linux               | macOS             |
+| ---------------- | --------------------- | ------------------- | ----------------- |
+| 全域快捷鍵       | WinAPI                | X11/Wayland         | Accessibility API |
+| 系統應用程式列表 | Registry + Start Menu | .desktop files      | LaunchServices    |
+| 全文搜尋         | tantivy 或 Everything | tantivy             | tantivy           |
+| 滑鼠控制         | WinAPI SendInput      | xdotool             | CGEvent           |
+| Neovim portable  | nvim-win64.zip        | nvim-linux64.tar.gz | nvim-macos.tar.gz |
 
 ---
 
@@ -558,4 +561,3 @@ Related events/logging:
 - Observability helper: `core::observability::log_startup_preflight(...)`
 
 平台特定程式碼透過 `#[cfg(target_os = "...")]` 隔離在 `platform/` 模組。
-

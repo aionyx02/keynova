@@ -1,7 +1,6 @@
 //! Row-level INSERT / SELECT statements against the knowledge store tables.
 //!
-//! Extracted from `knowledge_store.rs` (REF.9.D) as a pure structural move;
-//! behavior unchanged.
+//! Focused SQL row-operations module used by the knowledge store facade.
 
 use rusqlite::{params, Connection};
 

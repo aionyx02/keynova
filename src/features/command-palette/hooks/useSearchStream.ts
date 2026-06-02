@@ -1,4 +1,4 @@
-// REF.2.P2 — Search stream state + chunk listener + debounced trigger.
+// Search stream state, chunk listener, and debounced trigger.
 //
 // Owns the four pieces of state that move together during a streaming
 // `search.query` exchange:
@@ -32,11 +32,7 @@ import type {
   SearchErrorPayload,
 } from "../../../types/search";
 import type { UnifiedResult } from "../../../types/unified-result";
-import {
-  applySourceQuotas,
-  mergeUnifiedResults,
-  sortUnifiedResults,
-} from "../../../utils/search";
+import { applySourceQuotas, mergeUnifiedResults, sortUnifiedResults } from "../../../utils/search";
 
 const DEFAULT_SEARCH_LIMIT = 30;
 const SEARCH_DEBOUNCE_MS = 200;
@@ -55,9 +51,7 @@ export interface UseSearchStream {
   timedOutProviders: string[];
   setTimedOutProviders: React.Dispatch<React.SetStateAction<string[]>>;
   fileDiagnostics: SearchChunkDiagnostics | null;
-  setFileDiagnostics: React.Dispatch<
-    React.SetStateAction<SearchChunkDiagnostics | null>
-  >;
+  setFileDiagnostics: React.Dispatch<React.SetStateAction<SearchChunkDiagnostics | null>>;
   /** Trigger a 200ms-debounced search. Subsequent calls supersede pending ones. */
   triggerSearch: (rawInput: string) => void;
   /** Mark current request stale + ask backend to cancel + clear pending debounce. */
@@ -68,15 +62,11 @@ export interface UseSearchStream {
   clearResults: () => void;
 }
 
-export function useSearchStream({
-  dispatch,
-  setLoading,
-}: UseSearchStreamDeps): UseSearchStream {
+export function useSearchStream({ dispatch, setLoading }: UseSearchStreamDeps): UseSearchStream {
   const [results, setResults] = useState<UnifiedResult[]>([]);
   const [selected, setSelected] = useState(0);
   const [timedOutProviders, setTimedOutProviders] = useState<string[]>([]);
-  const [fileDiagnostics, setFileDiagnostics] =
-    useState<SearchChunkDiagnostics | null>(null);
+  const [fileDiagnostics, setFileDiagnostics] = useState<SearchChunkDiagnostics | null>(null);
 
   const searchIdRef = useRef(0);
   const activeSearchRequestRef = useRef("");
@@ -89,43 +79,35 @@ export function useSearchStream({
   useEffect(() => {
     if (!window.__TAURI_INTERNALS__) return;
 
-    const chunkListener = listen<SearchChunkPayload>(
-      "search-results-chunk",
-      (event) => {
-        const payload = event.payload;
-        if (payload.request_id !== activeSearchRequestRef.current) return;
-        if (payload.timed_out_providers?.length) {
-          setTimedOutProviders(payload.timed_out_providers);
-        }
-        if (payload.diagnostics) {
-          setFileDiagnostics(payload.diagnostics);
-        }
-        if (payload.replace) {
-          // Final balanced batch from backend — replace results entirely.
-          // LAUNCH.1.B bugfix: deleted paths are filtered at render time via
-          // `visibleResults`, so the kill set doesn't need to live in this
-          // event handler.
-          setResults(
-            applySourceQuotas(sortUnifiedResults(payload.items), searchLimitRef.current),
-          );
-        } else if (payload.items.length > 0) {
-          setResults((current) =>
-            mergeUnifiedResults(current, payload.items, searchLimitRef.current),
-          );
-        }
-        if (payload.done) {
-          setLoading(false);
-        }
-      },
-    );
-    const errorListener = listen<SearchErrorPayload>(
-      "search-results-error",
-      (event) => {
-        if (event.payload.request_id !== activeSearchRequestRef.current) return;
-        setTimedOutProviders([]);
+    const chunkListener = listen<SearchChunkPayload>("search-results-chunk", (event) => {
+      const payload = event.payload;
+      if (payload.request_id !== activeSearchRequestRef.current) return;
+      if (payload.timed_out_providers?.length) {
+        setTimedOutProviders(payload.timed_out_providers);
+      }
+      if (payload.diagnostics) {
+        setFileDiagnostics(payload.diagnostics);
+      }
+      if (payload.replace) {
+        // Final balanced batch from backend — replace results entirely.
+        // Deleted paths are filtered at render time via
+        // `visibleResults`, so the kill set doesn't need to live in this
+        // event handler.
+        setResults(applySourceQuotas(sortUnifiedResults(payload.items), searchLimitRef.current));
+      } else if (payload.items.length > 0) {
+        setResults((current) =>
+          mergeUnifiedResults(current, payload.items, searchLimitRef.current),
+        );
+      }
+      if (payload.done) {
         setLoading(false);
-      },
-    );
+      }
+    });
+    const errorListener = listen<SearchErrorPayload>("search-results-error", (event) => {
+      if (event.payload.request_id !== activeSearchRequestRef.current) return;
+      setTimedOutProviders([]);
+      setLoading(false);
+    });
 
     return () => {
       chunkListener.then((fn) => fn());

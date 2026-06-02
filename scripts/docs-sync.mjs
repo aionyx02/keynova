@@ -145,6 +145,15 @@ const DOC_REGISTRY = [
     purpose: "Structured edge-case debugging matrix",
   },
   {
+    path: "docs/coding-style.md",
+    type: "coding_style",
+    status: "active",
+    priority: "p1",
+    contextPolicy: "retrieve_when_debugging",
+    owner: "project",
+    purpose: "Google-aligned project coding style",
+  },
+  {
     path: "docs/tasks/bug-followup.md",
     type: "bug_followup",
     status: "active",
@@ -183,9 +192,7 @@ function run(command) {
 }
 
 function todayTaipei() {
-  return new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Taipei" }).format(
-    new Date(),
-  );
+  return new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Taipei" }).format(new Date());
 }
 
 function parseFrontmatter(text) {
@@ -212,15 +219,7 @@ function parseFrontmatter(text) {
 }
 
 function renderFrontmatter(map) {
-  const preferred = [
-    "type",
-    "status",
-    "priority",
-    "updated",
-    "context_policy",
-    "owner",
-    "tags",
-  ];
+  const preferred = ["type", "status", "priority", "updated", "context_policy", "owner", "tags"];
   const keys = [...preferred, ...[...map.keys()].filter((k) => !preferred.includes(k))];
   const dedup = [...new Set(keys)].filter((key) => map.has(key));
   const lines = dedup.map((key) => `${key}: ${map.get(key)}`);
@@ -250,10 +249,7 @@ function getChangedFiles() {
   const changed = new Set();
   const commands = STAGED_ONLY
     ? ["git diff --cached --name-only -- CLAUDE.md docs"]
-    : [
-        "git diff --name-only -- CLAUDE.md docs",
-        "git diff --cached --name-only -- CLAUDE.md docs",
-      ];
+    : ["git diff --name-only -- CLAUDE.md docs", "git diff --cached --name-only -- CLAUDE.md docs"];
   for (const command of commands) {
     const output = run(command);
     output

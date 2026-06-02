@@ -107,7 +107,10 @@ function hasRequiredFrontmatter(filePath) {
   if (!fs.existsSync(filePath)) {
     return false;
   }
-  const content = fs.readFileSync(filePath, "utf8").replace(/^\uFEFF/, "").replace(/\r\n/g, "\n");
+  const content = fs
+    .readFileSync(filePath, "utf8")
+    .replace(/^\uFEFF/, "")
+    .replace(/\r\n/g, "\n");
   const match = content.match(/^---\n([\s\S]*?)\n---\n?/);
   if (!match) {
     return false;
@@ -124,7 +127,8 @@ const codeChanged = [...changed].some(
   (file) => file.startsWith("src/") || file.startsWith("src-tauri/"),
 );
 const stateDocsChanged = [...changed].some(
-  (file) => KEY_STATE_DOCS.has(file) || KEY_STATE_PREFIXES.some((prefix) => file.startsWith(prefix)),
+  (file) =>
+    KEY_STATE_DOCS.has(file) || KEY_STATE_PREFIXES.some((prefix) => file.startsWith(prefix)),
 );
 
 if (codeChanged && !stateDocsChanged) {
@@ -146,7 +150,9 @@ const newArchFiles = [...added].filter((file) =>
   ARCH_NEW_FILE_PREFIXES.some((prefix) => file.startsWith(prefix)),
 );
 if (newArchFiles.length > 0 && !archDocChanged) {
-  console.error("[docs-guard] New architecture module(s) added but docs/architecture.md was not updated:");
+  console.error(
+    "[docs-guard] New architecture module(s) added but docs/architecture.md was not updated:",
+  );
   for (const file of newArchFiles) {
     console.error(`  + ${file}`);
   }
@@ -157,7 +163,9 @@ if (newArchFiles.length > 0 && !archDocChanged) {
 // Advisory: wiring files modified; remind but do not block.
 const wiringChanged = [...changed].filter((file) => ARCH_WIRING_FILES.has(file));
 if (wiringChanged.length > 0 && !archDocChanged) {
-  console.warn("[docs-guard] Advisory: architecture wiring file(s) modified; update docs/architecture.md if the change is significant:");
+  console.warn(
+    "[docs-guard] Advisory: architecture wiring file(s) modified; update docs/architecture.md if the change is significant:",
+  );
   for (const file of wiringChanged) {
     console.warn(`  ~ ${file}`);
   }

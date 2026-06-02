@@ -1,4 +1,4 @@
-// REF.2.P2 — automation pipeline state owned by the command palette.
+// Automation pipeline state owned by the command palette.
 //
 // Encapsulates the `automation.execute_pipeline` IPC call and the
 // running/result UI flags. Pipeline runs when the user submits a query

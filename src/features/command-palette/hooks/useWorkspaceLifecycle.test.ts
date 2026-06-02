@@ -6,7 +6,7 @@ import { useWorkspaceLifecycle } from "./useWorkspaceLifecycle";
 // Side-effect-only hook (3 Tauri listen() bindings). In jsdom we can only
 // assert that mounting the hook does not crash and does not invoke its
 // reset callbacks. The actual event flow (workspace-switched / cycled /
-// window-focused → reset chain) is exercised by REF.2.P6 manual regression.
+// window-focused -> reset chain) is exercised by manual regression.
 
 describe("useWorkspaceLifecycle", () => {
   it("mounts without invoking callbacks outside Tauri", () => {

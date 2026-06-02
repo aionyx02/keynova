@@ -2,7 +2,7 @@
 type: security_policy
 status: active
 priority: p0
-updated: 2026-05-29
+updated: 2026-06-02
 context_policy: retrieve_only
 owner: project
 ---
@@ -97,14 +97,14 @@ Handling rules:
 
 ### 3.2 允許的讀寫路徑
 
-| 路徑 | 操作 | 說明 |
-|------|------|------|
-| `%APPDATA%\Roaming\Keynova\config.toml` | 讀/寫 | 使用者設定 |
-| `%LOCALAPPDATA%\Keynova\knowledge.db` | 讀/寫 | SQLite 儲存 |
-| `%LOCALAPPDATA%\Keynova\notes\` | 讀/寫 | 使用者筆記 |
-| `%LOCALAPPDATA%\Keynova\search\tantivy\` | 讀/寫 | 搜尋索引 |
-| `%LOCALAPPDATA%\Keynova\nvim\` | 寫（下載） | Portable Neovim |
-| Workspace root（使用者設定） | 遞迴讀 | 搜尋索引掃描 |
+| 路徑                                     | 操作       | 說明            |
+| ---------------------------------------- | ---------- | --------------- |
+| `%APPDATA%\Roaming\Keynova\config.toml`  | 讀/寫      | 使用者設定      |
+| `%LOCALAPPDATA%\Keynova\knowledge.db`    | 讀/寫      | SQLite 儲存     |
+| `%LOCALAPPDATA%\Keynova\notes\`          | 讀/寫      | 使用者筆記      |
+| `%LOCALAPPDATA%\Keynova\search\tantivy\` | 讀/寫      | 搜尋索引        |
+| `%LOCALAPPDATA%\Keynova\nvim\`           | 寫（下載） | Portable Neovim |
+| Workspace root（使用者設定）             | 遞迴讀     | 搜尋索引掃描    |
 
 **禁止**：讀寫系統目錄（`C:\Windows\`）、其他使用者的 home 目錄、網路磁碟（未經 ADR 允許）。
 
@@ -126,6 +126,7 @@ Handling rules:
 ### 4.2 Log 遮蔽規則
 
 若需要在 log 中顯示：
+
 - API key → `sk-****`
 - 路徑 → `/Users/***/filename`
 - Token → `[REDACTED]`
@@ -144,11 +145,11 @@ Handling rules:
 
 ### 5.1 目前允許的網路連線
 
-| 目標 | 用途 | 使用者可關閉 |
-|------|------|------------|
-| Ollama（本機 HTTP, 預設 port 11434） | 本機 AI 推理 | 不需關閉，本機連線 |
-| GitHub releases（HTTPS） | Neovim portable 下載 | 是（不設定 nvim_bin 則跳過） |
-| 使用者設定的翻譯 API | 翻譯功能 | 是（不設定 API key 則停用） |
+| 目標                                 | 用途                 | 使用者可關閉                 |
+| ------------------------------------ | -------------------- | ---------------------------- |
+| Ollama（本機 HTTP, 預設 port 11434） | 本機 AI 推理         | 不需關閉，本機連線           |
+| GitHub releases（HTTPS）             | Neovim portable 下載 | 是（不設定 nvim_bin 則跳過） |
+| 使用者設定的翻譯 API                 | 翻譯功能             | 是（不設定 API key 則停用）  |
 
 ### 5.2 網路安全規則
 
@@ -165,6 +166,7 @@ Handling rules:
 ### 6.1 AgentObservationPolicy
 
 Agent 執行工具前，`safety.rs` 中的 `ToolPermissionGate` 必須評估：
+
 - 工具的 `risk` 等級（low / medium / high）
 - 目前的 `AgentObservationPolicy`（允許 / 拒絕哪些工具類型）
 
@@ -210,12 +212,12 @@ Agent 執行工具前，`safety.rs` 中的 `ToolPermissionGate` 必須評估：
 
 ## 9. 已知安全限制
 
-| 項目 | 現況 | 計劃 |
-|------|------|------|
-| Neovim 下載 checksum 驗證 | 目前僅驗證檔案大小 | ADR 後補充 SHA256 驗證 |
-| Agent shell 命令執行 | 目前高風險工具需人工審查 | 計劃加入細粒度 allowlist |
-| 翻譯 API key 儲存 | 存在 config.toml（明文） | 計劃支援 OS keychain |
-| CSP 設定 | 尚未完整設定 | TD.5 安全強化計劃中 |
+| 項目                      | 現況                     | 計劃                     |
+| ------------------------- | ------------------------ | ------------------------ |
+| Neovim 下載 checksum 驗證 | 目前僅驗證檔案大小       | ADR 後補充 SHA256 驗證   |
+| Agent shell 命令執行      | 目前高風險工具需人工審查 | 計劃加入細粒度 allowlist |
+| 翻譯 API key 儲存         | 存在 config.toml（明文） | 計劃支援 OS keychain     |
+| CSP 設定                  | 尚未完整設定             | TD.5 安全強化計劃中      |
 
 ---
 
@@ -232,6 +234,7 @@ Agent 執行工具前，`safety.rs` 中的 `ToolPermissionGate` 必須評估：
 **讀取邊界與既有 IPC 對齊**：使用者本來就能透過 `file.reveal` / `file.open_with` / `file.open_as_text` / `file.preview` 觸發任意路徑讀取（這些 IPC 由前端按鈕或 secondary action menu 啟動，需使用者主動操作）。asset 協議只是用同一個讀取邊界提供圖片 `<img>` 來源，沒有擴大可讀取範圍。
 
 **禁止用途**：
+
 - 不得用 asset 協議自動傳送檔案內容到外部網路（CSP `connect-src` 不含 asset host，已硬性阻擋）。
 - 不得用 asset 協議當作 RPC channel（IPC 仍走 `cmd_dispatch`）。
 - 前端不得從遠端 origin 接受 path 參數傳入 `convertFileSrc`（WebView 載入本機靜態資源，原本就不接受外部 origin）。
@@ -239,4 +242,3 @@ Agent 執行工具前，`safety.rs` 中的 `ToolPermissionGate` 必須評估：
 ### 10.3 file.preview IPC 邊界
 
 `file.preview` 為 read-only，路徑必須通過 `trim_path` + `ensure_path_exists` 驗證；text preview 走 `core/preview::read_text_preview` 套用 `AgentObservationPolicy { redact_secrets: true }` 遮蔽常見 secret pattern；max_bytes 上限 64 KiB、max_lines 上限 2000，避免 IPC payload 過大。Binary / image 不回傳檔案內容，僅 metadata。
-

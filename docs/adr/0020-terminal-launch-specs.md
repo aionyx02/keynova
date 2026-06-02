@@ -4,6 +4,7 @@
 **日期：** 2026-05-06  
 **決策者：** 開發者  
 **相關文件：**
+
 - docs/architecture.md
 - docs/adr/0009-builtin-command-registry.md
 
@@ -24,19 +25,23 @@
 ### 方案 A：BuiltinCommandResult 支援 Terminal(TerminalLaunchSpec)
 
 **優點：**
+
 - 統一結果型別，前端 PanelRegistry 可處理
 - launch_spec 攜帶完整資訊（program、args、cwd、env、title）
 - plain terminal 仍走 pre-warmed shell path
 
 **缺點：**
+
 - BuiltinCommandResult 新增一個 variant
 
 ### 方案 B：獨立的 `/nvim` 指令（不走 BuiltinCommand）
 
 **優點：**
+
 - 不修改 BuiltinCommandResult 型別
 
 **缺點：**
+
 - 與其他 builtin command 不一致
 - 重複前端 panel 管理邏輯
 
@@ -47,10 +52,12 @@
 `BuiltinCommandResult` 支援 `CommandUiType::Terminal(TerminalLaunchSpec)`。第一個消費者是 `/note lazyvim`，直接透過 PTY launch `nvim`。
 
 原因：
+
 - 統一結果型別，前端無需特殊處理
 - launch_spec 完整描述 terminal 啟動方式
 
 犧牲：
+
 - BuiltinCommandResult 多一個 variant（維護成本低）
 
 Feature flag：N/A
@@ -62,13 +69,16 @@ Rollback 需款：移除 Terminal variant，回傳 Inline 錯誤訊息
 ## 5. Consequences（系統影響與副作用）
 
 ### 正面影響
+
 - Terminal-backed command results 攜帶 `launch_id`、program、args、cwd、title、editor-session metadata
 - `terminal.open` 接受可選 `launch_spec`；plain terminal 仍走 pre-warmed shell path
 
 ### 對使用者的影響
+
 - Editor sessions 保留 Escape 給 vim，使用 `Ctrl+Shift+Q` 或 `Ctrl+Alt+Esc` 退出 launcher panel
 
 ### LazyVim 環境變數
+
 - `NVIM_APPNAME`、`XDG_CONFIG_HOME`、`XDG_DATA_HOME`、`XDG_STATE_HOME`、`XDG_CACHE_HOME`（project-local `.keynova/lazyvim/`）
 
 ## 6. Implementation Plan（實作計畫）
@@ -81,10 +91,10 @@ Rollback 需款：移除 Terminal variant，回傳 Inline 錯誤訊息
 
 ## 8. Validation Plan（驗證方式）
 
-| 測試類型 | 覆蓋目標 | 指令 |
-|---------|---------|------|
-| Integration test | PTY launch nvim | `cargo test -- terminal_launch_spec` |
-| Manual validation | LazyVim 啟動 / Escape 行為 | `npm run tauri dev` |
+| 測試類型          | 覆蓋目標                   | 指令                                 |
+| ----------------- | -------------------------- | ------------------------------------ |
+| Integration test  | PTY launch nvim            | `cargo test -- terminal_launch_spec` |
+| Manual validation | LazyVim 啟動 / Escape 行為 | `npm run tauri dev`                  |
 
 ## 9. Open Questions（未解問題）
 

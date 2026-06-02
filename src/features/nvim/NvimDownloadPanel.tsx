@@ -75,7 +75,9 @@ export function NvimDownloadPanel({ onClose }: PanelProps) {
       <div className="kn-panel-header">
         <div>
           <div className="kn-panel-title">Install Neovim</div>
-          <div className="kn-panel-subtitle">Fetch a portable Neovim copy for the LazyVim workflow</div>
+          <div className="kn-panel-subtitle">
+            Fetch a portable Neovim copy for the LazyVim workflow
+          </div>
         </div>
         <span className={`kn-chip ${isActive || stage === "done" ? "kn-chip-active" : ""}`}>
           {stageLabel[stage]}
@@ -84,12 +86,16 @@ export function NvimDownloadPanel({ onClose }: PanelProps) {
 
       <div className="flex flex-1 flex-col gap-4 px-4 py-4">
         <div className="kn-muted-surface px-4 py-3 text-sm leading-6 text-[color:var(--kn-text-soft)]">
-          Neovim was not found on this machine. Keynova can download a portable
-          copy of Neovim v0.10.4 and wire it into the note workflow for you.
+          Neovim was not found on this machine. Keynova can download a portable copy of Neovim
+          v0.10.4 and wire it into the note workflow for you.
         </div>
 
         {stage === "idle" && (
-          <button type="button" onClick={startDownload} className="kn-button kn-button-primary self-start px-4 py-2">
+          <button
+            type="button"
+            onClick={startDownload}
+            className="kn-button kn-button-primary self-start px-4 py-2"
+          >
             Download Neovim v0.10.4
           </button>
         )}
@@ -119,7 +125,11 @@ export function NvimDownloadPanel({ onClose }: PanelProps) {
                 {nvimPath}
               </div>
             )}
-            <button type="button" onClick={onClose} className="kn-button kn-button-primary self-start px-4 py-2">
+            <button
+              type="button"
+              onClick={onClose}
+              className="kn-button kn-button-primary self-start px-4 py-2"
+            >
               Close and retry /lazyvim
             </button>
           </div>
@@ -130,7 +140,11 @@ export function NvimDownloadPanel({ onClose }: PanelProps) {
             <div className="kn-muted-surface border-red-400/20 bg-[color:var(--kn-danger-wash)] px-4 py-3 text-sm text-red-100">
               {error ?? "The download failed."}
             </div>
-            <button type="button" onClick={startDownload} className="kn-button self-start px-4 py-2">
+            <button
+              type="button"
+              onClick={startDownload}
+              className="kn-button self-start px-4 py-2"
+            >
               Retry
             </button>
           </div>
@@ -139,7 +153,11 @@ export function NvimDownloadPanel({ onClose }: PanelProps) {
 
       <div className="kn-panel-footer">
         <span>Esc closes</span>
-        <span>{stage === "done" ? "Neovim is ready to use" : "Portable install, no manual setup required"}</span>
+        <span>
+          {stage === "done"
+            ? "Neovim is ready to use"
+            : "Portable install, no manual setup required"}
+        </span>
       </div>
     </div>
   );

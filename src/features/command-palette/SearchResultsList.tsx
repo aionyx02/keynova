@@ -18,8 +18,16 @@ import { SecondaryActionMenu } from "./SecondaryActionMenu";
 import type { SecondaryInlineInput } from "./hooks/useSecondaryMenu";
 
 const KIND_BADGE: Record<string, { label: string; cls: string; icon: UiIconName }> = {
-  app: { label: "App", cls: "border-white/10 bg-white/[0.045] text-[color:var(--kn-text-soft)]", icon: "app" },
-  file: { label: "File", cls: "border-white/10 bg-white/[0.045] text-[color:var(--kn-text-soft)]", icon: "file" },
+  app: {
+    label: "App",
+    cls: "border-white/10 bg-white/[0.045] text-[color:var(--kn-text-soft)]",
+    icon: "app",
+  },
+  file: {
+    label: "File",
+    cls: "border-white/10 bg-white/[0.045] text-[color:var(--kn-text-soft)]",
+    icon: "file",
+  },
   folder: {
     label: "Dir",
     cls: "border-amber-400/18 bg-amber-400/10 text-amber-200",
@@ -30,13 +38,21 @@ const KIND_BADGE: Record<string, { label: string; cls: string; icon: UiIconName 
     cls: "border-[color:rgba(138,168,255,0.2)] bg-[color:var(--kn-accent-wash)] text-[color:var(--kn-accent)]",
     icon: "command",
   },
-  note: { label: "Note", cls: "border-white/10 bg-white/[0.045] text-[color:var(--kn-text-soft)]", icon: "note" },
+  note: {
+    label: "Note",
+    cls: "border-white/10 bg-white/[0.045] text-[color:var(--kn-text-soft)]",
+    icon: "note",
+  },
   history: {
     label: "Hist",
     cls: "border-white/10 bg-white/[0.045] text-[color:var(--kn-text-soft)]",
     icon: "history",
   },
-  model: { label: "AI", cls: "border-[color:rgba(88,211,166,0.22)] bg-[color:var(--kn-success-wash)] text-[color:var(--kn-success)]", icon: "model" },
+  model: {
+    label: "AI",
+    cls: "border-[color:rgba(88,211,166,0.22)] bg-[color:var(--kn-success-wash)] text-[color:var(--kn-success)]",
+    icon: "model",
+  },
 };
 
 function hasEncodingError(s: string | undefined | null): boolean {

@@ -26,35 +26,19 @@ export function EmptyStateCTA({
           No results for <span className="font-mono text-[color:var(--kn-text)]">{query}</span>.
         </div>
         <div className="flex flex-wrap gap-2 text-xs">
-          <button
-            type="button"
-            onClick={onCreateNote}
-            className="kn-button kn-button-primary"
-          >
+          <button type="button" onClick={onCreateNote} className="kn-button kn-button-primary">
             <UiIcon name="note" className="h-3.5 w-3.5" />
             Create note &quot;{query}&quot;
           </button>
-          <button
-            type="button"
-            onClick={onJumpHelp}
-            className="kn-button"
-          >
+          <button type="button" onClick={onJumpHelp} className="kn-button">
             <UiIcon name="command" className="h-3.5 w-3.5" />
             Try /help
           </button>
-          <button
-            type="button"
-            onClick={onJumpSetting}
-            className="kn-button"
-          >
+          <button type="button" onClick={onJumpSetting} className="kn-button">
             <UiIcon name="settings" className="h-3.5 w-3.5" />
             Open /setting
           </button>
-          <button
-            type="button"
-            onClick={onReplayOnboard}
-            className="kn-button"
-          >
+          <button type="button" onClick={onReplayOnboard} className="kn-button">
             <UiIcon name="arrow-right" className="h-3.5 w-3.5" />
             Replay /onboard
           </button>

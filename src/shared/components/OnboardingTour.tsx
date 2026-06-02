@@ -46,7 +46,6 @@ const STEPS: Step[] = [
   },
 ];
 
-
 interface Props {
   onClose: () => void;
 }

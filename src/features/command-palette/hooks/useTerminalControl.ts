@@ -1,4 +1,4 @@
-// REF.2.P5 — Terminal + Panel exit/close callbacks.
+// Terminal and panel exit/close callbacks.
 //
 // Four small callbacks share the same reset chain (refocus container, clear
 // query / cmdResult / results, kick the input back to focus, renew
@@ -25,7 +25,7 @@ interface Deps {
   inputRef: React.RefObject<HTMLInputElement | null>;
   setQuery: (q: string) => void;
   setCmdResult: (result: BuiltinCommandResult | null) => void;
-  /** REF.6.A — see useFileActions.UseFileActionsDeps.setResults. */
+  /** See useFileActions.UseFileActionsDeps.setResults. */
   setResults: React.Dispatch<React.SetStateAction<UnifiedResult[]>>;
   cancelSearch: () => void;
   keepLauncherOpen: () => Promise<void> | void;

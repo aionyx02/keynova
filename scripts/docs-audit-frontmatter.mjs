@@ -39,7 +39,9 @@ if (violations.length > 0) {
   for (const file of violations) {
     console.error(`  - ${file}`);
   }
-  console.error("[docs-audit-frontmatter] Use on_demand, retrieve_when_debugging, retrieve_only, or archive.");
+  console.error(
+    "[docs-audit-frontmatter] Use on_demand, retrieve_when_debugging, retrieve_only, or archive.",
+  );
   process.exit(1);
 }
 

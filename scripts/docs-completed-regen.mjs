@@ -65,4 +65,6 @@ if (completedItems.length === 0) {
 
 const targetPath = path.join(ROOT, "docs", "tasks", "completed.md");
 fs.writeFileSync(targetPath, output.trimEnd() + "\n", "utf8");
-console.log(`[docs-completed-regen] Wrote ${repoPath(targetPath)} with ${completedItems.length} items.`);
+console.log(
+  `[docs-completed-regen] Wrote ${repoPath(targetPath)} with ${completedItems.length} items.`,
+);

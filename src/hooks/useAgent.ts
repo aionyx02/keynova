@@ -233,17 +233,14 @@ export function useAgent() {
     setRuns((prev) => upsertRunChronologically(prev, run));
   }, []);
 
-  const approve = useCallback(
-    async (runId: string, approvalId: string, remember?: boolean) => {
-      const run = await ipcDispatch<AgentRun>(IPC.AGENT_APPROVE, {
-        run_id: runId,
-        approval_id: approvalId,
-        remember: remember ?? false,
-      });
-      setRuns((prev) => upsertRunChronologically(prev, run));
-    },
-    [],
-  );
+  const approve = useCallback(async (runId: string, approvalId: string, remember?: boolean) => {
+    const run = await ipcDispatch<AgentRun>(IPC.AGENT_APPROVE, {
+      run_id: runId,
+      approval_id: approvalId,
+      remember: remember ?? false,
+    });
+    setRuns((prev) => upsertRunChronologically(prev, run));
+  }, []);
 
   const reject = useCallback(async (runId: string, approvalId: string) => {
     const run = await ipcDispatch<AgentRun>(IPC.AGENT_REJECT, {

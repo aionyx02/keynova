@@ -4,12 +4,12 @@ mouse_control   = "Ctrl+Alt+M"
 workspace_1     = "Ctrl+Alt+1"
 workspace_2     = "Ctrl+Alt+2"
 workspace_3     = "Ctrl+Alt+3"
-workspace_cycle = "Ctrl+Alt+0"        # LAUNCH.2.B — cycles to next workspace + clears query
+workspace_cycle = "Ctrl+Alt+0"        # Cycles to the next workspace and clears the query
 
 [launcher]
-scan_paths = []          # 額外掃描路徑（空陣列代表僅掃描系統預設路徑）
+scan_paths = []          # Extra app scan paths; leave empty for platform defaults
 max_results = 10
-cache_ttl_secs = 300     # 應用列表快取時間（秒）
+cache_ttl_secs = 300     # App cache TTL in seconds
 auto_start_on_login = true
 
 [search]
@@ -17,17 +17,17 @@ backend = "auto"
 index_dir = ""
 exclude_dirs = "AppData,node_modules,.git,target,dist"
 max_file_results = 50
-preview_enabled = true        # LAUNCH.1.C — show right-side preview pane for selected file/folder/note
-show_rank_breakdown = true    # LAUNCH.1.E — show rank tooltip on result hover
+preview_enabled = true        # Show the right-side preview pane for selected files, folders, and notes
+show_rank_breakdown = true    # Show rank details on result hover
 
 [terminal]
-default_shell = ""       # 空字串代表使用系統預設 shell
+default_shell = ""       # Empty means use the platform default shell
 font_size = 14
 scrollback_lines = 1000
 
 [mouse_control]
-step_size = 10           # 每次方向鍵移動的像素距離
-fast_step_size = 50      # 按住 Shift 時的移動距離
+step_size = 10           # Cursor movement step in pixels
+fast_step_size = 50      # Cursor movement step while Shift is held
 
 [features]
 ai = false
@@ -74,7 +74,7 @@ timeout_secs = 30
 network_allowlist = "api.anthropic.com,api.openai.com,translation.googleapis.com,translate.googleapis.com,api.tavily.com,duckduckgo.com,github.com"
 
 [notes]
-storage_dir = ""         # 空字串代表 AppData/Keynova/notes/
+storage_dir = ""         # Empty means AppData/Keynova/notes
 default_extension = "md"
 lazyvim_command = ""     # Empty means find nvim on PATH
 lazyvim_config_dir = ""  # Empty means project-local .keynova/lazyvim/config/keynova-lazyvim

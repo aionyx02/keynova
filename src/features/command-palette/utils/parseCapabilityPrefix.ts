@@ -1,4 +1,4 @@
-// REF.6.B / REF.6.D — Capability-mode prefix parser.
+// Capability-mode prefix parser.
 //
 // Layered on top of `parseInputMode` (which classifies `> ...` as terminal
 // and `/ ...` as command). When `parseInputMode` returns `search`, this
@@ -42,9 +42,7 @@ const PREFIXES: ReadonlyArray<PrefixSpec> = [
   { keyword: "fix", id: "fix" },
 ];
 
-export function parseCapabilityPrefix(
-  query: string,
-): CapabilityPrefixMatch | null {
+export function parseCapabilityPrefix(query: string): CapabilityPrefixMatch | null {
   if (!query) return null;
   // Strip leading whitespace once; we test the rest against each prefix.
   const lstripped = query.replace(/^\s+/, "");

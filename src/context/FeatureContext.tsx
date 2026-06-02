@@ -16,10 +16,7 @@ export function FeatureProvider({ children }: { children: ReactNode }) {
   const { dispatch } = useIPC();
   const [activeFeatures, setActiveFeatures] = useState<ReadonlySet<FeatureKey>>(new Set());
 
-  const isActive = useCallback(
-    (key: FeatureKey) => activeFeatures.has(key),
-    [activeFeatures],
-  );
+  const isActive = useCallback((key: FeatureKey) => activeFeatures.has(key), [activeFeatures]);
 
   const activate = useCallback(
     (key: FeatureKey) => {
@@ -36,9 +33,7 @@ export function FeatureProvider({ children }: { children: ReactNode }) {
   );
 
   return (
-    <FeatureContext.Provider value={{ isActive, activate }}>
-      {children}
-    </FeatureContext.Provider>
+    <FeatureContext.Provider value={{ isActive, activate }}>{children}</FeatureContext.Provider>
   );
 }
 

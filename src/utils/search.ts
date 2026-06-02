@@ -1,9 +1,9 @@
 import type { ResultKind, SearchResult } from "../types/search";
 import type { UnifiedResult } from "../types/unified-result";
 
-// REF.6.A — palette wire format is `UnifiedResult`. Helpers below operate on
+// Palette wire format is `UnifiedResult`. Helpers below operate on
 // the canonical shape. Legacy `SearchResult` callers convert via
-// [`unifiedToLegacy`] until REF.6.B migrates them.
+// [`unifiedToLegacy`] until the remaining legacy consumers migrate.
 
 export function unifiedResultKey(result: UnifiedResult): string {
   // Stable per generation: backend sets `id = item_ref.id` in the shim and
@@ -36,14 +36,22 @@ function unifiedBucketKey(result: UnifiedResult): string {
 function unifiedSourceOrder(result: UnifiedResult): number {
   const kind = unifiedKindOf(result);
   switch (kind) {
-    case "app":     return 0;
-    case "command": return 1;
-    case "folder":  return 2;
-    case "file":    return 3;
-    case "note":    return 4;
-    case "history": return 5;
-    case "model":   return 6;
-    default:        return 7;
+    case "app":
+      return 0;
+    case "command":
+      return 1;
+    case "folder":
+      return 2;
+    case "file":
+      return 3;
+    case "note":
+      return 4;
+    case "history":
+      return 5;
+    case "model":
+      return 6;
+    default:
+      return 7;
   }
 }
 
@@ -58,10 +66,7 @@ export function sortUnifiedResults(results: UnifiedResult[]): UnifiedResult[] {
   });
 }
 
-export function applySourceQuotas(
-  sorted: UnifiedResult[],
-  limit: number,
-): UnifiedResult[] {
+export function applySourceQuotas(sorted: UnifiedResult[], limit: number): UnifiedResult[] {
   const counts: Record<string, number> = {};
   const out: UnifiedResult[] = [];
   for (const item of sorted) {
@@ -93,7 +98,7 @@ export function mergeUnifiedResults(
 }
 
 /**
- * REF.6.A bridge — adapt a UnifiedResult into the legacy `SearchResult` shape
+ * Adapts a UnifiedResult into the legacy `SearchResult` shape
  * so existing hooks (`useFileActions`, `useDerivedView`, `useKeyboardNav`,
  * `useFilePreview`, etc.) keep working without per-file migration. The
  * canonical shape stays as `UnifiedResult`; this is a one-way derived view.
@@ -106,12 +111,18 @@ export function unifiedToLegacy(result: UnifiedResult): SearchResult {
   if (result.source.type === "file") {
     kind = result.source.kind;
     path = result.source.path;
-    source = kind === "app" ? "app"
-      : kind === "command" ? "command"
-      : kind === "note" ? "note"
-      : kind === "history" ? "history"
-      : kind === "model" ? "model"
-      : "file";
+    source =
+      kind === "app"
+        ? "app"
+        : kind === "command"
+          ? "command"
+          : kind === "note"
+            ? "note"
+            : kind === "history"
+              ? "history"
+              : kind === "model"
+                ? "model"
+                : "file";
   } else if (result.source.type === "builtin_command") {
     kind = "command";
     source = "command";

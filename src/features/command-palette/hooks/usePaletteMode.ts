@@ -1,4 +1,4 @@
-// REF.6.B — Palette mode dispatch.
+// Palette mode dispatch.
 //
 // Layered on top of `parseInputMode` (terminal/command sigils). When the
 // upper parser puts us in `search`, this hook runs `parseCapabilityPrefix`
@@ -12,14 +12,9 @@
 import { useMemo } from "react";
 
 import { parseInputMode } from "../../../hooks/useInputMode";
-import {
-  parseCapabilityPrefix,
-  type CapabilityPrefixMatch,
-} from "../utils/parseCapabilityPrefix";
+import { parseCapabilityPrefix, type CapabilityPrefixMatch } from "../utils/parseCapabilityPrefix";
 
-export type PaletteMode =
-  | { kind: "search" }
-  | ({ kind: "capability" } & CapabilityPrefixMatch);
+export type PaletteMode = { kind: "search" } | ({ kind: "capability" } & CapabilityPrefixMatch);
 
 const SEARCH_MODE: PaletteMode = { kind: "search" };
 

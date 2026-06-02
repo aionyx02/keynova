@@ -174,7 +174,7 @@ describe("useEscapeKey", () => {
     expect(spies.cancelSearch).not.toHaveBeenCalled();
   });
 
-  it("priority 3.5: capability streaming → cancel stream only (REF.6.B)", () => {
+  it("priority 3.5: capability streaming -> cancel stream only", () => {
     const { deps, spies, refs } = makeDeps();
     refs.capabilityModeRef.current = true;
     refs.capabilityStreamingRef.current = true;

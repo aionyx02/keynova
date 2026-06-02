@@ -12,9 +12,7 @@ export function repoPath(filePath) {
 }
 
 export function todayTaipei() {
-  return new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Taipei" }).format(
-    new Date(),
-  );
+  return new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Taipei" }).format(new Date());
 }
 
 export function parseFrontmatter(text) {

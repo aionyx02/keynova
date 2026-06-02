@@ -1,8 +1,7 @@
 //! Everything (voidtools) DLL IPC integration: dynamic DLL load + serialized
 //! query into (name, full_path, is_folder) results.
 //!
-//! Extracted from `platform/windows.rs` (REF.9.C) as a pure structural move;
-//! behavior unchanged.
+//! Focused Everything integration re-exported by the platform facade.
 
 type FnSetSearchW = unsafe extern "system" fn(*const u16);
 type FnSetMax = unsafe extern "system" fn(u32);

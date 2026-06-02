@@ -164,7 +164,7 @@ impl CommandHandler for SearchHandler {
 }
 
 impl SearchHandler {
-    /// LAUNCH.2.A — resolve workspace scope from the query.
+    /// Resolves workspace scope from the query.
     ///
     /// - Strips a leading `:global ` (or bare `:global`) prefix and returns
     ///   `(cleaned_query, None)` so the search runs unrestricted.
@@ -208,7 +208,7 @@ impl SearchHandler {
         self.execute_sync_query(query, workspace_root, limit)
     }
 
-    /// LAUNCH.2.A — filter results in-place to those whose `path` lives under
+    /// Filters results in-place to those whose `path` lives under
     /// `root` (case-insensitive prefix match — Windows paths). Non-file kinds
     /// (`command`/`note`/`history`/`model`) are always retained.
     fn apply_workspace_filter(items: &mut Vec<UiSearchItem>, root: Option<&str>) {
@@ -381,7 +381,7 @@ impl SearchHandler {
                 combined.push(item);
             }
         }
-        // LAUNCH.2.A — restrict file/folder/app results to workspace root when set.
+        // Restrict file/folder/app results to workspace root when set.
         Self::apply_workspace_filter(&mut combined, workspace_root.as_deref());
         let pre_balance_count = combined.len();
         sort_balanced_truncate(&mut combined, plan.display_limit);
@@ -680,7 +680,7 @@ struct StreamWorkerRequest {
     plan: SearchPlan,
     /// Cancel token set by SearchService when a newer request supersedes this one.
     cancel: Arc<AtomicBool>,
-    /// LAUNCH.2.A — workspace root to restrict file/folder/app results to.
+    /// Workspace root used to restrict file/folder/app results.
     /// `None` for global search (workspace had no project_root or `:global` prefix used).
     workspace_root: Option<String>,
 }
@@ -713,7 +713,7 @@ mod tests {
         }
     }
 
-    // ── LAUNCH.2.A workspace filter ─────────────────────────────────────────
+    // Workspace filter.
 
     fn make_typed_item(kind: ResultKind, path: &str) -> UiSearchItem {
         let mut item = make_item("file", 100, 0);

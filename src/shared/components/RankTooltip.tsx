@@ -1,4 +1,4 @@
-﻿import type { ScoreBreakdown } from "../../types/search";
+import type { ScoreBreakdown } from "../../types/search";
 
 interface Props {
   breakdown: ScoreBreakdown | undefined;
@@ -11,7 +11,7 @@ function fmtSigned(n: number): string {
 }
 
 /**
- * LAUNCH.1.E — small fixed-position tooltip rendering "why this rank" for the
+ * Small fixed-position tooltip rendering "why this rank" for the
  * hovered result. Positioned to the right of the row by default; flips to the
  * left if it would overflow the viewport.
  */

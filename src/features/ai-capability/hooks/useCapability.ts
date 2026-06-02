@@ -1,4 +1,4 @@
-// REF.4 — Generic single-call hook for the stateless AI capability layer.
+// Generic single-call hook for the stateless AI capability layer.
 //
 // Per ADR-0029 §4 the in-flight disable is state-based (not time-based
 // debounce). `isLoading` reflects whether a call is in flight for *this*

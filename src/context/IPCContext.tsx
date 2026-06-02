@@ -20,11 +20,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 function parseStringError(value: string): IpcErrorPayload | null {
   try {
     const parsed: unknown = JSON.parse(value);
-    if (
-      isRecord(parsed) &&
-      typeof parsed.code === "string" &&
-      typeof parsed.message === "string"
-    ) {
+    if (isRecord(parsed) && typeof parsed.code === "string" && typeof parsed.message === "string") {
       return { code: parsed.code, message: parsed.message, details: parsed.details };
     }
   } catch {
@@ -37,9 +33,7 @@ function normalizeIpcError(error: unknown): KeynovaIpcError {
   const payload =
     typeof error === "string"
       ? parseStringError(error)
-      : isRecord(error) &&
-          typeof error.code === "string" &&
-          typeof error.message === "string"
+      : isRecord(error) && typeof error.code === "string" && typeof error.message === "string"
         ? { code: error.code, message: error.message, details: error.details }
         : null;
 

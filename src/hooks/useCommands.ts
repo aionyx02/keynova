@@ -25,7 +25,9 @@ export function useCommands() {
 
   useEffect(() => {
     if (!window.__TAURI_INTERNALS__) return;
-    dispatch<CommandMeta[]>(IPC.CMD_LIST).then(setAll).catch(() => {});
+    dispatch<CommandMeta[]>(IPC.CMD_LIST)
+      .then(setAll)
+      .catch(() => {});
   }, [dispatch]);
 
   const filtered = useCallback(

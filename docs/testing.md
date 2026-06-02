@@ -84,29 +84,29 @@ npm run tauri build
 
 ## 3. 測試類型與適用情境
 
-| 測試類型 | 適用情境 | 工具 |
-|---------|---------|------|
-| unit test | 純函式、資料轉換、演算法 | `cargo test` / Vitest |
-| integration test | 多模組協作、I/O、SQLite、IPC | `cargo test --test integration` |
-| regression test | 修復已知 bug，防止再現 | 同上 |
-| security test | 路徑遍歷、敏感資料、權限邊界 | 手動 + 程式碼審查 |
-| performance test | 搜尋、索引、大量資料批次處理 | 手動量測 Task Manager / cargo bench |
-| migration test | knowledge.db schema 升級降級 | `cargo test -- migration` |
-| manual validation | 端對端 UX、鍵盤流程、視窗行為 | 開發者手動執行 |
+| 測試類型          | 適用情境                      | 工具                                |
+| ----------------- | ----------------------------- | ----------------------------------- |
+| unit test         | 純函式、資料轉換、演算法      | `cargo test` / Vitest               |
+| integration test  | 多模組協作、I/O、SQLite、IPC  | `cargo test --test integration`     |
+| regression test   | 修復已知 bug，防止再現        | 同上                                |
+| security test     | 路徑遍歷、敏感資料、權限邊界  | 手動 + 程式碼審查                   |
+| performance test  | 搜尋、索引、大量資料批次處理  | 手動量測 Task Manager / cargo bench |
+| migration test    | knowledge.db schema 升級降級  | `cargo test -- migration`           |
+| manual validation | 端對端 UX、鍵盤流程、視窗行為 | 開發者手動執行                      |
 
 ---
 
 ## 4. 覆蓋率目標
 
-| 模組 | 目標覆蓋率 | 說明 |
-|------|-----------|------|
-| `core/command_router.rs` | 90%+ | dispatch 邏輯是核心路徑 |
-| `core/event_bus.rs` | 80%+ | publish / subscribe |
-| `core/knowledge_store.rs` | 70%+ | SQLite actor，含 schema migration |
-| `managers/*_manager.rs` | 70%+ | 各 manager 主要方法 |
-| `handlers/*.rs` | 60%+ | CommandHandler::execute 主要分支 |
-| `app/dispatch.rs` | 70%+ | IPC 分派邏輯 |
-| React components | 50%+ | 主要互動流程 |
+| 模組                      | 目標覆蓋率 | 說明                              |
+| ------------------------- | ---------- | --------------------------------- |
+| `core/command_router.rs`  | 90%+       | dispatch 邏輯是核心路徑           |
+| `core/event_bus.rs`       | 80%+       | publish / subscribe               |
+| `core/knowledge_store.rs` | 70%+       | SQLite actor，含 schema migration |
+| `managers/*_manager.rs`   | 70%+       | 各 manager 主要方法               |
+| `handlers/*.rs`           | 60%+       | CommandHandler::execute 主要分支  |
+| `app/dispatch.rs`         | 70%+       | IPC 分派邏輯                      |
+| React components          | 50%+       | 主要互動流程                      |
 
 ---
 
@@ -169,27 +169,28 @@ npm run tauri build
 
 以下操作必須在下列限制內完成（開發機 i7/16GB/SSD）：
 
-| 操作 | 目標 | 資料規模 |
-|------|------|---------|
-| 應用程式搜尋（launcher.list） | < 100ms | 系統安裝 200+ 應用 |
-| 全文搜尋（search.query） | < 200ms | 索引 10,000 個檔案 |
-| Tantivy 索引建立 | < 30s | 10,000 個檔案 |
-| knowledge.db action_log 寫入 | < 5ms/筆 | 非同步，不阻塞 UI |
-| 冷啟動（UI 可見） | < 200ms | — |
-| 記憶體（Background Core 冷啟動） | < 100MB | 不含 WebView、LLM model、PTY |
+| 操作                             | 目標     | 資料規模                     |
+| -------------------------------- | -------- | ---------------------------- |
+| 應用程式搜尋（launcher.list）    | < 100ms  | 系統安裝 200+ 應用           |
+| 全文搜尋（search.query）         | < 200ms  | 索引 10,000 個檔案           |
+| Tantivy 索引建立                 | < 30s    | 10,000 個檔案                |
+| knowledge.db action_log 寫入     | < 5ms/筆 | 非同步，不阻塞 UI            |
+| 冷啟動（UI 可見）                | < 200ms  | —                            |
+| 記憶體（Background Core 冷啟動） | < 100MB  | 不含 WebView、LLM model、PTY |
 
 ### 6.1 記憶體量測清單（PERF.1.I）
 
 量測工具：Windows Task Manager → Keynova.exe → Memory (Private Working Set)
 
-| 量測點 | 步驟 | 預期上限 | 備註 |
-|--------|------|---------|------|
-| 冷啟動 | 啟動後等待 5 秒，查看 RSS | < 100 MB | 不開啟調色盤、不開啟終端 |
-| 系統匣待機 | 視窗關閉後等待 30 秒 | < 100 MB | prewarm 與 indexer 均應完成或跳過 |
-| 開啟調色盤 | 呼叫 Ctrl+K 後輸入查詢 | < 120 MB | 含 WebView 及搜尋結果渲染 |
-| 執行 Agent | 執行一次 /agent 任務（含 LLM 回應） | 不設上限 | 僅記錄 delta，不含已載入 model |
+| 量測點     | 步驟                                | 預期上限 | 備註                              |
+| ---------- | ----------------------------------- | -------- | --------------------------------- |
+| 冷啟動     | 啟動後等待 5 秒，查看 RSS           | < 100 MB | 不開啟調色盤、不開啟終端          |
+| 系統匣待機 | 視窗關閉後等待 30 秒                | < 100 MB | prewarm 與 indexer 均應完成或跳過 |
+| 開啟調色盤 | 呼叫 Ctrl+K 後輸入查詢              | < 120 MB | 含 WebView 及搜尋結果渲染         |
+| 執行 Agent | 執行一次 /agent 任務（含 LLM 回應） | 不設上限 | 僅記錄 delta，不含已載入 model    |
 
 量測前注意事項：
+
 - 使用 `performance.low_memory_mode = true` 時，冷啟動應省略 prewarm 和磁碟重掃；若已有 Tantivy 持久索引仍可直接使用。
 - 若 `low_memory_mode = false`，prewarm PTY 會增加約 10–20 MB；屬預期行為。
 - `ai.ollama_keep_alive = "0s"` 可讓模型在每次請求後立即卸載，大幅降低 delta。
@@ -198,12 +199,12 @@ npm run tauri build
 
 ## 7. 平台限制與已知問題
 
-| 平台 | 已知限制 |
-|------|---------|
-| Windows | Everything SDK 測試需要安裝 Everything，CI 跳過 |
-| Linux | X11 hotkey 測試需要顯示伺服器，CI 使用 Xvfb |
-| macOS | Accessibility API 需要使用者授權，無法在 CI 自動測試 |
-| 所有平台 | Neovim 下載測試需要網路，CI 使用 mock |
+| 平台     | 已知限制                                             |
+| -------- | ---------------------------------------------------- |
+| Windows  | Everything SDK 測試需要安裝 Everything，CI 跳過      |
+| Linux    | X11 hotkey 測試需要顯示伺服器，CI 使用 Xvfb          |
+| macOS    | Accessibility API 需要使用者授權，無法在 CI 自動測試 |
+| 所有平台 | Neovim 下載測試需要網路，CI 使用 mock                |
 
 ---
 
@@ -228,4 +229,3 @@ npm run test
 ```
 
 所有指令必須以 exit code 0 完成才能合併。
-

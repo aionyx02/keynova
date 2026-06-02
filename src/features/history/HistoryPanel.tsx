@@ -27,7 +27,9 @@ export function HistoryPanel({ onClose }: PanelProps) {
       return;
     }
     debounceRef.current = setTimeout(() => {
-      search(value).then(setFiltered).catch(() => {});
+      search(value)
+        .then(setFiltered)
+        .catch(() => {});
     }, 200);
   }
 
@@ -39,10 +41,18 @@ export function HistoryPanel({ onClose }: PanelProps) {
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent<HTMLInputElement>) => {
-      if (e.key === "Escape") { e.preventDefault(); onClose(); return; }
-      if (e.key === "ArrowDown") { e.preventDefault(); setSelected((i) => Math.min(i + 1, filtered.length - 1)); }
-      else if (e.key === "ArrowUp") { e.preventDefault(); setSelected((i) => Math.max(i - 1, 0)); }
-      else if (e.key === "Enter") {
+      if (e.key === "Escape") {
+        e.preventDefault();
+        onClose();
+        return;
+      }
+      if (e.key === "ArrowDown") {
+        e.preventDefault();
+        setSelected((i) => Math.min(i + 1, filtered.length - 1));
+      } else if (e.key === "ArrowUp") {
+        e.preventDefault();
+        setSelected((i) => Math.max(i - 1, 0));
+      } else if (e.key === "Enter") {
         const entry = filtered[selected];
         if (entry) void copyEntry(entry);
       }
@@ -53,14 +63,14 @@ export function HistoryPanel({ onClose }: PanelProps) {
   const displayList = query ? filtered : entries;
 
   return (
-    <div className="kn-panel-shell flex flex-col rounded-t-none border-t-0" style={{ maxHeight: 400 }}>
+    <div
+      className="kn-panel-shell flex flex-col rounded-t-none border-t-0"
+      style={{ maxHeight: 400 }}
+    >
       {/* Header */}
       <div className="kn-panel-header">
         <span className="kn-panel-title">{t.history.title}</span>
-        <button
-          onClick={() => void clearAll()}
-          className="kn-button py-1 text-[10px]"
-        >
+        <button onClick={() => void clearAll()} className="kn-button py-1 text-[10px]">
           {t.history.clearAll}
         </button>
       </div>
@@ -80,7 +90,9 @@ export function HistoryPanel({ onClose }: PanelProps) {
       {/* Entries */}
       <div className="kn-scroll flex-1 overflow-y-auto py-1">
         {displayList.length === 0 && (
-          <p className="py-6 text-center text-xs text-[color:var(--kn-text-faint)]">{t.history.empty}</p>
+          <p className="py-6 text-center text-xs text-[color:var(--kn-text-faint)]">
+            {t.history.empty}
+          </p>
         )}
         {displayList.map((entry, i) => (
           <div
@@ -90,9 +102,7 @@ export function HistoryPanel({ onClose }: PanelProps) {
               i === selected ? "bg-[color:var(--kn-accent-wash)]" : "hover:bg-white/[0.045]"
             }`}
           >
-            {entry.pinned && (
-              <span className="shrink-0 text-[9px] text-amber-400 mt-0.5">📌</span>
-            )}
+            {entry.pinned && <span className="shrink-0 text-[9px] text-amber-400 mt-0.5">📌</span>}
             <button
               onClick={() => void copyEntry(entry)}
               className="flex-1 truncate text-left font-mono text-xs leading-5 text-[color:var(--kn-text-soft)]"

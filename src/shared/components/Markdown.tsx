@@ -21,9 +21,7 @@ const MarkdownImpl = React.lazy(() =>
 );
 
 function MarkdownFallback({ content, className }: MarkdownProps) {
-  return (
-    <pre className={className ?? "whitespace-pre-wrap font-sans"}>{content}</pre>
-  );
+  return <pre className={className ?? "whitespace-pre-wrap font-sans"}>{content}</pre>;
 }
 
 export function Markdown(props: MarkdownProps) {

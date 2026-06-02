@@ -1,4 +1,4 @@
-// REF.6.B — focused regression for the capability-mode Enter routing.
+// Focused regression for the capability-mode Enter routing.
 //
 // The hook exposes a single `onKeyDown` handler. Wide deps stubbed to no-ops;
 // only the capability-mode branch is exercised. If this test fails the
@@ -53,7 +53,9 @@ function makeDeps(overrides: Partial<UseKeyboardNavDeps> = {}): UseKeyboardNavDe
   };
 }
 
-function fakeEnter(opts: { shiftKey?: boolean; isComposing?: boolean } = {}): React.KeyboardEvent<HTMLInputElement> {
+function fakeEnter(
+  opts: { shiftKey?: boolean; isComposing?: boolean } = {},
+): React.KeyboardEvent<HTMLInputElement> {
   const preventDefault = vi.fn();
   return {
     key: "Enter",
@@ -66,9 +68,7 @@ function fakeEnter(opts: { shiftKey?: boolean; isComposing?: boolean } = {}): Re
   } as unknown as React.KeyboardEvent<HTMLInputElement>;
 }
 
-function fakeArrow(
-  key: "ArrowDown" | "ArrowUp",
-): React.KeyboardEvent<HTMLInputElement> {
+function fakeArrow(key: "ArrowDown" | "ArrowUp"): React.KeyboardEvent<HTMLInputElement> {
   const preventDefault = vi.fn();
   return {
     key,
@@ -81,7 +81,7 @@ function fakeArrow(
   } as unknown as React.KeyboardEvent<HTMLInputElement>;
 }
 
-describe("useKeyboardNav — capability Enter routing (REF.6.B)", () => {
+describe("useKeyboardNav - capability Enter routing", () => {
   it("fires onCapabilitySubmit on Enter when capabilityMode is true", () => {
     const onCapabilitySubmit = vi.fn();
     const launchResult = vi.fn(async () => undefined);

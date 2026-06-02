@@ -75,11 +75,15 @@ function validateSuggestions(suggestions) {
       const defaults = Array.isArray(question.default) ? question.default : [];
       for (const defaultId of defaults) {
         if (!optionIds.has(defaultId)) {
-          errors.push(`${SUGGESTIONS_STATE}: question "${question.id}" default "${defaultId}" is not an option.`);
+          errors.push(
+            `${SUGGESTIONS_STATE}: question "${question.id}" default "${defaultId}" is not an option.`,
+          );
         }
       }
     } else if (question.default && !optionIds.has(question.default)) {
-      errors.push(`${SUGGESTIONS_STATE}: question "${question.id}" default "${question.default}" is not an option.`);
+      errors.push(
+        `${SUGGESTIONS_STATE}: question "${question.id}" default "${question.default}" is not an option.`,
+      );
     }
   }
 }
@@ -88,13 +92,17 @@ function validateTaskState(state, summary) {
   if (!state || !summary) return;
   requireUniqueIds(state.tasks, TASKS_STATE, "task");
   const expectedOpenTasks = state.tasks.filter((task) => task.status !== "done");
-  const expectedCompletedTaskIds = state.tasks.filter((task) => task.status === "done").map((task) => task.id);
+  const expectedCompletedTaskIds = state.tasks
+    .filter((task) => task.status === "done")
+    .map((task) => task.id);
 
   if (summary.authority?.full_state !== TASKS_STATE) {
     errors.push(`${SUMMARY_STATE}: authority.full_state must point to ${TASKS_STATE}.`);
   }
   if (summary.authority?.decision_summary !== DECISION_SUMMARY_STATE) {
-    errors.push(`${SUMMARY_STATE}: authority.decision_summary must point to ${DECISION_SUMMARY_STATE}.`);
+    errors.push(
+      `${SUMMARY_STATE}: authority.decision_summary must point to ${DECISION_SUMMARY_STATE}.`,
+    );
   }
   if (summary.usage?.keep_compact !== true) {
     errors.push(`${SUMMARY_STATE}: usage.keep_compact must be true.`);
@@ -112,7 +120,9 @@ function validateTaskState(state, summary) {
     errors.push(`${SUMMARY_STATE}: completed task count does not match ${TASKS_STATE}.`);
   }
   if (fileSize(SUMMARY_STATE) > MAX_TASKS_SUMMARY_BYTES) {
-    errors.push(`${SUMMARY_STATE}: must stay under ${MAX_TASKS_SUMMARY_BYTES} bytes to remain a low-token snapshot.`);
+    errors.push(
+      `${SUMMARY_STATE}: must stay under ${MAX_TASKS_SUMMARY_BYTES} bytes to remain a low-token snapshot.`,
+    );
   }
 }
 
@@ -138,13 +148,17 @@ function validateDecisionSummary(state, decisionSummary) {
     errors.push(`${DECISION_SUMMARY_STATE}: decision_reminder.required must be true.`);
   }
   if (decisionSummary.decision_reminder?.block_implementation_without_confirmation !== true) {
-    errors.push(`${DECISION_SUMMARY_STATE}: decision_reminder.block_implementation_without_confirmation must be true.`);
+    errors.push(
+      `${DECISION_SUMMARY_STATE}: decision_reminder.block_implementation_without_confirmation must be true.`,
+    );
   }
   if (decisionSummary.workflow?.current_task !== state.workflow?.current_task) {
     errors.push(`${DECISION_SUMMARY_STATE}: workflow.current_task does not match ${TASKS_STATE}.`);
   }
   if (fileSize(DECISION_SUMMARY_STATE) > MAX_DECISION_SUMMARY_BYTES) {
-    errors.push(`${DECISION_SUMMARY_STATE}: must stay under ${MAX_DECISION_SUMMARY_BYTES} bytes to remain a low-token gate summary.`);
+    errors.push(
+      `${DECISION_SUMMARY_STATE}: must stay under ${MAX_DECISION_SUMMARY_BYTES} bytes to remain a low-token gate summary.`,
+    );
   }
 }
 
@@ -188,12 +202,18 @@ async function validateHtml(state, suggestions) {
   if (outcomeCount === 0) {
     errors.push(`${WORKBENCH_HTML}: expected at least one outcome card.`);
   }
-  const expectedQuestionCount = Array.isArray(suggestions.questions) ? suggestions.questions.length : 0;
+  const expectedQuestionCount = Array.isArray(suggestions.questions)
+    ? suggestions.questions.length
+    : 0;
   if (questionCount !== expectedQuestionCount) {
-    errors.push(`${WORKBENCH_HTML}: expected ${expectedQuestionCount} question cards, found ${questionCount}.`);
+    errors.push(
+      `${WORKBENCH_HTML}: expected ${expectedQuestionCount} question cards, found ${questionCount}.`,
+    );
   }
   if (taskCount !== state.tasks.length) {
-    errors.push(`${WORKBENCH_HTML}: expected ${state.tasks.length} task cards, found ${taskCount}.`);
+    errors.push(
+      `${WORKBENCH_HTML}: expected ${state.tasks.length} task cards, found ${taskCount}.`,
+    );
   }
 
   const proposal = document.getElementById("proposal");
@@ -223,7 +243,11 @@ async function validateHtml(state, suggestions) {
     if (movedPayload.decision_status !== "unconfirmed_do_not_execute") {
       errors.push(`${WORKBENCH_HTML}: moving a task must not auto-confirm the decision.`);
     }
-    if (movedPayload.order_changed !== true || !Array.isArray(movedPayload.order_diff) || movedPayload.order_diff.length === 0) {
+    if (
+      movedPayload.order_changed !== true ||
+      !Array.isArray(movedPayload.order_diff) ||
+      movedPayload.order_diff.length === 0
+    ) {
       errors.push(`${WORKBENCH_HTML}: moving a task did not update order_changed/order_diff.`);
     }
   }
@@ -258,4 +282,6 @@ if (errors.length > 0) {
   process.exit(1);
 }
 
-console.log(`[docs-workbench-guard] Workbench checks passed for ${repoPath(path.join(ROOT, WORKBENCH_HTML))}.`);
+console.log(
+  `[docs-workbench-guard] Workbench checks passed for ${repoPath(path.join(ROOT, WORKBENCH_HTML))}.`,
+);

@@ -1,8 +1,7 @@
 //! Non-file result providers: command / note / history / model search sources
 //! appended to the result set.
 //!
-//! Extracted from `handlers/search.rs` (REF.9.E) as a pure structural move;
-//! behavior unchanged. These remain inherent methods on `SearchHandler`; only
+//! These remain inherent methods on `SearchHandler`; only
 //! `append_non_file_results` is reachable from the parent module.
 
 use serde_json::json;

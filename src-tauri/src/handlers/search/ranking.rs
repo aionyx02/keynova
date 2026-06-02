@@ -1,8 +1,7 @@
 //! Scoring, sorting, per-source quota balancing, dedup keys, and the
 //! `:global` prefix parser for search results.
 //!
-//! Extracted from `handlers/search.rs` (REF.9.E) as a pure structural move;
-//! behavior unchanged.
+//! Focused ranking helpers used by the search handler facade.
 
 use std::collections::HashSet;
 
@@ -119,7 +118,7 @@ pub(super) fn search_item_key(item: &UiSearchItem) -> String {
     format!("{}:{}", item.source, item.path)
 }
 
-/// LAUNCH.2.A — strip a leading `:global` token (with or without trailing space)
+/// Strips a leading `:global` token (with or without trailing space)
 /// from the raw query. Returns `(cleaned_query, was_global)`. Pure so it can be
 /// unit-tested without constructing a SearchHandler.
 pub(super) fn strip_global_prefix(raw: &str) -> (String, bool) {

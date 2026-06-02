@@ -2,9 +2,7 @@
 
 //! Windows platform integration.
 //!
-//! REF.9.C split the original single file into focused submodules; this file is
-//! now a thin facade re-exporting the public surface so external callers keep
-//! using `crate::platform::windows::<fn>` unchanged.
+//! Thin facade re-exporting the public surface from focused Windows submodules.
 
 mod apps;
 mod everything;

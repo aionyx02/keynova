@@ -1,4 +1,4 @@
-// REF.2.P3 — Workspace / window focus lifecycle.
+// Workspace and window focus lifecycle.
 //
 // Three Tauri events trigger a palette reset:
 //   - `window-focused`     — user brought the launcher back to focus while
@@ -51,14 +51,7 @@ export function useWorkspaceLifecycle({
     return () => {
       unlisten.then((fn) => fn());
     };
-  }, [
-    modeRef,
-    inputRef,
-    setQuery,
-    setCmdResult,
-    clearSearchResults,
-    cancelSearch,
-  ]);
+  }, [modeRef, inputRef, setQuery, setCmdResult, clearSearchResults, cancelSearch]);
 
   useEffect(() => {
     if (!window.__TAURI_INTERNALS__) return;
@@ -74,14 +67,7 @@ export function useWorkspaceLifecycle({
     return () => {
       unlisten.then((fn) => fn());
     };
-  }, [
-    inputRef,
-    setQuery,
-    setCmdResult,
-    clearSearchResults,
-    cancelSearch,
-    clearRecentlyDeleted,
-  ]);
+  }, [inputRef, setQuery, setCmdResult, clearSearchResults, cancelSearch, clearRecentlyDeleted]);
 
   useEffect(() => {
     if (!window.__TAURI_INTERNALS__) return;
@@ -96,12 +82,5 @@ export function useWorkspaceLifecycle({
     return () => {
       unlisten.then((fn) => fn());
     };
-  }, [
-    inputRef,
-    setQuery,
-    setCmdResult,
-    clearSearchResults,
-    cancelSearch,
-    clearRecentlyDeleted,
-  ]);
+  }, [inputRef, setQuery, setCmdResult, clearSearchResults, cancelSearch, clearRecentlyDeleted]);
 }

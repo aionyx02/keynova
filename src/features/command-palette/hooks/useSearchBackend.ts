@@ -1,4 +1,4 @@
-// REF.2.P3 — Search backend metadata (active backend, index path, counts).
+// Search backend metadata (active backend, index path, counts).
 //
 // Reads `search.backend` IPC once on mount and re-reads when a
 // `config-reloaded` event reports that `search.backend` or

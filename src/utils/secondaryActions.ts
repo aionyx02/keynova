@@ -35,14 +35,29 @@ export function buildSecondaryActions(result: SearchResult): SecondaryActionItem
   const items: SecondaryActionItem[] = [];
 
   if (isFilesystemKind(result)) {
-    items.push({ id: "reveal", label: "Reveal in Explorer", hint: "Open containing folder", risk: "low" });
+    items.push({
+      id: "reveal",
+      label: "Reveal in Explorer",
+      hint: "Open containing folder",
+      risk: "low",
+    });
     items.push({ id: "copy_path", label: "Copy path", hint: "Copy absolute path", risk: "low" });
     items.push({ id: "copy_name", label: "Copy name", hint: "Copy filename", risk: "low" });
-    items.push({ id: "show_metadata", label: "Show metadata", hint: "Size, modified, preview", risk: "low" });
+    items.push({
+      id: "show_metadata",
+      label: "Show metadata",
+      hint: "Size, modified, preview",
+      risk: "low",
+    });
     items.push({ id: "open_with", label: "Open with…", hint: "OS default opener", risk: "low" });
 
     if (result.kind === "file") {
-      items.push({ id: "open_as_text", label: "Open as text", hint: "Force text editor", risk: "low" });
+      items.push({
+        id: "open_as_text",
+        label: "Open as text",
+        hint: "Force text editor",
+        risk: "low",
+      });
     }
 
     if (result.kind !== "app") {

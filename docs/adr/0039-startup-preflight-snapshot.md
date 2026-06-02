@@ -13,6 +13,7 @@ owner: project
 **Date:** 2026-05-29  
 **Decision makers:** AI agent draft; developer acceptance required  
 **Related documents:**
+
 - `docs/tasks/startup-preflight-cache.md`
 - `docs/architecture.md`
 - `docs/security.md`

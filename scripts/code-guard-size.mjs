@@ -50,9 +50,7 @@ if (failures.length > 0) {
   console.error("[code-guard-size] File size ceilings exceeded:");
   for (const failure of failures) {
     const overBy = failure.size - failure.limit;
-    console.error(
-      `  - ${failure.file}: ${failure.size}B > ${failure.limit}B (+${overBy}B)`,
-    );
+    console.error(`  - ${failure.file}: ${failure.size}B > ${failure.limit}B (+${overBy}B)`);
   }
   console.error(
     "[code-guard-size] Either trim the file or raise its ceiling in scripts/code-guard-size.mjs with a one-line justification.",

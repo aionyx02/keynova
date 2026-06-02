@@ -13,6 +13,7 @@ owner: project
 **Date:** 2026-06-02
 **Decision makers:** AI agent draft; developer acceptance required
 **Related documents:**
+
 - `docs/security.md`
 - `docs/CLAUDE.md`
 - `docs/architecture.md`
@@ -73,21 +74,23 @@ becomes a requirement.
 ## 3. Consequences
 
 Positive:
+
 - Eliminates the arbitrary-path asset-load surface (#1); the asset protocol is
   fully disabled and `**` scope is gone.
 - No new dependency or custom protocol; reuses the existing `base64` crate and
   the already-present `img-src data:` CSP allowance.
 
 Negative / tradeoffs:
+
 - Image bytes travel over IPC as base64 (~33% inflation), bounded to 8 MiB;
   larger images degrade to metadata-only instead of rendering.
 - `file.preview` remains a backend-mediated read for the previewed path (it does
-  not yet restrict *which* paths may be previewed beyond existence + classify);
+  not yet restrict _which_ paths may be previewed beyond existence + classify);
   constraining preview to approved roots is a separate, optional follow-up.
 
 ## 4. Rollback
 
-- Re-enable `assetProtocol` (with a *narrowed* scope, not `["**"]`), restore
+- Re-enable `assetProtocol` (with a _narrowed_ scope, not `["**"]`), restore
   `asset:` in the CSP `img-src`, revert `PreviewPane` to `convertFileSrc`, and
   revert the `file.preview` image branch to returning `path`.
 - No data-format change to text/binary previews or to non-image flows, so

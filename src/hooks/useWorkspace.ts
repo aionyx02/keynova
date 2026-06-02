@@ -24,7 +24,9 @@ export function useWorkspace() {
     const unlisten = listen<WorkspaceState>("workspace-switched", (event) => {
       setCurrent(event.payload);
     });
-    return () => { unlisten.then((fn) => fn()); };
+    return () => {
+      unlisten.then((fn) => fn());
+    };
   }, []);
 
   const switchTo = useCallback(async (slot: number): Promise<WorkspaceState> => {

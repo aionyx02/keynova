@@ -1,8 +1,7 @@
 //! Background DB worker thread: owns the `Connection`, drains the request
 //! channel, and dispatches each `DbRequest` to the row-level statements.
 //!
-//! Extracted from `knowledge_store.rs` (REF.9.D) as a pure structural move;
-//! behavior unchanged.
+//! Focused worker module used by the knowledge store facade.
 
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicUsize, Ordering};

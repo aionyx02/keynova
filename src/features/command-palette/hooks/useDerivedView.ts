@@ -1,7 +1,7 @@
-// REF.2.P5 — Derived render-time view of the palette.
+// Derived render-time view of the palette.
 //
 // Centralises everything the JSX reads but the palette never stores directly:
-//   - `visibleResults` filter chain (LAUNCH.1.D filter chips + Bug B kill set)
+//   - `visibleResults` filter chain (filter chips + recently deleted kill set)
 //   - `safeSelected` read-side clamp (so a stale `selected` after the list
 //     shrinks via filter toggle never indexes past the array)
 //   - `hasResults` / `hasCmdSuggestions` / `hasArgSuggestions` render gates
@@ -18,10 +18,7 @@
 import { useEffect, useMemo } from "react";
 
 import { useFilePreview, isPreviewable } from "../../../hooks/useFilePreview";
-import {
-  buildSecondaryActions,
-  type SecondaryActionItem,
-} from "../../../utils/secondaryActions";
+import { buildSecondaryActions, type SecondaryActionItem } from "../../../utils/secondaryActions";
 import type {
   FilePreviewResult,
   SearchMetadata,
@@ -83,7 +80,7 @@ export function useDerivedView(deps: Deps): UseDerivedView {
     setExpandedMetadata,
   } = deps;
 
-  // LAUNCH.1.D + LAUNCH.1.B bugfix — derived view: chip filter + 30 s
+  // Derived view: chip filter plus the 30 s recently deleted kill set
   // recently-deleted kill set (the only authoritative gate against Recycle
   // Bin entries reappearing from Everything's index).
   const visibleResults: SearchResult[] = results.filter((r) => {
@@ -106,7 +103,7 @@ export function useDerivedView(deps: Deps): UseDerivedView {
   const selectedResult = visibleResults[safeSelected] ?? null;
   const selectedMetadata = selectedResult ? metadataByPath[selectedResult.path] : null;
 
-  // LAUNCH.1.C — preview pane only renders for previewable kinds. The
+  // Preview pane only renders for previewable kinds. The
   // palette window expansion to PALETTE_WIDTH_WIDE is driven by an external
   // effect that reads `showPreview` (see CommandPalette).
   const showPreview =
