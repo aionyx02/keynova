@@ -68,9 +68,9 @@ fn collect_lnk_files(dir: &Path, out: &mut Vec<AppInfo>) {
 }
 
 pub fn launch_app(path: &str) -> Result<(), String> {
-    std::process::Command::new("cmd")
-        .args(["/C", "start", "", path])
-        .spawn()
-        .map_err(|e| e.to_string())?;
-    Ok(())
+    // Use the opener plugin (ShellExecute semantics) instead of `cmd /C start`
+    // so paths containing shell metacharacters (e.g. `&`) cannot be reinterpreted
+    // by cmd.exe — avoids command injection / launch mangling. (Security wave A #3)
+    tauri_plugin_opener::open_path(Path::new(path), None::<&str>)
+        .map_err(|e| format!("launch failed: {e}"))
 }

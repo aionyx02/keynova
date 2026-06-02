@@ -7,6 +7,17 @@ use crate::core::AppEvent;
 
 const NVIM_VERSION: &str = "v0.10.4";
 
+// Pinned SHA-256 of the per-platform release archives for NVIM_VERSION, taken
+// from neovim's published `<asset>.sha256sum` files. The downloaded archive is
+// verified against this before extraction so a tampered/MITM'd payload is
+// rejected. Update together with NVIM_VERSION. (Security wave A #5)
+#[cfg(target_os = "windows")]
+const EXPECTED_SHA256: &str = "dceeb8301f64e244e3e2dffaedbb153bd01c0c6ecb5024a90e3172dc8e65555c";
+#[cfg(target_os = "macos")]
+const EXPECTED_SHA256: &str = "c1405071127b59dbdefc31d9c52e9a5c36db67dcef6dcf83e898aada1f3f778e";
+#[cfg(all(not(target_os = "windows"), not(target_os = "macos")))]
+const EXPECTED_SHA256: &str = "95aaa8e89473f5421114f2787c13ae0ec6e11ebbd1a13a1bd6fcf63420f8073f";
+
 /// Locate an existing nvim binary in priority order:
 /// 1. Explicitly configured path
 /// 2. `nvim` on the system PATH
@@ -107,6 +118,12 @@ pub fn download_nvim(
     emit_progress(&emit, "downloading", 0);
     download_with_progress(&url, &archive_path, &emit)?;
 
+    // Verify integrity before trusting the archive contents. (Security wave A #5)
+    if let Err(error) = verify_archive_sha256(&archive_path, EXPECTED_SHA256) {
+        let _ = std::fs::remove_file(&archive_path);
+        return Err(error);
+    }
+
     emit_progress(&emit, "extracting", 0);
     extract_archive(&archive_path, &dir)?;
     let _ = std::fs::remove_file(&archive_path);
@@ -177,6 +194,36 @@ fn download_with_progress(
     }
 
     Ok(())
+}
+
+/// Compute the SHA-256 of `archive` and compare it (case-insensitively) to the
+/// pinned `expected` hex digest. Streams the file in chunks so large archives
+/// don't need to be buffered in memory.
+fn verify_archive_sha256(archive: &std::path::Path, expected: &str) -> Result<(), String> {
+    use sha2::{Digest, Sha256};
+
+    let mut file = std::fs::File::open(archive).map_err(|e| format!("open archive: {e}"))?;
+    let mut hasher = Sha256::new();
+    let mut buf = [0u8; 64 * 1024];
+    loop {
+        let read = file
+            .read(&mut buf)
+            .map_err(|e| format!("read archive: {e}"))?;
+        if read == 0 {
+            break;
+        }
+        hasher.update(&buf[..read]);
+    }
+    let actual = hasher.finalize();
+    let actual_hex: String = actual.iter().map(|b| format!("{b:02x}")).collect();
+
+    if actual_hex.eq_ignore_ascii_case(expected) {
+        Ok(())
+    } else {
+        Err(format!(
+            "Neovim download checksum mismatch (expected {expected}, got {actual_hex}); refusing to extract"
+        ))
+    }
 }
 
 fn extract_archive(archive: &std::path::Path, dest: &std::path::Path) -> Result<(), String> {
