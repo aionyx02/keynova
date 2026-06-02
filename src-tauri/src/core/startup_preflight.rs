@@ -1,5 +1,5 @@
 use std::path::PathBuf;
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, OnceLock};
 use std::time::{Duration, Instant};
 
 use chrono::Utc;
@@ -414,16 +414,22 @@ fn collect_model_snapshot(
 }
 
 fn current_ollama_url(config: &Arc<Mutex<ConfigManager>>) -> String {
-    config
-        .lock()
-        .ok()
-        .and_then(|cfg| cfg.get("ai.ollama_url"))
-        .filter(|value| !value.trim().is_empty())
-        .unwrap_or_else(|| "http://localhost:11434".to_string())
+    let fallback = "http://localhost:11434".to_string();
+    let Ok(cfg) = config.lock() else {
+        return fallback;
+    };
+    crate::core::network_policy::configured_url(&cfg, "ai.ollama_url", &fallback, "ai.ollama_url")
+        .unwrap_or_else(|error| {
+            eprintln!("[keynova] startup preflight ignored invalid ai.ollama_url: {error}");
+            fallback
+        })
 }
 
 fn current_boot_id() -> String {
-    format!("{}:{}", std::env::consts::OS, System::boot_time())
+    static BOOT_ID: OnceLock<String> = OnceLock::new();
+    BOOT_ID
+        .get_or_init(|| format!("{}:{}", std::env::consts::OS, System::boot_time()))
+        .clone()
 }
 
 fn current_source_mode() -> String {

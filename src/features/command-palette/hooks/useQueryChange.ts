@@ -45,8 +45,8 @@ export function useQueryChange(deps: Deps) {
       // context; suppress-list is no longer relevant.
       deps.clearRecentlyDeleted();
       const { mode: newMode, rawInput: ri } = parseInputMode(value);
-      // Mount terminal on first "> " entry; avoids useEffect setState cascade.
-      if (newMode === "terminal") deps.setTerminalMounted(true);
+      // Direct shell terminal mode is disabled; terminal sessions now require
+      // backend-issued launch specs.
       // REF.6.B — capability prefix takes over the result area; suppress
       // search backend calls so the prefix body doesn't double-fire as a
       // search query.

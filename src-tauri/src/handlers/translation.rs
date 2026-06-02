@@ -3,6 +3,7 @@ use std::sync::{Arc, Mutex};
 use serde_json::{json, Value};
 
 use crate::core::config_manager::ConfigManager;
+use crate::core::network_policy::{allowlist_from_config, enforce_known_endpoint};
 use crate::core::{CommandHandler, CommandResult};
 use crate::managers::translation_manager::{TranslateRequest, TranslationManager};
 
@@ -77,6 +78,14 @@ impl CommandHandler for TranslationHandler {
                     .to_string();
 
                 let runtime = self.runtime_config()?;
+                {
+                    let cfg = self.config.lock().map_err(|e| e.to_string())?;
+                    enforce_known_endpoint(
+                        "https://translation.googleapis.com/language/translate/v2",
+                        &allowlist_from_config(&cfg),
+                        "Google Cloud Translation",
+                    )?;
+                }
                 self.manager.translate_async(TranslateRequest {
                     request_id: request_id.clone(),
                     src_lang: src,

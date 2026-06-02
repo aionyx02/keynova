@@ -1,4 +1,5 @@
 use std::cmp::Ordering;
+use std::collections::HashSet;
 use std::io::BufRead;
 use std::sync::Arc;
 use std::sync::Mutex;
@@ -94,11 +95,12 @@ impl ModelManager {
         &self,
         hardware: HardwareInfo,
         publish_event: Arc<dyn Fn(AppEvent) + Send + Sync>,
+        allowed_hosts: HashSet<String>,
     ) {
         let client = self.client.clone();
         let cache = Arc::clone(&self.catalog_cache);
         std::thread::spawn(move || {
-            let result = fetch_ollama_library(&client);
+            let result = fetch_ollama_library(&client, &allowed_hosts);
             match result {
                 Ok(models) => {
                     if let Ok(mut slot) = cache.lock() {
@@ -429,7 +431,15 @@ fn push_unique_model(models: &mut Vec<ModelCandidate>, candidate: ModelCandidate
     }
 }
 
-fn fetch_ollama_library(client: &reqwest::blocking::Client) -> Result<Vec<ModelCandidate>, String> {
+fn fetch_ollama_library(
+    client: &reqwest::blocking::Client,
+    allowed_hosts: &HashSet<String>,
+) -> Result<Vec<ModelCandidate>, String> {
+    crate::core::network_policy::enforce_known_endpoint(
+        "https://ollama.com/library",
+        allowed_hosts,
+        "Ollama library catalog",
+    )?;
     let response = client
         .get("https://ollama.com/library")
         .timeout(std::time::Duration::from_secs(5))
@@ -444,7 +454,7 @@ fn fetch_ollama_library(client: &reqwest::blocking::Client) -> Result<Vec<ModelC
     let html = response.text().map_err(|e| e.to_string())?;
     let mut models = Vec::new();
     for name in parse_library_model_names(&html).into_iter().take(12) {
-        match fetch_ollama_library_tags(client, &name) {
+        match fetch_ollama_library_tags(client, &name, allowed_hosts) {
             Ok(candidates) if !candidates.is_empty() => {
                 for candidate in candidates {
                     push_unique_model(&mut models, candidate);
@@ -467,8 +477,14 @@ fn fetch_ollama_library(client: &reqwest::blocking::Client) -> Result<Vec<ModelC
 fn fetch_ollama_library_tags(
     client: &reqwest::blocking::Client,
     name: &str,
+    allowed_hosts: &HashSet<String>,
 ) -> Result<Vec<ModelCandidate>, String> {
     let url = format!("https://ollama.com/library/{name}/tags");
+    crate::core::network_policy::enforce_known_endpoint(
+        &url,
+        allowed_hosts,
+        "Ollama library tags",
+    )?;
     let response = client
         .get(url)
         .timeout(std::time::Duration::from_secs(4))

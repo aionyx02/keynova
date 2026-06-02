@@ -263,7 +263,7 @@ impl ReactDispatchState {
             .to_string();
         let limit = args.get("limit").and_then(Value::as_u64).unwrap_or(5) as usize;
         let sanitized = sanitize_external_query(&query)?;
-        let (provider_str, searxng_url, api_key, timeout_secs) = {
+        let (provider_str, searxng_url, api_key, timeout_secs, allowed_hosts) = {
             let config = self.config.lock().map_err(|e| e.to_string())?;
             (
                 config
@@ -275,9 +275,11 @@ impl ReactDispatchState {
                     .get("agent.web_search_timeout_secs")
                     .and_then(|v| v.parse::<u64>().ok())
                     .unwrap_or(8),
+                crate::core::network_policy::allowlist_from_config(&config),
             )
         };
-        let provider = resolve_web_search_provider(&provider_str, &searxng_url, &api_key)?;
+        let provider =
+            resolve_web_search_provider(&provider_str, &searxng_url, &api_key, allowed_hosts)?;
         let sources = provider.search(&sanitized, limit, timeout_secs)?;
         Ok(grounding_to_tool_sources_json(&sources))
     }

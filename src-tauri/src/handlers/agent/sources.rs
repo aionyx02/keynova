@@ -212,7 +212,7 @@ impl AgentHandler {
         limit: usize,
     ) -> Result<Vec<GroundingSource>, String> {
         let sanitized = sanitize_external_query(query)?;
-        let (provider_str, searxng_url, api_key, timeout_secs) = {
+        let (provider_str, searxng_url, api_key, timeout_secs, allowed_hosts) = {
             let config = self.config.lock().map_err(|e| e.to_string())?;
             (
                 config
@@ -224,9 +224,11 @@ impl AgentHandler {
                     .get("agent.web_search_timeout_secs")
                     .and_then(|value| value.parse::<u64>().ok())
                     .unwrap_or(8),
+                crate::core::network_policy::allowlist_from_config(&config),
             )
         };
-        let provider = resolve_web_search_provider(&provider_str, &searxng_url, &api_key)?;
+        let provider =
+            resolve_web_search_provider(&provider_str, &searxng_url, &api_key, allowed_hosts)?;
         provider.search(&sanitized, limit, timeout_secs)
     }
 
