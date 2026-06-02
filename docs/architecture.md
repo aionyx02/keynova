@@ -2,7 +2,7 @@
 type: architecture_spec
 status: active
 priority: p1
-updated: 2026-05-30
+updated: 2026-06-02
 context_policy: retrieve_only
 owner: project
 ---
@@ -181,6 +181,7 @@ src-tauri/src/
 │   ├── terminal.rs / note.rs / workspace.rs
 │   ├── system_control.rs / system_monitoring.rs
 │   ├── builtin_cmd.rs / calculator.rs / setting.rs
+│   │   └── builtin_cmd/note.rs   # REF.9.A: NoteCommand + LazyVim launch (split out of builtin_cmd.rs)
 │   ├── dev_utils_cmd.rs        # UTIL.2.A–J: 15 inline BuiltinCommand wrappers incl. killport two-phase confirm
 │   ├── nvim.rs / automation.rs / plugin.rs
 │   ├── learning_material.rs  # FEAT.11: scan/preview/export_note/export_markdown
