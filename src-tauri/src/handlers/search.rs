@@ -11,7 +11,7 @@ use crate::core::{
 };
 use crate::managers::{
     history_manager::HistoryManager,
-    model_manager::{HardwareInfo, ModelManager},
+    model_manager::ModelManager,
     note_manager::NoteManager,
     search_manager::{SearchBackend, SearchManager},
     search_service::SearchService,
@@ -20,6 +20,18 @@ use crate::models::action::{Action, ScoreBreakdown, UiSearchItem};
 use crate::models::ipc_requests::{SearchQueryRequest, SearchRecordSelectionRequest};
 use crate::models::search_result::{ResultKind, SearchResult};
 use crate::models::unified_result::UnifiedResult;
+
+mod icon;
+mod providers;
+mod ranking;
+
+use icon::{icon_color, icon_label, svg_data_url};
+// Re-exported at crate visibility: platform::windows icon-cache pre-warm calls
+// `crate::handlers::search::icon_key_for_item` (main d2aef7d).
+pub(crate) use icon::icon_key_for_item;
+use ranking::{
+    result_keys, search_item_key, sort_balanced_truncate, sort_truncate, strip_global_prefix,
+};
 
 /// REF.6.A — convert internal `UiSearchItem` rows into the wire format the
 /// palette consumes (`UnifiedResult`). Keeps `UiSearchItem` as the
@@ -426,20 +438,6 @@ impl SearchHandler {
         Ok(results)
     }
 
-    fn append_non_file_results(
-        &self,
-        query: &str,
-        plan: &SearchPlan,
-        session: &crate::core::action_registry::ActionSession,
-        out: &mut Vec<UiSearchItem>,
-    ) -> Result<(), String> {
-        self.append_command_results(query, plan.command_limit, session, out)?;
-        self.append_note_results(query, plan.note_limit, session, out)?;
-        self.append_history_results(query, plan.history_limit, session, out)?;
-        self.append_model_results(query, plan.model_limit, session, out)?;
-        Ok(())
-    }
-
     fn file_results_bounded(
         &self,
         backend: SearchBackend,
@@ -589,192 +587,6 @@ impl SearchHandler {
         };
     }
 
-    fn append_command_results(
-        &self,
-        query: &str,
-        limit: usize,
-        session: &crate::core::action_registry::ActionSession,
-        out: &mut Vec<UiSearchItem>,
-    ) -> Result<(), String> {
-        let q = query.to_lowercase();
-        let registry = self.builtin_registry.lock().map_err(|e| e.to_string())?;
-        for (meta, score) in registry
-            .list()
-            .into_iter()
-            .filter_map(|meta| {
-                let score = command_match_score(meta.name, meta.description, &q)?;
-                Some((meta, score))
-            })
-            .take(limit)
-        {
-            let action = Action::command_route(
-                format!("cmd:{}", meta.name),
-                format!("/{}", meta.name),
-                "cmd.run",
-                json!({ "name": meta.name, "args": "" }),
-            );
-            let action_ref = self.action_arena.insert(session, action)?;
-            let mut item = UiSearchItem {
-                item_ref: action_ref.clone(),
-                title: format!("/{}", meta.name),
-                subtitle: meta.description.to_string(),
-                source: "command".into(),
-                score,
-                icon_key: Some("command".into()),
-                primary_action: action_ref,
-                primary_action_label: "Run".into(),
-                secondary_action_count: 0,
-                kind: ResultKind::Command,
-                name: meta.name.to_string(),
-                path: format!("command://{}", meta.name),
-                score_breakdown: ScoreBreakdown::default(),
-            };
-            self.apply_rank_boost(&mut item);
-            out.push(item);
-        }
-        Ok(())
-    }
-
-    fn append_note_results(
-        &self,
-        query: &str,
-        limit: usize,
-        session: &crate::core::action_registry::ActionSession,
-        out: &mut Vec<UiSearchItem>,
-    ) -> Result<(), String> {
-        let q = query.to_lowercase();
-        let notes = self.note_manager.lock().map_err(|e| e.to_string())?.list();
-        for note in notes
-            .into_iter()
-            .filter(|note| note.name.to_lowercase().contains(&q))
-            .take(limit)
-        {
-            let action = Action::open_panel(
-                format!("note:{}", note.name),
-                "Open note",
-                "note",
-                note.name.clone(),
-            );
-            let action_ref = self.action_arena.insert(session, action)?;
-            let mut item = UiSearchItem {
-                item_ref: action_ref.clone(),
-                title: note.name.clone(),
-                subtitle: format!("{} bytes", note.size_bytes),
-                source: "note".into(),
-                score: 75,
-                icon_key: Some("note".into()),
-                primary_action: action_ref,
-                primary_action_label: "Open note".into(),
-                secondary_action_count: 0,
-                kind: ResultKind::Note,
-                name: note.name.clone(),
-                path: format!("note://{}", note.name),
-                score_breakdown: ScoreBreakdown::default(),
-            };
-            self.apply_rank_boost(&mut item);
-            out.push(item);
-        }
-        Ok(())
-    }
-
-    fn append_history_results(
-        &self,
-        query: &str,
-        limit: usize,
-        session: &crate::core::action_registry::ActionSession,
-        out: &mut Vec<UiSearchItem>,
-    ) -> Result<(), String> {
-        let workspace_id = self
-            .workspace_manager
-            .lock()
-            .ok()
-            .map(|workspace| workspace.current().id);
-        let history = self.history_manager.lock().map_err(|e| e.to_string())?;
-        for entry in history
-            .search_ranked(query, workspace_id)
-            .into_iter()
-            .take(limit)
-        {
-            let action = Action::open_panel(
-                format!("history:{}", entry.id),
-                "Open history",
-                "history",
-                entry.id.clone(),
-            );
-            let action_ref = self.action_arena.insert(session, action)?;
-            let snippet = entry.content.chars().take(80).collect::<String>();
-            let mut score = if entry.pinned { 70 } else { 65 };
-            if workspace_id.is_some() && entry.workspace_id == workspace_id {
-                score += 10;
-            }
-            let mut item = UiSearchItem {
-                item_ref: action_ref.clone(),
-                title: snippet.clone(),
-                subtitle: entry.content_type.clone(),
-                source: "history".into(),
-                score,
-                icon_key: Some("history".into()),
-                primary_action: action_ref,
-                primary_action_label: "Open history".into(),
-                secondary_action_count: 0,
-                kind: ResultKind::History,
-                name: snippet,
-                path: format!("history://{}", entry.id),
-                score_breakdown: ScoreBreakdown::default(),
-            };
-            self.apply_rank_boost(&mut item);
-            out.push(item);
-        }
-        Ok(())
-    }
-
-    fn append_model_results(
-        &self,
-        query: &str,
-        limit: usize,
-        session: &crate::core::action_registry::ActionSession,
-        out: &mut Vec<UiSearchItem>,
-    ) -> Result<(), String> {
-        let q = query.to_lowercase();
-        let hardware = HardwareInfo {
-            ram_mb: 0,
-            vram_mb: 0,
-        };
-        for model in self
-            .model_manager
-            .catalog_fast(&hardware)
-            .into_iter()
-            .filter(|model| model.name.to_lowercase().contains(&q))
-            .take(limit)
-        {
-            let action = Action::open_panel(
-                format!("model:{}", model.name),
-                "Open model",
-                "model",
-                model.name.clone(),
-            );
-            let action_ref = self.action_arena.insert(session, action)?;
-            let mut item = UiSearchItem {
-                item_ref: action_ref.clone(),
-                title: model.name.clone(),
-                subtitle: model.rating.clone(),
-                source: "model".into(),
-                score: 60,
-                icon_key: Some("model".into()),
-                primary_action: action_ref,
-                primary_action_label: "Manage model".into(),
-                secondary_action_count: 0,
-                kind: ResultKind::Model,
-                name: model.name.clone(),
-                path: format!("model://{}", model.name),
-                score_breakdown: ScoreBreakdown::default(),
-            };
-            self.apply_rank_boost(&mut item);
-            out.push(item);
-        }
-        Ok(())
-    }
-
     fn metadata_payload(&self, payload: &Value) -> Value {
         let path = payload["path"].as_str().unwrap_or("");
         let metadata = std::fs::metadata(path).ok();
@@ -869,217 +681,9 @@ struct StreamWorkerRequest {
     workspace_root: Option<String>,
 }
 
-/// Score a command match.
-/// - Name prefix match    → 90 (user is typing the command name)
-/// - Name substring match → 85 (partial name match)
-/// - Description only     → 40 (below file results at 80; keeps discoverability without crowding out files)
-/// - No match             → None
-fn command_match_score(name: &str, description: &str, q: &str) -> Option<i64> {
-    if q.is_empty() {
-        return None;
-    }
-    if name.starts_with(q) {
-        Some(90)
-    } else if name.contains(q) {
-        Some(85)
-    } else if description.to_lowercase().contains(q) {
-        Some(40)
-    } else {
-        None
-    }
-}
-
-fn sort_truncate(results: &mut Vec<UiSearchItem>, limit: usize) {
-    results.sort_by(|left, right| {
-        right
-            .score
-            .cmp(&left.score)
-            .then_with(|| left.source.cmp(&right.source))
-            .then_with(|| left.title.cmp(&right.title))
-    });
-    results.truncate(limit);
-}
-
-fn sort_balanced_truncate(results: &mut Vec<UiSearchItem>, limit: usize) {
-    results.sort_by(|left, right| {
-        right
-            .score
-            .cmp(&left.score)
-            .then_with(|| source_priority(&left.source).cmp(&source_priority(&right.source)))
-            .then_with(|| left.title.cmp(&right.title))
-    });
-
-    let mut accepted = Vec::new();
-    let mut app_count = 0usize;
-    let mut command_count = 0usize;
-    let mut note_count = 0usize;
-    let mut history_count = 0usize;
-    let mut model_count = 0usize;
-    let mut file_count = 0usize;
-
-    for item in results.drain(..) {
-        let allowed = match item.source.as_str() {
-            "app" => {
-                app_count += 1;
-                app_count <= APP_LIMIT
-            }
-            "command" => {
-                command_count += 1;
-                command_count <= COMMAND_LIMIT
-            }
-            "note" => {
-                note_count += 1;
-                note_count <= NOTE_LIMIT
-            }
-            "history" => {
-                history_count += 1;
-                history_count <= HISTORY_LIMIT
-            }
-            "model" => {
-                model_count += 1;
-                model_count <= MODEL_LIMIT
-            }
-            "file" => {
-                file_count += 1;
-                file_count <= limit
-            }
-            _ => true,
-        };
-
-        if allowed {
-            accepted.push(item);
-        }
-
-        if accepted.len() >= limit {
-            break;
-        }
-    }
-
-    *results = accepted;
-}
-
-fn source_priority(source: &str) -> usize {
-    match source {
-        "app" => 0,
-        "command" => 1,
-        "file" => 2,
-        "note" => 3,
-        "history" => 4,
-        "model" => 5,
-        _ => 9,
-    }
-}
-
-fn result_keys(results: &[UiSearchItem]) -> HashSet<String> {
-    results.iter().map(search_item_key).collect()
-}
-
-fn search_item_key(item: &UiSearchItem) -> String {
-    format!("{}:{}", item.source, item.path)
-}
-
-pub(crate) fn icon_key_for_item(source: &str, path: &str, kind: &ResultKind) -> String {
-    match kind {
-        ResultKind::App => format!("app:{}", stable_hash(path)),
-        ResultKind::File => {
-            let ext = std::path::Path::new(path)
-                .extension()
-                .and_then(|ext| ext.to_str())
-                .unwrap_or("file")
-                .to_ascii_lowercase();
-            format!("file:{ext}")
-        }
-        ResultKind::Folder => "folder".into(),
-        _ => source.to_string(),
-    }
-}
-
-fn icon_label(icon_key: &str, kind: &str, path: &str) -> String {
-    if let Some(ext) = icon_key.strip_prefix("file:") {
-        return ext.chars().take(3).collect::<String>().to_uppercase();
-    }
-    match kind {
-        "app" => "APP".into(),
-        "folder" => "DIR".into(),
-        "command" => "CMD".into(),
-        "note" => "MD".into(),
-        "history" => "HIS".into(),
-        "model" => "AI".into(),
-        _ => std::path::Path::new(path)
-            .extension()
-            .and_then(|ext| ext.to_str())
-            .map(|ext| ext.chars().take(3).collect::<String>().to_uppercase())
-            .unwrap_or_else(|| "KEY".into()),
-    }
-}
-
-fn icon_color(icon_key: &str, kind: &str) -> &'static str {
-    if icon_key.starts_with("file:") {
-        return "#0ea5e9";
-    }
-    match kind {
-        "app" => "#8b5cf6",
-        "folder" => "#f59e0b",
-        "command" => "#10b981",
-        "note" => "#14b8a6",
-        "history" => "#71717a",
-        "model" => "#d946ef",
-        _ => "#64748b",
-    }
-}
-
-fn svg_data_url(label: &str, color: &str) -> String {
-    let safe_label = escape_xml(label);
-    let svg = format!(
-        r##"<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32"><rect width="32" height="32" rx="7" fill="{color}"/><text x="16" y="20" text-anchor="middle" font-family="Segoe UI,Arial,sans-serif" font-size="10" font-weight="700" fill="#fff">{safe_label}</text></svg>"##
-    );
-    format!("data:image/svg+xml;utf8,{}", percent_encode(&svg))
-}
-
-fn escape_xml(value: &str) -> String {
-    value
-        .replace('&', "&amp;")
-        .replace('<', "&lt;")
-        .replace('>', "&gt;")
-}
-
-fn percent_encode(value: &str) -> String {
-    value
-        .bytes()
-        .map(|byte| match byte {
-            b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'-' | b'_' | b'.' | b'~' => {
-                (byte as char).to_string()
-            }
-            _ => format!("%{byte:02X}"),
-        })
-        .collect()
-}
-
-/// LAUNCH.2.A — strip a leading `:global` token (with or without trailing space)
-/// from the raw query. Returns `(cleaned_query, was_global)`. Pure so it can be
-/// unit-tested without constructing a SearchHandler.
-fn strip_global_prefix(raw: &str) -> (String, bool) {
-    let trimmed = raw.trim_start();
-    if trimmed == ":global" {
-        return (String::new(), true);
-    }
-    if let Some(rest) = trimmed.strip_prefix(":global ") {
-        return (rest.trim_start().to_string(), true);
-    }
-    (raw.to_string(), false)
-}
-
-fn stable_hash(value: &str) -> u64 {
-    let mut h: u64 = 14695981039346656037;
-    for b in value.bytes() {
-        h ^= b as u64;
-        h = h.wrapping_mul(1099511628211);
-    }
-    h
-}
-
 #[cfg(test)]
 mod tests {
+    use super::ranking::command_match_score;
     use super::*;
     use crate::models::action::ActionRef;
 
