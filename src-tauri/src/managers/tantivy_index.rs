@@ -1,4 +1,5 @@
 use std::path::{Path, PathBuf};
+use std::time::Duration;
 
 use tantivy::collector::TopDocs;
 use tantivy::query::QueryParser;
@@ -44,6 +45,11 @@ pub fn indexed_entries(index_dir: &Path) -> usize {
         return 0;
     };
     reader.searcher().num_docs() as usize
+}
+
+pub fn index_age(index_dir: &Path) -> Option<Duration> {
+    let modified = std::fs::metadata(index_dir).ok()?.modified().ok()?;
+    std::time::SystemTime::now().duration_since(modified).ok()
 }
 
 pub fn rebuild(index_dir: &Path, entries: &[TantivyFileEntry]) -> Result<usize, String> {

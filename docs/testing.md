@@ -2,7 +2,7 @@
 type: testing_policy
 status: active
 priority: p1
-updated: 2026-05-15
+updated: 2026-06-02
 context_policy: retrieve_when_debugging
 owner: project
 ---
@@ -190,7 +190,7 @@ npm run tauri build
 | 執行 Agent | 執行一次 /agent 任務（含 LLM 回應） | 不設上限 | 僅記錄 delta，不含已載入 model |
 
 量測前注意事項：
-- 使用 `performance.low_memory_mode = true` 時，冷啟動應省略 prewarm 和 startup indexing。
+- 使用 `performance.low_memory_mode = true` 時，冷啟動應省略 prewarm 和磁碟重掃；若已有 Tantivy 持久索引仍可直接使用。
 - 若 `low_memory_mode = false`，prewarm PTY 會增加約 10–20 MB；屬預期行為。
 - `ai.ollama_keep_alive = "0s"` 可讓模型在每次請求後立即卸載，大幅降低 delta。
 

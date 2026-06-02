@@ -39,6 +39,9 @@ export function useSearchFooterHint({
     if (fileDiagnostics.timed_out) {
       return "File search: provider timed out after 800ms";
     }
+    if (fileDiagnostics.indexing) {
+      return "File search: indexing in background";
+    }
     if (fileDiagnostics.fallback_reason) {
       return `File search: ${fileDiagnostics.fallback_reason}`;
     }

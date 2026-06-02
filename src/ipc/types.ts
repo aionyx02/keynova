@@ -32,6 +32,7 @@ export interface SearchBackendInfo {
   active: string;
   everything_available: boolean;
   tantivy_available: boolean;
+  indexing: boolean;
   file_cache_entries: number;
   tantivy_index_entries: number;
   tantivy_index_dir: string;

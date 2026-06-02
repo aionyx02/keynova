@@ -71,6 +71,7 @@ export interface SearchChunkDiagnostics {
   file_cache_entries: number;
   tantivy_index_entries: number;
   everything_available: boolean;
+  indexing: boolean;
   pre_balance_count: number;
   returned_count: number;
   fallback_reason: string | null;

@@ -6,6 +6,7 @@ use tauri::Manager;
 use crate::app::dispatch::reload_config_from_disk;
 use crate::app::state::AppState;
 use crate::core::AppEvent;
+use crate::managers::search_manager::{startup_index_warmup_reason, STARTUP_INDEX_MAX_AGE};
 pub(crate) fn setup_config_watcher(app: &tauri::App) {
     let handle = app.handle().clone();
     let state = app.state::<AppState>();
@@ -167,9 +168,140 @@ pub(crate) fn prescan_apps(app: &tauri::App) {
     });
 }
 
-pub(crate) fn start_file_index() {
+pub(crate) fn start_file_index(app: &tauri::App, low_memory: bool) {
     #[cfg(target_os = "windows")]
-    std::thread::spawn(|| {
-        crate::platform::windows::build_file_index();
-    });
+    {
+        let handle = app.handle().clone();
+        std::thread::spawn(move || {
+            run_windows_file_index_warmup(handle, low_memory);
+        });
+    }
+
+    #[cfg(not(target_os = "windows"))]
+    {
+        let _ = app;
+        let _ = low_memory;
+    }
+}
+
+#[cfg(target_os = "windows")]
+fn run_windows_file_index_warmup(app: tauri::AppHandle, low_memory: bool) {
+    let state = app.state::<AppState>();
+    let search_manager = state._search_manager.clone();
+    let event_bus = state.event_bus.clone();
+
+    let (active_backend, index_dir, existing_entries, reason) = {
+        let Ok(mut manager) = search_manager.lock() else {
+            eprintln!("[keynova] search index warmup skipped: search manager locked");
+            return;
+        };
+        manager.refresh_backend();
+        let info = manager.backend_info();
+        let index_dir = manager.tantivy_index_dir();
+        let reason = startup_index_warmup_reason(&index_dir, STARTUP_INDEX_MAX_AGE);
+        (
+            manager.active_backend_name(),
+            index_dir,
+            info.tantivy_index_entries,
+            reason,
+        )
+    };
+
+    if active_backend == "everything" {
+        publish_index_status(
+            &event_bus,
+            "skipped",
+            "everything_available",
+            existing_entries,
+            &index_dir,
+        );
+        return;
+    }
+
+    if low_memory {
+        publish_index_status(
+            &event_bus,
+            "skipped",
+            "low_memory_mode",
+            existing_entries,
+            &index_dir,
+        );
+        return;
+    }
+
+    let Some(reason) = reason else {
+        publish_index_status(&event_bus, "ready", "fresh", existing_entries, &index_dir);
+        if active_backend == "app_cache" {
+            crate::platform::windows::build_file_index();
+        }
+        return;
+    };
+
+    if let Ok(manager) = search_manager.lock() {
+        manager.set_indexing(true);
+    }
+    publish_index_status(
+        &event_bus,
+        "indexing",
+        reason.as_str(),
+        existing_entries,
+        &index_dir,
+    );
+
+    let count = crate::platform::windows::build_file_index();
+    let entries = crate::platform::windows::file_index_snapshot()
+        .into_iter()
+        .map(
+            |(name, path, is_folder)| crate::managers::tantivy_index::TantivyFileEntry {
+                name,
+                path,
+                is_folder,
+            },
+        )
+        .collect::<Vec<_>>();
+
+    let status = match crate::managers::tantivy_index::rebuild(&index_dir, &entries) {
+        Ok(indexed) => {
+            eprintln!(
+                "[keynova] startup search index warmed: {count} cache entries, {indexed} tantivy docs"
+            );
+            "ready"
+        }
+        Err(error) => {
+            eprintln!("[keynova] startup search index warmup failed: {error}");
+            "failed"
+        }
+    };
+
+    let indexed_entries = crate::managers::tantivy_index::indexed_entries(&index_dir);
+    if let Ok(mut manager) = search_manager.lock() {
+        manager.set_indexing(false);
+        manager.refresh_backend();
+    }
+    publish_index_status(
+        &event_bus,
+        status,
+        reason.as_str(),
+        indexed_entries,
+        &index_dir,
+    );
+}
+
+#[cfg(target_os = "windows")]
+fn publish_index_status(
+    event_bus: &crate::core::EventBus,
+    status: &str,
+    reason: &str,
+    entries: usize,
+    index_dir: &std::path::Path,
+) {
+    let _ = event_bus.publish(AppEvent::new(
+        "search.index.status",
+        json!({
+            "status": status,
+            "reason": reason,
+            "entries": entries,
+            "index_dir": index_dir.display().to_string(),
+        }),
+    ));
 }
