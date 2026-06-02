@@ -130,7 +130,8 @@ src-tauri/src/
 │   ├── command_router.rs  # CommandRouter trait + dispatch
 │   ├── event_bus.rs       # AppEvent + broadcast channel
 │   ├── config_manager.rs  # TOML config 讀取 + diff
-│   ├── knowledge_store.rs # SQLite 非同步 actor
+│   ├── knowledge_store.rs # SQLite 非同步 actor (public types + KnowledgeStoreHandle)
+│   │   └── knowledge_store/{schema,sql,worker}.rs  # REF.9.D: connection+migration / row ops / worker thread
 │   ├── agent_runtime.rs   # ReAct agent 迴圈
 │   ├── action_registry.rs # ActionArena（短生命周期 action ref）
 │   ├── builtin_command_registry.rs
