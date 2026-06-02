@@ -206,6 +206,7 @@ src-tauri/src/
 │   └── mod.rs
 ├── platform/              # 平台特定程式碼（條件編譯）
 │   ├── windows.rs / linux.rs / macos.rs
+│   │   └── windows/{apps,icon,input,fileindex,everything}.rs  # REF.9.C: windows.rs split by concern (facade re-exports; icon incl. cache pre-warm)
 │   └── mod.rs
 └── platform_dirs.rs       # 平台目錄路徑解析
 ```
