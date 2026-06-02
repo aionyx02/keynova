@@ -12,7 +12,7 @@ const FEATURE_DESCRIPTIONS: Record<string, string> = {
   "features.calculator": "即時運算機",
   "features.system": "系統資訊與控制",
   "performance.low_memory_mode":
-    "跳過 terminal prewarm、延後 startup indexing，並縮短預設 Ollama keep-alive",
+    "跳過 terminal prewarm、避免重走磁碟建索引，並縮短預設 Ollama keep-alive",
 };
 
 interface SettingRowProps {

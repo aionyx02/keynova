@@ -1,9 +1,9 @@
 use std::collections::HashMap;
 use std::sync::{
-    atomic::{AtomicU64, Ordering},
+    atomic::{AtomicBool, AtomicU64, Ordering},
     Arc, Mutex,
 };
-use std::time::{SystemTime, UNIX_EPOCH};
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use serde::Serialize;
 
@@ -12,6 +12,8 @@ use crate::managers::{
     tantivy_index::{self, TantivyFileEntry},
 };
 use crate::models::search_result::{ResultKind, SearchResult};
+
+pub const STARTUP_INDEX_MAX_AGE: Duration = Duration::from_secs(24 * 60 * 60);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "snake_case")]
@@ -65,6 +67,7 @@ pub struct SearchBackendInfo {
     pub active: &'static str,
     pub everything_available: bool,
     pub tantivy_available: bool,
+    pub indexing: bool,
     pub file_cache_entries: usize,
     pub tantivy_index_entries: usize,
     pub tantivy_index_dir: String,
@@ -78,12 +81,29 @@ pub struct SearchIndexRebuildStatus {
     pub message: String,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum SearchIndexWarmupReason {
+    Empty,
+    Stale,
+}
+
+impl SearchIndexWarmupReason {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Empty => "empty",
+            Self::Stale => "stale",
+        }
+    }
+}
+
 pub struct SearchManager {
     app_manager: Arc<Mutex<AppManager>>,
     preference: SearchBackendPreference,
     tantivy_index_dir: std::path::PathBuf,
     rank_memory: Mutex<HashMap<String, SearchRankMemoryEntry>>,
     active_generation: AtomicU64,
+    indexing: AtomicBool,
     pub backend: SearchBackend,
 }
 
@@ -108,6 +128,7 @@ impl SearchManager {
             tantivy_index_dir,
             rank_memory: Mutex::new(HashMap::new()),
             active_generation: AtomicU64::new(0),
+            indexing: AtomicBool::new(false),
             backend,
         }
     }
@@ -120,6 +141,14 @@ impl SearchManager {
         self.preference = SearchBackendPreference::from_config(configured_backend);
         self.tantivy_index_dir = tantivy_index::resolve_index_dir(configured_index_dir);
         self.backend = Self::detect_backend(self.preference, &self.tantivy_index_dir);
+    }
+
+    pub fn refresh_backend(&mut self) {
+        self.backend = Self::detect_backend(self.preference, &self.tantivy_index_dir);
+    }
+
+    pub fn active_backend(&self) -> SearchBackend {
+        Self::detect_backend(self.preference, &self.tantivy_index_dir)
     }
 
     fn detect_backend(
@@ -161,11 +190,13 @@ impl SearchManager {
 
     pub fn backend_info(&self) -> SearchBackendInfo {
         let tantivy_index_entries = tantivy_index::indexed_entries(&self.tantivy_index_dir);
+        let active = self.active_backend();
         SearchBackendInfo {
             configured: self.preference.as_str(),
-            active: self.backend.as_str(),
+            active: active.as_str(),
             everything_available: everything_available(),
             tantivy_available: tantivy_index_entries > 0,
+            indexing: self.indexing(),
             file_cache_entries: file_cache_entries(),
             tantivy_index_entries,
             tantivy_index_dir: self.tantivy_index_dir.display().to_string(),
@@ -198,7 +229,7 @@ impl SearchManager {
             });
             SearchIndexRebuildStatus {
                 started: true,
-                backend: self.backend.as_str(),
+                backend: self.active_backend().as_str(),
                 message: "Search index rebuild started in the background".into(),
             }
         }
@@ -207,7 +238,7 @@ impl SearchManager {
         {
             SearchIndexRebuildStatus {
                 started: false,
-                backend: self.backend.as_str(),
+                backend: self.active_backend().as_str(),
                 message: "Search index rebuild is only available on Windows right now".into(),
             }
         }
@@ -279,7 +310,7 @@ impl SearchManager {
         let file_slots = limit.saturating_sub(results.len());
         if file_slots > 0 {
             results.extend(Self::file_results_for_backend(
-                self.backend,
+                self.active_backend(),
                 query,
                 file_slots,
                 Some(&self.tantivy_index_dir),
@@ -414,12 +445,43 @@ impl SearchManager {
     }
 
     pub fn active_backend_name(&self) -> &'static str {
-        self.backend.as_str()
+        self.active_backend().as_str()
     }
 
     pub fn tantivy_index_dir(&self) -> std::path::PathBuf {
         self.tantivy_index_dir.clone()
     }
+
+    pub fn indexing(&self) -> bool {
+        self.indexing.load(Ordering::SeqCst)
+    }
+
+    pub fn set_indexing(&self, indexing: bool) {
+        self.indexing.store(indexing, Ordering::SeqCst);
+    }
+}
+
+pub fn startup_index_warmup_reason(
+    index_dir: &std::path::Path,
+    max_age: Duration,
+) -> Option<SearchIndexWarmupReason> {
+    let entries = tantivy_index::indexed_entries(index_dir);
+    let age = tantivy_index::index_age(index_dir);
+    index_warmup_reason_for_state(entries, age, max_age)
+}
+
+fn index_warmup_reason_for_state(
+    entries: usize,
+    age: Option<Duration>,
+    max_age: Duration,
+) -> Option<SearchIndexWarmupReason> {
+    if entries == 0 {
+        return Some(SearchIndexWarmupReason::Empty);
+    }
+    if age.is_some_and(|age| age > max_age) {
+        return Some(SearchIndexWarmupReason::Stale);
+    }
+    None
 }
 
 /// Score an app match by name quality.
@@ -615,6 +677,48 @@ mod tests {
         let (recency, frequency) = manager.rank_boost_breakdown("file", "C:/tmp/a.txt");
         assert_eq!(recency, 25, "fresh selection should give max recency");
         assert_eq!(frequency, 12, "count=3 should give frequency = 3*4 = 12");
+    }
+
+    #[test]
+    fn index_warmup_reason_empty_index_rebuilds() {
+        assert_eq!(
+            index_warmup_reason_for_state(0, None, STARTUP_INDEX_MAX_AGE),
+            Some(SearchIndexWarmupReason::Empty)
+        );
+    }
+
+    #[test]
+    fn index_warmup_reason_stale_index_rebuilds() {
+        assert_eq!(
+            index_warmup_reason_for_state(
+                10,
+                Some(STARTUP_INDEX_MAX_AGE + Duration::from_secs(1)),
+                STARTUP_INDEX_MAX_AGE,
+            ),
+            Some(SearchIndexWarmupReason::Stale)
+        );
+    }
+
+    #[test]
+    fn index_warmup_reason_fresh_index_is_ready() {
+        assert_eq!(
+            index_warmup_reason_for_state(
+                10,
+                Some(STARTUP_INDEX_MAX_AGE - Duration::from_secs(1)),
+                STARTUP_INDEX_MAX_AGE,
+            ),
+            None
+        );
+    }
+
+    #[test]
+    fn indexing_state_is_reported_in_backend_info() {
+        let app_manager = Arc::new(Mutex::new(AppManager::new()));
+        let manager = SearchManager::new_with_config(app_manager, Some("app_cache"), None);
+        assert!(!manager.backend_info().indexing);
+
+        manager.set_indexing(true);
+        assert!(manager.backend_info().indexing);
     }
 
     #[test]

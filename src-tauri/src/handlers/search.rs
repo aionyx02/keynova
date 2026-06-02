@@ -270,7 +270,7 @@ impl SearchHandler {
         let session = self.action_arena.start_session();
         let (generation, backend) = {
             let mgr = self.manager.lock().map_err(|e| e.to_string())?;
-            (mgr.begin_generation(), mgr.backend)
+            (mgr.begin_generation(), mgr.active_backend())
         };
 
         let plan = SearchPlan::from_limit(limit, first_batch_limit);
@@ -392,6 +392,8 @@ impl SearchHandler {
             let info = mgr.backend_info();
             let fallback_reason = if timed_out {
                 None
+            } else if info.indexing {
+                Some("Indexing in background, using current cache".into())
             } else if backend == SearchBackend::Tantivy && info.tantivy_index_entries == 0 {
                 Some("Tantivy index empty, using cache fallback".into())
             } else if !info.everything_available && backend == SearchBackend::AppCache {
@@ -405,6 +407,7 @@ impl SearchHandler {
                 file_cache_entries: info.file_cache_entries,
                 tantivy_index_entries: info.tantivy_index_entries,
                 everything_available: info.everything_available,
+                indexing: info.indexing,
                 pre_balance_count,
                 returned_count,
                 fallback_reason,
@@ -644,6 +647,7 @@ struct SearchChunkDiagnostics {
     file_cache_entries: usize,
     tantivy_index_entries: usize,
     everything_available: bool,
+    indexing: bool,
     /// Items available before per-source quota balancing.
     pre_balance_count: usize,
     /// Items actually returned after balancing and truncation.

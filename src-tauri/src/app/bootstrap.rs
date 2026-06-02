@@ -107,9 +107,7 @@ pub fn run() {
                 .and_then(|c| c.get_bool("performance.low_memory_mode"))
                 .unwrap_or(false);
 
-            if !low_memory {
-                start_file_index();
-            }
+            start_file_index(app, low_memory);
             observability::spawn_idle_baseline_probe();
             start_clipboard_watcher(app);
             setup_global_shortcuts(app.handle(), false);
