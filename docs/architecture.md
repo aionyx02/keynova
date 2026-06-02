@@ -194,6 +194,7 @@ src-tauri/src/
 │   ├── hotkey_manager.rs / mouse_manager.rs
 │   ├── terminal_manager.rs / note_manager.rs / workspace_manager.rs
 │   ├── calculator_manager.rs / translation_manager.rs
+│   │   └── calculator_manager/{parser,datemath,units}.rs  # REF.9.B: expr eval / date math / unit+currency split out
 │   ├── portable_nvim_manager.rs / sandbox_manager.rs
 │   ├── learning_material_manager.rs  # FEAT.11: metadata scanner, classifier, preview
 │   └── mod.rs
