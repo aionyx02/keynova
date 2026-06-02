@@ -37,22 +37,30 @@ export function useHistory() {
         .then(setEntries)
         .catch(() => {});
     });
-    return () => { unlisten.then((fn) => fn()); };
+    return () => {
+      unlisten.then((fn) => fn());
+    };
   }, []);
 
   const search = useCallback(async (q: string): Promise<ClipboardEntry[]> => {
     return ipcDispatch<ClipboardEntry[]>("history.search", { q });
   }, []);
 
-  const deleteEntry = useCallback(async (id: string) => {
-    await ipcDispatch("history.delete", { id });
-    await refresh();
-  }, [refresh]);
+  const deleteEntry = useCallback(
+    async (id: string) => {
+      await ipcDispatch("history.delete", { id });
+      await refresh();
+    },
+    [refresh],
+  );
 
-  const pinEntry = useCallback(async (id: string, pinned: boolean) => {
-    await ipcDispatch("history.pin", { id, pinned });
-    await refresh();
-  }, [refresh]);
+  const pinEntry = useCallback(
+    async (id: string, pinned: boolean) => {
+      await ipcDispatch("history.pin", { id, pinned });
+      await refresh();
+    },
+    [refresh],
+  );
 
   const clearAll = useCallback(async () => {
     await ipcDispatch("history.clear");

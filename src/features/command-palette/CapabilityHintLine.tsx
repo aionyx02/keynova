@@ -1,4 +1,4 @@
-// REF.6.B — Discovery hint for the prefix-keyword capability mode.
+// Discovery hint for the prefix-keyword capability mode.
 //
 // Rendered above the empty palette state so users discover that typing
 // `explain <q>` / `summarize <text>` (and future `cmd` / `fix` / `next`)
@@ -17,9 +17,9 @@ interface PrefixHint {
 }
 
 // Order matches the docx Section 4 capabilities; only the first two are
-// wired in REF.6.B. Listed prefixes that are not yet matched by
+// wired. Listed prefixes that are not yet matched by
 // `parseCapabilityPrefix` will fall through to normal search until the
-// matching batch lands (REF.6.D / .E / .F).
+// matching code lands.
 const HINTS: ReadonlyArray<PrefixHint> = [
   { prefix: "explain", args: "<question>" },
   { prefix: "summarize", args: "<text>" },

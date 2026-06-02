@@ -4,6 +4,7 @@
 **日期：** 2026-05-20
 **決策者：** 開發者
 **相關文件：**
+
 - docs/adr/0029-ai-capability-layer.md
 - docs/adr/0022-agent-approval-boundary.md
 - docs/security.md
@@ -42,6 +43,7 @@ ADR-0029 將 approval ownership 從後端轉向 UI：後端標註動作的風險
 ### 方案 B：最小契約 `{requires_confirmation, reason}` + 加性擴充規則（採用）
 
 **優點：**
+
 - 只暴露 capability 真正需要的欄位。
 - forward-compat 規則允許未來加 `category` / `severity` 而不破壞 v1 client。
 - audit_required 不在每次回傳中，省記憶體與序列化負擔。
@@ -105,27 +107,33 @@ Rollback 需求：見 §7。
 ## 5. Consequences（系統影響與副作用）
 
 ### 正面影響
+
 - Capability 作者不需要在每次回傳中做風險分類決策，認知負擔最小。
 - UI 確認邏輯極簡（一個 bool 判斷），不在 inline AI 熱路徑增加可量測 overhead。
 - 加性演進規則為未來細粒度留路，不阻止後續擴充。
 
 ### 負面影響 / 技術債
+
 - 後續若 UI 需要客製化確認文案 / 多種風險視覺，需新 ADR 擴充欄位。
 - `reason` 是 free-form 字串；維護紀律要求作者寫人類可讀但不含使用者輸入的內容。
 
 ### 對使用者的影響
+
 - `explain` / `summarize` 不彈窗，鍵盤節奏不打斷。
 - 動到檔案 / 命令的 `fix_error` 路徑會彈確認。
 
 ### 對開發者的影響
+
 - 新增 capability 必須宣告 `audit` metadata，並決定 `requires_confirmation` 策略。
 - TS / Rust 兩側型別小到不需 codegen，手動同步即可。
 
 ### 對測試的影響
+
 - Schema round-trip 測試（unit）。
 - Fail-safe 路徑測試（缺欄位 / 解析失敗 → confirm）。
 
 ### 對安全性的影響
+
 - `reason` 不顯示 → 無 log injection / prompt 走私顯示面風險；audit log 端仍應對 reason 做長度上限。
 - ADR-0022 audit 邊界透過 capability metadata 維持。
 - ADR-0027 generic shell sandbox 限制不變。
@@ -148,13 +156,13 @@ Rollback 需求：見 §7。
 
 ## 8. Validation Plan（驗證方式）
 
-| 測試類型 | 覆蓋目標 | 指令 |
-|---------|---------|------|
-| Unit | Rust serde round-trip（含缺欄位） | `cargo test risk_tag` |
-| Unit | TS 解析缺欄位 / 未知欄位 → fail-safe | `npm run test -- risk-tag` |
-| Unit | `reason` 不入 UI 渲染路徑 | UI 測試 |
-| Integration | capability call 回傳 risk tag 並驅動 UI | REF.4 整合測試 |
-| Security | `reason` 不洩使用者輸入 | code review |
+| 測試類型    | 覆蓋目標                                | 指令                       |
+| ----------- | --------------------------------------- | -------------------------- |
+| Unit        | Rust serde round-trip（含缺欄位）       | `cargo test risk_tag`      |
+| Unit        | TS 解析缺欄位 / 未知欄位 → fail-safe    | `npm run test -- risk-tag` |
+| Unit        | `reason` 不入 UI 渲染路徑               | UI 測試                    |
+| Integration | capability call 回傳 risk tag 並驅動 UI | REF.4 整合測試             |
+| Security    | `reason` 不洩使用者輸入                 | code review                |
 
 ## 9. Open Questions（未解問題）
 

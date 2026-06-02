@@ -1,4 +1,4 @@
-// REF.2.P2 — Bug B kill-set for recently deleted / moved / renamed paths.
+// Kill set for recently deleted, moved, or renamed paths.
 //
 // Why this exists: Windows Everything keeps Recycle Bin entries indexed for
 // a while after a delete, so a just-trashed file can resurface in a streaming
@@ -26,9 +26,7 @@ export interface UseRecentlyDeleted {
 }
 
 export function useRecentlyDeleted(): UseRecentlyDeleted {
-  const [recentlyDeleted, setRecentlyDeleted] = useState<Map<string, number>>(
-    () => new Map(),
-  );
+  const [recentlyDeleted, setRecentlyDeleted] = useState<Map<string, number>>(() => new Map());
 
   const markDeleted = useCallback((path: string) => {
     setRecentlyDeleted((prev) => {

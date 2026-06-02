@@ -1,4 +1,4 @@
-// REF.6.B - Streaming answer card for prefix capability mode.
+// Streaming answer card for prefix capability mode.
 //
 // Pure presentational: receives projected stream state from
 // `useCapabilityStream` (lifted into `CapabilityResultArea`) and renders the
@@ -196,9 +196,7 @@ export function CapabilityAnswerCard({
         </div>
       )}
 
-      <div className="kn-panel-footer text-[10px]">
-        {footerLabel}
-      </div>
+      <div className="kn-panel-footer text-[10px]">{footerLabel}</div>
     </div>
   );
 }

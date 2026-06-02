@@ -70,8 +70,7 @@ export function SettingRow({
   const options = fieldSchema?.options ?? [];
   const hasOptions = !isBoolean && options.length > 0;
   const defaultValue = fieldSchema?.default_value;
-  const isModified =
-    defaultValue !== undefined && !isSecret && displayValue !== defaultValue;
+  const isModified = defaultValue !== undefined && !isSecret && displayValue !== defaultValue;
   const section = key.split(".")[0];
   const description = FEATURE_DESCRIPTIONS[key];
 
@@ -110,7 +109,9 @@ export function SettingRow({
             {modifiedDot}
           </div>
           {description && (
-            <div className="truncate text-[10px] text-[color:var(--kn-text-faint)]">{description}</div>
+            <div className="truncate text-[10px] text-[color:var(--kn-text-faint)]">
+              {description}
+            </div>
           )}
         </div>
         {resetButton}
@@ -181,11 +182,7 @@ export function SettingRow({
         onKeyDown={(e) => onKeyDown(e, key, rowIdx, displayValue, isHotkey ? "hotkey" : "text")}
         onBlur={isHotkey ? undefined : () => onBlur(key)}
         placeholder={
-          isHotkey
-            ? "Press the shortcut"
-            : isSecret
-              ? "Enter a new secret value"
-              : undefined
+          isHotkey ? "Press the shortcut" : isSecret ? "Enter a new secret value" : undefined
         }
         className={`kn-field flex-1 px-2 py-1 text-sm ${isHotkey ? "cursor-pointer" : ""} ${
           saving ? "opacity-60" : ""

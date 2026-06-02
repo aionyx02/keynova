@@ -35,7 +35,9 @@ if (failures.length > 0) {
   for (const failure of failures) {
     console.error(`  - ${failure.file}: ${failure.size}B > ${failure.limit}B`);
   }
-  console.error("[docs-guard-size] Move historical narrative to docs/memory/sessions/YYYY-MM-DD.md.");
+  console.error(
+    "[docs-guard-size] Move historical narrative to docs/memory/sessions/YYYY-MM-DD.md.",
+  );
   process.exit(1);
 }
 

@@ -14,7 +14,9 @@ const ModelPanel = React.lazy(() =>
   import("../../features/model-manager/ModelPanel").then((m) => ({ default: m.ModelPanel })),
 );
 const TranslationPanel = React.lazy(() =>
-  import("../../features/translation/TranslationPanel").then((m) => ({ default: m.TranslationPanel })),
+  import("../../features/translation/TranslationPanel").then((m) => ({
+    default: m.TranslationPanel,
+  })),
 );
 const NoteEditor = React.lazy(() =>
   import("../../features/notes/NoteEditor").then((m) => ({ default: m.NoteEditor })),
@@ -29,7 +31,9 @@ const SystemPanel = React.lazy(() =>
   import("../../features/system/SystemPanel").then((m) => ({ default: m.SystemPanel })),
 );
 const SystemMonitoringPanel = React.lazy(() =>
-  import("../../features/system-monitor/SystemMonitoringPanel").then((m) => ({ default: m.SystemMonitoringPanel })),
+  import("../../features/system-monitor/SystemMonitoringPanel").then((m) => ({
+    default: m.SystemMonitoringPanel,
+  })),
 );
 const NvimDownloadPanel = React.lazy(() =>
   import("../../features/nvim/NvimDownloadPanel").then((m) => ({ default: m.NvimDownloadPanel })),

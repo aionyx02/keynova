@@ -1,4 +1,4 @@
-// REF.2.P5 — Ref bundle for the ESC priority chain + window resize.
+// Ref bundle for the ESC priority chain + window resize.
 //
 // `useEscapeKey` registers its global keydown listener exactly once (see its
 // module comment for why) and reads the latest mode / cmdResult / query /
@@ -20,9 +20,9 @@ interface Deps {
   query: string;
   secondaryMenuOpen: boolean;
   expandedMetadata: boolean;
-  /** REF.6.B — true when `usePaletteMode` is in capability kind. */
+  /** True when `usePaletteMode` is in capability kind. */
   capabilityMode: boolean;
-  /** REF.6.B — true when the capability stream is pending or streaming. */
+  /** True when the capability stream is pending or streaming. */
   capabilityStreaming: boolean;
 }
 

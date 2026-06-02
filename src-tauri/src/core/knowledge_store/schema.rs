@@ -1,8 +1,7 @@
 //! SQLite connection setup, schema initialization, versioning, and
 //! pre-migration backup.
 //!
-//! Extracted from `knowledge_store.rs` (REF.9.D) as a pure structural move;
-//! behavior unchanged.
+//! Focused schema module used by the knowledge store facade.
 
 use std::path::{Path, PathBuf};
 

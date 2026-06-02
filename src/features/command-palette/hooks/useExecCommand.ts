@@ -1,4 +1,4 @@
-// REF.2.P5 — execCommand wrapper.
+// execCommand wrapper.
 //
 // Runs the named builtin command via `useCommands().runCommand` and stores
 // the result, with one special case: `/onboard` re-triggers the first-run

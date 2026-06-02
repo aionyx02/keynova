@@ -68,6 +68,7 @@ Use this file as the first lookup step. The goal is retrieval-first context, not
 | `docs/security.md` | `security_policy` | `active` | `retrieve_only` | Security and permission boundary |
 | `docs/testing.md` | `testing_policy` | `active` | `retrieve_when_debugging` | Testing strategy and checks |
 | `docs/testing-edge-cases.md` | `testing_reference` | `active` | `retrieve_when_debugging` | Structured edge-case debugging matrix |
+| `docs/coding-style.md` | `coding_style` | `active` | `retrieve_when_debugging` | Google-aligned project coding style |
 | `docs/tasks/bug-followup.md` | `bug_followup` | `active` | `on_demand` | Bug follow-up notes |
 | `docs/decisions.md` | `decision_index` | `active` | `retrieve_only` | ADR index |
 

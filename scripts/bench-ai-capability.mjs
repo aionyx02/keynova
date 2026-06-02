@@ -110,9 +110,7 @@ for (const [capability, raw] of [...samples.entries()].sort()) {
 }
 
 if (jsonOutput) {
-  process.stdout.write(
-    `${JSON.stringify({ model, runs, results }, null, 2)}\n`,
-  );
+  process.stdout.write(`${JSON.stringify({ model, runs, results }, null, 2)}\n`);
 } else {
   printTable(model, runs, results);
 }
@@ -128,9 +126,7 @@ function parseArgs(argv) {
     } else if (token === "--model") {
       out.model = argv[++i];
     } else if (token === "--help" || token === "-h") {
-      console.log(
-        "Usage: bench-ai-capability.mjs [--runs N] [--model NAME] [--json]",
-      );
+      console.log("Usage: bench-ai-capability.mjs [--runs N] [--model NAME] [--json]");
       process.exit(0);
     } else {
       console.error(`[bench-ai] unknown arg: ${token}`);
@@ -162,11 +158,8 @@ function printTable(modelName, runCount, rows) {
     String(r.min_ms),
     String(r.max_ms),
   ]);
-  const widths = headers.map((h, idx) =>
-    Math.max(h.length, ...data.map((row) => row[idx].length)),
-  );
-  const fmt = (cells) =>
-    cells.map((c, idx) => c.padEnd(widths[idx])).join("  ");
+  const widths = headers.map((h, idx) => Math.max(h.length, ...data.map((row) => row[idx].length)));
+  const fmt = (cells) => cells.map((c, idx) => c.padEnd(widths[idx])).join("  ");
 
   process.stdout.write(`\n[bench-ai] model=${modelName}  runs=${runCount}\n`);
   process.stdout.write(`${fmt(headers)}\n`);

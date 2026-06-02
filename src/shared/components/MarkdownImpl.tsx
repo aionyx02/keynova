@@ -43,10 +43,9 @@ export function Markdown({ content, className }: MarkdownProps) {
     if (typeof document === "undefined") return;
     const id = "keynova-hljs-theme";
     if (document.getElementById(id)) return;
-    import("highlight.js/styles/github-dark.css")
-      .catch(() => {
-        // Theme is purely cosmetic; ignore failure.
-      });
+    import("highlight.js/styles/github-dark.css").catch(() => {
+      // Theme is purely cosmetic; ignore failure.
+    });
   }, []);
 
   const [renderError, setRenderError] = useState(false);

@@ -110,7 +110,9 @@ export function SystemMonitoringPanel({ onClose }: PanelProps) {
       <div className="kn-panel-header">
         <div>
           <div className="kn-panel-title">System Monitor</div>
-          <div className="kn-panel-subtitle">Live CPU, memory, disk, network, and process telemetry</div>
+          <div className="kn-panel-subtitle">
+            Live CPU, memory, disk, network, and process telemetry
+          </div>
         </div>
         <span className={`kn-chip ${streaming ? "kn-chip-active" : ""}`}>
           {streaming ? "Live" : "Stopped"}
@@ -158,7 +160,9 @@ export function SystemMonitoringPanel({ onClose }: PanelProps) {
                   {snap.disks.map((disk) => (
                     <div key={disk.mount} className="kn-muted-surface px-3 py-2.5">
                       <div className="mb-1.5 flex items-center justify-between gap-3 text-xs">
-                        <span className="truncate font-mono text-[color:var(--kn-text-soft)]">{disk.mount}</span>
+                        <span className="truncate font-mono text-[color:var(--kn-text-soft)]">
+                          {disk.mount}
+                        </span>
                         <span className="text-[color:var(--kn-text-muted)]">
                           {disk.used_gb.toFixed(1)} / {disk.total_gb.toFixed(1)} GB
                         </span>
@@ -175,7 +179,10 @@ export function SystemMonitoringPanel({ onClose }: PanelProps) {
                 <div className="kn-section-label mb-2">Network</div>
                 <div className="space-y-1">
                   {activeNetworks.map((network) => (
-                    <div key={network.name} className="kn-muted-surface flex items-center gap-3 px-3 py-2 text-xs">
+                    <div
+                      key={network.name}
+                      className="kn-muted-surface flex items-center gap-3 px-3 py-2 text-xs"
+                    >
                       <span className="min-w-0 flex-1 truncate font-mono text-[color:var(--kn-text-soft)]">
                         {network.name}
                       </span>
@@ -220,10 +227,18 @@ export function SystemMonitoringPanel({ onClose }: PanelProps) {
                       key={process.pid}
                       className="kn-muted-surface grid grid-cols-[minmax(0,1fr)_68px_90px_70px] items-center gap-3 px-3 py-2 text-xs"
                     >
-                      <span className="truncate text-[color:var(--kn-text-soft)]">{process.name}</span>
-                      <span className="font-mono text-[color:var(--kn-text-faint)]">{process.pid}</span>
-                      <span className="font-mono text-[color:var(--kn-warm)]">{process.mem_mb} MB</span>
-                      <span className="font-mono text-[color:var(--kn-accent)]">{process.cpu_pct.toFixed(1)}%</span>
+                      <span className="truncate text-[color:var(--kn-text-soft)]">
+                        {process.name}
+                      </span>
+                      <span className="font-mono text-[color:var(--kn-text-faint)]">
+                        {process.pid}
+                      </span>
+                      <span className="font-mono text-[color:var(--kn-warm)]">
+                        {process.mem_mb} MB
+                      </span>
+                      <span className="font-mono text-[color:var(--kn-accent)]">
+                        {process.cpu_pct.toFixed(1)}%
+                      </span>
                     </div>
                   ))}
               </div>

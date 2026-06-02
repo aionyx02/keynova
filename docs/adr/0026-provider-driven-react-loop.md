@@ -4,6 +4,7 @@
 **日期：** 2026-05-08  
 **決策者：** 開發者  
 **相關文件：**
+
 - docs/architecture.md
 - docs/adr/0023-react-tool-schema-foundation.md
 - docs/adr/0022-agent-approval-boundary.md
@@ -27,20 +28,24 @@ Agent mode 需從 local prompt heuristics 升級為 provider-driven ReAct loop�
 ### 方案 A：Provider-driven ReAct（LLM 決定 tool calls）
 
 **優點：**
+
 - AI provider 根據問題自主決定 tool 使用策略
 - local heuristics 降為 offline fallback
 - tool call 支援不同 provider（OpenAI tool call format / Ollama native）
 
 **缺點：**
+
 - provider 不支援 tool calls 時需 fallback
 - 依賴 provider API 穩定性
 
 ### 方案 B：Local heuristics only
 
 **優點：**
+
 - 無 provider 依賴，完全離線
 
 **缺點：**
+
 - Agent 能力受限，無法真正 ReAct
 - keyword matching 容易誤判
 
@@ -51,10 +56,12 @@ Agent mode 需從 local prompt heuristics 升級為 provider-driven ReAct loop�
 移至 provider-driven ReAct loop。Rust 持有 context filtering、tool schema generation、policy、approval、execution、observation redaction、cancellation、timeout、max-step limits 與 audit logging。
 
 原因：
+
 - AI provider 決定 tool 使用策略，能力遠超 local heuristics
 - local Ollama 作為 first-class backend，不強制雲端
 
 犧牲：
+
 - provider 不支援 tool calls 時需 fallback 到 heuristics
 
 Feature flag：`ai.provider` 設定（`ollama` / `openai-compatible`）
@@ -66,15 +73,18 @@ Rollback 需款：切換回 heuristics（`ai.agent_mode = heuristic`）
 ## 5. Consequences（系統影響與副作用）
 
 ### 正面影響
+
 - Provider adapters normalize model responses 為 final text 或 typed tool calls
 - Rust 控制所有 policy，LLM 只做推理決策
 
 ### 負面影響 / 技術債
+
 - Local prompt heuristics 成為 offline/fallback 行為，非主要 Agent planner
 - Unsupported provider/tool-call 組合必須明確 fail 或 fallback 到 safe chat/heuristics
 - **TD.4.A**：計畫將 approval polling 改為 async channel 以提升可測試性
 
 ### 對安全性的影響
+
 - Rust 持有 execution / approval / audit logging，LLM 不直接執行 tool
 - observation redaction 在 Rust 層執行，LLM 收到的已是 sanitized 輸出
 
@@ -88,11 +98,11 @@ Rollback 需款：切換回 heuristics（`ai.agent_mode = heuristic`）
 
 ## 8. Validation Plan（驗證方式）
 
-| 測試類型 | 覆蓋目標 | 指令 |
-|---------|---------|------|
-| Unit test | ReAct step / thought / action | `cargo test -- agent_runtime` |
-| Integration test | Ollama provider adapter | 需本機 Ollama 服務 |
-| Security test | observation redaction in loop | `cargo test -- agent_observation` |
+| 測試類型         | 覆蓋目標                      | 指令                              |
+| ---------------- | ----------------------------- | --------------------------------- |
+| Unit test        | ReAct step / thought / action | `cargo test -- agent_runtime`     |
+| Integration test | Ollama provider adapter       | 需本機 Ollama 服務                |
+| Security test    | observation redaction in loop | `cargo test -- agent_observation` |
 
 ## 9. Open Questions（未解問題）
 

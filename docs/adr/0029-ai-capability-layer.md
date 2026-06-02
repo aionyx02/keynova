@@ -4,6 +4,7 @@
 **日期：** 2026-05-20
 **決策者：** 開發者
 **相關文件：**
+
 - docs/tasks/refactor-ai-capability.md
 - docs/memory/current.md
 - docs/architecture.md
@@ -49,10 +50,12 @@ Keynova 的核心定位是「鍵盤先行的工作流啟動器」，但目前 AI
 ### 方案 A：維持 chat-first `AiPanel` + multi-step ReAct（現狀延伸）
 
 **優點：**
+
 - 不需任何結構性重構，短期工時最低。
 - 對既有 agent 工具生態保留最大延展空間。
 
 **缺點：**
+
 - UI 雙焦點與快捷鍵歧義無法收斂。
 - `CommandPalette` 熱路徑檔案持續肥大化。
 - ReAct loop 與 launcher 一鍵節奏錯位的根因不解。
@@ -64,16 +67,19 @@ Keynova 的核心定位是「鍵盤先行的工作流啟動器」，但目前 AI
 ### 方案 B：AI 降為 stateless capability layer，由結果列 `ActionChip` 觸發（採用）
 
 **優點：**
+
 - 把 unified search 立為產品脊椎，AI 顯式變成結果上的「能力」而非平行 UI。
 - single-step stateless call 使 capability 易測試、易封裝、易快取。
 - UI-owned confirmation 把風險判斷集中在使用者可見的觸發點，後端只需回報 risk tag。
 - 與計畫中的 `UnifiedResult`（REF.1）與 workflow memory（REF.5）天然契合。
 
 **缺點：**
+
 - 需要新增 `core/ai_capability/` 與配套前端 hooks/UI；近期工時集中。
 - 觀察期內 chat-first code path 需共存，會短暫膨脹一段時間（由 REF.7/REF.8 收尾）。
 
 **效能分析：**
+
 - 時間複雜度：capability call 為 single-step，無多步 reasoning，預期 inline P50 在 Ollama `qwen2.5:7b` 下 < 800ms。
 - 空間複雜度：移除 chat session memory 後降低。
 - 啟動成本：背景不再預掛 ReAct planner，cold open 受益。
@@ -106,11 +112,13 @@ Keynova 的核心定位是「鍵盤先行的工作流啟動器」，但目前 AI
 犧牲：觀察期程式碼短期膨脹；近期工時集中於 REF.1–REF.4。
 
 Feature flag：`ai.legacy_agent`
+
 - 觀察期預設 `true`（保留 chat-first 行為與舊 ReAct loop）。
 - REF.7 切換為 `false`；REF.8 移除旗標與對應程式碼。
 - **觀察窗口長度**：「一個 minor release tag」與「14 個日曆天」兩者較長者，且觀察期內無 P0 回歸報告才視為通過。任一條件未達成則延後預設切換到下一個觀察窗口。
 
 Migration 需求：
+
 - 新增 `UnifiedResult` schema（REF.1，獨立交付）。
 - 新增 knowledge DB schema v4 `workflow_history` 表（REF.5，附 rollback 指南）。
 - 既有 `SearchResult` / `BuiltinCommandResult` 在觀察期維持為 deprecated 相容型別。
@@ -121,40 +129,46 @@ Rollback 需求：見 §7。
 ## 5. Consequences（系統影響與副作用）
 
 ### 正面影響
+
 - `CommandPalette` 熱路徑收斂；REF.7 目標 < 250 行。
 - agent handler 行數目標 < 600 行；`agent_runtime.rs` < 400 行直至 REF.8 刪除。
 - UI 觸發點單一化，鍵盤工作流連貫。
 - capability 為 single-step，可被快取與離線降級。
 
 ### 負面影響 / 技術債
+
 - 觀察期 dual path 共存，短期程式碼面與測試面膨脹。
 - 受影響的 ADR 與性質如下表；本 ADR 僅標記受影響，正式狀態變更（廢棄 / 取代）延後到 REF.8 並由開發者操作：
 
-| 受影響 ADR | 影響性質 | REF.8 預期動作 |
-|---|---|---|
-| 0011 AI Provider Abstraction | 仍適用（capability 共用 provider trait） | 不動，補一行 cross-ref |
-| 0016 Agent Read-only Tools | 仍適用，但 capability 不再透過 agent runtime 觸發 | 視 REF.8 結果決定要不要 amend |
-| 0022 Agent Approval Boundary | 部分被取代（approval ownership 移到 UI），audit 部分仍適用 | REF.8 必須 amend |
-| 0023 ReAct Tool Schema Foundation | 被取代（capability 不走 ReAct schema） | REF.8 標為 superseded by 0029 |
-| 0024 Agent SystemIndexer Search Path | 仍適用（capability 可呼叫既有 indexer） | 不動 |
-| 0026 Provider-Driven ReAct Loop | 被取代（ReAct loop 整段移除） | REF.8 標為 superseded by 0029 |
-| 0037（預留）Inline AI Surfaces | 被取代，自始不寫 | `decisions.md` 刪除預留列 |
+| 受影響 ADR                           | 影響性質                                                   | REF.8 預期動作                |
+| ------------------------------------ | ---------------------------------------------------------- | ----------------------------- |
+| 0011 AI Provider Abstraction         | 仍適用（capability 共用 provider trait）                   | 不動，補一行 cross-ref        |
+| 0016 Agent Read-only Tools           | 仍適用，但 capability 不再透過 agent runtime 觸發          | 視 REF.8 結果決定要不要 amend |
+| 0022 Agent Approval Boundary         | 部分被取代（approval ownership 移到 UI），audit 部分仍適用 | REF.8 必須 amend              |
+| 0023 ReAct Tool Schema Foundation    | 被取代（capability 不走 ReAct schema）                     | REF.8 標為 superseded by 0029 |
+| 0024 Agent SystemIndexer Search Path | 仍適用（capability 可呼叫既有 indexer）                    | 不動                          |
+| 0026 Provider-Driven ReAct Loop      | 被取代（ReAct loop 整段移除）                              | REF.8 標為 superseded by 0029 |
+| 0037（預留）Inline AI Surfaces       | 被取代，自始不寫                                           | `decisions.md` 刪除預留列     |
 
 ### 對使用者的影響
+
 - chat-first AI 體驗在觀察期透過 `ai.legacy_agent = true` 保留；REF.7 後預設下線、REF.8 後物理移除。
 - AI 動作改由結果列 `ActionChip` 觸發，鍵盤節奏更一致。
 - 高風險動作的求證點轉由 UI 顯示。
 
 ### 對開發者的影響
+
 - 需熟悉 `core/ai_capability/` 註冊機制與 `ActionChip` 契約。
 - 既有 agent 工具相關修改需區分「保留至 REF.8」與「直接移植到 capability」。
 
 ### 對測試的影響
+
 - 新增 capability 級別 unit / integration 覆蓋。
 - 觀察期需保留 chat / ReAct 回歸測試直到 REF.8。
 - Bug A 啟動聚焦/IME 競賽與 Bug B 刪除驗證流程在 REF.2 後、REF.7 前各跑一次手動回歸。
 
 ### 對安全性的影響
+
 - approval ownership 由後端轉向 UI；後端仍負責產生 risk tag 與審計紀錄（延續 ADR-0022 的審計範疇）。
 - single-step capability 移除 multi-step prompt 對 tool surface 的累積暴露。
 - 不擴大檔案、網路、shell 邊界；ADR-0027 generic shell sandbox 限制不變。
@@ -184,16 +198,16 @@ Rollback 需求：見 §7。
 
 本 ADR 本身為文件草擬，主要驗證為 docs guard。詳細實作驗證引用 `docs/tasks/refactor-ai-capability.md` 的 Validation Matrix：
 
-| 測試類型 | 覆蓋目標 | 指令 / 步驟 |
-|---------|---------|-----------|
-| Docs guard | frontmatter / size / narrative | `npm run docs:refresh` |
-| Unit | 各 capability 純函式 | `cargo test ai_capability` |
-| Integration | Ollama `qwen2.5:7b` 端到端 | 本機 Ollama + integration test |
-| Performance | inline P50 < 800ms、P95 < 1500ms | REF.7 bench scripts |
-| Performance | palette cold < 200ms、warm < 50ms、search first chunk P50 < 80ms | REF.7 bench scripts |
-| Memory | idle RSS 10min < 150MB、1h < 200MB | 手動量測 Task Manager |
-| Regression | Bug A launcher focus/IME、Bug B delete verification | REF.2 後、REF.7 前各一次手動 |
-| Security | approval / audit 路徑沒有縮減 | ADR-0022 既有測試 + manual review |
+| 測試類型    | 覆蓋目標                                                         | 指令 / 步驟                       |
+| ----------- | ---------------------------------------------------------------- | --------------------------------- |
+| Docs guard  | frontmatter / size / narrative                                   | `npm run docs:refresh`            |
+| Unit        | 各 capability 純函式                                             | `cargo test ai_capability`        |
+| Integration | Ollama `qwen2.5:7b` 端到端                                       | 本機 Ollama + integration test    |
+| Performance | inline P50 < 800ms、P95 < 1500ms                                 | REF.7 bench scripts               |
+| Performance | palette cold < 200ms、warm < 50ms、search first chunk P50 < 80ms | REF.7 bench scripts               |
+| Memory      | idle RSS 10min < 150MB、1h < 200MB                               | 手動量測 Task Manager             |
+| Regression  | Bug A launcher focus/IME、Bug B delete verification              | REF.2 後、REF.7 前各一次手動      |
+| Security    | approval / audit 路徑沒有縮減                                    | ADR-0022 既有測試 + manual review |
 
 ## 9. Open Questions（未解問題）
 
@@ -202,7 +216,7 @@ Rollback 需求：見 §7。
 - [x] `ActionChip` 是否允許跨 capability 鏈接？→ **Capability 內嚴格 single-shot，UI 層允許 user-driven chaining。**
 - [x] workflow memory（REF.5）的 `context_hash` 是否成為 capability 輸入的一級參數？→ **不為一級必填；設為 capability schema 之 optional 欄位，由叫用端按需填入。**
 - [x] `ai.legacy_agent` 觀察窗口長度的定義？→ **一個 minor release tag 與 14 個日曆天兩者較長者，且觀察期內無 P0 回歸。**
-- [x] approval ownership 轉向 UI 後，後端 risk tag 的最小集合與序列化格式是否需另寫 ADR？→ **是；另立 ADR-0030 *Backend Risk Tag Contract*。**
+- [x] approval ownership 轉向 UI 後，後端 risk tag 的最小集合與序列化格式是否需另寫 ADR？→ **是；另立 ADR-0030 _Backend Risk Tag Contract_。**
 - [x] `agent_runtime.rs` 在 REF.8 完全刪除，或保留審計面 shrink 版？→ **先抽出 audit-only 邏輯到 `core/agent_audit.rs`，再完整刪除 `agent_runtime.rs`。**
 
 - [x] `core/agent_audit.rs` 的最終命名與模組位置 → **採用 `core/agent_audit.rs`，作用域嚴格為「legacy agent approval audit 歷史紀錄查詢」**；新 capability 的 audit 不混入此模組（見 §4）。
@@ -221,12 +235,12 @@ npm run bench:ai -- --runs 10 --model qwen2.5:7b
 
 將輸出貼回後填入下表（目標見 §8 與 `docs/tasks/refactor-ai-capability.md` Validation Matrix）。
 
-| 指標 | 目標 | 讀數 (qwen2.5:7b, runs=10) | 狀態 |
-|------|------|---------------------------|------|
-| inline P50 | < 800 ms | — | pending REF.7.D |
-| inline P95 | < 1500 ms | — | pending REF.7.D |
-| palette cold open | < 200 ms | — | pending REF.7.D |
-| palette warm open | < 50 ms | — | pending REF.7.D |
-| search first chunk P50 | < 80 ms | — | pending REF.7.D |
+| 指標                   | 目標      | 讀數 (qwen2.5:7b, runs=10) | 狀態            |
+| ---------------------- | --------- | -------------------------- | --------------- |
+| inline P50             | < 800 ms  | —                          | pending REF.7.D |
+| inline P95             | < 1500 ms | —                          | pending REF.7.D |
+| palette cold open      | < 200 ms  | —                          | pending REF.7.D |
+| palette warm open      | < 50 ms   | —                          | pending REF.7.D |
+| search first chunk P50 | < 80 ms   | —                          | pending REF.7.D |
 
 觀察窗口項目（`ai.legacy_agent` 預設關閉一個 release cycle、idle RSS 10min < 150 MB / 1h < 200 MB）於 REF.8 開窗時記錄，維持 `pending observation`。

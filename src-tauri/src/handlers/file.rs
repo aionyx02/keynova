@@ -234,7 +234,7 @@ impl CommandHandler for FileHandler {
                 let kind = classify_path(p, &meta);
                 match kind {
                     PreviewKind::Image => {
-                        // Security wave B (#1): deliver the image inline as a
+                        // Deliver the image inline as a
                         // bounded base64 data URL instead of returning a raw
                         // filesystem path the renderer loads via the asset
                         // protocol. The asset protocol is disabled (see
@@ -782,7 +782,7 @@ mod tests {
         verify_rename_landed(&src_phantom, &src_real).expect("ok when src gone, dst exists");
     }
 
-    // ── preview (LAUNCH.1.C) ─────────────────────────────────────────────────
+    // Preview tests.
 
     #[test]
     fn preview_text_file_returns_content_with_size_and_kind() {

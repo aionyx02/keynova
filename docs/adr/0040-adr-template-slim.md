@@ -4,6 +4,7 @@
 **日期：** 2026-05-29
 **決策者：** 開發者 / AI agent
 **相關文件：**
+
 - docs/adr/0000-template.md
 - docs/decisions.md
 - docs/CLAUDE.md
@@ -21,7 +22,7 @@ alternatives with full performance-analysis blocks per option.
 In practice, this load was paid every time we landed a refactor batch
 (`REF.0`–`REF.5` so far):
 
-- **Alternatives** is usually written *after* the decision and reads like a
+- **Alternatives** is usually written _after_ the decision and reads like a
   retrospective justification rather than a real branch point. The same
   information lives more naturally in the PR description, where it belongs to
   the reviewer's mental model rather than a stable architecture document.
@@ -57,7 +58,7 @@ Adopt a 4-section default template for new ADRs:
    forward-looking parts of "Implementation Plan".
 4. **Rollback** — how to back out, including any flag, schema, or data
    considerations. Kept because rollback is the section most often referenced
-   *after* acceptance (see `safety > correctness > rollbackability` ordering
+   _after_ acceptance (see `safety > correctness > rollbackability` ordering
    in `docs/CLAUDE.md` §1).
 
 What moves out of the ADR template:
@@ -92,7 +93,7 @@ readers without Keynova-specific context can still parse the file.
 - The agent can draft new ADRs as `提議` without producing speculative
   alternative-analysis prose that the developer has to either accept or rewrite.
 - Stale-section rot stops accumulating: Implementation/Validation churn now
-  lives in the task file, which is *expected* to change and has explicit guard
+  lives in the task file, which is _expected_ to change and has explicit guard
   rules for narrative accumulation.
 - Reviewers and future maintainers can scan an ADR in one screen instead of
   scrolling through nine.

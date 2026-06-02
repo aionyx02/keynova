@@ -1,4 +1,4 @@
-// REF.6.B — Submit-on-Enter wrapper around `useCapability` for prefix mode.
+// Submit-on-Enter wrapper around `useCapability` for prefix mode.
 //
 // Replaces the original debounced auto-fire design. Reasons:
 //   - Capability calls cost real backend work (Ollama load, token gen);
@@ -38,7 +38,7 @@ export interface UseCapabilityStreamDeps {
   args: { text: string } | null;
 }
 
-// REF.6.D — `fix_error` backend uses a different payload shape
+// `fix_error` backend uses a different payload shape
 // (`{ raw_output }`) than `explain` / `summarize` (`{ text }`). The card UX
 // is identical, so we keep one streaming hook and just remap the payload
 // here based on capability id.
@@ -82,10 +82,7 @@ export function useCapabilityStream({
   // idle. The previous answer was for a different question, and the user
   // explicitly types out a new one + presses Enter to ask again.
   useEffect(() => {
-    if (
-      lastSubmittedKeyRef.current !== null &&
-      argsKey !== lastSubmittedKeyRef.current
-    ) {
+    if (lastSubmittedKeyRef.current !== null && argsKey !== lastSubmittedKeyRef.current) {
       void innerCancel();
       // eslint-disable-next-line react-hooks/set-state-in-effect -- bounded one-shot reset on args-change after submit
       setStartedAtMs(null);
@@ -101,19 +98,13 @@ export function useCapabilityStream({
     }
   }, [argsKey, innerCancel]);
 
-  const resolvedText =
-    streamText || (data?.kind === "text" ? data.text : "");
+  const resolvedText = streamText || (data?.kind === "text" ? data.text : "");
 
   // First-chunk timing: resolvedText goes from empty to non-empty after a run.
   // The final response text is a fallback for providers or event channels that
   // complete without incremental chunks.
   useEffect(() => {
-    if (
-      resolvedText &&
-      firstChunkAtMs === null &&
-      startedAtMs !== null &&
-      !cancelled
-    ) {
+    if (resolvedText && firstChunkAtMs === null && startedAtMs !== null && !cancelled) {
       // eslint-disable-next-line react-hooks/set-state-in-effect -- bounded one-shot transition observation
       setFirstChunkAtMs(Date.now());
     }
@@ -122,12 +113,7 @@ export function useCapabilityStream({
   // Completion timing: isLoading drops after a run was dispatched.
   const prevLoadingRef = useRef(false);
   useEffect(() => {
-    if (
-      prevLoadingRef.current &&
-      !isLoading &&
-      completedAtMs === null &&
-      startedAtMs !== null
-    ) {
+    if (prevLoadingRef.current && !isLoading && completedAtMs === null && startedAtMs !== null) {
       // eslint-disable-next-line react-hooks/set-state-in-effect
       setCompletedAtMs(Date.now());
     }

@@ -1,6 +1,6 @@
 //! `note` builtin command and LazyVim launch integration.
 //!
-//! Extracted from `builtin_cmd.rs` (REF.9) as a pure structural move; behavior unchanged.
+//! Built-in note commands used by the command router.
 
 use std::path::{Component, Path, PathBuf};
 use std::sync::{Arc, Mutex};

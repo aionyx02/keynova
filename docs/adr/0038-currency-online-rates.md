@@ -4,6 +4,7 @@
 **日期：** 2026-05-18
 **決策者：** 開發者
 **相關文件：**
+
 - docs/security.md (§5 網路存取)
 - docs/architecture.md
 - docs/tasks/backlog.md (UTIL.1.B)
@@ -16,6 +17,7 @@ UTIL.1.B 已交付 offline 貨幣換算：CalculatorManager 內含 18 條 USD-ba
 結果末尾附 `(offline rate, snapshot YYYY-MM)` 提示讓使用者察覺 stale。
 
 問題：
+
 - Offline 表會老化，使用者期待 launcher 算出來的數字接近實際匯率。
 - 直接接 online API 屬「新增對外網路連線目標」，依 docs/security.md §5.2 必須先 ADR。
 - exchangerate.host / open.er-api.com 等公開匯率服務沒有 auth，但仍然是新的外網入口。
@@ -48,11 +50,13 @@ UTIL.1.B 已交付 offline 貨幣換算：CalculatorManager 內含 18 條 USD-ba
 ### 方案 C：opt-in 公開 API + 本地快取 + offline fallback（採用）
 
 **優點：**
+
 - 使用者 opt-in、預設關閉、不影響 `agent.local_context.enabled = false` 之外的隱私邊界。
 - 24h 快取 + 公開無 auth API 把單機網路曝露降到最小。
 - Offline fallback 保證即使網路 / API 異常仍能算。
 
 **缺點：**
+
 - 新增 1 個外網目標 + 維護 cache 檔案。
 - 公開 API 的可用性受第三方影響。
 
@@ -60,10 +64,10 @@ UTIL.1.B 已交付 offline 貨幣換算：CalculatorManager 內含 18 條 USD-ba
 
 ### Provider 選擇
 
-| Provider | URL | Auth | 註 |
-|---|---|---|---|
-| exchangerate.host | `https://api.exchangerate.host/latest?base=USD` | 無 | 主選 — 完全 free，無 key |
-| open.er-api.com | `https://open.er-api.com/v6/latest/USD` | 無 | 備援，如 exchangerate.host 下架 |
+| Provider          | URL                                             | Auth | 註                              |
+| ----------------- | ----------------------------------------------- | ---- | ------------------------------- |
+| exchangerate.host | `https://api.exchangerate.host/latest?base=USD` | 無   | 主選 — 完全 free，無 key        |
+| open.er-api.com   | `https://open.er-api.com/v6/latest/USD`         | 無   | 備援，如 exchangerate.host 下架 |
 
 只允許 GET、`base=USD` 固定，不可帶其他 query。
 
@@ -72,6 +76,7 @@ UTIL.1.B 已交付 offline 貨幣換算：CalculatorManager 內含 18 條 USD-ba
 選擇：**方案 C — opt-in 公開 API + 本地快取 + offline fallback**
 
 原因：
+
 - 對齊 docs/security.md §5 已允許的 read-only 公開 endpoint 模式（GitHub releases / 翻譯 API）。
 - `calculator.currency_online_enabled` 預設 `false` 確保最小曝露面，與 ADR-028 的 `agent.local_context.enabled` 同模式。
 - Offline fallback 保證壞掉時退化，不會 break 既有 `100 USD to TWD` 行為。
@@ -83,15 +88,18 @@ Rollback：設定關閉 → 立即回 offline；完整移除：刪除 `currency_
 ## 5. Consequences（系統影響與副作用）
 
 ### 正面影響
+
 - 使用者啟用後可獲得 24h 內最新匯率。
 - 維持 offline-first：壞網路不影響計算機可用性。
 
 ### 負面影響 / 技術債
+
 - 新檔案 `managers/currency_rate_fetcher.rs` + cache 檔案。
 - `security.network_allowlist` 預設值要加 `api.exchangerate.host` 與 `open.er-api.com`。
 - Setting 面板多 1 個 boolean 設定。
 
 ### 對安全性的影響
+
 - **新增 2 個外網目標**：`api.exchangerate.host`、`open.er-api.com`。docs/security.md §5.1 需更新。
 - **無使用者資料外流**：URL query 固定為 `?base=USD`；不傳 amount、不傳 source/target、不傳 IP 以外的 metadata。
 - TLS 強制 + 2s/5s timeout + 24h cache → 攻擊面極小。
@@ -114,15 +122,15 @@ Rollback：設定關閉 → 立即回 offline；完整移除：刪除 `currency_
 
 ## 8. Validation Plan（驗證方式）
 
-| 測試類型 | 覆蓋目標 | 指令 |
-|---------|---------|------|
-| Unit | cache TTL hit/miss | `cargo test currency_rate_fetcher` |
-| Unit | JSON parse 不正常 → fallback | `cargo test currency_rate_fetcher` |
-| Unit | provider switch 邏輯 | `cargo test currency_rate_fetcher` |
-| Unit | offline fallback 仍輸出 `(offline rate, snapshot ...)` | `cargo test calculator_manager` |
-| Integration | network_allowlist 阻擋未允許 host | 手動 + 測試 |
-| Manual | Setting 面板顯示開關 | 手動 |
-| Manual | 網路斷線時計算仍可用 | 手動 |
+| 測試類型    | 覆蓋目標                                               | 指令                               |
+| ----------- | ------------------------------------------------------ | ---------------------------------- |
+| Unit        | cache TTL hit/miss                                     | `cargo test currency_rate_fetcher` |
+| Unit        | JSON parse 不正常 → fallback                           | `cargo test currency_rate_fetcher` |
+| Unit        | provider switch 邏輯                                   | `cargo test currency_rate_fetcher` |
+| Unit        | offline fallback 仍輸出 `(offline rate, snapshot ...)` | `cargo test calculator_manager`    |
+| Integration | network_allowlist 阻擋未允許 host                      | 手動 + 測試                        |
+| Manual      | Setting 面板顯示開關                                   | 手動                               |
+| Manual      | 網路斷線時計算仍可用                                   | 手動                               |
 
 ## 9. Open Questions（未解問題）
 

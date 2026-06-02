@@ -1,4 +1,4 @@
-// REF.6.B — Dispatcher between the prefix mode kind and the matching
+// Dispatcher between the prefix mode kind and the matching
 // capability surface. Renders within the palette body slot when
 // `usePaletteMode` returns `{ kind: "capability", ... }`.
 //

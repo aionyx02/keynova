@@ -1,11 +1,4 @@
-export type ResultKind =
-  | "app"
-  | "file"
-  | "folder"
-  | "command"
-  | "note"
-  | "history"
-  | "model";
+export type ResultKind = "app" | "file" | "folder" | "command" | "note" | "history" | "model";
 
 export interface ActionRef {
   id: string;
@@ -13,7 +6,7 @@ export interface ActionRef {
   generation: number;
 }
 
-/** LAUNCH.1.E — per-result score decomposition for the rank-explain tooltip. */
+/** Per-result score decomposition for the rank-explain tooltip. */
 export interface ScoreBreakdown {
   base: number;
   recency_boost: number;
@@ -34,20 +27,14 @@ export interface SearchResult {
   path: string;
   score: number;
   score_breakdown?: ScoreBreakdown;
-  /** REF.6.A — id of the originating UnifiedResult so callers can map back. */
+  /** ID of the originating UnifiedResult so callers can map back. */
   unified_id?: string;
 }
 
-/** LAUNCH.1.D — set of source-type filter chips applied client-side. */
-export type SourceFilter =
-  | "app"
-  | "file"
-  | "command"
-  | "note"
-  | "history"
-  | "model";
+/** Set of source-type filter chips applied client-side. */
+export type SourceFilter = "app" | "file" | "command" | "note" | "history" | "model";
 
-/** LAUNCH.1.C — result of `file.preview` IPC. */
+/** Result of `file.preview` IPC. */
 export interface FilePreviewResult {
   // `path` is returned for text/binary previews; image previews omit it and
   // carry an inline `data_url` instead (security wave B #1).
@@ -81,7 +68,7 @@ export interface SearchChunkPayload {
   request_id: string;
   generation: number;
   chunk_index: number;
-  /** REF.6.A — wire format is `UnifiedResult` after the backend conversion shim. */
+  /** Wire format is `UnifiedResult` after the backend conversion shim. */
   items: import("./unified-result").UnifiedResult[];
   done: boolean;
   /** True on the final balanced batch — frontend should replace results entirely. */

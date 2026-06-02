@@ -196,11 +196,13 @@ function impactForTask(taskId) {
     },
   };
 
-  return impacts[taskId] || {
-    user: "待 AI 依任務內容補上使用者可見影響。",
-    code: "待 AI 依任務內容補上程式結構影響。",
-    risk: "待評估。",
-  };
+  return (
+    impacts[taskId] || {
+      user: "待 AI 依任務內容補上使用者可見影響。",
+      code: "待 AI 依任務內容補上程式結構影響。",
+      risk: "待評估。",
+    }
+  );
 }
 
 function defaultSuggestions() {
@@ -479,8 +481,12 @@ function buildSummary(state) {
 }
 
 function buildDecisionSummary(state) {
-  const reminderCard = state.suggestions.suggestion_cards.find((card) => card.id === "decision-reminder");
-  const suggestionPolicy = state.suggestions.questions.find((question) => question.id === "ai_suggestion_policy");
+  const reminderCard = state.suggestions.suggestion_cards.find(
+    (card) => card.id === "decision-reminder",
+  );
+  const suggestionPolicy = state.suggestions.questions.find(
+    (question) => question.id === "ai_suggestion_policy",
+  );
   const currentTask = state.tasks.find((task) => task.id === state.workflow.current_task) || null;
 
   return {
@@ -512,11 +518,7 @@ function buildDecisionSummary(state) {
         "risky approval gate",
         "other decision-gated runtime or Markdown change",
       ],
-      reminder_must_include: [
-        "decision name",
-        "why it is gated",
-        "next action",
-      ],
+      reminder_must_include: ["decision name", "why it is gated", "next action"],
       next_actions: [
         "refresh/open docs/workbench/tasks.html",
         "confirm and return the proposal",
@@ -1869,7 +1871,10 @@ const summary = buildSummary(state);
 const decisionSummary = buildDecisionSummary(state);
 const stateChanged = writeIfChanged(STATE_TARGET, `${JSON.stringify(state, null, 2)}\n`);
 const summaryChanged = writeIfChanged(SUMMARY_TARGET, `${JSON.stringify(summary, null, 2)}\n`);
-const decisionSummaryChanged = writeIfChanged(DECISION_SUMMARY_TARGET, `${JSON.stringify(decisionSummary, null, 2)}\n`);
+const decisionSummaryChanged = writeIfChanged(
+  DECISION_SUMMARY_TARGET,
+  `${JSON.stringify(decisionSummary, null, 2)}\n`,
+);
 const workbenchChanged = writeIfChanged(WORKBENCH_TARGET, renderDecisionWorkbenchHtml(state));
 const adrTemplateChanged = writeIfChanged(ADR_TEMPLATE_TARGET, renderAdrTemplateHtml());
 

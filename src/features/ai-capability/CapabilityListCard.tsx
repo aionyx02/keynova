@@ -155,10 +155,7 @@ export function CapabilityListCard({
                     </div>
                   </div>
                   <div className="mt-2 flex items-center gap-2 text-[10px] text-[color:var(--kn-text-faint)]">
-                    <UiIcon
-                      name={item.replay ? "command" : "history"}
-                      className="h-3.5 w-3.5"
-                    />
+                    <UiIcon name={item.replay ? "command" : "history"} className="h-3.5 w-3.5" />
                     {formatExecutedAt(item.last_executed_at)}
                   </div>
                 </button>

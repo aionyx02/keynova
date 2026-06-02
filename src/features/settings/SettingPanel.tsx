@@ -151,13 +151,10 @@ export function SettingPanel({ initialArgs }: PanelProps) {
           : `Reloaded ${count} setting(s) from ${event.payload.source}`,
       );
     });
-    const unlistenFailed = listen<ConfigReloadFailedPayload>(
-      "config-reload-failed",
-      (event) => {
-        setReloadNotice(null);
-        setSaveError(`Reload failed (${event.payload.source}): ${event.payload.error}`);
-      },
-    );
+    const unlistenFailed = listen<ConfigReloadFailedPayload>("config-reload-failed", (event) => {
+      setReloadNotice(null);
+      setSaveError(`Reload failed (${event.payload.source}): ${event.payload.error}`);
+    });
     return () => {
       unlistenReload.then((fn) => fn());
       unlistenFailed.then((fn) => fn());
@@ -165,20 +162,17 @@ export function SettingPanel({ initialArgs }: PanelProps) {
   }, [loadSettings]);
 
   const sections =
-    schema.length > 0 ? Array.from(new Set(schema.map((entry) => entry.section))) : DEFAULT_SECTIONS;
+    schema.length > 0
+      ? Array.from(new Set(schema.map((entry) => entry.section)))
+      : DEFAULT_SECTIONS;
 
   const query = filter.trim().toLowerCase();
   const filtering = query.length > 0;
-  const schemaFor = useCallback(
-    (key: string) => schema.find((item) => item.key === key),
-    [schema],
-  );
+  const schemaFor = useCallback((key: string) => schema.find((item) => item.key === key), [schema]);
   const rows = filtering
     ? entries.filter((entry) => {
         const label = schemaFor(entry.key)?.label ?? "";
-        return (
-          entry.key.toLowerCase().includes(query) || label.toLowerCase().includes(query)
-        );
+        return entry.key.toLowerCase().includes(query) || label.toLowerCase().includes(query);
       })
     : entries.filter((entry) => entry.key.startsWith(`${activeSection}.`));
 
@@ -400,7 +394,9 @@ export function SettingPanel({ initialArgs }: PanelProps) {
         {saveError ? (
           <span className="ml-2 truncate text-[color:var(--kn-danger)]">{saveError}</span>
         ) : (
-          reloadNotice && <span className="ml-2 truncate text-[color:var(--kn-success)]">{reloadNotice}</span>
+          reloadNotice && (
+            <span className="ml-2 truncate text-[color:var(--kn-success)]">{reloadNotice}</span>
+          )
         )}
       </div>
     </div>

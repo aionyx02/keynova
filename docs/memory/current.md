@@ -2,7 +2,7 @@
 type: working_memory
 status: active
 priority: p0
-updated: 2026-06-01
+updated: 2026-06-02
 context_policy: always_retrievable
 owner: project
 ---
@@ -27,6 +27,8 @@ owner: project
 - `PERF.1.FU` closed. The `~273-335 MB` figure was a multi-process shared-page artifact: owned tree `WS = 322.8 MB` but `Private-WS = 79.7 MB`; the other `243 MB` is shared Edge/Chromium DLL pages (stored once by the OS, double-counted per process, shared with unrelated WebView2 apps). keynova's real unique footprint is `~80 MB`, under `200 MB`. Landed `[profile.release]` (strip+LTO, 25.1→22.5 MB) + host `EmptyWorkingSet` on hide. Webview-child trim and process-model levers were considered and declined (marginal / quality-affecting).
 - `agent_runtime.rs < 400` REF.7 criterion is dropped because that file does not exist in repo. Documented in the REF.7 plan as the same class of docx-vs-repo divergence as the `CommandPalette.tsx < 250` deviation.
 - `current.md` and `active.md` are current-state indexes only. REF.6 batch detail lives in `docs/memory/sessions/2026-05-29.md`.
+- Coding-style cleanup now has `docs/coding-style.md`, `.editorconfig`, and a
+  no-behavior formatting/comment pass across source files.
 
 ## Important Constraints
 

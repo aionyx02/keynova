@@ -9,7 +9,7 @@ import { useSearchBackend } from "./useSearchBackend";
 // and stays at its initial state — that is what we assert here.
 //
 // Full event flow (config-reloaded → refresh → setSearchBackend) requires
-// Tauri context and is covered by manual REF.2.P6 regression.
+// Tauri context and is covered by manual regression.
 
 describe("useSearchBackend", () => {
   it("starts with no backend info and does not call dispatch outside Tauri", () => {

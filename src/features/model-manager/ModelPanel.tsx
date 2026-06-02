@@ -79,7 +79,11 @@ function InstalledView({ onClose }: ViewProps) {
   const rows = useMemo<ModelRow[]>(() => {
     if (!data) return [];
     return [
-      ...data.local_models.map((model) => ({ ...model, kind: "local" as const, label: model.name })),
+      ...data.local_models.map((model) => ({
+        ...model,
+        kind: "local" as const,
+        label: model.name,
+      })),
       ...data.api_models.map((model) => ({ ...model, kind: "api" as const, label: model.name })),
     ];
   }, [data]);
@@ -153,7 +157,12 @@ function InstalledView({ onClose }: ViewProps) {
   }
 
   return (
-    <div ref={rootRef} tabIndex={-1} onKeyDown={handleKeyDown} className="flex min-h-0 flex-1 flex-col outline-none">
+    <div
+      ref={rootRef}
+      tabIndex={-1}
+      onKeyDown={handleKeyDown}
+      className="flex min-h-0 flex-1 flex-col outline-none"
+    >
       <div className="kn-panel-subtitle px-4 py-2">
         {data
           ? `${data.tool_label}: ${data.active_provider}:${data.active_model}`
@@ -199,10 +208,14 @@ function InstalledView({ onClose }: ViewProps) {
                       {row.kind === "local" ? row.name : row.model}
                     </span>
                   </span>
-                  <span className="text-xs text-[color:var(--kn-text-muted)]">{modelSize(row)}</span>
+                  <span className="text-xs text-[color:var(--kn-text-muted)]">
+                    {modelSize(row)}
+                  </span>
                   <span
                     className={`text-xs ${
-                      row.active ? "text-[color:var(--kn-success)]" : "text-[color:var(--kn-text-muted)]"
+                      row.active
+                        ? "text-[color:var(--kn-success)]"
+                        : "text-[color:var(--kn-text-muted)]"
                     }`}
                   >
                     {status}
@@ -216,7 +229,9 @@ function InstalledView({ onClose }: ViewProps) {
 
       <div className="kn-panel-footer">
         <span>Enter activates · Delete removes a local model</span>
-        <span className={error ? "text-red-300" : ""}>{error || notice || "Tab switches view"}</span>
+        <span className={error ? "text-red-300" : ""}>
+          {error || notice || "Tab switches view"}
+        </span>
       </div>
     </div>
   );
@@ -342,7 +357,7 @@ function mergeCatalog(current: ModelCandidate[], incoming: ModelCandidate[]) {
     return {
       ...(previous ?? {}),
       ...model,
-      size_gb: model.size_gb > 0 ? model.size_gb : previous?.size_gb ?? 0,
+      size_gb: model.size_gb > 0 ? model.size_gb : (previous?.size_gb ?? 0),
     };
   });
   current.forEach((model) => {
@@ -439,12 +454,18 @@ function BrowseView({ onClose }: ViewProps) {
 
   useEffect(() => {
     if (!window.__TAURI_INTERNALS__) return;
-    const unlistenPreflight = listen<BootstrapStatusPayload>("startup-preflight-updated", (event) => {
-      applyBootstrapState(event.payload, setHardware, setCandidates, setNotice, setError);
-    });
-    const unlistenPreflightError = listen<BootstrapStatusPayload>("startup-preflight-failed", (event) => {
-      applyBootstrapState(event.payload, setHardware, setCandidates, setNotice, setError);
-    });
+    const unlistenPreflight = listen<BootstrapStatusPayload>(
+      "startup-preflight-updated",
+      (event) => {
+        applyBootstrapState(event.payload, setHardware, setCandidates, setNotice, setError);
+      },
+    );
+    const unlistenPreflightError = listen<BootstrapStatusPayload>(
+      "startup-preflight-failed",
+      (event) => {
+        applyBootstrapState(event.payload, setHardware, setCandidates, setNotice, setError);
+      },
+    );
     const unlistenCatalog = listen<CatalogUpdatedPayload>("model-catalog-updated", (event) => {
       setCandidates((current) => mergeCatalog(current, event.payload.models));
     });
@@ -560,7 +581,12 @@ function BrowseView({ onClose }: ViewProps) {
   }
 
   return (
-    <div ref={rootRef} tabIndex={-1} onKeyDown={handleKeyDown} className="flex min-h-0 flex-1 flex-col outline-none">
+    <div
+      ref={rootRef}
+      tabIndex={-1}
+      onKeyDown={handleKeyDown}
+      className="flex min-h-0 flex-1 flex-col outline-none"
+    >
       <div className="flex items-center justify-between gap-2 px-4 py-2">
         <span className="kn-panel-subtitle">Pick a local or hosted model for AI Chat</span>
         <span className="flex items-center gap-2">
@@ -776,7 +802,12 @@ function RemoveView({ onClose }: ViewProps) {
   }
 
   return (
-    <div ref={rootRef} tabIndex={-1} onKeyDown={handleKeyDown} className="flex min-h-0 flex-1 flex-col outline-none">
+    <div
+      ref={rootRef}
+      tabIndex={-1}
+      onKeyDown={handleKeyDown}
+      className="flex min-h-0 flex-1 flex-col outline-none"
+    >
       <div className="kn-panel-subtitle px-4 py-2">
         {models.length > 0
           ? `${models.length} local model${models.length === 1 ? "" : "s"} available`
@@ -819,18 +850,25 @@ function RemoveView({ onClose }: ViewProps) {
                       </span>
                     </span>
                     <span className="shrink-0 text-xs text-[color:var(--kn-text-muted)]">
-                      {typeof model.size_gb === "number" ? `${model.size_gb.toFixed(1)} GB` : "Local"}
+                      {typeof model.size_gb === "number"
+                        ? `${model.size_gb.toFixed(1)} GB`
+                        : "Local"}
                     </span>
-                    {isDeleting && <span className="shrink-0 text-xs text-red-300">Removing...</span>}
+                    {isDeleting && (
+                      <span className="shrink-0 text-xs text-red-300">Removing...</span>
+                    )}
                     {isConfirming && !isDeleting && (
-                      <span className="shrink-0 text-xs text-[color:var(--kn-warm)]">Press Enter</span>
+                      <span className="shrink-0 text-xs text-[color:var(--kn-warm)]">
+                        Press Enter
+                      </span>
                     )}
                   </button>
 
                   {isConfirming && !isDeleting && (
                     <div className="kn-muted-surface flex items-center gap-3 border-red-400/20 bg-[color:var(--kn-danger-wash)] px-3 py-2">
                       <span className="flex-1 text-xs text-red-100">
-                        Delete <span className="font-semibold">{model.name}</span>? This removes the local copy.
+                        Delete <span className="font-semibold">{model.name}</span>? This removes the
+                        local copy.
                       </span>
                       <button
                         type="button"

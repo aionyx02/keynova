@@ -17,9 +17,9 @@ name = "tauri_app_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
 [features]
-# REF.4 — enables `#[ignore]`-gated integration tests that hit a live Ollama
-# daemon (qwen2.5:7b). Default-off so CI / unit-test runs do not depend on
-# external services. Run locally with:
+# Enables `#[ignore]`-gated integration tests that hit a live Ollama daemon
+# (qwen2.5:7b). Default-off so CI and unit-test runs do not depend on external
+# services. Run locally with:
 #   cargo test --features live-ai -- --ignored ai_capability_live
 live-ai = []
 
@@ -87,12 +87,11 @@ windows = { version = "0.58", features = [
   "Win32_Security",
 ] }
 
-# PERF.1.FU — release footprint pass. There was no release profile, so release
-# used cargo defaults (no LTO, codegen-units = 16, symbols kept), inflating the
-# binary + its mapped image. These are runtime-quality-neutral (they shrink the
-# binary and improve codegen); only release build time grows. Intentionally NOT
-# using opt-level = "z" (trades speed) or panic = "abort" (changes crash
-# semantics) so quality is unaffected.
+# Release footprint pass. There was no release profile, so release used cargo
+# defaults (no LTO, codegen-units = 16, symbols kept), inflating the binary and
+# its mapped image. These are runtime-quality-neutral because they shrink the
+# binary and improve codegen; only release build time grows. Intentionally not
+# using opt-level = "z" or panic = "abort" because those change runtime tradeoffs.
 [profile.release]
 strip = true
 lto = "thin"

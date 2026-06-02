@@ -10,7 +10,7 @@ const NVIM_VERSION: &str = "v0.10.4";
 // Pinned SHA-256 of the per-platform release archives for NVIM_VERSION, taken
 // from neovim's published `<asset>.sha256sum` files. The downloaded archive is
 // verified against this before extraction so a tampered/MITM'd payload is
-// rejected. Update together with NVIM_VERSION. (Security wave A #5)
+// rejected. Update together with NVIM_VERSION.
 #[cfg(target_os = "windows")]
 const EXPECTED_SHA256: &str = "dceeb8301f64e244e3e2dffaedbb153bd01c0c6ecb5024a90e3172dc8e65555c";
 #[cfg(target_os = "macos")]
@@ -118,7 +118,7 @@ pub fn download_nvim(
     emit_progress(&emit, "downloading", 0);
     download_with_progress(&url, &archive_path, &emit)?;
 
-    // Verify integrity before trusting the archive contents. (Security wave A #5)
+    // Verify integrity before trusting the archive contents.
     if let Err(error) = verify_archive_sha256(&archive_path, EXPECTED_SHA256) {
         let _ = std::fs::remove_file(&archive_path);
         return Err(error);

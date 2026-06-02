@@ -1,8 +1,7 @@
 //! Mouse / keyboard input simulation, cursor movement, screen metrics, and
 //! clipboard reads via Win32 SendInput / DataExchange.
 //!
-//! Extracted from `platform/windows.rs` (REF.9.C) as a pure structural move;
-//! behavior unchanged.
+//! Focused Windows input helpers re-exported by the platform facade.
 
 use windows::Win32::UI::Input::KeyboardAndMouse::{
     SendInput, INPUT, INPUT_0, INPUT_KEYBOARD, INPUT_MOUSE, KEYBDINPUT, KEYEVENTF_KEYUP,

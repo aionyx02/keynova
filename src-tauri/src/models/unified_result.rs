@@ -138,8 +138,8 @@ pub enum PreviewPayload {
 }
 
 /// Ranking signals. `score` is the canonical display score; `breakdown` retains
-/// the existing LAUNCH.1.E decomposition; `workflow_boost` is reserved for REF.5
-/// workflow memory and is zero until that batch wires it.
+/// the existing rank decomposition; `workflow_boost` is reserved for workflow
+/// memory and is zero until that integration wires it.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct RankSignals {
     pub score: i64,
@@ -159,7 +159,7 @@ pub struct SourceMetadata {
     pub modified_ms: Option<u64>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub size_bytes: Option<u64>,
-    /// REF.6.A — preserves the legacy `UiSearchItem.secondary_action_count`
+    /// Preserves the legacy `UiSearchItem.secondary_action_count`
     /// signal ("press Tab to see more") on the palette row without
     /// requiring backend to materialise every hidden action as an
     /// `ActionChip`. Additive per ADR-0030 §4 evolution rule.
@@ -167,7 +167,7 @@ pub struct SourceMetadata {
     pub secondary_action_count: Option<u32>,
 }
 
-/// Unified result/action contract (REF.1).
+/// Unified result/action contract.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct UnifiedResult {
     /// Stable identifier within a generation (used by React keying, etc.).
@@ -182,7 +182,7 @@ pub struct UnifiedResult {
     pub preview: PreviewPayload,
     #[serde(default)]
     pub rank: RankSignals,
-    /// Optional workflow-memory context hash (REF.5). Not consumed by initial
+    /// Optional workflow-memory context hash. Not consumed by initial
     /// capabilities; capability schema treats this as an optional input.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub context_hash: Option<String>,

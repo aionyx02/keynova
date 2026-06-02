@@ -47,11 +47,7 @@ export default defineConfig(async () => ({
           }
           if (id.includes("highlight.js")) return "markdown-vendor";
           if (id.includes("@xterm")) return "terminal-vendor";
-          if (
-            id.includes("/react/") ||
-            id.includes("/react-dom/") ||
-            id.includes("/scheduler/")
-          ) {
+          if (id.includes("/react/") || id.includes("/react-dom/") || id.includes("/scheduler/")) {
             return "react-vendor";
           }
           return undefined;

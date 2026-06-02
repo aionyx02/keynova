@@ -148,7 +148,7 @@ pub(crate) fn setup_global_shortcuts(app: &tauri::AppHandle, reset_existing: boo
         }
     }
 
-    // ── LAUNCH.2.B — workspace cycle (Ctrl+Alt+0 default). Note: spec defaulted
+    // Workspace cycle (Ctrl+Alt+0 default). Note: the earlier spec defaulted
     // to Ctrl+Alt+W but that conflicts with the mouse-cursor-up binding above,
     // so we ship `Ctrl+Alt+0` (sits naturally next to workspace_1/2/3). Cycle
     // emits a distinct `workspace-cycled` event so the frontend can clear the

@@ -78,11 +78,7 @@ export function classifyAiError(raw: string | null | undefined): ClassifiedAiErr
     };
   }
 
-  if (
-    msg.includes("timed out") ||
-    msg.includes("timeout") ||
-    msg.includes("deadline exceeded")
-  ) {
+  if (msg.includes("timed out") || msg.includes("timeout") || msg.includes("deadline exceeded")) {
     return {
       kind: "timeout",
       title: "Request timed out",

@@ -26,9 +26,7 @@ async function withTauriShim(run: () => Promise<void>): Promise<void> {
 describe("useRecentWorkflows", () => {
   it("short-circuits to empty rows outside Tauri", async () => {
     const dispatch = vi.fn();
-    const { result } = renderHook(() =>
-      useRecentWorkflows({ dispatch: dispatch as DispatchFn }),
-    );
+    const { result } = renderHook(() => useRecentWorkflows({ dispatch: dispatch as DispatchFn }));
     await waitFor(() => expect(result.current.isLoading).toBe(false));
     expect(result.current.rows).toEqual([]);
     expect(dispatch).not.toHaveBeenCalled();
@@ -60,9 +58,7 @@ describe("useRecentWorkflows", () => {
   it("surfaces dispatch errors and clears rows", async () => {
     await withTauriShim(async () => {
       const dispatch = vi.fn().mockRejectedValue(new Error("store offline"));
-      const { result } = renderHook(() =>
-        useRecentWorkflows({ dispatch: dispatch as DispatchFn }),
-      );
+      const { result } = renderHook(() => useRecentWorkflows({ dispatch: dispatch as DispatchFn }));
       await waitFor(() => expect(result.current.isLoading).toBe(false));
       expect(result.current.error).toBe("store offline");
       expect(result.current.rows).toEqual([]);

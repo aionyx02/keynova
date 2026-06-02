@@ -1,4 +1,4 @@
-// REF.2.P5 — Rank tooltip hover state (LAUNCH.1.E).
+// Rank tooltip hover state.
 //
 // `rect` is captured at the moment the hover delay fires (400 ms) so
 // subsequent renders can read it without touching a ref. The timer ref is

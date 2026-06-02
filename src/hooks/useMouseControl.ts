@@ -13,7 +13,9 @@ export function useMouseControl() {
     const unlisten = listen<boolean>("mouse-control-toggled", (event) => {
       setActive(event.payload);
     });
-    return () => { unlisten.then((fn) => fn()); };
+    return () => {
+      unlisten.then((fn) => fn());
+    };
   }, []);
 
   return { active };

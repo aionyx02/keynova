@@ -1,4 +1,4 @@
-// REF.4 — Frontend twin of `src-tauri/src/core/ai_capability/contract.rs`.
+// Frontend twin of `src-tauri/src/core/ai_capability/contract.rs`.
 //
 // Schema is additive only per ADR-0030 §4. Unknown fields are ignored on
 // parse; missing fields fail safe (see parseRiskTagFailSafe).

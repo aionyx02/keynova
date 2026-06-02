@@ -1,11 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
-export type CapabilityRunStatus =
-  | "idle"
-  | "pending"
-  | "complete"
-  | "cancelled"
-  | "error";
+export type CapabilityRunStatus = "idle" | "pending" | "complete" | "cancelled" | "error";
 
 interface Deps {
   active: boolean;
@@ -57,12 +52,7 @@ export function useCapabilityRunState(deps: Deps): UseCapabilityRunState {
   }, [activeKey, cancelInner]);
 
   useEffect(() => {
-    if (
-      prevLoadingRef.current &&
-      !isLoading &&
-      completedAtMs === null &&
-      startedAtMs !== null
-    ) {
+    if (prevLoadingRef.current && !isLoading && completedAtMs === null && startedAtMs !== null) {
       // eslint-disable-next-line react-hooks/set-state-in-effect -- bounded transition observation
       setCompletedAtMs(Date.now());
     }

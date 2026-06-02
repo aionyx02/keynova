@@ -209,10 +209,7 @@ describe("useCapabilityStream (submit-on-Enter)", () => {
     await act(async () => {
       await Promise.resolve();
     });
-    expect(dispatch).toHaveBeenCalledWith(
-      IPC.CAPABILITY_CANCEL,
-      expect.objectContaining({}),
-    );
+    expect(dispatch).toHaveBeenCalledWith(IPC.CAPABILITY_CANCEL, expect.objectContaining({}));
   });
 
   it("populates completedAtMs on cancel", async () => {
@@ -251,10 +248,7 @@ describe("useCapabilityStream (submit-on-Enter)", () => {
     await act(async () => {
       await Promise.resolve();
     });
-    expect(dispatch).toHaveBeenCalledWith(
-      IPC.CAPABILITY_CANCEL,
-      expect.objectContaining({}),
-    );
+    expect(dispatch).toHaveBeenCalledWith(IPC.CAPABILITY_CANCEL, expect.objectContaining({}));
   });
 
   it("uses Tauri alias events and falls back to final response text", async () => {
@@ -272,14 +266,8 @@ describe("useCapabilityStream (submit-on-Enter)", () => {
         result.current.submit();
       });
 
-      expect(listenMock).toHaveBeenCalledWith(
-        "capability-response",
-        expect.any(Function),
-      );
-      expect(listenMock).toHaveBeenCalledWith(
-        "capability-stream-chunk",
-        expect.any(Function),
-      );
+      expect(listenMock).toHaveBeenCalledWith("capability-response", expect.any(Function));
+      expect(listenMock).toHaveBeenCalledWith("capability-stream-chunk", expect.any(Function));
 
       const payload = dispatch.mock.calls.find(([route]) => route === IPC.CAPABILITY_CALL)?.[1] as
         | { request_id: string }

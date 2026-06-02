@@ -1,7 +1,6 @@
 //! Windows application (Start Menu shortcut) scanning and launch.
 //!
-//! Extracted from `platform/windows.rs` (REF.9.C) as a pure structural move;
-//! behavior unchanged.
+//! Extracted from `platform/windows.rs` as a focused Windows apps module.
 
 use crate::models::app::AppInfo;
 use std::path::Path;
@@ -70,7 +69,7 @@ fn collect_lnk_files(dir: &Path, out: &mut Vec<AppInfo>) {
 pub fn launch_app(path: &str) -> Result<(), String> {
     // Use the opener plugin (ShellExecute semantics) instead of `cmd /C start`
     // so paths containing shell metacharacters (e.g. `&`) cannot be reinterpreted
-    // by cmd.exe — avoids command injection / launch mangling. (Security wave A #3)
+    // by cmd.exe. This avoids command injection and launch mangling.
     tauri_plugin_opener::open_path(Path::new(path), None::<&str>)
         .map_err(|e| format!("launch failed: {e}"))
 }

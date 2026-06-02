@@ -1,7 +1,6 @@
 //! Icon key derivation and SVG fallback rendering for search results.
 //!
-//! Extracted from `handlers/search.rs` (REF.9.E) as a pure structural move;
-//! behavior unchanged.
+//! Focused icon helpers used by the search handler facade.
 
 use crate::models::search_result::ResultKind;
 

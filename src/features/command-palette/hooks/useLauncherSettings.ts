@@ -1,4 +1,4 @@
-// REF.2.P3 — Launcher settings that gate palette rendering + search behavior.
+// Launcher settings that gate palette rendering + search behavior.
 //
 // Reads `setting.list_all` on mount and re-reads when a `config-reloaded`
 // event fires for any of:
@@ -36,7 +36,7 @@ export interface UseLauncherSettingsDeps {
 export interface UseLauncherSettings {
   previewEnabled: boolean;
   showRankBreakdown: boolean;
-  /** REF.6.B — toggles the empty-palette capability hint line. */
+  /** Toggles the empty-palette capability hint line. */
   showCapabilityHint: boolean;
 }
 

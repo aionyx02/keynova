@@ -1,4 +1,4 @@
-// REF.2.P5 — Footer hint string for the search results card.
+// Footer hint string for the search results card.
 //
 // Priority chain (first non-empty wins):
 //   1. `copyHint` (transient, e.g. "SHA-256 copied: …"),

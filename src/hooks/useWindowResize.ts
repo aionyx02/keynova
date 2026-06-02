@@ -24,7 +24,7 @@ function isTerminalResult(result: BuiltinCommandResult | null) {
  * Manages window resizing: schedules RAF-based setSize calls and observes
  * DOM mutations so the window tracks content height automatically.
  *
- * `widthRef` (LAUNCH.1.C) toggles between narrow (700) and wide (1040) — the
+ * `widthRef` toggles between narrow (700) and wide (1040); the
  * caller flips it when the preview pane should expand the palette horizontally.
  * Defaults to narrow when omitted.
  *
@@ -48,10 +48,14 @@ export function useWindowResize(
           const physW = Math.round(width * monitor.scaleFactor);
           const x = Math.max(
             monitor.position.x,
-            Math.round(monitor.position.x + (monitor.size.width - physW) / 2 - PALETTE_LEFT_SHIFT_PX),
+            Math.round(
+              monitor.position.x + (monitor.size.width - physW) / 2 - PALETTE_LEFT_SHIFT_PX,
+            ),
           );
           const y = Math.round(monitor.position.y + monitor.size.height * PALETTE_TOP_RATIO);
-          return getCurrentWindow().setPosition(new PhysicalPosition(x, y)).catch(() => {});
+          return getCurrentWindow()
+            .setPosition(new PhysicalPosition(x, y))
+            .catch(() => {});
         })
         .catch(() => {});
     },
@@ -67,11 +71,15 @@ export function useWindowResize(
       resizeRafRef.current = null;
       const width = widthRef?.current ?? PALETTE_WIDTH_NARROW;
       if (modeRef.current === "terminal") {
-        getCurrentWindow().setSize(new LogicalSize(PALETTE_WIDTH_NARROW, TERMINAL_HEIGHT_MODE)).catch(() => {});
+        getCurrentWindow()
+          .setSize(new LogicalSize(PALETTE_WIDTH_NARROW, TERMINAL_HEIGHT_MODE))
+          .catch(() => {});
         return;
       }
       if (isTerminalResult(cmdResultRef.current)) {
-        getCurrentWindow().setSize(new LogicalSize(PALETTE_WIDTH_NARROW, TERMINAL_HEIGHT_ATTACHED)).catch(() => {});
+        getCurrentWindow()
+          .setSize(new LogicalSize(PALETTE_WIDTH_NARROW, TERMINAL_HEIGHT_ATTACHED))
+          .catch(() => {});
         return;
       }
       const el = containerRef.current;
@@ -79,7 +87,9 @@ export function useWindowResize(
       const rectHeight = Math.ceil(el.getBoundingClientRect().height);
       const scrollHeight = Math.ceil(el.scrollHeight);
       const height = Math.max(rectHeight, scrollHeight, 56);
-      getCurrentWindow().setSize(new LogicalSize(width, height)).catch(() => {});
+      getCurrentWindow()
+        .setSize(new LogicalSize(width, height))
+        .catch(() => {});
     });
   }, [modeRef, cmdResultRef, widthRef]);
 

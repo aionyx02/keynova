@@ -114,7 +114,7 @@ export function CommandPalette() {
     clearResults: clearSearchResults,
   } = useSearchStream({ dispatch, setLoading });
 
-  // REF.6.A — palette wire format is `UnifiedResult[]`; existing hooks
+  // Palette wire format is `UnifiedResult[]`; existing hooks
   // (useDerivedView, useFileActions, useKeyboardNav, useSearchMetadata,
   // useFilePreview, etc.) still consume the legacy `SearchResult` shape.
   // Derive the legacy view once per `results` change and pass it down;
@@ -144,7 +144,7 @@ export function CommandPalette() {
     clear: clearPipeline,
   } = usePipeline({ dispatch });
 
-  // LAUNCH.1.A + LAUNCH.1.B — secondary menu state + two-phase confirm gate.
+  // Secondary menu state plus the two-phase confirm gate.
   // pendingConfirm: set after a dry-run dispatch; next Enter on the same action runs for real.
   // inlineInput: open for rename/move (need a target name/path).
   const {
@@ -161,7 +161,7 @@ export function CommandPalette() {
     closeSecondaryMenu,
   } = useSecondaryMenu();
 
-  // LAUNCH.1.D — source-type filter chips (multi-select, session-scoped).
+  // Source-type filter chips are multi-select and session-scoped.
   // Initial set is always empty: persistence across launches caused users to
   // silently hide entire result kinds without realising why. See FilterChips
   // module comment for context.
@@ -172,21 +172,21 @@ export function CommandPalette() {
     clearLegacyFilters();
   }, []);
 
-  // LAUNCH.1.C/E — settings as state (consumed during render to gate UI).
+  // Launcher settings are kept as state because render gates depend on them.
   const { previewEnabled, showRankBreakdown, showCapabilityHint } = useLauncherSettings({
     dispatch,
     onMaxResultsChange: setSearchLimit,
   });
 
-  // LAUNCH.1.C — dynamic palette width: 700 normally, 1040 when preview pane visible.
+  // Dynamic palette width: narrow normally, wide when the preview pane is visible.
   const paletteWidthRef = useRef<number>(PALETTE_WIDTH_NARROW);
 
   const { hover, start: startRankHover, end: endRankHover, hoverTimerRef } = useRankHover();
 
-  // ONBOARD.1.A — first-run tour overlay state.
+  // First-run tour overlay state.
   const [onboardingOpen, setOnboardingOpen] = useState(() => !hasCompletedOnboarding());
 
-  // ONBOARD.1.B — `?` cheatsheet overlay (only triggers from Shift+/ when input
+  // `?` cheatsheet overlay (only triggers from Shift+/ when input
   // is empty or non-search mode; otherwise typing `?` flows into the input).
   const [cheatsheetOpen, setCheatsheetOpen] = useState(false);
 
@@ -224,7 +224,7 @@ export function CommandPalette() {
     !pipelineRunning &&
     !pipelineResult &&
     !smartNextDismissed;
-  // REF.6.J - resolve which capability (if any) should auto-surface for the
+  // Resolve which capability (if any) should auto-surface for the
   // current non-result NL query. `null` means no smart card; otherwise the
   // returned id picks the card variant. The dismissal key intentionally keys
   // on the trimmed query so a different query gets a fresh chance to surface.
@@ -485,8 +485,7 @@ export function CommandPalette() {
     (command: string) => {
       editGeneratedCommand(command);
       setCmdResult({
-        text:
-          "Generated shell commands are no longer launched directly. Review the command and run it through an approved backend action.",
+        text: "Generated shell commands are no longer launched directly. Review the command and run it through an approved backend action.",
         ui_type: { type: "Inline" },
       });
     },
@@ -515,7 +514,7 @@ export function CommandPalette() {
       setSmartNextDismissed(true);
       return;
     }
-    // REF.6.J - any smart-surfaced capability (cmd / explain / summarize / fix)
+    // Any smart-surfaced capability (cmd / explain / summarize / fix)
     // dismisses on the same trimmed-query key so the user does not lose their
     // typed input when they close the card.
     if (capabilityMode?.source === "smart" && capabilityMode.id !== "next") {
@@ -562,7 +561,7 @@ export function CommandPalette() {
     setExpandedMetadata,
   });
 
-  // REF.6.A — parallel `UnifiedResult[]` for `SearchResultsList` chip
+  // Parallel `UnifiedResult[]` for `SearchResultsList` chip
   // rendering. Filter the canonical `results` via `unified_id` set so the
   // visible rows stay 1-to-1 with the legacy filtered view (kill-set +
   // active filters).
@@ -721,9 +720,7 @@ export function CommandPalette() {
 
           {capabilityMode && (
             <Suspense
-              fallback={
-                <div className="kn-panel-shell h-[120px] rounded-t-none border-t-0" />
-              }
+              fallback={<div className="kn-panel-shell h-[120px] rounded-t-none border-t-0" />}
             >
               <CapabilityResultArea
                 key={capabilityMode.id}
@@ -758,7 +755,7 @@ export function CommandPalette() {
             </Suspense>
           )}
 
-          {/* REF.6.B — capability prefix discovery hint, shown on empty
+          {/* Capability prefix discovery hint, shown on empty
               palette so first-time users see the available prefixes. */}
           {showCapabilityHintLine && <CapabilityHintLine visible={showCapabilityHint} />}
 
@@ -830,14 +827,14 @@ export function CommandPalette() {
             />
           )}
 
-          {/* LAUNCH.1.E — rank tooltip (rendered last so it overlays everything) */}
+          {/* Rank tooltip is rendered last so it overlays everything. */}
           <RankTooltip
             breakdown={hover ? visibleResults[hover.index]?.score_breakdown : undefined}
             anchorRect={hover ? hover.rect : null}
             visible={hover !== null}
           />
 
-          {/* ONBOARD.1.A — first-run tour overlay (conditional mount resets step).
+          {/* First-run tour overlay (conditional mount resets step).
               PERF.1: lazy-loaded; while the chunk arrives, the overlay simply
               does not appear yet — acceptable since the tour is informational
               and the trigger (first-run) is non-time-critical. */}
@@ -847,7 +844,7 @@ export function CommandPalette() {
             </Suspense>
           )}
 
-          {/* ONBOARD.1.B — `?` cheatsheet overlay, lazy-loaded; user-triggered
+          {/* `?` cheatsheet overlay, lazy-loaded; user-triggered
               overlay tolerates a one-frame delay before the chunk paints. */}
           {cheatsheetOpen && (
             <Suspense fallback={null}>

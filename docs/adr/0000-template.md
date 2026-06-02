@@ -4,6 +4,7 @@
 **日期：** YYYY-MM-DD  
 **決策者：** 開發者 / AI agent / 團隊  
 **相關文件：**
+
 - docs/architecture.md
 - docs/security.md
 - docs/testing.md
@@ -38,12 +39,15 @@
 ### 方案 A：[方案名稱]
 
 **優點：**
+
 - ...
 
 **缺點：**
+
 - ...
 
 **效能分析：**
+
 - 時間複雜度：
 - 空間複雜度：
 - I/O 成本：
@@ -51,17 +55,21 @@
 - 長期維護成本：
 
 **風險：**
+
 - ...
 
 ### 方案 B：[方案名稱]
 
 **優點：**
+
 - ...
 
 **缺點：**
+
 - ...
 
 **效能分析：**
+
 - 時間複雜度：
 - 空間複雜度：
 - I/O 成本：
@@ -69,6 +77,7 @@
 - 長期維護成本：
 
 **風險：**
+
 - ...
 
 ## 4. Decision（最終決策）
@@ -78,9 +87,11 @@
 選擇：**方案 X**
 
 原因：
+
 - ...
 
 犧牲：
+
 - ...
 
 Feature flag：（若無則填 N/A）
@@ -92,21 +103,27 @@ Rollback 需求：（填寫如何退回）
 ## 5. Consequences（系統影響與副作用）
 
 ### 正面影響
+
 - ...
 
 ### 負面影響 / 技術債
+
 - ...
 
 ### 對使用者的影響
+
 - ...
 
 ### 對開發者的影響
+
 - ...
 
 ### 對測試的影響
+
 - ...
 
 ### 對安全性的影響
+
 - ...
 
 ## 6. Implementation Plan（實作計畫）
@@ -131,19 +148,20 @@ Rollback 需求：（填寫如何退回）
 包含單元測試、整合測試、效能測試、安全測試、邊界案例測試與手動驗證步驟。
 
 若涉及效能，必須定義可量測指標，例如：
+
 - 查詢延遲（ms）
 - 啟動時間增加（ms）
 - 記憶體增加（MB）
 - N 筆資料下操作時間（ms）
 
-| 測試類型 | 覆蓋目標 | 指令 / 步驟 |
-|---------|---------|-----------|
-| Unit test | 純函式、演算法 | `cargo test` / `npm run test` |
-| Integration test | 多模組協作、I/O | `cargo test --test integration` |
-| Regression test | 修復已知 bug | 同上 |
-| Security test | 路徑、敏感資料 | 手動 + 程式碼審查 |
-| Performance test | 搜尋、索引、批次 | 手動量測 Task Manager |
-| Manual validation | 端到端 UX | 見步驟說明 |
+| 測試類型          | 覆蓋目標         | 指令 / 步驟                     |
+| ----------------- | ---------------- | ------------------------------- |
+| Unit test         | 純函式、演算法   | `cargo test` / `npm run test`   |
+| Integration test  | 多模組協作、I/O  | `cargo test --test integration` |
+| Regression test   | 修復已知 bug     | 同上                            |
+| Security test     | 路徑、敏感資料   | 手動 + 程式碼審查               |
+| Performance test  | 搜尋、索引、批次 | 手動量測 Task Manager           |
+| Manual validation | 端到端 UX        | 見步驟說明                      |
 
 ## 9. Open Questions（未解問題）
 

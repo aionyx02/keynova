@@ -52,7 +52,9 @@ export function useAi() {
     ipcDispatch<{ role: string; content: string }[]>(IPC.AI_GET_HISTORY)
       .then((hist) => {
         if (!active || hasLocalMutationRef.current) return;
-        setMessages(hist.map((m) => ({ role: m.role as "user" | "assistant", content: m.content })));
+        setMessages(
+          hist.map((m) => ({ role: m.role as "user" | "assistant", content: m.content })),
+        );
       })
       .catch(() => {});
 
@@ -97,30 +99,33 @@ export function useAi() {
     };
   }, []);
 
-  const send = useCallback(async (prompt: string) => {
-    if (loading || !prompt.trim()) return;
+  const send = useCallback(
+    async (prompt: string) => {
+      if (loading || !prompt.trim()) return;
 
-    hasLocalMutationRef.current = true;
-    const requestId = `ai-${Date.now()}`;
-    pendingIdRef.current = requestId;
-    setLoading(true);
-    setMessages((prev) => [
-      ...prev,
-      { role: "user", content: prompt },
-      { role: "assistant", content: "", pending: true, startedAt: Date.now() },
-    ]);
+      hasLocalMutationRef.current = true;
+      const requestId = `ai-${Date.now()}`;
+      pendingIdRef.current = requestId;
+      setLoading(true);
+      setMessages((prev) => [
+        ...prev,
+        { role: "user", content: prompt },
+        { role: "assistant", content: "", pending: true, startedAt: Date.now() },
+      ]);
 
-    try {
-      await ipcDispatch(IPC.AI_CHAT, { request_id: requestId, prompt });
-    } catch (err) {
-      pendingIdRef.current = null;
-      setLoading(false);
-      setMessages((prev) => {
-        const next = prev.filter((m) => !m.pending);
-        return [...next, { role: "assistant", content: "", error: String(err) }];
-      });
-    }
-  }, [loading]);
+      try {
+        await ipcDispatch(IPC.AI_CHAT, { request_id: requestId, prompt });
+      } catch (err) {
+        pendingIdRef.current = null;
+        setLoading(false);
+        setMessages((prev) => {
+          const next = prev.filter((m) => !m.pending);
+          return [...next, { role: "assistant", content: "", error: String(err) }];
+        });
+      }
+    },
+    [loading],
+  );
 
   const cancel = useCallback(async () => {
     const requestId = pendingIdRef.current;

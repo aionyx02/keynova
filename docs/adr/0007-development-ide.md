@@ -4,6 +4,7 @@
 **日期：** 2026-05-01  
 **決策者：** 開發者  
 **相關文件：**
+
 - docs/architecture.md
 
 ---
@@ -23,18 +24,22 @@
 ### 方案 A：JetBrains RustRover
 
 **優點：**
+
 - 針對 Rust 最佳化，型別推斷與補全完整
 - 整合 Clippy、cargo test 執行
 
 **缺點：**
+
 - 商業授權
 
 ### 方案 B：VS Code + rust-analyzer
 
 **優點：**
+
 - 免費，外掛豐富
 
 **缺點：**
+
 - rust-analyzer 在大型專案中記憶體佔用較高
 
 ## 4. Decision（最終決策）
@@ -42,10 +47,12 @@
 選擇：**方案 A — JetBrains RustRover**
 
 原因：
+
 - Rust 開發體驗最佳
 - 開發者熟悉度高
 
 犧牲：
+
 - 商業授權費用
 
 Feature flag：N/A
@@ -57,6 +64,7 @@ Rollback 需求：任何時候可切換 VS Code（`.idea/` 已在 `.gitignore`�
 ## 5. Consequences（系統影響與副作用）
 
 ### 對開發者的影響
+
 - `.idea/`、`*.iml`、`*.iws`、`*.ipr` 全列入 `.gitignore`，不提交任何 IDE 設定
 
 ## 6. Implementation Plan（實作計畫）

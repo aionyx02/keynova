@@ -33,10 +33,7 @@
       "title": "REF.2 拆分時要優先保護哪些路徑？",
       "help": "可以多選；AI 會依勾選結果安排檢查順序與測試重點。",
       "type": "multiple",
-      "default": [
-        "focus_ime",
-        "delete_verify"
-      ],
+      "default": ["focus_ime", "delete_verify"],
       "options": [
         {
           "id": "focus_ime",
@@ -65,10 +62,7 @@
       "title": "AI 建議要以什麼方式進入正式流程？",
       "help": "這題決定 AI 後續看到 proposal 時的預設處理方式。",
       "type": "multiple",
-      "default": [
-        "preview_first",
-        "markdown_after_confirm"
-      ],
+      "default": ["preview_first", "markdown_after_confirm"],
       "options": [
         {
           "id": "preview_first",
@@ -92,44 +86,23 @@
     {
       "id": "ref2-first-pass",
       "title": "建議先用保守 UI mock 配合 REF.2",
-      "applies_to": [
-        "REF.2"
-      ],
+      "applies_to": ["REF.2"],
       "body": "REF.2 的核心價值是降低 CommandPalette 複雜度，不是改 UI。建議先用緊湊清單做 baseline，再把左右預覽與動作表格留作 REF.6 評估。",
-      "recommended_options": [
-        "compact-list",
-        "focus_ime",
-        "delete_verify",
-        "preview_first"
-      ]
+      "recommended_options": ["compact-list", "focus_ime", "delete_verify", "preview_first"]
     },
     {
       "id": "proposal-loop",
       "title": "建議採用 proposal loop",
-      "applies_to": [
-        "workflow"
-      ],
+      "applies_to": ["workflow"],
       "body": "AI 的新想法先進 workbench-suggestions.json，HTML 自動更新；你勾選後複製 proposal 回對話，AI 再驗證並更新最小 Markdown。",
-      "recommended_options": [
-        "preview_first",
-        "markdown_after_confirm",
-        "session_log_trace"
-      ]
+      "recommended_options": ["preview_first", "markdown_after_confirm", "session_log_trace"]
     },
     {
       "id": "decision-reminder",
       "title": "AI should remind before gated decisions",
-      "applies_to": [
-        "workflow",
-        "ADR",
-        "UI",
-        "risk"
-      ],
+      "applies_to": ["workflow", "ADR", "UI", "risk"],
       "body": "When AI detects an ADR direction, task-order change, UI layout choice, safety tradeoff, or other decision-gated change, it should explicitly remind the user to review docs/workbench/tasks.html or give direct approval before implementation continues.",
-      "recommended_options": [
-        "preview_first",
-        "markdown_after_confirm"
-      ]
+      "recommended_options": ["preview_first", "markdown_after_confirm"]
     }
   ]
 }

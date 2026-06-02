@@ -86,7 +86,9 @@ describe("CapabilityListCard", () => {
   it("shows empty and pending states", () => {
     const { rerender } = render(<CapabilityListCard {...baseProps} items={[]} />);
     expect(screen.getByText(/No recent workflows yet/i)).not.toBeNull();
-    rerender(<CapabilityListCard {...baseProps} status="pending" items={[]} completedAtMs={null} />);
+    rerender(
+      <CapabilityListCard {...baseProps} status="pending" items={[]} completedAtMs={null} />,
+    );
     expect(screen.getByText(/Looking at recent workflows/i)).not.toBeNull();
   });
 });

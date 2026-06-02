@@ -1,4 +1,4 @@
-// REF.2.P5 — Args-phase suggestions hook.
+// Args-phase suggestions hook.
 //
 // When the user types `/cmd ` (a known command followed by a space) the
 // palette enters "args phase": the command is locked and the trailing text
@@ -45,9 +45,7 @@ export function useArgSuggestions({
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const exactCmd =
-    mode === "command" && spaceIdx !== -1
-      ? (all.find((c) => c.name === cmdName) ?? null)
-      : null;
+    mode === "command" && spaceIdx !== -1 ? (all.find((c) => c.name === cmdName) ?? null) : null;
   const isArgsPhase = exactCmd !== null;
 
   useEffect(() => {

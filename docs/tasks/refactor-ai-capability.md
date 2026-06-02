@@ -2,7 +2,7 @@
 type: task_plan
 status: active
 priority: p0
-updated: 2026-06-01
+updated: 2026-06-02
 context_policy: on_demand
 owner: project
 tags: [refactor, ai-capability, unified-result, workflow-memory, search-first]
@@ -101,6 +101,7 @@ change: `SourceMetadata.secondary_action_count: Option<u32>`.
 Full UI contract in `docs/tasks/refactor-ai-capability-ui-spec.md` §1–3 + §9.
 
 Landed:
+
 - `parseCapabilityPrefix` parser (only `explain` / `summarize` wired this
   batch; `cmd` / `fix` / `next` fall through to search until REF.6.D/.E/.F).
 - `usePaletteMode` hook + `useCapabilityStream` (300 ms debounce + cancel-
@@ -122,6 +123,7 @@ Landed:
   `InlineCapabilityReply` component removed cleanly.
 
 Verification:
+
 - 101 / 102 vitest tests pass (1 intentional skip on the placeholder
   `SearchResultsList.test.tsx`). `npm run lint` clean.
 - `cargo test --lib` shows one unrelated pre-existing failure
@@ -129,6 +131,7 @@ Verification:
   on the base branch — not blocking REF.6.B.
 
 Pending (handoff to manual smoke before commit):
+
 - `npm run tauri dev`: type `explain rust hashmap remove` → answer streams
   in card within ~5 s on cold model.
 - Backspacing past `explain ` returns to search results in the same frame.
@@ -138,9 +141,10 @@ Pending (handoff to manual smoke before commit):
 #### REF.6.C — Complete capability set: gen_command + suggest_next (docx §3.2) — DONE (unit-level)
 
 Scope:
+
 - Backend `core/ai_capability/gen_command.rs`: typed payload
   `{ intent: String, ctx: GenCommandCtx }` → `{ command: String, confidence: f32,
-  rationale: String }`. Registry + risk tag + audit per existing pattern.
+rationale: String }`. Registry + risk tag + audit per existing pattern.
 - Backend `core/ai_capability/suggest_next.rs`: typed payload
   `{ ctx: SuggestNextCtx }` → `Vec<SuggestedNextAction>`. Reads
   `workflow_memory::suggest` and re-ranks with capability heuristic.
@@ -148,10 +152,12 @@ Scope:
 - `handlers/ai_capability.rs` exposes both via IPC.
 
 Non-goals:
+
 - No UI surface wiring (that is REF.6.E / REF.6.F).
 - No autonomous chain — capabilities still single-step.
 
 Landed:
+
 - `core/ai_capability/capabilities/gen_command.rs` with typed `intent + ctx`
   payload, structured `{ command, confidence, rationale }` output, JSON-first
   parsing with fallback, audit wiring, and conservative command risk tagging.
@@ -165,11 +171,13 @@ Landed:
   hooks for later UI batches.
 
 Verification:
+
 - Targeted Rust tests for `ai_capability` pass.
 - Targeted Vitest coverage for structured parsers/hooks passes.
 - `npm run lint` and `cargo clippy --lib -- -D warnings` are clean.
 
 Pending:
+
 - UI-owned manual `tauri dev` smoke for the capability surfaces that consume
   `gen_command` / `suggest_next`.
 
@@ -178,12 +186,14 @@ Pending:
 Spec: ui-spec §9 REF.6.D.
 
 Scope:
+
 - Add `fix` to the prefix parser (`fix <raw error text>`).
 - Reuse `CapabilityAnswerCard`; no new card component.
 - When capability output contains a structured diff hint, render a small
   inline diff section above the markdown body.
 
 Non-goals:
+
 - No terminal auto-detect / regex watcher.
 - No apply-patch action in v1; user copies fix manually.
 - No 5-minute blacklist.
@@ -191,6 +201,7 @@ Non-goals:
   current `fix_error` capability is plain-text v1 per its own module comment.
 
 Landed:
+
 - `parseCapabilityPrefix` now matches `fix <body>` and exports `"fix"` as a
   text prefix id alongside `explain` / `summarize` / `cmd`.
 - `useCapabilityStream` remaps the submit payload by capability id so
@@ -198,7 +209,7 @@ Landed:
   continue to send `{ text }`. One streaming hook still covers all three
   text capabilities.
 - `CapabilityAnswerCard` exposes `AnswerCardCapability = "explain" |
-  "summarize" | "fix"` and renders the `Fix` header label for the new id.
+"summarize" | "fix"` and renders the `Fix` header label for the new id.
 - `CapabilityResultArea` adds `"fix"` to the answer-card branch; no new
   component.
 - `CommandPalette.tsx` extends `textCapabilityMode` to cover `fix` and maps
@@ -206,15 +217,17 @@ Landed:
   stream boundary.
 
 Verification:
+
 - New `parseCapabilityPrefix` test asserts `fix error[E0308]: mismatched
-  types` parses to `{ id: "fix", args: { text: "error[E0308]: mismatched
-  types" } }` and that bare `fix` / `fix ` still return null.
+types` parses to `{ id: "fix", args: { text: "error[E0308]: mismatched
+types" } }` and that bare `fix` / `fix ` still return null.
 - `usePaletteMode` test covers the `fix` prefix.
 - `CapabilityAnswerCard` test asserts the `Fix` header label renders.
 - Full `npm run test`, `npm run lint`, and the `ai_capability` Rust suite
   are green on this branch.
 
 Pending:
+
 - Manual `npm run tauri dev` smoke is still required because capability IPC
   is only available when `window.__TAURI_INTERNALS__` exists.
 
@@ -223,6 +236,7 @@ Pending:
 Spec: ui-spec §9 REF.6.E.
 
 Scope:
+
 - Add `next` (zero-arg) to the prefix parser.
 - Add `CapabilityListCard` rendering a navigable list of
   `SuggestedNextAction` items.
@@ -231,10 +245,12 @@ Scope:
   Enter when the active card is a suggestion list.
 
 Non-goals:
+
 - No mixed ranking with workflow_memory raw data — that data is the input
   to the suggester.
 
 Landed:
+
 - `parseCapabilityPrefix` and `usePaletteMode` now recognize `next` / `next `
   as a zero-arg capability prefix.
 - Added `CapabilityListCard` with ranked rows, replay/history-only badges,
@@ -251,6 +267,7 @@ Landed:
   `History only`.
 
 Verification:
+
 - Targeted Vitest coverage for the parser, palette-mode hook, keyboard nav,
   and `CapabilityListCard` passes.
 - Full `npm run test` and `npm run lint` are green.
@@ -259,6 +276,7 @@ Verification:
   which was fixed before handoff.
 
 Pending:
+
 - Manual `npm run tauri dev` smoke is still required because capability IPC is
   only available when `window.__TAURI_INTERNALS__` exists.
 
@@ -267,16 +285,19 @@ Pending:
 Spec: ui-spec §9 REF.6.F.
 
 Scope:
+
 - Add `cmd` to the prefix parser.
 - Add `CapabilityCommandCard` (structured command + confidence + rationale
-  + `[Run]` / `[Edit before]` / `[Copy]` chips).
+  - `[Run]` / `[Edit before]` / `[Copy]` chips).
 - Wire `gen_command` capability.
 - Display confidence and keep risky execution user-owned.
 
 Non-goals:
+
 - No multi-step plan output.
 
 Landed:
+
 - `parseCapabilityPrefix` and `usePaletteMode` now recognize `cmd <intent>`.
 - Added `CapabilityCommandCard` with structured command/rationale rendering,
   latency header, and explicit `Generate`, `Run`, `Edit before`, and `Copy`
@@ -292,6 +313,7 @@ Landed:
   without requiring the `cmd` keyword.
 
 Verification:
+
 - Targeted Vitest coverage for the parser, palette-mode hook, keyboard nav,
   and `CapabilityCommandCard` passes.
 - Full `npm run test`, `npm run lint`, and `cargo test --lib` are green.
@@ -300,6 +322,7 @@ Verification:
   reports that Tauri runtime is required outside Tauri.
 
 Pending:
+
 - Manual `npm run tauri dev` smoke is still required because capability IPC is
   only available when `window.__TAURI_INTERNALS__` exists.
 
@@ -312,6 +335,7 @@ churn working code with no behavioral gain. Documented as the current state
 audit instead of a code-changing batch.
 
 Scope (original):
+
 - Remove `AiPanel` and `TerminalPanel` mounts from `CommandPalette.tsx` hot
   path. `AiPanel` stays in the codebase, reachable only when
   `ai.legacy_agent = true` (legacy fallback route).
@@ -323,11 +347,13 @@ Scope (original):
   from `UnifiedResult`; risk tags + `ConfirmRequirement` are sufficient.
 
 Non-goals:
+
 - Do not delete `AiPanel.tsx` source (deletion candidate moves to REF.8 per
   user decision 2026-05-27).
 - Do not change agent_runtime approval for `ai.legacy_agent = true` path.
 
 Current state per criterion:
+
 - **AiPanel off hot path** — DONE in REF.6.B follow-up.
   `src/components/panel/PanelRegistry.tsx` no longer imports `AiPanel`. The
   file exists in `src/components/AiPanel.tsx` purely as a legacy fallback for
@@ -344,7 +370,7 @@ Current state per criterion:
   panel is already gone.
 - **UI-owned approval state** — DONE for the result-row delete / rename /
   move paths. `useSecondaryMenu` owns `pendingConfirm: SecondaryActionId |
-  null` entirely in React state. `useFileActions` reads it to gate
+null` entirely in React state. `useFileActions` reads it to gate
   destructive ops (delete @ line ~299, rename @ ~246, move @ ~275). No
   backend approval-state polling exists for these paths; risk tag on
   `ActionChip.confirm` is the only contract the backend ships, matching
@@ -358,6 +384,7 @@ Current state per criterion:
   second Enter.
 
 Not yet done (deferred to follow-up, **not** blocking REF.6.G close):
+
 - **Unified `useActionConfirm` hook fed by `ActionChip.confirm`.** Right now
   the destructive gate is keyed on `SecondaryActionId` enum membership
   rather than the `confirm.requires_confirmation` flag carried on each
@@ -373,6 +400,7 @@ Not yet done (deferred to follow-up, **not** blocking REF.6.G close):
   needs `Once` today.
 
 Verification:
+
 - Repository grep for `AiPanel` confirms only `src/components/AiPanel.tsx`
   defines the symbol; `PanelRegistry.tsx` carries the REF.6.B removal
   comment.
@@ -382,12 +410,14 @@ Verification:
   `npm run lint` remain green as of REF.6.H.
 
 Pending:
+
 - Manual `npm run tauri dev` smoke for Bug B (two-stage delete) regression
   after the REF.6.H file moves.
 
 #### REF.6.H — Feature-first directory migration (docx §3.5, §6.1) — DONE (with deferral)
 
 Scope:
+
 - Move remaining `src/components/*.tsx` panels to `src/features/<feature>/`:
   `calculator`, `history`, `learning`, `mouse-control`, `notes`, `nvim`,
   `settings`, `system`, `system-monitor`, `terminal`, `translation`.
@@ -400,11 +430,13 @@ Scope:
 - Keep `FloatingWindow` and `AppContainer` where they are (app-level shell).
 
 Non-goals:
+
 - No behavioral changes during the move.
 - Do not rename internal exports in a way that breaks deep imports outside
   the moved file.
 
 Landed:
+
 - All 11 panels moved via `git mv` (preserves file history). New layout:
   - `src/features/calculator/CalculatorPanel.tsx`
   - `src/features/history/HistoryPanel.tsx`
@@ -434,6 +466,7 @@ Landed:
   `from "../../<x>"` to compensate for the extra directory depth.
 
 Deferred (REF.6.H-1 candidate):
+
 - **Model-manager tab consolidation.** The docx asks for a single
   `ModelManagerPanel.tsx` with three internal tabs/views replacing the three
   separate panels. Skipped this session because it is a UX refactor (tab
@@ -443,12 +476,14 @@ Deferred (REF.6.H-1 candidate):
   follow-up batch once the consolidated layout is designed.
 
 Verification:
+
 - `npm run lint` clean.
 - `npm run test` shows 157 pass + 1 pre-existing skip (no regression from
   this batch).
 - No `cargo` changes; backend untouched.
 
 Pending:
+
 - Manual `npm run tauri dev` smoke to confirm each panel still mounts via
   PanelRegistry (calculator, history, settings, terminal, translation,
   model-download, etc.).
@@ -462,6 +497,7 @@ set. Scope was explicitly bounded to rule-based, fallback-only routing per the
 user's MVP preference (see [[feedback-minimal-scope]]).
 
 Scope:
+
 - New `src/features/command-palette/utils/classifyNlIntent.ts` returns
   `"explain" | "summarize" | "fix" | "cmd" | null`.
 - Priority order (first match wins): fix-shaped error output → fix verb →
@@ -474,12 +510,14 @@ Scope:
   does not wipe typed input.
 
 Non-goals:
+
 - No LLM-based classifier; no per-keystroke routing.
 - No new capability surfaces; uses the same answer / command / list cards.
 - No always-on routing — explicit prefixes (`explain X`, `fix X`, ...)
   remain the only path that fires while there are still search results.
 
 Landed:
+
 - `classifyNlIntent` with English verb/cue patterns and CJK cues
   (解釋 / 說明 / 什麼是 / 總結 / 摘要 / 修復 / 為什麼...錯誤).
 - `CommandPalette.tsx` replaces the boolean `showSmartCommand` with a
@@ -489,12 +527,14 @@ Landed:
   (the file remains for the cmd branch; no behavior regression).
 
 Verification:
+
 - `classifyNlIntent.test.ts` covers fix / summarize / explain / cmd / null
   buckets and an explicit "fix wins over explain" tie-break case.
 - Full `npm run test` (157 pass + 1 pre-existing skip) and `npm run lint`
   are clean.
 
 Pending:
+
 - Manual `npm run tauri dev` smoke to confirm the smart routes for
   "what is rust hashmap" / "tldr this article" / "fix error[E0308]" /
   "list files in this project" all fire the right capability and that
@@ -509,6 +549,7 @@ CLIP / SNIP / WIN / UTIL.3 / external-auth / git-sync / inline-AI tracks
 runtime ADR. Picked ADR-0040 as the next free slot.
 
 Scope:
+
 - Draft `docs/adr/0040-adr-template-slim.md` proposing the 4-section default:
   `Context` / `Decision` / `Consequences` / `Rollback`.
 - Move `Alternatives` to PR description guidance; move `Implementation` /
@@ -516,12 +557,14 @@ Scope:
 - Status `提議` (proposed) only; awaits developer acceptance.
 
 Non-goals:
+
 - Do not retroactively rewrite existing ADRs.
 - Do not modify ADR-0029, ADR-0030 (Risk Tag Contract), or any accepted ADR.
 - No `docs:guard-schema` change to enforce the slim shape — slim is the
   authoring default, not a guard rule.
 
 Landed:
+
 - `docs/adr/0040-adr-template-slim.md` exists with `狀態: 提議`. The ADR is
   itself authored in the slim 4-section format as a dogfood demonstration.
 - `docs/decisions.md` indexes it next to ADR-0038 and bumps the `updated`
@@ -541,6 +584,7 @@ Sub-batch split (2026-05-29 planning):
   4.7 GB model pull)
 
 Scope (original):
+
 - Add performance bench scripts and CI-friendly file-size gates (per docx §8).
 - Default `ai.legacy_agent = false`.
 - Keep legacy agent/chat available behind the flag for one release cycle.
@@ -550,11 +594,13 @@ Scope (original):
   measurement).
 
 Non-goals:
+
 - Do not physically remove legacy agent/chat code during the observation cycle.
 - Do not introduce a "Once" confirm taxonomy on `ActionChip` — REF.6.G
   deferral remains in force.
 
 Done (codeable parts):
+
 - `handlers/agent/mod.rs` stays at the current line count or trims
   opportunistically. Hard `< 600` gate is REF.8.
 - AI inline P50 < 800 ms and P95 < 1500 ms on `qwen2.5:7b` — REF.7.D
@@ -566,6 +612,7 @@ Done (codeable parts):
   drift detector. REF.8 can ratchet down.
 
 Done (observation, not codeable in REF.7 branch):
+
 - One release cycle completes without P0 regression reports. Window =
   one minor release tag + 14 calendar days, whichever longer (ADR-0029
   §2.5). Marked `[~] pending observation` until that closes.
@@ -573,13 +620,14 @@ Done (observation, not codeable in REF.7 branch):
   the running app over the measurement window; user-action.
 
 Removed from done criteria:
+
 - `agent_runtime.rs < 400 lines`. The file does not exist in the repo as
   of 2026-05-29. Treated as a docx-vs-repo divergence on the same level
   as the `CommandPalette.tsx < 250` documented deviation in the re-planning
   note above. Authority to drop: file-not-found + [[feedback-task-persistence]].
   Surfaced to user 2026-05-29.
 
-Note: `CommandPalette.tsx < 250` is *not* a REF.7 gate (per re-planning note
+Note: `CommandPalette.tsx < 250` is _not_ a REF.7 gate (per re-planning note
 above). The 598-line landing is accepted.
 
 #### REF.7.A — Flag default + schema + legacy mount gate
@@ -590,6 +638,7 @@ builtin command `ai_legacy_chat`. Also fixes the REF.6.B latent-bug missing
 schema entry for `launcher.show_capability_hint`.
 
 Scope:
+
 - Append two `SettingSchema::new(...)` rows to `settings_schema.rs`:
   `ai.legacy_agent` (Boolean, default `"false"`) and
   `launcher.show_capability_hint` (Boolean, default `"true"`).
@@ -603,10 +652,12 @@ Scope:
 - Extend `useLauncherSettings.WATCHED_KEYS` with `"ai.legacy_agent"`.
 
 Non-goals:
+
 - Do not change `AgentRuntime` behavior when the flag is `true`.
 - Do not remove `AiPanel.tsx` source (REF.8).
 
 Done:
+
 - Default-off: typing `/ai_legacy_chat` reports unknown command.
 - Flag-on after config reload: typing `/ai_legacy_chat` opens AiPanel.
 - `cargo clippy --lib -- -D warnings`, `cargo test --lib`, `npm run lint`,
@@ -618,25 +669,28 @@ Goal: ship the CI-friendly drift detector for REF.6 file sizes, and ship
 the bench harness that REF.7.D will run.
 
 Scope:
+
 - New `scripts/code-guard-size.mjs` (hard-fail). Per-file ceiling = current
   size rounded up to the next 1 KB boundary + 10% buffer. Initial entries
   cover `handlers/agent/mod.rs`, `CommandPalette.tsx`, `AiPanel.tsx`,
   `TranslationPanel.tsx`, `SettingPanel.tsx`, `builtin_cmd.rs`.
 - New `scripts/bench-ai-capability.mjs`. Shells out
   `cargo test --features live-ai --manifest-path src-tauri/Cargo.toml --
-  --ignored ai_capability_live --nocapture`, parses
+--ignored ai_capability_live --nocapture`, parses
   `/^\[ai_capability_live\] model=(\S+) (\S+) latency = (\d+) ms/` lines,
   aggregates per-capability P50/P95 over N runs (default `--runs 10`).
   Default human table; `--json` emits CI-ingestible payload.
 - `package.json` script wires: `guard:size` and `bench:ai`.
 
 Non-goals:
+
 - Do not gate the size check in CI yet (script lands here; CI wiring is a
   separate operational task, not REF.7).
 - Do not assert P50/P95 thresholds in the bench script itself — REF.7.C
   records the qwen2.5:7b reading against the ADR-0029 §8 numbers.
 
 Done:
+
 - `npm run guard:size` passes against current tree.
 - `npm run bench:ai -- --runs 1 --model qwen3:0.6b` produces a parseable
   table + `--json` payload smoke against the small model already used in
@@ -647,8 +701,9 @@ Done:
 Waits on REF.7.D reading + user-side Bug A/B manual smoke.
 
 Scope:
+
 - New `docs/release-notes/` directory + `REF.7-ai-interaction-model.md`
-  + `README.md` index.
+  - `README.md` index.
 - Append `## Measurement (REF.7)` section to `docs/adr/0029-ai-capability-layer.md`
   with the qwen2.5:7b reading. ADR-0029 stays `accepted`; data fill only.
 - Append `## COMPLETED: REF.7.{A,B,C}` markers to the session log with the
@@ -657,16 +712,19 @@ Scope:
   observation-window items at `[~]` with `pending observation`.
 
 Non-goals:
+
 - Do not draft a new ADR for the measurement (it is data, not a decision
   change).
 - Do not modify `current.md` beyond the "Current Focus" one-line update.
 
 Done:
+
 - Release notes file lands.
 - ADR-0029 §8 measurement filled.
 - `npm run docs:refresh` clean.
 
 Status (2026-05-30 close-out):
+
 - Release notes shipped as version-named `docs/release-notes/v0.3.0.md` (with a
   `README.md` index in that directory), **not** the originally specified
   `REF.7-ai-interaction-model.md`. Documented deviation, not a regression — same
@@ -716,6 +774,7 @@ AiPanel chunk is gone; `npm run test` 162 passed (the one failure is the
 unrelated untracked `SettingPanel.test.tsx` secret-redaction WIP).
 
 Original scope (for the still-open backend items):
+
 - Decide AiPanel deletion based on observation-cycle telemetry. If
   `ai.legacy_agent = true` selection rate < 1% across the observation
   window, delete `src/components/AiPanel.tsx` entirely. Otherwise retain as
@@ -728,9 +787,11 @@ Original scope (for the still-open backend items):
   ADR-0029 outcome.
 
 Non-goals:
+
 - Do not remove audit log tables or historical user data.
 
 Done:
+
 - Refactor achieves at least 30% code reduction across frontend/backend
   target files.
 - Deprecated result and agent code paths are gone (or retained with explicit
@@ -740,6 +801,7 @@ Done:
 ## File Map
 
 Frontend targets:
+
 - Split `src/components/CommandPalette.tsx` into `src/features/command-palette/` (DONE; 598 lines accepted).
 - AiPanel: REF.6.G removes from hot path; REF.8 decides physical deletion.
 - Add `src/features/ai-capability/` (DONE; includes all 5 capabilities plus the `cmd` / `next` UI cards).
@@ -748,6 +810,7 @@ Frontend targets:
 - Migrate remaining `src/components/*.tsx` panels into `src/features/*` (REF.6.H).
 
 Backend targets:
+
 - Shared result models (DONE).
 - `src-tauri/src/core/ai_capability/` (DONE for all 5 capabilities).
 - `src-tauri/src/core/workflow_memory.rs` (DONE).
@@ -759,6 +822,7 @@ Backend targets:
 ## Conflict Handling
 
 Superseded or parked work:
+
 - `AGENT.3` and `AI.1` are replaced by this refactor track.
 - `LAUNCH.2.C`, `ONBOARD.1.D/E`, `NOTE.1`, `UTIL.1.B-online`, and other feature
   tracks are parked until `REF.7`.
@@ -766,6 +830,7 @@ Superseded or parked work:
   compatibility fixes needed for the release-cycle fallback.
 
 Still allowed:
+
 - P0 bug fixes that block current app use.
 - Safety fixes around approval, sandbox, privacy, or destructive file
   operations.
@@ -774,6 +839,7 @@ Still allowed:
 ## Validation Matrix
 
 Code size (revised against docx for re-planning):
+
 - `CommandPalette.tsx`: 1582 → 598. `< 250` dropped per [[project-ref2-p5-landing]].
 - `handlers/agent/mod.rs`: 2406 → 616 (observation), then deleted or `< 100` (REF.8).
 - `agent_runtime.rs`: 1891 → `< 400` (observation, REF.7), then deleted (REF.8).
@@ -782,6 +848,7 @@ Code size (revised against docx for re-planning):
 - Any component: `< 400` (CI gate, REF.7).
 
 Performance (REF.7):
+
 - Palette cold open to first paint: `< 200 ms`.
 - Palette warm open to first paint: `< 50 ms`.
 - AI inline P50 with Ollama `qwen2.5:7b`: `< 800 ms`.
@@ -790,18 +857,21 @@ Performance (REF.7):
 - App startup to ready: `< 800 ms`.
 
 Memory (REF.7):
+
 - Background RSS idle 10 min: `< 150 MB`.
 - Background RSS idle 1 hour: `< 200 MB`.
 - Budget excludes active WebView, loaded local model memory, PTY sessions,
   monitoring streams, and index rebuild tasks.
 
 Functional:
+
 - Search, builtin commands, file actions, notes, terminal workflows, model
   management, and settings remain usable.
 - Bug A class launcher focus/IME race and Bug B delete verification paths
   receive manual regression coverage after each REF.6 sub-batch lands.
 
 Process:
+
 - No new feature PRs before `REF.7` without written exception.
 - `npm run docs:refresh` passes before handoff.
 - Architecture-changing implementation follows accepted ADR-0029.

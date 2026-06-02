@@ -741,7 +741,7 @@ pub fn validate_user_setting_value(key: &str, value: &str) -> Result<(), String>
         ));
     }
 
-    // Security wave B (#2 residual): command-path settings (`terminal.default_shell`,
+    // Command-path settings (`terminal.default_shell`,
     // `notes.lazyvim_command`) feed the program field of a backend-issued
     // TerminalLaunchSpec. Terminal launch is already gated to backend-issued
     // specs, but reject shell metacharacters / control chars here as

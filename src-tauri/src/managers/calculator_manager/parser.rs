@@ -1,7 +1,6 @@
 //! Recursive-descent arithmetic expression evaluator.
 //!
-//! Extracted from `calculator_manager.rs` (REF.9.B) as a pure structural move;
-//! behavior unchanged.
+//! Focused parser module used by the calculator manager.
 
 struct Parser<'a> {
     src: &'a [char],

@@ -51,7 +51,9 @@ export function PaletteInputBar({
         <div className="mb-0.5 flex items-center gap-1.5 text-[9px] text-[color:var(--kn-text-faint)]">
           <span className="kn-chip px-1.5 py-0">{modeLabel}</span>
           <span className="truncate">
-            {mode === "command" ? "Run actions without leaving the keyboard" : "Apps, files, notes, commands"}
+            {mode === "command"
+              ? "Run actions without leaving the keyboard"
+              : "Apps, files, notes, commands"}
           </span>
         </div>
         <div className="rounded-[8px] border border-[color:rgba(255,255,255,0.08)] bg-white/[0.02] px-2.5 py-1.5 transition-colors focus-within:border-[color:rgba(138,168,255,0.3)] focus-within:bg-white/[0.035]">
@@ -61,18 +63,16 @@ export function PaletteInputBar({
             onChange={(e) => onQueryChange(e.target.value)}
             onKeyDown={onKeyDown}
             onFocus={onFocus}
-            placeholder={
-              mode === "command"
-                ? t.command.placeholder
-                : t.search.placeholder
-            }
+            placeholder={mode === "command" ? t.command.placeholder : t.search.placeholder}
             className="w-full bg-transparent text-[15px] font-medium leading-5 text-[color:var(--kn-text)] placeholder:text-[color:var(--kn-text-muted)] outline-none focus-visible:shadow-none"
             spellCheck={false}
             autoComplete="off"
           />
         </div>
         <div className="mt-1 flex items-center gap-1.5 text-[10px] text-[color:var(--kn-text-faint)]">
-          <span>{mode === "command" ? "Slash to switch back to search" : "Type / for commands"}</span>
+          <span>
+            {mode === "command" ? "Slash to switch back to search" : "Type / for commands"}
+          </span>
           <span className="h-1 w-1 rounded-full bg-white/10" />
           <span>Keyboard-first</span>
         </div>

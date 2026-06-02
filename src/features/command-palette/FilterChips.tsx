@@ -49,9 +49,7 @@ export function FilterChips({ active, onChange }: Props) {
             onClick={() => toggle(chip.kind)}
             aria-pressed={isActive}
             className={`kn-chip ${
-              isActive
-                ? "kn-chip-active shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]"
-                : ""
+              isActive ? "kn-chip-active shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]" : ""
             }`}
           >
             <UiIcon name={chip.icon} className="h-3.5 w-3.5" />

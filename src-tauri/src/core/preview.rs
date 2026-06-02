@@ -1,5 +1,5 @@
-//! Shared bounded file-preview helpers used by both `file.preview` (LAUNCH.1.C
-//! search preview pane) and `learning_material.preview` (FEAT.11 review tool).
+//! Shared bounded file-preview helpers used by both `file.preview` and
+//! `learning_material.preview`.
 //!
 //! All public functions are pure / take no manager state so they can be unit
 //! tested in isolation. Path canonicalization, denylist, and permission checks

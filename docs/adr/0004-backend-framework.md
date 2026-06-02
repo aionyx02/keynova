@@ -4,6 +4,7 @@
 **日期：** 2026-05-01  
 **決策者：** 開發者  
 **相關文件：**
+
 - docs/architecture.md
 
 ---
@@ -25,6 +26,7 @@
 ### 方案 A：Rust + Tauri 2.x
 
 **優點：**
+
 - WebView2 (Windows) / WKWebView (macOS) 原生 WebView，打包體積 ~50MB
 - 記憶體佔用遠低於 Electron
 - Rust 型別安全、記憶體安全，無 GC 停頓
@@ -32,10 +34,12 @@
 - 跨平台支援完整
 
 **缺點：**
+
 - Rust 學習曲線較高
 - 各平台 WebView 渲染差異需個別處理
 
 **效能分析：**
+
 - 啟動時間：< 200ms（無 Chromium bundling）
 - 包體積：~50MB
 - 記憶體（冷啟動）：< 80MB
@@ -43,15 +47,18 @@
 ### 方案 B：Electron
 
 **優點：**
+
 - 生態最強，社群支援廣
 - Node.js 後端熟悉度高
 
 **缺點：**
+
 - Chromium 打包體積 ~200MB
 - 記憶體佔用高（~400MB）
 - 不符合包體積目標
 
 **效能分析：**
+
 - 啟動時間：~1–3s
 - 包體積：~200MB
 - 記憶體：~400MB
@@ -61,11 +68,13 @@
 選擇：**方案 A — Rust + Tauri 2.x**
 
 原因：
+
 - 符合包體積（~50MB）與記憶體（<120MB）目標
 - Rust 提供記憶體安全，無 GC
 - Tauri IPC 安全 capability model
 
 犧牲：
+
 - Rust 學習曲線
 - 各平台 WebView 差異
 
@@ -78,14 +87,17 @@ Rollback 需求：N/A（新專案）
 ## 5. Consequences（系統影響與副作用）
 
 ### 正面影響
+
 - 包體積、記憶體符合目標
 - 後端邏輯以 Rust 撰寫，型別安全且效能高
 
 ### 負面影響 / 技術債
+
 - Tauri 版本升級需關注 breaking change
 - 跨平台需各自處理 Windows / macOS / Linux 差異
 
 ### 對安全性的影響
+
 - Tauri IPC 層（`cmd_dispatch`）為前後端唯一通訊邊界
 - capability-based 權限模型，前端無法直接存取系統 API
 
@@ -99,10 +111,10 @@ N/A — 已完全實作。
 
 ## 8. Validation Plan（驗證方式）
 
-| 測試類型 | 覆蓋目標 | 指令 |
-|---------|---------|------|
-| Performance test | 啟動時間 / 記憶體 | 手動量測 Task Manager |
-| Manual validation | 跨平台 UI | `npm run tauri dev` |
+| 測試類型          | 覆蓋目標          | 指令                  |
+| ----------------- | ----------------- | --------------------- |
+| Performance test  | 啟動時間 / 記憶體 | 手動量測 Task Manager |
+| Manual validation | 跨平台 UI         | `npm run tauri dev`   |
 
 ## 9. Open Questions（未解問題）
 

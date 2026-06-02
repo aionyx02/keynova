@@ -112,7 +112,7 @@ pub enum ActionResult {
     Noop { reason: String },
 }
 
-/// Per-result score decomposition for LAUNCH.1.E rank tooltip.
+/// Per-result score decomposition for the rank tooltip.
 ///
 /// `base` is the source-specific score (tantivy / app fuzzy / fixed const) before
 /// any rank memory boost; `recency_boost` and `frequency_boost` are derived from

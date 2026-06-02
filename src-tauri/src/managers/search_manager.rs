@@ -266,7 +266,7 @@ impl SearchManager {
     /// Returns `(recency_boost, frequency_boost)` for the given key.
     ///
     /// The UI surfaces these as `score_breakdown` so the user can see "why this
-    /// rank" (LAUNCH.1.E). Session-only — values reset on app restart.
+    /// rank". Session-only values reset on app restart.
     pub fn rank_boost_breakdown(&self, source: &str, path: &str) -> (i64, i64) {
         let key = rank_key(source, path);
         let Ok(memory) = self.rank_memory.lock() else {
