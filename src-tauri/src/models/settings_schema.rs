@@ -699,10 +699,90 @@ pub fn is_sensitive_key(key: &str) -> bool {
         .any(|schema| schema.key == key && schema.sensitive)
 }
 
+pub fn setting_schema_for_key(key: &str) -> Option<SettingSchema> {
+    builtin_setting_schema()
+        .into_iter()
+        .find(|schema| schema.key == key)
+}
+
+pub fn is_protected_setting_key(key: &str) -> bool {
+    key.starts_with("security.")
+}
+
+pub fn validate_user_setting_value(key: &str, value: &str) -> Result<(), String> {
+    if is_protected_setting_key(key) {
+        return Err(format!(
+            "setting '{key}' is protected and cannot be changed through user-facing settings"
+        ));
+    }
+
+    let schema =
+        setting_schema_for_key(key).ok_or_else(|| format!("unknown setting key '{key}'"))?;
+    let trimmed = value.trim();
+
+    match schema.value_type {
+        SettingValueType::Boolean => {
+            if !matches!(trimmed.to_ascii_lowercase().as_str(), "true" | "false") {
+                return Err(format!("setting '{key}' expects a boolean value"));
+            }
+        }
+        SettingValueType::Integer => {
+            if trimmed.parse::<i64>().is_err() {
+                return Err(format!("setting '{key}' expects an integer value"));
+            }
+        }
+        SettingValueType::String | SettingValueType::Hotkey | SettingValueType::Secret => {}
+    }
+
+    if !schema.options.is_empty() && !schema.options.contains(&trimmed) {
+        return Err(format!(
+            "setting '{key}' must be one of: {}",
+            schema.options.join(", ")
+        ));
+    }
+
+    Ok(())
+}
+
 pub fn redact_setting_value(key: &str, value: &str) -> String {
     if is_sensitive_key(key) && !value.is_empty() {
         String::new()
     } else {
         value.to_string()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn user_setting_validation_rejects_security_keys() {
+        let error = validate_user_setting_value(
+            "security.network_allowlist",
+            "evil.example.com,api.openai.com",
+        )
+        .expect_err("security settings are protected");
+
+        assert!(error.contains("protected"));
+    }
+
+    #[test]
+    fn user_setting_validation_rejects_unknown_keys() {
+        let error = validate_user_setting_value("security_typo.network_allowlist", "value")
+            .expect_err("unknown keys should not be persisted");
+
+        assert!(error.contains("unknown setting key"));
+    }
+
+    #[test]
+    fn user_setting_validation_checks_types_and_options() {
+        assert!(validate_user_setting_value("features.ai", "maybe").is_err());
+        assert!(validate_user_setting_value("launcher.max_results", "many").is_err());
+        assert!(validate_user_setting_value("ai.provider", "evil").is_err());
+
+        assert!(validate_user_setting_value("features.ai", "false").is_ok());
+        assert!(validate_user_setting_value("launcher.max_results", "20").is_ok());
+        assert!(validate_user_setting_value("ai.provider", "openai").is_ok());
     }
 }

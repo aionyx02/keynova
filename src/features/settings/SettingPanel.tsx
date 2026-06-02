@@ -256,15 +256,23 @@ export function SettingPanel({ initialArgs }: PanelProps) {
 
   async function saveValue(key: string, newValue: string) {
     const entry = entries.find((item) => item.key === key);
-    if (entry?.sensitive && !newValue.trim()) return;
+    const isSensitive = Boolean(entry?.sensitive || schemaFor(key)?.sensitive);
+    if (isSensitive && !newValue.trim()) return;
     if (newValue === originalRef.current[key]) return;
     setSaving(key);
     setSaveError(null);
     try {
       await ipcDispatch("setting.set", { key, value: newValue });
-      originalRef.current[key] = newValue;
+      const storedValue = isSensitive ? "" : newValue;
+      originalRef.current[key] = storedValue;
+      setEdits((prev) => {
+        if (!(key in prev)) return prev;
+        const next = { ...prev };
+        delete next[key];
+        return next;
+      });
       setEntries((prev) =>
-        prev.map((item) => (item.key === key ? { ...item, value: newValue } : item)),
+        prev.map((item) => (item.key === key ? { ...item, value: storedValue } : item)),
       );
       setReloadNotice(`Applied ${key}`);
       setSavedKey(key);

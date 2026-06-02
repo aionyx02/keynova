@@ -126,7 +126,24 @@ fn dispatch_command(
         apply_config_changes(app, changes, "setting.set", false)?;
     }
 
+    register_terminal_launch_from_response(&result, state.inner())
+        .map_err(|e| IpcError::handler("terminal.register_launch", e))?;
+
     Ok(result)
+}
+
+fn register_terminal_launch_from_response(value: &Value, state: &AppState) -> Result<(), String> {
+    let Ok(result) = serde_json::from_value::<BuiltinCommandResult>(value.clone()) else {
+        return Ok(());
+    };
+    if let CommandUiType::Terminal(spec) = result.ui_type {
+        state
+            ._terminal_manager
+            .lock()
+            .map_err(|e| e.to_string())?
+            .register_launch_spec(spec)?;
+    }
+    Ok(())
 }
 
 fn run_automation_execute(
@@ -188,9 +205,11 @@ fn run_action_command(
             let result: Result<ActionResult, IpcError> = match action.kind.clone() {
                 ActionKind::LaunchPath { path } => {
                     state
-                        .command_router
-                        .dispatch("launcher.launch", json!({ "path": path.clone() }))
-                        .map_err(|e| IpcError::handler("launcher.launch", e))?;
+                        ._app_manager
+                        .lock()
+                        .map_err(|e| IpcError::handler("launcher.launch_trusted", e.to_string()))?
+                        .launch_trusted_path(&path)
+                        .map_err(|e| IpcError::handler("launcher.launch_trusted", e))?;
                     if let Ok(mut workspace) = state._workspace_manager.lock() {
                         workspace.record_file(path.clone());
                     }

@@ -1,3 +1,4 @@
+use std::collections::HashSet;
 use std::io::{Read, Write};
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -72,7 +73,10 @@ pub fn portable_nvim_exe() -> PathBuf {
 }
 
 /// Download neovim into the portable directory. `emit` receives progress events.
-pub fn download_nvim(emit: Arc<dyn Fn(AppEvent) + Send + Sync>) -> Result<PathBuf, String> {
+pub fn download_nvim(
+    emit: Arc<dyn Fn(AppEvent) + Send + Sync>,
+    allowed_hosts: HashSet<String>,
+) -> Result<PathBuf, String> {
     let dir = portable_dir();
     std::fs::create_dir_all(&dir).map_err(|e| format!("create dir: {e}"))?;
 
@@ -97,6 +101,8 @@ pub fn download_nvim(emit: Arc<dyn Fn(AppEvent) + Send + Sync>) -> Result<PathBu
     );
 
     let archive_path = dir.join(&archive_name);
+    let url =
+        crate::core::network_policy::enforce_outbound_url(&url, &allowed_hosts, "Neovim download")?;
 
     emit_progress(&emit, "downloading", 0);
     download_with_progress(&url, &archive_path, &emit)?;
@@ -181,12 +187,10 @@ fn extract_archive(archive: &std::path::Path, dest: &std::path::Path) -> Result<
                 "-NoProfile",
                 "-NonInteractive",
                 "-Command",
-                &format!(
-                    "Expand-Archive -LiteralPath '{}' -DestinationPath '{}' -Force",
-                    archive.display(),
-                    dest.display()
-                ),
+                "Expand-Archive -LiteralPath $env:KEYNOVA_ARCHIVE -DestinationPath $env:KEYNOVA_DEST -Force",
             ])
+            .env("KEYNOVA_ARCHIVE", archive)
+            .env("KEYNOVA_DEST", dest)
             .status()
             .map_err(|e| format!("powershell: {e}"))?;
         if !status.success() {

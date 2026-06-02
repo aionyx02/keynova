@@ -70,6 +70,9 @@ provider = "google_cloud_v2"
 api_key = ""
 timeout_secs = 30
 
+[security]
+network_allowlist = "api.anthropic.com,api.openai.com,translation.googleapis.com,translate.googleapis.com,api.tavily.com,duckduckgo.com,github.com"
+
 [notes]
 storage_dir = ""         # 空字串代表 AppData/Keynova/notes/
 default_extension = "md"

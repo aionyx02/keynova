@@ -50,7 +50,6 @@ import { useSuggestNext } from "../features/ai-capability/hooks/useSuggestNext";
 import type { CapabilitySurfaceMode } from "../features/command-palette/CapabilityResultArea";
 import { CapabilityHintLine } from "../features/command-palette/CapabilityHintLine";
 import { classifyNlIntent } from "../features/command-palette/utils/classifyNlIntent";
-import type { TerminalLaunchSpec } from "../types/terminal";
 
 const TerminalPanel = React.lazy(() =>
   import("../features/terminal/TerminalPanel").then((m) => ({ default: m.TerminalPanel })),
@@ -95,37 +94,6 @@ async function keepLauncherOpen() {
       // non-Tauri env: no-op
     }
   }
-}
-
-function makeLaunchId(): string {
-  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
-    return crypto.randomUUID();
-  }
-  return `launch-${Date.now()}-${Math.random().toString(36).slice(2)}`;
-}
-
-function buildGeneratedCommandLaunchSpec(command: string): TerminalLaunchSpec {
-  const platform =
-    typeof navigator !== "undefined"
-      ? `${navigator.platform ?? ""} ${navigator.userAgent ?? ""}`.toLowerCase()
-      : "";
-  const isWindows = platform.includes("win");
-  if (isWindows) {
-    return {
-      launch_id: makeLaunchId(),
-      program: "powershell.exe",
-      args: ["-NoLogo", "-Command", command],
-      title: command,
-      editor: false,
-    };
-  }
-  return {
-    launch_id: makeLaunchId(),
-    program: "/bin/sh",
-    args: ["-lc", command],
-    title: command,
-    editor: false,
-  };
 }
 
 export function CommandPalette() {
@@ -515,16 +483,14 @@ export function CommandPalette() {
 
   const runGeneratedCommand = React.useCallback(
     (command: string) => {
-      clearCapabilityQuery();
+      editGeneratedCommand(command);
       setCmdResult({
-        text: command,
-        ui_type: {
-          type: "Terminal",
-          value: buildGeneratedCommandLaunchSpec(command),
-        },
+        text:
+          "Generated shell commands are no longer launched directly. Review the command and run it through an approved backend action.",
+        ui_type: { type: "Inline" },
       });
     },
-    [clearCapabilityQuery],
+    [editGeneratedCommand],
   );
 
   const runSuggestedWorkflow = React.useCallback(

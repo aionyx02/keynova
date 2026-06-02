@@ -31,7 +31,8 @@ const DEFAULT_DENYLIST: &[&str] = &[
 /// Configuration-driven scanner for local learning materials.
 ///
 /// Built from `ConfigManager` values at call time; holds no locks.
-/// All path access enforces `canonicalize()` + root-prefix symlink-escape checks.
+/// Scan and approved-preview entry points enforce `canonicalize()` + root-prefix
+/// symlink-escape checks.
 pub struct LearningMaterialManager {
     pub enabled: bool,
     pub max_scan_files: usize,
@@ -78,20 +79,13 @@ impl LearningMaterialManager {
     ///
     /// No file content is read during the scan; only filesystem metadata is accessed.
     pub fn scan(&self, roots: &[PathBuf]) -> Result<ReviewReport, String> {
-        if !self.enabled {
-            return Err("Learning material review is disabled. \
-                 Enable agent.local_context.enabled in Settings → Agent."
-                .into());
-        }
+        self.ensure_enabled()?;
 
         let mut candidates: Vec<MaterialCandidate> = Vec::new();
         let mut stats = ScanStats::default();
         let mut all_roots: Vec<String> = Vec::new();
 
-        for root in roots {
-            let canonical_root = root
-                .canonicalize()
-                .map_err(|e| format!("invalid root '{}': {e}", root.display()))?;
+        for canonical_root in self.canonicalize_roots(roots)? {
             all_roots.push(canonical_root.display().to_string());
             self.walk(
                 &canonical_root,
@@ -132,6 +126,71 @@ impl LearningMaterialManager {
     }
 
     // ── Private scan helpers ──────────────────────────────────────────────────
+
+    pub fn preview_file_with_roots(
+        &self,
+        path: &Path,
+        roots: &[PathBuf],
+    ) -> Result<(PathBuf, String), String> {
+        let canonical_path = self.canonical_path_within_roots(path, roots)?;
+        let preview = self.preview_file(&canonical_path);
+        Ok((canonical_path, preview))
+    }
+
+    pub fn canonical_path_within_roots(
+        &self,
+        path: &Path,
+        roots: &[PathBuf],
+    ) -> Result<PathBuf, String> {
+        self.ensure_enabled()?;
+        let canonical_roots = self.canonicalize_roots(roots)?;
+        let canonical_path = path
+            .canonicalize()
+            .map_err(|e| format!("invalid path '{}': {e}", path.display()))?;
+
+        if !canonical_path.is_file() {
+            return Err(format!(
+                "path '{}' must be a file",
+                canonical_path.display()
+            ));
+        }
+
+        if !canonical_roots
+            .iter()
+            .any(|root| canonical_path.starts_with(root))
+        {
+            return Err(format!(
+                "path '{}' is outside approved learning material roots",
+                canonical_path.display()
+            ));
+        }
+
+        Ok(canonical_path)
+    }
+
+    fn ensure_enabled(&self) -> Result<(), String> {
+        if self.enabled {
+            Ok(())
+        } else {
+            Err("Learning material review is disabled. \
+                 Enable agent.local_context.enabled in Settings > Agent."
+                .into())
+        }
+    }
+
+    fn canonicalize_roots(&self, roots: &[PathBuf]) -> Result<Vec<PathBuf>, String> {
+        if roots.is_empty() {
+            return Err("missing approved learning material roots".into());
+        }
+
+        roots
+            .iter()
+            .map(|root| {
+                root.canonicalize()
+                    .map_err(|e| format!("invalid root '{}': {e}", root.display()))
+            })
+            .collect()
+    }
 
     fn walk(
         &self,
@@ -319,6 +378,54 @@ mod tests {
                     .scan(&[PathBuf::from("/nonexistent/keynova_lm_xyz")])
                     .is_err()
         );
+    }
+
+    #[test]
+    fn preview_with_roots_reads_file_inside_approved_root() {
+        let root = mk_tmp("preview-in-root");
+        let file = root.join("note.md");
+        fs::write(&file, "hello from root").expect("write note");
+
+        let mgr = enabled_manager();
+        let (canonical_path, preview) = mgr
+            .preview_file_with_roots(&file, &[root.clone()])
+            .expect("preview allowed");
+
+        assert_eq!(canonical_path, file.canonicalize().expect("canonical file"));
+        assert!(preview.contains("hello from root"));
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn preview_with_roots_rejects_file_outside_approved_root() {
+        let root = mk_tmp("preview-root");
+        let outside = mk_tmp("preview-outside");
+        let file = outside.join("note.md");
+        fs::write(&file, "outside").expect("write outside note");
+
+        let mgr = enabled_manager();
+        let error = mgr
+            .preview_file_with_roots(&file, &[root.clone()])
+            .expect_err("outside file must be rejected");
+
+        assert!(error.contains("outside approved"));
+        let _ = fs::remove_dir_all(root);
+        let _ = fs::remove_dir_all(outside);
+    }
+
+    #[test]
+    fn preview_with_roots_rejects_when_disabled() {
+        let root = mk_tmp("preview-disabled");
+        let file = root.join("note.md");
+        fs::write(&file, "hello").expect("write note");
+
+        let mgr = disabled_manager();
+        let error = mgr
+            .preview_file_with_roots(&file, &[root.clone()])
+            .expect_err("disabled manager must reject preview");
+
+        assert!(error.contains("disabled"));
+        let _ = fs::remove_dir_all(root);
     }
 
     #[test]

@@ -45,6 +45,7 @@ pub fn resolve_ai_runtime_config<F>(mut get: F) -> Result<AiRuntimeConfig, Strin
 where
     F: FnMut(&str) -> Option<String>,
 {
+    let allowed_hosts = crate::core::network_policy::allowlist_from_getter(&mut get);
     let provider_name = get("ai.provider")
         .unwrap_or_else(|| "claude".into())
         .trim()
@@ -56,13 +57,20 @@ where
 
     let provider = match provider_name.as_str() {
         "ollama" => AiProvider::Ollama {
-            base_url: get("ai.ollama_url").unwrap_or_else(|| "http://localhost:11434".into()),
+            base_url: crate::core::network_policy::enforce_outbound_url(
+                &get("ai.ollama_url").unwrap_or_else(|| "http://localhost:11434".into()),
+                &allowed_hosts,
+                "ai.ollama_url",
+            )?,
             model,
         },
         "openai" => AiProvider::OpenAI {
             api_key: get("ai.openai_api_key").unwrap_or_default(),
-            base_url: get("ai.openai_base_url")
-                .unwrap_or_else(|| "https://api.openai.com/v1".into()),
+            base_url: crate::core::network_policy::enforce_outbound_url(
+                &get("ai.openai_base_url").unwrap_or_else(|| "https://api.openai.com/v1".into()),
+                &allowed_hosts,
+                "ai.openai_base_url",
+            )?,
             model,
         },
         "claude" => AiProvider::Claude {
@@ -71,6 +79,14 @@ where
         },
         other => return Err(format!("unsupported ai.provider '{other}'")),
     };
+
+    if matches!(&provider, AiProvider::Claude { .. }) {
+        crate::core::network_policy::enforce_known_endpoint(
+            "https://api.anthropic.com/v1/messages",
+            &allowed_hosts,
+            "Claude API",
+        )?;
+    }
 
     let timeout = match &provider {
         AiProvider::Ollama { .. } => get("ai.ollama_timeout_secs")
@@ -1365,6 +1381,34 @@ mod tests {
     }
 
     // ─── tool-call parsing tests (5.5.A3 / A4) ───────────────────────────────
+
+    #[test]
+    fn rejects_openai_base_url_outside_network_allowlist() {
+        let config = HashMap::from([
+            ("ai.provider", "openai"),
+            ("ai.openai_api_key", "key"),
+            ("ai.openai_model", "gpt-4o-mini"),
+            ("ai.openai_base_url", "https://evil.example.com/v1"),
+            ("security.network_allowlist", "api.openai.com"),
+        ]);
+
+        let error = resolve_ai_runtime_config(|key| config.get(key).map(|value| value.to_string()))
+            .unwrap_err();
+        assert!(error.contains("security.network_allowlist"));
+    }
+
+    #[test]
+    fn rejects_claude_when_host_removed_from_allowlist() {
+        let config = HashMap::from([
+            ("ai.provider", "claude"),
+            ("ai.api_key", "key"),
+            ("security.network_allowlist", "api.openai.com"),
+        ]);
+
+        let error = resolve_ai_runtime_config(|key| config.get(key).map(|value| value.to_string()))
+            .unwrap_err();
+        assert!(error.contains("api.anthropic.com"));
+    }
 
     #[test]
     fn tool_def_serialized_to_openai_function_schema() {

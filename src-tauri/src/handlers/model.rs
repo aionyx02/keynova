@@ -4,6 +4,9 @@ use serde::Serialize;
 use serde_json::{json, Value};
 
 use crate::core::config_manager::ConfigManager;
+use crate::core::network_policy::{
+    allowlist_from_config, configured_url, enforce_known_endpoint, enforce_outbound_url,
+};
 use crate::core::startup_preflight::StartupPreflight;
 use crate::core::{AppEvent, CommandHandler, CommandResult};
 use crate::managers::model_manager::{LocalModel, ModelManager};
@@ -76,9 +79,12 @@ impl ModelHandler {
 
     fn ollama_url(&self) -> Result<String, String> {
         let cfg = self.config.lock().map_err(|e| e.to_string())?;
-        Ok(cfg
-            .get("ai.ollama_url")
-            .unwrap_or_else(|| "http://localhost:11434".to_string()))
+        configured_url(
+            &cfg,
+            "ai.ollama_url",
+            "http://localhost:11434",
+            "ai.ollama_url",
+        )
     }
 
     fn active_provider_model(&self, tool: &str) -> Result<(String, String), String> {
@@ -106,28 +112,49 @@ impl ModelHandler {
         let model = ModelManager::parse_model_input(model)?;
 
         let mut cfg = self.config.lock().map_err(|e| e.to_string())?;
-        cfg.set(provider_key, provider)?;
-        cfg.set(model_key, &model)?;
+        let allowed_hosts = allowlist_from_config(&cfg);
 
         match provider {
             "ollama" => {
-                if let Some(base_url) = payload.get("base_url").and_then(Value::as_str) {
-                    cfg.set("ai.ollama_url", base_url)?;
+                cfg.set(provider_key, provider)?;
+                cfg.set(model_key, &model)?;
+                if let Some(base_url) = payload
+                    .get("base_url")
+                    .and_then(Value::as_str)
+                    .filter(|value| !value.trim().is_empty())
+                {
+                    let base_url = enforce_outbound_url(base_url, &allowed_hosts, "ai.ollama_url")?;
+                    cfg.set("ai.ollama_url", &base_url)?;
                 }
             }
             "claude" => {
+                enforce_known_endpoint(
+                    "https://api.anthropic.com/v1/messages",
+                    &allowed_hosts,
+                    "Claude API",
+                )?;
+                cfg.set(provider_key, provider)?;
+                cfg.set(model_key, &model)?;
                 cfg.set("ai.claude_model", &model)?;
                 if let Some(api_key) = payload.get("api_key").and_then(Value::as_str) {
                     cfg.set("ai.api_key", api_key)?;
                 }
             }
             "openai" => {
+                cfg.set(provider_key, provider)?;
+                cfg.set(model_key, &model)?;
                 cfg.set("ai.openai_model", &model)?;
                 if let Some(api_key) = payload.get("api_key").and_then(Value::as_str) {
                     cfg.set("ai.openai_api_key", api_key)?;
                 }
-                if let Some(base_url) = payload.get("base_url").and_then(Value::as_str) {
-                    cfg.set("ai.openai_base_url", base_url)?;
+                if let Some(base_url) = payload
+                    .get("base_url")
+                    .and_then(Value::as_str)
+                    .filter(|value| !value.trim().is_empty())
+                {
+                    let base_url =
+                        enforce_outbound_url(base_url, &allowed_hosts, "ai.openai_base_url")?;
+                    cfg.set("ai.openai_base_url", &base_url)?;
                 }
             }
             other => return Err(format!("unsupported provider '{other}'")),
@@ -214,9 +241,19 @@ impl CommandHandler for ModelHandler {
             "recommend" => {
                 self.startup_preflight.ensure_started();
                 let hardware = self.startup_preflight.model_hardware_snapshot_or_live();
+                let allowed_hosts = {
+                    let cfg = self.config.lock().map_err(|e| e.to_string())?;
+                    let allowed_hosts = allowlist_from_config(&cfg);
+                    enforce_known_endpoint(
+                        "https://ollama.com/library",
+                        &allowed_hosts,
+                        "Ollama library catalog",
+                    )?;
+                    allowed_hosts
+                };
                 let publish = Arc::clone(&self.publish_event);
                 self.manager
-                    .refresh_catalog_async(hardware.clone(), publish);
+                    .refresh_catalog_async(hardware.clone(), publish, allowed_hosts);
                 Ok(json!(self
                     .startup_preflight
                     .recommended_models_snapshot_or_live()))

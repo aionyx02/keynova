@@ -65,10 +65,12 @@ pub(crate) struct AppState {
     pub(crate) mouse_active: Arc<AtomicBool>,
     pub(crate) launcher_focus_guard: Arc<Mutex<Option<Instant>>>,
     pub(crate) _config_manager: Arc<Mutex<ConfigManager>>,
+    pub(crate) _app_manager: Arc<Mutex<AppManager>>,
     pub(crate) _config_watcher: Arc<Mutex<Option<notify::RecommendedWatcher>>>,
     pub(crate) _history_manager: Arc<Mutex<HistoryManager>>,
     pub(crate) _search_manager: Arc<Mutex<SearchManager>>,
     pub(crate) _startup_preflight: Arc<StartupPreflight>,
+    pub(crate) _terminal_manager: Arc<Mutex<TerminalManager>>,
     pub(crate) _workspace_manager: Arc<Mutex<WorkspaceManager>>,
 }
 
@@ -276,11 +278,9 @@ fn build_command_router(
     event_bus: &EventBus,
     action_arena: &Arc<ActionArena>,
     knowledge_store: &KnowledgeStoreHandle,
+    mouse_active: &Arc<AtomicBool>,
 ) -> CommandRouter {
-    let builtin_registry = build_builtin_registry(
-        &bundle.config_manager,
-        &bundle.note_manager,
-    );
+    let builtin_registry = build_builtin_registry(&bundle.config_manager, &bundle.note_manager);
 
     let agent_tantivy_dir = bundle
         .search_manager
@@ -302,15 +302,12 @@ fn build_command_router(
     router.register(Arc::new(TerminalHandler::new(
         Arc::clone(&bundle.terminal_manager),
         Arc::clone(&bundle.workspace_manager),
-        Arc::clone(&bundle.config_manager),
     )));
-    router.register(Arc::new(FeatureHandler::new(
-        Arc::clone(&bundle.terminal_manager),
-        Arc::clone(&bundle.config_manager),
+    router.register(Arc::new(FeatureHandler::new()));
+    router.register(Arc::new(MouseHandler::new(
+        Arc::clone(&bundle.mouse_manager),
+        Arc::clone(mouse_active),
     )));
-    router.register(Arc::new(MouseHandler::new(Arc::clone(
-        &bundle.mouse_manager,
-    ))));
     router.register(Arc::new(SearchHandler::new(SearchHandlerDeps {
         manager: Arc::clone(&bundle.search_manager),
         action_arena: Arc::clone(action_arena),
@@ -392,7 +389,10 @@ fn build_command_router(
     router.register(Arc::new(SystemMonitoringHandler::new(Arc::new(
         event_bus.clone(),
     ))));
-    router.register(Arc::new(NvimHandler::new(Arc::new(event_bus.clone()))));
+    router.register(Arc::new(NvimHandler::new(
+        Arc::new(event_bus.clone()),
+        Arc::clone(&bundle.config_manager),
+    )));
     router.register(Arc::new(LearningMaterialHandler::new(
         Arc::clone(&bundle.config_manager),
         Arc::clone(&bundle.note_manager),
@@ -413,23 +413,31 @@ impl AppState {
         let event_bus = EventBus::default();
         let action_arena = Arc::new(ActionArena::default());
         let knowledge_store = KnowledgeStoreHandle::new_default();
+        let mouse_active = Arc::new(AtomicBool::new(false));
 
         let bundle = create_managers(&event_bus, &knowledge_store);
-        let command_router =
-            build_command_router(&bundle, &event_bus, &action_arena, &knowledge_store);
+        let command_router = build_command_router(
+            &bundle,
+            &event_bus,
+            &action_arena,
+            &knowledge_store,
+            &mouse_active,
+        );
 
         Self {
             command_router,
             action_arena,
             event_bus,
             knowledge_store,
-            mouse_active: Arc::new(AtomicBool::new(false)),
+            mouse_active,
             launcher_focus_guard: Arc::new(Mutex::new(None)),
             _config_manager: bundle.config_manager,
+            _app_manager: bundle.app_manager,
             _config_watcher: Arc::new(Mutex::new(None)),
             _history_manager: bundle.history_manager,
             _search_manager: bundle.search_manager,
             _startup_preflight: bundle.startup_preflight,
+            _terminal_manager: bundle.terminal_manager,
             _workspace_manager: bundle.workspace_manager,
         }
     }

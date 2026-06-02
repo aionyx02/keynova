@@ -6,9 +6,9 @@
 //! unit-tested without spawning subprocesses; the dispatch shell-out is a thin
 //! orchestration layer that integration tests cover with `#[ignore]`.
 //!
-//! Killing always requires explicit user opt-in via the
-//! `killport <port> kill` two-phase invocation — there is no agent tool path
-//! and no IPC route, so this stays a launcher-only feature.
+//! `kill_pid` is a low-level primitive. Callers must gate it behind a backend
+//! approval token; text arguments are not a security boundary because `cmd.run`
+//! is itself IPC-reachable.
 
 use std::process::Command;
 
