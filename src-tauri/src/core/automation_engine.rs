@@ -21,9 +21,7 @@ impl AutomationEngine {
             return Err("workflow must contain at least one action".to_string());
         }
         for action in &definition.actions {
-            if !action.route.contains('.') {
-                return Err(format!("invalid action route '{}'", action.route));
-            }
+            validate_action_route(&action.route)?;
         }
         Ok(())
     }
@@ -105,6 +103,22 @@ impl AutomationEngine {
         for (index, action) in actions.iter().enumerate() {
             if action.route == "automation.execute" {
                 let error = "recursive automation.execute is not allowed".to_string();
+                executions.push(WorkflowActionExecution {
+                    index,
+                    route: action.route.clone(),
+                    status: "failed".into(),
+                    output: None,
+                    error: Some(error.clone()),
+                });
+                return Self::pipeline_report(
+                    name,
+                    action_count,
+                    "failed",
+                    Some(error),
+                    executions,
+                );
+            }
+            if let Err(error) = validate_action_route(&action.route) {
                 executions.push(WorkflowActionExecution {
                     index,
                     route: action.route.clone(),
@@ -202,6 +216,36 @@ impl AutomationEngine {
             actions,
         }
     }
+}
+
+fn validate_action_route(route: &str) -> Result<(), String> {
+    if !route.contains('.') {
+        return Err(format!("invalid action route '{route}'"));
+    }
+    if route == "automation.execute" {
+        return Ok(());
+    }
+    if automation_route_allowed(route) {
+        Ok(())
+    } else {
+        Err(format!("automation route '{route}' is not allowed"))
+    }
+}
+
+fn automation_route_allowed(route: &str) -> bool {
+    matches!(
+        route,
+        "cmd.run"
+            | "setting.get"
+            | "setting.list_all"
+            | "setting.schema"
+            | "search.query"
+            | "history.search"
+            | "agent.start"
+            | "capability.call"
+            | "workflow.recent"
+            | "workflow.suggest"
+    )
 }
 
 #[cfg(test)]
@@ -305,6 +349,24 @@ mod tests {
         assert_eq!(report.actions.len(), 1);
     }
 
+    #[test]
+    fn rejects_disallowed_high_risk_automation_route() {
+        let workflow = AutomationEngine::parse_toml(
+            r#"
+            name = "bad terminal"
+
+            [[actions]]
+            route = "terminal.open"
+            payload = { launch_spec = { launch_id = "fake", program = "powershell.exe" } }
+            "#,
+        )
+        .unwrap();
+
+        let error = AutomationEngine::dry_run(&workflow).expect_err("terminal route is blocked");
+
+        assert!(error.contains("not allowed"));
+    }
+
     // ─── P1.B: execute_pipeline ───────────────────────────────────────────────
 
     use crate::models::workflow::WorkflowAction;
@@ -392,6 +454,23 @@ mod tests {
             .as_deref()
             .unwrap_or("")
             .contains("recursive"));
+    }
+
+    #[test]
+    fn execute_pipeline_rejects_disallowed_high_risk_route() {
+        let actions = vec![pipeline_action("mouse.click")];
+        let report = AutomationEngine::execute_pipeline("bad-pipe", actions, |_route, _payload| {
+            panic!("mouse route must not dispatch")
+        });
+
+        assert_eq!(report.log.status, "failed");
+        assert!(report
+            .log
+            .error
+            .as_deref()
+            .unwrap_or("")
+            .contains("not allowed"));
+        assert_eq!(report.actions.len(), 1);
     }
 
     #[test]

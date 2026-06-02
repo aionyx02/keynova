@@ -1123,7 +1123,10 @@ mod tests {
         );
         for ext in WARM_FILE_EXTENSIONS {
             assert!(!ext.is_empty(), "empty extension entry");
-            assert!(!ext.starts_with('.'), "extension must not start with dot: {ext}");
+            assert!(
+                !ext.starts_with('.'),
+                "extension must not start with dot: {ext}"
+            );
             assert_eq!(
                 *ext,
                 ext.to_ascii_lowercase(),

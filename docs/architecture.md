@@ -2,7 +2,7 @@
 type: architecture_spec
 status: active
 priority: p1
-updated: 2026-05-30
+updated: 2026-06-02
 context_policy: retrieve_only
 owner: project
 ---
@@ -130,6 +130,8 @@ src-tauri/src/
 │   ├── command_router.rs  # CommandRouter trait + dispatch
 │   ├── event_bus.rs       # AppEvent + broadcast channel
 │   ├── config_manager.rs  # TOML config 讀取 + diff
+│   ├── network_policy.rs  # security network_allowlist enforcement for outbound URLs
+│   ├── secret_store.rs    # OS keychain-backed secret references for sensitive config
 │   ├── knowledge_store.rs # SQLite 非同步 actor
 │   ├── agent_runtime.rs   # ReAct agent 迴圈
 │   ├── action_registry.rs # ActionArena（短生命周期 action ref）

@@ -1,3 +1,4 @@
+use std::collections::HashSet;
 use std::time::Duration;
 
 use serde_json::{json, Value};
@@ -34,8 +35,14 @@ pub(super) fn search_searxng(
     query: &str,
     limit: usize,
     timeout_secs: u64,
+    allowed_hosts: &HashSet<String>,
 ) -> Result<Vec<GroundingSource>, String> {
     validate_searxng_url(base_url)?;
+    let base_url = crate::core::network_policy::enforce_outbound_url(
+        base_url,
+        allowed_hosts,
+        "agent.searxng_url",
+    )?;
     let client = reqwest::blocking::Client::builder()
         .timeout(Duration::from_secs(timeout_secs.max(1)))
         .build()
@@ -92,10 +99,16 @@ pub(super) fn search_tavily(
     query: &str,
     limit: usize,
     timeout_secs: u64,
+    allowed_hosts: &HashSet<String>,
 ) -> Result<Vec<GroundingSource>, String> {
     if api_key.trim().is_empty() {
         return Err("agent.web_search_api_key is required for Tavily web.search".into());
     }
+    crate::core::network_policy::enforce_known_endpoint(
+        "https://api.tavily.com/search",
+        allowed_hosts,
+        "Tavily web.search",
+    )?;
     let client = reqwest::blocking::Client::builder()
         .timeout(Duration::from_secs(timeout_secs.max(1)))
         .user_agent("Keynova/0.1 structured agent search")
@@ -172,7 +185,13 @@ pub(super) fn search_duckduckgo_html(
     query: &str,
     limit: usize,
     timeout_secs: u64,
+    allowed_hosts: &HashSet<String>,
 ) -> Result<Vec<GroundingSource>, String> {
+    crate::core::network_policy::enforce_known_endpoint(
+        "https://duckduckgo.com/html/",
+        allowed_hosts,
+        "DuckDuckGo web.search",
+    )?;
     let client = reqwest::blocking::Client::builder()
         .timeout(Duration::from_secs(timeout_secs.max(1)))
         .user_agent("Keynova/0.1 read-only agent search")
@@ -400,7 +419,15 @@ pub(super) fn is_github_trending_prompt(prompt: &str) -> bool {
             || lower.contains("最热门"))
 }
 
-pub(super) fn fetch_github_trending(limit: usize) -> Result<Vec<GithubTrendingRepo>, String> {
+pub(super) fn fetch_github_trending(
+    limit: usize,
+    allowed_hosts: &HashSet<String>,
+) -> Result<Vec<GithubTrendingRepo>, String> {
+    crate::core::network_policy::enforce_known_endpoint(
+        "https://github.com/trending",
+        allowed_hosts,
+        "GitHub trending",
+    )?;
     let client = reqwest::blocking::Client::builder()
         .timeout(Duration::from_secs(10))
         .user_agent("Keynova/0.1 read-only github trending")
@@ -513,13 +540,17 @@ pub(super) trait WebSearchProvider: Send + Sync {
 
 pub(super) struct SearxngProvider {
     pub(super) base_url: String,
+    pub(super) allowed_hosts: HashSet<String>,
 }
 
 pub(super) struct TavilyProvider {
     pub(super) api_key: String,
+    pub(super) allowed_hosts: HashSet<String>,
 }
 
-pub(super) struct DuckDuckGoProvider;
+pub(super) struct DuckDuckGoProvider {
+    pub(super) allowed_hosts: HashSet<String>,
+}
 
 impl WebSearchProvider for SearxngProvider {
     fn search(
@@ -528,7 +559,13 @@ impl WebSearchProvider for SearxngProvider {
         limit: usize,
         timeout_secs: u64,
     ) -> Result<Vec<GroundingSource>, String> {
-        search_searxng(&self.base_url, query, limit, timeout_secs)
+        search_searxng(
+            &self.base_url,
+            query,
+            limit,
+            timeout_secs,
+            &self.allowed_hosts,
+        )
     }
 }
 
@@ -539,7 +576,13 @@ impl WebSearchProvider for TavilyProvider {
         limit: usize,
         timeout_secs: u64,
     ) -> Result<Vec<GroundingSource>, String> {
-        search_tavily(&self.api_key, query, limit, timeout_secs)
+        search_tavily(
+            &self.api_key,
+            query,
+            limit,
+            timeout_secs,
+            &self.allowed_hosts,
+        )
     }
 }
 
@@ -550,7 +593,7 @@ impl WebSearchProvider for DuckDuckGoProvider {
         limit: usize,
         timeout_secs: u64,
     ) -> Result<Vec<GroundingSource>, String> {
-        search_duckduckgo_html(query, limit, timeout_secs)
+        search_duckduckgo_html(query, limit, timeout_secs, &self.allowed_hosts)
     }
 }
 
@@ -558,11 +601,18 @@ pub(super) fn resolve_web_search_provider(
     provider: &str,
     searxng_url: &str,
     api_key: &str,
+    allowed_hosts: HashSet<String>,
 ) -> Result<Box<dyn WebSearchProvider>, String> {
     match provider {
-        "searxng" => Ok(Box::new(SearxngProvider { base_url: searxng_url.to_string() })),
-        "tavily" => Ok(Box::new(TavilyProvider { api_key: api_key.to_string() })),
-        "duckduckgo" => Ok(Box::new(DuckDuckGoProvider)),
+        "searxng" => Ok(Box::new(SearxngProvider {
+            base_url: searxng_url.to_string(),
+            allowed_hosts: allowed_hosts.clone(),
+        })),
+        "tavily" => Ok(Box::new(TavilyProvider {
+            api_key: api_key.to_string(),
+            allowed_hosts: allowed_hosts.clone(),
+        })),
+        "duckduckgo" => Ok(Box::new(DuckDuckGoProvider { allowed_hosts })),
         "disabled" | "" => Err(
             "web.search provider is disabled; configure agent.web_search_provider=searxng or tavily. DuckDuckGo is an explicit best-effort fallback.".into()
         ),

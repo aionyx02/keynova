@@ -60,7 +60,13 @@ impl AgentHandler {
         if !is_github_trending_prompt(prompt) {
             return None;
         }
-        Some(match fetch_github_trending(10) {
+        let allowed_hosts = self
+            .config
+            .lock()
+            .ok()
+            .map(|config| crate::core::network_policy::allowlist_from_config(&config))
+            .unwrap_or_default();
+        Some(match fetch_github_trending(10, &allowed_hosts) {
             Ok(repos) if repos.is_empty() => {
                 "我查詢了 GitHub Trending daily，但沒有解析到熱門專案。".into()
             }

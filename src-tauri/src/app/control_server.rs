@@ -26,12 +26,20 @@ pub(crate) fn start_control_server(app: &tauri::App) -> bool {
             }
         }
     };
+    let token = match control_plane::load_or_create_control_token() {
+        Ok(token) => token,
+        Err(error) => {
+            eprintln!("[keynova] control plane disabled: {error}");
+            return true;
+        }
+    };
 
     let handle = app.handle().clone();
     std::thread::spawn(move || {
         let handler: Arc<dyn Fn(ControlRequest) -> ControlResponse + Send + Sync> = {
             let handle = handle.clone();
-            Arc::new(move |request| handle_control_request(&handle, request))
+            let token = token.clone();
+            Arc::new(move |request| handle_control_request(&handle, &token, request))
         };
         if let Err(e) = control_plane::serve_listener(listener, handler) {
             eprintln!("[keynova] control plane disabled: {e}");
@@ -41,7 +49,15 @@ pub(crate) fn start_control_server(app: &tauri::App) -> bool {
     true
 }
 
-fn handle_control_request(app: &tauri::AppHandle, request: ControlRequest) -> ControlResponse {
+fn handle_control_request(
+    app: &tauri::AppHandle,
+    expected_token: &str,
+    request: ControlRequest,
+) -> ControlResponse {
+    if !control_plane::control_request_authorized(&request, expected_token) {
+        return ControlResponse::error("unauthorized control request");
+    }
+
     match request.command {
         ControlCommand::Start => match show_launcher(app) {
             Ok(()) => ControlResponse::ok("Keynova is focused", json!({ "visible": true })),

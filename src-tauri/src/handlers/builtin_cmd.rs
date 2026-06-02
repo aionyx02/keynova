@@ -863,7 +863,7 @@ impl CommandHandler for BuiltinCmdHandler {
                     return match value_opt {
                         Some(value) => {
                             let mut cfg = self.config.lock().map_err(|e| e.to_string())?;
-                            cfg.set(key, value).map_err(|e| e.to_string())?;
+                            cfg.set_user_value(key, value).map_err(|e| e.to_string())?;
                             Ok(json!(BuiltinCommandResult {
                                 text: setting_assignment_result_text(key, value),
                                 ui_type: CommandUiType::Inline,
