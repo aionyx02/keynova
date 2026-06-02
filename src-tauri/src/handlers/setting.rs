@@ -40,7 +40,7 @@ impl CommandHandler for SettingHandler {
                 let req: SettingSetRequest = serde_json::from_value(payload)
                     .map_err(|e| format!("invalid setting.set request: {e}"))?;
                 let mut cfg = self.config.lock().map_err(|e| e.to_string())?;
-                cfg.set(&req.key, &req.value)?;
+                cfg.set_user_value(&req.key, &req.value)?;
                 Ok(json!({ "ok": true }))
             }
             "list_all" => {

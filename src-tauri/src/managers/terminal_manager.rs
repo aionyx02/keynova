@@ -2,11 +2,7 @@ use crate::models::terminal::{TerminalLaunchSpec, TerminalSession, TerminalStatu
 use portable_pty::{native_pty_system, Child, CommandBuilder, MasterPty, PtySize};
 use std::collections::HashMap;
 use std::io::{Read, Write};
-use std::path::PathBuf;
-use std::sync::{
-    atomic::{AtomicBool, Ordering},
-    Arc, Mutex,
-};
+use std::sync::{Arc, Mutex};
 use uuid::Uuid;
 
 struct PtyEntry {
@@ -16,24 +12,10 @@ struct PtyEntry {
     session: TerminalSession,
 }
 
-/// Pre-warmed PTY session waiting to be claimed by the next terminal.open call.
-struct WarmEntry {
-    id: String,
-    master: Box<dyn MasterPty + Send>,
-    child: Box<dyn Child + Send + Sync>,
-    writer: Arc<Mutex<Box<dyn Write + Send>>>,
-    /// Shell output accumulated before claim (initial prompt, etc.)
-    buffer: Arc<Mutex<String>>,
-    /// false = buffering mode; true = live EventBus mode
-    live: Arc<AtomicBool>,
-}
-
-/// 管理多個 PTY 終端 Session 的生命週期。
 pub struct TerminalManager {
     sessions: HashMap<String, PtyEntry>,
     on_output: Arc<dyn Fn(String, String) + Send + Sync>,
-    warm: Option<WarmEntry>,
-    warming: bool,
+    pending_launches: HashMap<String, TerminalLaunchSpec>,
 }
 
 impl TerminalManager {
@@ -41,61 +23,8 @@ impl TerminalManager {
         Self {
             sessions: HashMap::new(),
             on_output,
-            warm: None,
-            warming: false,
+            pending_launches: HashMap::new(),
         }
-    }
-
-    fn begin_prewarm(&mut self) -> Option<Arc<dyn Fn(String, String) + Send + Sync>> {
-        if self.warm.is_some() || self.warming {
-            return None;
-        }
-        self.warming = true;
-        Some(Arc::clone(&self.on_output))
-    }
-
-    fn finish_prewarm(&mut self, entry: Option<WarmEntry>) {
-        self.warming = false;
-        if self.warm.is_none() {
-            self.warm = entry;
-        }
-    }
-
-    fn take_warm(&mut self, rows: u16, cols: u16) -> Option<(String, String)> {
-        let entry = self.warm.take()?;
-        let _ = entry.master.resize(PtySize {
-            rows,
-            cols,
-            pixel_width: 0,
-            pixel_height: 0,
-        });
-        // Switch reader thread to live EventBus mode
-        entry.live.store(true, Ordering::Release);
-        let initial = entry.buffer.lock().map(|b| b.clone()).unwrap_or_default();
-        self.sessions.insert(
-            entry.id.clone(),
-            PtyEntry {
-                master: entry.master,
-                child: entry.child,
-                writer: entry.writer,
-                session: TerminalSession {
-                    id: entry.id.clone(),
-                    rows,
-                    cols,
-                    status: TerminalStatus::Running,
-                },
-            },
-        );
-        Some((entry.id, initial))
-    }
-
-    /// 建立新的 PTY 行程並開始讀取輸出，回傳 (terminal_id, initial_output)。
-    /// 若有 pre-warmed session 則直接取用（零延遲），否則同步建立。
-    pub fn create_pty(&mut self, rows: u16, cols: u16) -> Result<(String, String), String> {
-        if let Some(result) = self.take_warm(rows, cols) {
-            return Ok(result);
-        }
-        self.create_pty_from_command(rows, cols, terminal_command())
     }
 
     pub fn create_pty_with_command(
@@ -116,6 +45,28 @@ impl TerminalManager {
             cmd.cwd(cwd);
         }
         self.create_pty_from_command(rows, cols, cmd)
+    }
+
+    pub fn register_launch_spec(&mut self, launch: TerminalLaunchSpec) -> Result<(), String> {
+        if launch.launch_id.trim().is_empty() {
+            return Err("terminal launch_id cannot be empty".into());
+        }
+        self.pending_launches
+            .insert(launch.launch_id.clone(), launch);
+        Ok(())
+    }
+
+    pub fn consume_registered_launch_spec(
+        &mut self,
+        launch: &TerminalLaunchSpec,
+    ) -> Result<(), String> {
+        let Some(registered) = self.pending_launches.remove(&launch.launch_id) else {
+            return Err("terminal launch spec was not issued by the backend".into());
+        };
+        if registered != *launch {
+            return Err("terminal launch spec does not match the backend-issued command".into());
+        }
+        Ok(())
     }
 
     fn create_pty_from_command(
@@ -215,121 +166,6 @@ impl TerminalManager {
     }
 }
 
-fn spawn_prewarm(
-    on_output: Arc<dyn Fn(String, String) + Send + Sync>,
-) -> Result<WarmEntry, String> {
-    let id = Uuid::new_v4().to_string();
-    let pty_system = native_pty_system();
-    let pair = pty_system
-        .openpty(PtySize {
-            rows: 24,
-            cols: 80,
-            pixel_width: 0,
-            pixel_height: 0,
-        })
-        .map_err(|e| e.to_string())?;
-
-    let cmd = terminal_command();
-    let child = pair.slave.spawn_command(cmd).map_err(|e| e.to_string())?;
-
-    let writer = Arc::new(Mutex::new(
-        pair.master.take_writer().map_err(|e| e.to_string())?,
-    ));
-    let mut reader = pair.master.try_clone_reader().map_err(|e| e.to_string())?;
-    let master = pair.master;
-
-    let buffer: Arc<Mutex<String>> = Arc::new(Mutex::new(String::new()));
-    let live = Arc::new(AtomicBool::new(false));
-
-    let id_clone = id.clone();
-    let buffer_clone = Arc::clone(&buffer);
-    let live_clone = Arc::clone(&live);
-
-    std::thread::spawn(move || {
-        let mut buf = [0u8; 4096];
-        loop {
-            match reader.read(&mut buf) {
-                Ok(0) | Err(_) => break,
-                Ok(n) => {
-                    let text = String::from_utf8_lossy(&buf[..n]).into_owned();
-                    if live_clone.load(Ordering::Acquire) {
-                        on_output(id_clone.clone(), text);
-                    } else if let Ok(mut b) = buffer_clone.lock() {
-                        b.push_str(&text);
-                    }
-                }
-            }
-        }
-    });
-
-    Ok(WarmEntry {
-        id,
-        master,
-        child,
-        writer,
-        buffer,
-        live,
-    })
-}
-
-/// Kick off a background pre-warm. Safe to call at any time:
-/// - Locks briefly to check has_warm + clone on_output, then releases
-/// - All blocking PTY work happens outside the Mutex on a background thread
-pub fn start_prewarm(manager: Arc<Mutex<TerminalManager>>) {
-    let on_output = match manager.lock() {
-        Ok(mut mgr) => mgr.begin_prewarm(),
-        Err(_) => return,
-    };
-    let Some(on_output) = on_output else { return };
-
-    std::thread::spawn(move || match spawn_prewarm(on_output) {
-        Ok(entry) => {
-            if let Ok(mut mgr) = manager.lock() {
-                mgr.finish_prewarm(Some(entry));
-            }
-        }
-        Err(e) => {
-            if let Ok(mut mgr) = manager.lock() {
-                mgr.finish_prewarm(None);
-            }
-            eprintln!("[keynova] terminal pre-warm failed: {e}");
-        }
-    });
-}
-
-fn terminal_command() -> CommandBuilder {
-    #[cfg(target_os = "windows")]
-    {
-        let shell = std::env::var_os("KEYNOVA_TERMINAL_SHELL")
-            .filter(|s| !s.is_empty())
-            .map(PathBuf::from)
-            .or_else(|| find_in_path("pwsh.exe"))
-            .or_else(|| find_in_path("powershell.exe"))
-            .or_else(|| std::env::var_os("COMSPEC").map(PathBuf::from))
-            .unwrap_or_else(|| PathBuf::from("powershell.exe"));
-
-        let shell_name = shell
-            .file_name()
-            .and_then(|s| s.to_str())
-            .unwrap_or_default()
-            .to_ascii_lowercase();
-        let mut cmd = CommandBuilder::new(shell);
-        configure_terminal_env(&mut cmd);
-        if shell_name == "powershell.exe" || shell_name == "pwsh.exe" {
-            cmd.arg("-NoLogo");
-        }
-        cmd
-    }
-
-    #[cfg(not(target_os = "windows"))]
-    {
-        let shell = std::env::var("SHELL").unwrap_or_else(|_| "/bin/sh".into());
-        let mut cmd = CommandBuilder::new(shell);
-        configure_terminal_env(&mut cmd);
-        cmd
-    }
-}
-
 fn configure_terminal_env(cmd: &mut CommandBuilder) {
     cmd.env("TERM", "xterm-256color");
     cmd.env("COLORTERM", "truecolor");
@@ -337,7 +173,6 @@ fn configure_terminal_env(cmd: &mut CommandBuilder) {
 
     #[cfg(target_os = "windows")]
     {
-        // Let WSL inherit terminal capability hints when launched from the shell.
         let existing = std::env::var("WSLENV").unwrap_or_default();
         let mut entries: Vec<&str> = existing.split(':').filter(|s| !s.is_empty()).collect();
         for entry in ["TERM/u", "COLORTERM/u", "TERM_PROGRAM/u"] {
@@ -352,11 +187,70 @@ fn configure_terminal_env(cmd: &mut CommandBuilder) {
     }
 }
 
-#[cfg(target_os = "windows")]
-fn find_in_path(program: &str) -> Option<PathBuf> {
-    std::env::var_os("PATH").and_then(|path| {
-        std::env::split_paths(&path)
-            .map(|dir| dir.join(program))
-            .find(|candidate| candidate.is_file())
-    })
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::models::terminal::TerminalEnvVar;
+
+    fn manager() -> TerminalManager {
+        TerminalManager::new(Arc::new(|_, _| {}))
+    }
+
+    fn spec() -> TerminalLaunchSpec {
+        TerminalLaunchSpec {
+            launch_id: "launch-1".into(),
+            program: "nvim".into(),
+            args: vec!["note.md".into()],
+            cwd: Some("notes".into()),
+            title: Some("Note".into()),
+            env: vec![TerminalEnvVar {
+                key: "NVIM_APPNAME".into(),
+                value: "keynova-lazyvim".into(),
+            }],
+            editor: true,
+        }
+    }
+
+    #[test]
+    fn registered_launch_spec_can_be_consumed_once() {
+        let mut manager = manager();
+        let launch = spec();
+
+        manager
+            .register_launch_spec(launch.clone())
+            .expect("register launch spec");
+
+        assert!(manager.consume_registered_launch_spec(&launch).is_ok());
+        assert!(manager.consume_registered_launch_spec(&launch).is_err());
+    }
+
+    #[test]
+    fn unregistered_launch_spec_is_rejected() {
+        let mut manager = manager();
+
+        let error = manager
+            .consume_registered_launch_spec(&spec())
+            .expect_err("unregistered spec must be rejected");
+
+        assert!(error.contains("not issued"));
+    }
+
+    #[test]
+    fn mutated_launch_spec_is_rejected() {
+        let mut manager = manager();
+        let launch = spec();
+        manager
+            .register_launch_spec(launch.clone())
+            .expect("register launch spec");
+
+        let mut mutated = launch;
+        mutated.program = "powershell.exe".into();
+        mutated.args = vec!["-NoLogo".into(), "-Command".into(), "calc".into()];
+
+        let error = manager
+            .consume_registered_launch_spec(&mutated)
+            .expect_err("mutated spec must be rejected");
+
+        assert!(error.contains("does not match"));
+    }
 }

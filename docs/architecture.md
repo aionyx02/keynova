@@ -130,6 +130,8 @@ src-tauri/src/
 │   ├── command_router.rs  # CommandRouter trait + dispatch
 │   ├── event_bus.rs       # AppEvent + broadcast channel
 │   ├── config_manager.rs  # TOML config 讀取 + diff
+│   ├── network_policy.rs  # security network_allowlist enforcement for outbound URLs
+│   ├── secret_store.rs    # OS keychain-backed secret references for sensitive config
 │   ├── knowledge_store.rs # SQLite 非同步 actor (public types + KnowledgeStoreHandle)
 │   │   └── knowledge_store/{schema,sql,worker}.rs  # REF.9.D: connection+migration / row ops / worker thread
 │   ├── agent_runtime.rs   # ReAct agent 迴圈

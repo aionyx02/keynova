@@ -3,8 +3,10 @@ use std::path::PathBuf;
 
 use serde::Serialize;
 
+use crate::core::secret_store;
 use crate::models::settings_schema::{
-    builtin_setting_schema, is_sensitive_key, redact_setting_value, SettingSchema,
+    builtin_setting_schema, is_sensitive_key, redact_setting_value, validate_user_setting_value,
+    SettingSchema,
 };
 
 #[derive(Clone, Debug, Serialize)]
@@ -28,7 +30,12 @@ impl ConfigManager {
             eprintln!("[keynova] config load failed: {e}");
             Self::load_default_result().unwrap_or_default()
         });
-        Self { data, config_path }
+        let mut manager = Self { data, config_path };
+        #[cfg(not(test))]
+        if let Err(error) = manager.migrate_plaintext_secrets_to_keychain() {
+            eprintln!("[keynova] secret migration skipped: {error}");
+        }
+        manager
     }
 
     pub fn user_config_path() -> PathBuf {
@@ -94,7 +101,12 @@ impl ConfigManager {
     }
 
     pub fn get(&self, key: &str) -> Option<String> {
-        self.data.get(key).cloned()
+        let value = self.data.get(key)?;
+        if is_sensitive_key(key) {
+            Some(self.resolve_secret_value(key, value))
+        } else {
+            Some(value.clone())
+        }
     }
 
     pub fn get_bool(&self, key: &str) -> Option<bool> {
@@ -105,8 +117,18 @@ impl ConfigManager {
 
     /// 更新設定值並寫回磁碟（僅在失焦/儲存按鈕時呼叫）。
     pub fn set(&mut self, key: &str, value: &str) -> Result<(), String> {
-        self.data.insert(key.to_string(), value.to_string());
+        let stored_value = if is_sensitive_key(key) {
+            secret_store::store_secret(key, value)?
+        } else {
+            value.to_string()
+        };
+        self.data.insert(key.to_string(), stored_value);
         self.persist()
+    }
+
+    pub fn set_user_value(&mut self, key: &str, value: &str) -> Result<(), String> {
+        validate_user_setting_value(key, value)?;
+        self.set(key, value)
     }
 
     pub fn list_all(&self) -> Vec<(String, String)> {
@@ -156,6 +178,45 @@ impl ConfigManager {
     }
 
     /// 以 TOML section 格式寫回磁碟，保留數字/bool 的正確型別。
+    fn resolve_secret_value(&self, key: &str, value: &str) -> String {
+        if value.trim().is_empty() {
+            return String::new();
+        }
+        if !secret_store::is_secret_reference(value) {
+            return value.to_string();
+        }
+        match secret_store::load_secret(key) {
+            Ok(secret) => secret,
+            Err(error) => {
+                eprintln!("[keynova] {error}");
+                String::new()
+            }
+        }
+    }
+
+    fn migrate_plaintext_secrets_to_keychain(&mut self) -> Result<(), String> {
+        let mut changed = false;
+        let keys: Vec<String> = self.data.keys().cloned().collect();
+        for key in keys {
+            if !is_sensitive_key(&key) {
+                continue;
+            }
+            let Some(value) = self.data.get(&key).cloned() else {
+                continue;
+            };
+            if value.trim().is_empty() || secret_store::is_secret_reference(&value) {
+                continue;
+            }
+            let reference = secret_store::store_secret(&key, &value)?;
+            self.data.insert(key, reference);
+            changed = true;
+        }
+        if changed {
+            self.persist()?;
+        }
+        Ok(())
+    }
+
     fn persist(&self) -> Result<(), String> {
         let dir = self
             .config_path

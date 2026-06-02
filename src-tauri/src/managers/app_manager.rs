@@ -55,6 +55,18 @@ impl AppManager {
 
     /// 以路徑啟動應用程式，並累加啟動次數。
     pub fn launch_app(&mut self, path: &str) -> Result<(), String> {
+        if self.cache.is_empty() {
+            self.scan_applications();
+        }
+        if !self.cache_contains_path(path) {
+            return Err(
+                "launcher.launch only accepts application paths returned by launcher search".into(),
+            );
+        }
+        self.launch_trusted_path(path)
+    }
+
+    pub fn launch_trusted_path(&mut self, path: &str) -> Result<(), String> {
         #[cfg(target_os = "windows")]
         {
             crate::platform::windows::launch_app(path)?;
@@ -69,5 +81,40 @@ impl AppManager {
             app.launch_count += 1;
         }
         Ok(())
+    }
+
+    fn cache_contains_path(&self, path: &str) -> bool {
+        self.cache.iter().any(|app| app.path == path)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn manager_with_cache(paths: &[&str]) -> AppManager {
+        AppManager {
+            cache: paths
+                .iter()
+                .map(|path| AppInfo {
+                    name: path.to_string(),
+                    path: path.to_string(),
+                    icon_data: None,
+                    launch_count: 0,
+                })
+                .collect(),
+            matcher: SkimMatcherV2::default(),
+        }
+    }
+
+    #[test]
+    fn public_launch_rejects_uncached_paths_before_spawning() {
+        let mut manager = manager_with_cache(&["C:/Program Files/App/app.exe"]);
+
+        let error = manager
+            .launch_app("C:/Windows/System32/calc.exe")
+            .expect_err("uncached launch path must be rejected");
+
+        assert!(error.contains("launcher.launch only accepts"));
     }
 }

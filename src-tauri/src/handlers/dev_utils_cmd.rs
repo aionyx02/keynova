@@ -326,17 +326,14 @@ impl BuiltinCommand for KillPortCmd {
         "killport"
     }
     fn description(&self) -> &'static str {
-        "Find and (after confirm) kill the process listening on a TCP port"
+        "Find the process listening on a TCP port"
     }
     fn args_hint(&self) -> Option<&'static str> {
-        Some("<port>  ·  <port> kill")
+        Some("<port>")
     }
-    /// Two-phase invocation:
-    /// - `killport <port>` → look up and preview process info; do nothing else.
-    /// - `killport <port> kill` → look up again and actually kill.
-    ///
-    /// The second lookup is intentional — between preview and confirm the
-    /// owning process may have changed.
+    /// Preview-only builtin. Process termination must go through a backend
+    /// approval flow instead of a text argument that any `cmd.run` caller can
+    /// replay.
     fn execute(&self, args: &str) -> BuiltinCommandResult {
         let trimmed = args.trim();
         if trimmed.is_empty() {
@@ -349,6 +346,13 @@ impl BuiltinCommand for KillPortCmd {
             .map(|s| s.eq_ignore_ascii_case("kill"))
             .unwrap_or(false);
 
+        if confirm {
+            return inline(
+                "error: direct killport termination is disabled; use the dedicated approval flow"
+                    .into(),
+            );
+        }
+
         let port: u16 = match port_token.parse() {
             Ok(p) if p > 0 => p,
             _ => return inline(format!("error: invalid port '{port_token}'")),
@@ -360,20 +364,10 @@ impl BuiltinCommand for KillPortCmd {
             Err(e) => return inline(format!("error: {e}")),
         };
 
-        if !confirm {
-            return inline(format!(
-                "Preview · port {} ({})\n  pid          {}\n  process_name {}\n\nTo kill, run: killport {} kill",
-                info.port, info.protocol, info.pid, info.process_name, info.port,
-            ));
-        }
-
-        match process_lookup::kill_pid(info.pid) {
-            Ok(()) => inline(format!(
-                "killed pid {} ({}) listening on port {} ({})",
-                info.pid, info.process_name, info.port, info.protocol,
-            )),
-            Err(e) => inline(format!("error: kill failed: {e}")),
-        }
+        inline(format!(
+            "Preview - port {} ({})\n  pid          {}\n  process_name {}\n\nTermination requires a backend approval flow.",
+            info.port, info.protocol, info.pid, info.process_name,
+        ))
     }
 }
 
@@ -481,6 +475,12 @@ mod tests {
     fn killport_invalid_port_shows_error() {
         assert!(execute_inline(&KillPortCmd, "abc").starts_with("error: invalid port"));
         assert!(execute_inline(&KillPortCmd, "0").starts_with("error: invalid port"));
+    }
+
+    #[test]
+    fn killport_kill_arg_is_refused_without_backend_approval() {
+        let out = execute_inline(&KillPortCmd, "1234 kill");
+        assert!(out.contains("direct killport termination is disabled"));
     }
 
     /// Pick a port unlikely to be bound (>= 60000) and assert the command
