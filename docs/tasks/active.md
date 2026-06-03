@@ -2,7 +2,7 @@
 type: task_index
 status: active
 priority: p0
-updated: 2026-06-02
+updated: 2026-06-03
 context_policy: always_retrievable
 owner: project
 tags: [refactor, ai-capability, search-first, p0]
@@ -14,7 +14,7 @@ tags: [refactor, ai-capability, search-first, p0]
 
 ### P0
 
-`PERF.1.FU`, `PREFLIGHT`, and `BRAND.ICON` completed in v0.3.0 (see `sessions/2026-05-30.md` COMPLETED markers). `PERF.1.FU` closed: real unique footprint is `~80 MB` (the `324 MB` was a shared-page counting artifact across WebView2 processes), under the `200 MB` goal.
+`PERF.1.FU`, `PREFLIGHT`, and `BRAND.ICON` completed in v0.3.0 (see `sessions/2026-05-30.md` COMPLETED markers). `PERF.1.FU` closed: real unique footprint is `~80 MB`, under the `200 MB` goal.
 
 - [x] `REF.0` lock ADR-0029 as the governing decision for the AI capability refactor.
 - [x] `REF.1` define `UnifiedResult` as the shared result/action contract.
@@ -40,7 +40,9 @@ Detailed batch definitions, done criteria, non-goals, file map, and validation g
 
 ### P1
 
-- (empty; P0 refactor owns planning and execution priority)
+- [~] `MEM.1` personal-memory layer (ADR-0043 proposed). MEM.1.A capture+recall
+  landed; .B local-only grounding + .C memory-in-search pending. Detail:
+  `docs/tasks/personal-memory.md`.
 
 ### P2
 

@@ -16,15 +16,15 @@ interface PrefixHint {
   args: string;
 }
 
-// Order matches the docx Section 4 capabilities; only the first two are
-// wired. Listed prefixes that are not yet matched by
-// `parseCapabilityPrefix` will fall through to normal search until the
-// matching code lands.
+// All listed prefixes are wired in `parseCapabilityPrefix`. `remember` / `recall`
+// drive the local personal-memory loop.
 const HINTS: ReadonlyArray<PrefixHint> = [
   { prefix: "explain", args: "<question>" },
   { prefix: "summarize", args: "<text>" },
   { prefix: "cmd", args: "<intent>" },
   { prefix: "fix", args: "<error>" },
+  { prefix: "remember", args: "<info>" },
+  { prefix: "recall", args: "<query>" },
   { prefix: "next", args: "" },
 ];
 

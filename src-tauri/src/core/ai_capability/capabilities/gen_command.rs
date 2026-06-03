@@ -12,6 +12,7 @@ use serde::{Deserialize, Serialize};
 use crate::core::ai_capability::contract::{
     CapabilityDeps, CapabilityError, CapabilityOutput, CapabilityRequest, CapabilityResponse,
 };
+use crate::core::ai_capability::parse::extract_first_json_object;
 use crate::core::ai_capability::prompt::{build_prompt, maybe_audit};
 use crate::core::ai_capability::registry::{meta, CapabilityId};
 use crate::models::agent::GroundingSource;
@@ -170,51 +171,6 @@ fn fallback_command(reply: &str) -> String {
         return trimmed.to_string();
     }
     String::new()
-}
-
-fn extract_first_json_object(text: &str) -> Option<&str> {
-    let mut start = None;
-    let mut depth = 0usize;
-    let mut in_string = false;
-    let mut escaped = false;
-
-    for (idx, ch) in text.char_indices() {
-        if in_string {
-            if escaped {
-                escaped = false;
-                continue;
-            }
-            match ch {
-                '\\' => escaped = true,
-                '"' => in_string = false,
-                _ => {}
-            }
-            continue;
-        }
-
-        match ch {
-            '"' => in_string = true,
-            '{' => {
-                if depth == 0 {
-                    start = Some(idx);
-                }
-                depth += 1;
-            }
-            '}' => {
-                if depth == 0 {
-                    continue;
-                }
-                depth -= 1;
-                if depth == 0 {
-                    let begin = start?;
-                    return Some(&text[begin..=idx]);
-                }
-            }
-            _ => {}
-        }
-    }
-
-    None
 }
 
 fn risk_tag_for_command(command: &str) -> RiskTag {
