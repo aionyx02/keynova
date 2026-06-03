@@ -37,6 +37,27 @@ describe("parseCapabilityPrefix", () => {
     expect(parseCapabilityPrefix("fix    ")).toBeNull();
   });
 
+  it("matches remember prefix with body", () => {
+    expect(parseCapabilityPrefix("remember I prefer dark themes")).toEqual({
+      id: "remember",
+      args: { text: "I prefer dark themes" },
+    });
+  });
+
+  it("matches recall prefix with body", () => {
+    expect(parseCapabilityPrefix("recall coffee order")).toEqual({
+      id: "recall",
+      args: { text: "coffee order" },
+    });
+  });
+
+  it("returns null on bare remember/recall without body", () => {
+    expect(parseCapabilityPrefix("remember")).toBeNull();
+    expect(parseCapabilityPrefix("remember ")).toBeNull();
+    expect(parseCapabilityPrefix("recall")).toBeNull();
+    expect(parseCapabilityPrefix("recall   ")).toBeNull();
+  });
+
   it("matches next with or without trailing whitespace", () => {
     expect(parseCapabilityPrefix("next")).toEqual({
       id: "next",

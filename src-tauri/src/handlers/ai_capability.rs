@@ -220,15 +220,17 @@ mod tests {
     use crate::core::ai_capability::registry::CapabilityId;
 
     #[test]
-    fn list_returns_five_capability_metas() {
+    fn list_returns_all_capability_metas() {
         let metas = ai_capability::all();
-        assert_eq!(metas.len(), 5);
+        assert_eq!(metas.len(), 7);
         let ids: Vec<_> = metas.iter().map(|m| m.id).collect();
         assert!(ids.contains(&CapabilityId::Explain));
         assert!(ids.contains(&CapabilityId::Summarize));
         assert!(ids.contains(&CapabilityId::FixError));
         assert!(ids.contains(&CapabilityId::GenCommand));
         assert!(ids.contains(&CapabilityId::SuggestNext));
+        assert!(ids.contains(&CapabilityId::Remember));
+        assert!(ids.contains(&CapabilityId::Recall));
     }
 
     #[test]

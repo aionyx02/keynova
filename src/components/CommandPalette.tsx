@@ -46,6 +46,8 @@ import { usePaletteMode } from "../features/command-palette/hooks/usePaletteMode
 import { useCapabilityStream } from "../features/ai-capability/hooks/useCapabilityStream";
 import { useCapabilityRunState } from "../features/ai-capability/hooks/useCapabilityRunState";
 import { useGenCommand } from "../features/ai-capability/hooks/useGenCommand";
+import { useRecall } from "../features/ai-capability/hooks/useRecall";
+import { useRemember } from "../features/ai-capability/hooks/useRemember";
 import { useSuggestNext } from "../features/ai-capability/hooks/useSuggestNext";
 import type { CapabilitySurfaceMode } from "../features/command-palette/CapabilityResultArea";
 import { CapabilityHintLine } from "../features/command-palette/CapabilityHintLine";
@@ -260,6 +262,20 @@ export function CommandPalette() {
         source: "prefix",
       };
     }
+    if (explicitCapabilityMode?.id === "remember") {
+      return {
+        id: "remember",
+        args: explicitCapabilityMode.args,
+        source: "prefix",
+      };
+    }
+    if (explicitCapabilityMode?.id === "recall") {
+      return {
+        id: "recall",
+        args: explicitCapabilityMode.args,
+        source: "prefix",
+      };
+    }
     if (explicitCapabilityMode?.id === "next") {
       return {
         id: "next",
@@ -303,6 +319,10 @@ export function CommandPalette() {
     capabilityMode?.id === "cmd" ? { id: capabilityMode.id, args: capabilityMode.args } : null;
   const nextCapabilityMode: { id: "next"; args: Record<string, never> } | null =
     capabilityMode?.id === "next" ? { id: capabilityMode.id, args: capabilityMode.args } : null;
+  const rememberCapabilityMode: { id: "remember"; args: { text: string } } | null =
+    capabilityMode?.id === "remember" ? { id: capabilityMode.id, args: capabilityMode.args } : null;
+  const recallCapabilityMode: { id: "recall"; args: { text: string } } | null =
+    capabilityMode?.id === "recall" ? { id: capabilityMode.id, args: capabilityMode.args } : null;
   const capabilityStream = useCapabilityStream({
     dispatch,
     id: textCapabilityMode
@@ -335,11 +355,31 @@ export function CommandPalette() {
     run: () => suggestNext.run({ ctx: { limit: 5 } }),
     cancelInner: suggestNext.cancel,
   });
+  const remember = useRemember({ dispatch });
+  const rememberState = useCapabilityRunState({
+    active: rememberCapabilityMode !== null,
+    argsKey: rememberCapabilityMode?.args.text ?? null,
+    isLoading: remember.isLoading,
+    error: remember.error,
+    run: () => remember.run({ text: rememberCapabilityMode?.args.text ?? "" }),
+    cancelInner: remember.cancel,
+  });
+  const recall = useRecall({ dispatch });
+  const recallState = useCapabilityRunState({
+    active: recallCapabilityMode !== null,
+    argsKey: recallCapabilityMode?.args.text ?? null,
+    isLoading: recall.isLoading,
+    error: recall.error,
+    run: () => recall.run({ query: recallCapabilityMode?.args.text ?? "" }),
+    cancelInner: recall.cancel,
+  });
   const activeCapabilityLoading =
     (textCapabilityMode !== null &&
       (capabilityStream.status === "pending" || capabilityStream.status === "streaming")) ||
     (commandCapabilityMode !== null && genCommand.isLoading) ||
-    (nextCapabilityMode !== null && suggestNext.isLoading);
+    (nextCapabilityMode !== null && suggestNext.isLoading) ||
+    (rememberCapabilityMode !== null && remember.isLoading) ||
+    (recallCapabilityMode !== null && recall.isLoading);
 
   const {
     modeRef,
@@ -655,7 +695,13 @@ export function CommandPalette() {
     capabilityListSelected: safeCapabilitySuggestionSelected,
     setCapabilityListSelected: setCapabilitySuggestionSelected,
     onCapabilitySubmit:
-      commandCapabilityMode !== null ? genCommandState.submit : capabilityStream.submit,
+      commandCapabilityMode !== null
+        ? genCommandState.submit
+        : rememberCapabilityMode !== null
+          ? rememberState.submit
+          : recallCapabilityMode !== null
+            ? recallState.submit
+            : capabilityStream.submit,
     onCapabilityRunSelected: () => runSuggestedWorkflow(safeCapabilitySuggestionSelected),
     keepLauncherOpen,
   });
@@ -748,6 +794,25 @@ export function CommandPalette() {
                   onSelectIndex: setCapabilitySuggestionSelected,
                   onRunSelected: runSuggestedWorkflow,
                   onCancel: suggestNextState.cancel,
+                }}
+                memoryCard={{
+                  status: rememberState.status,
+                  data: remember.data,
+                  error: remember.error,
+                  startedAtMs: rememberState.startedAtMs,
+                  completedAtMs: rememberState.completedAtMs,
+                  onSubmit: rememberState.submit,
+                  onCancel: rememberState.cancel,
+                }}
+                recallCard={{
+                  status: recallState.status,
+                  items: recall.data,
+                  error: recall.error,
+                  startedAtMs: recallState.startedAtMs,
+                  completedAtMs: recallState.completedAtMs,
+                  onSubmit: recallState.submit,
+                  onCancel: recallState.cancel,
+                  onPaste: (content: string) => setQuery(content),
                 }}
                 dispatch={dispatch}
                 onClose={closeCapabilitySurface}
