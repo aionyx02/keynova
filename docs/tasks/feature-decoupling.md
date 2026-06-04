@@ -32,14 +32,14 @@ registrar — migrated last.
 
 ## Batches (in order)
 
-- [ ] `DECOUP.1` Backend scaffolding + calculator pilot. Add
-  `core/feature_registry.rs` (or `features/mod.rs`): `AssemblyCtx` (shared infra
-  handle), `FeatureRegistrar` (collects handlers / builtins / search hooks /
-  settings fragments / `FeatureSpec{flag_key, namespace}`), and a central
-  `REGISTRARS` list. Migrate **calculator** (smallest leaf) to a `register(reg,
-  ctx)` fn; `build_command_router` calls it via the list while every other
-  feature stays on the existing path. Done = calculator works identically, the
-  pattern compiles, central files no longer name calculator directly.
+- [x] `DECOUP.1` Backend scaffolding + calculator pilot. `app/feature_registry.rs`
+  added: `AssemblyCtx` (empty for now — grows as shared-dep features migrate),
+  `FeatureRegistrar` (handler registration; builtins/search/settings/spec join
+  later), `REGISTRARS` list, `register_all(router)`. **calculator** migrated to
+  `handlers::calculator::register(reg, _ctx)` (builds its own leaf manager);
+  `state.rs` dropped `calculator_manager` from `ManagerBundle`/`create_managers`
+  and the explicit `CalculatorHandler` registration, now calls `register_all`.
+  Behavior-preserving: 473 tests pass, clippy clean.
 - [ ] `DECOUP.2` Frontend scaffolding + calculator manifest. Add
   `FeatureManifest` type + an aggregator that folds `manifests[]` into
   `PanelRegistry` / `GateKey` set / `KIND_BADGE`. Migrate calculator's frontend

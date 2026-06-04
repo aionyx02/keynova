@@ -120,6 +120,7 @@ src-tauri/src/
 ├── app/
 │   ├── bootstrap.rs       # 初始化流程
 │   ├── dispatch.rs        # IPC 命令分派實作。FEAT.GATE: NAMESPACE_FEATURE_GUARDS + namespace_feature_block refuse note/history/translation/calculator/system namespaces when their features.* flag is off (AI namespaces gate per-route in handlers so ai.check_setup/model setup stay reachable).
+│   ├── feature_registry.rs # DECOUP/ADR-0044: AssemblyCtx + FeatureRegistrar + REGISTRARS + register_all(router). Self-registering features wire themselves here instead of being hand-listed in state.rs::build_command_router (migrated so far: calculator). Grows: builtins/search hooks/settings/FeatureSpec join in DECOUP.3+.
 │   ├── state.rs           # AppState（全域狀態組裝）
 │   ├── control_server.rs  # 控制伺服器
 │   ├── migration.rs       # 資料遷移
