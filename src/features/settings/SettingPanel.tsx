@@ -257,7 +257,9 @@ export function SettingPanel({ initialArgs }: PanelProps) {
     setSaveError(null);
     try {
       await ipcDispatch("setting.set", { key, value: newValue });
-      const storedValue = isSensitive ? "" : newValue;
+      // Reflect "stored" for secrets with the same mask the backend returns, so
+      // the row shows it as configured (the raw secret is never held in state).
+      const storedValue = isSensitive ? "********" : newValue;
       originalRef.current[key] = storedValue;
       setEdits((prev) => {
         if (!(key in prev)) return prev;
@@ -367,26 +369,36 @@ export function SettingPanel({ initialArgs }: PanelProps) {
             {filtering ? "No settings match." : "No settings in this section."}
           </p>
         )}
-        {rows.map((entry, rowIdx) => (
-          <SettingRow
-            key={entry.key}
-            entry={entry}
-            fieldSchema={schemaFor(entry.key)}
-            displayValue={edits[entry.key] ?? entry.value}
-            rowIdx={rowIdx}
-            saving={saving === entry.key}
-            saved={savedKey === entry.key && saving !== entry.key}
-            showSection={filtering}
-            registerRef={(el) => {
-              inputRefs.current[rowIdx] = el;
-            }}
-            onChange={handleChange}
-            onSave={(key, value) => void saveValue(key, value)}
-            onReset={(key, defaultValue) => void resetValue(key, defaultValue)}
-            onBlur={(key) => void handleBlur(key)}
-            onKeyDown={handleInputKeyDown}
-          />
-        ))}
+        {rows.map((entry, rowIdx) => {
+          const isSensitive = Boolean(entry.sensitive || schemaFor(entry.key)?.sensitive);
+          const secretIsSet = isSensitive && entry.value.length > 0;
+          // Keep the secret input empty so typing produces a clean key (never
+          // appended onto the mask); the "Set" badge signals it's configured.
+          const displayValue = isSensitive
+            ? (edits[entry.key] ?? "")
+            : (edits[entry.key] ?? entry.value);
+          return (
+            <SettingRow
+              key={entry.key}
+              entry={entry}
+              fieldSchema={schemaFor(entry.key)}
+              displayValue={displayValue}
+              rowIdx={rowIdx}
+              saving={saving === entry.key}
+              saved={savedKey === entry.key && saving !== entry.key}
+              secretIsSet={secretIsSet}
+              showSection={filtering}
+              registerRef={(el) => {
+                inputRefs.current[rowIdx] = el;
+              }}
+              onChange={handleChange}
+              onSave={(key, value) => void saveValue(key, value)}
+              onReset={(key, defaultValue) => void resetValue(key, defaultValue)}
+              onBlur={(key) => void handleBlur(key)}
+              onKeyDown={handleInputKeyDown}
+            />
+          );
+        })}
       </div>
 
       <div className="kn-panel-footer">
