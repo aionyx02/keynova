@@ -40,10 +40,13 @@ registrar — migrated last.
   `state.rs` dropped `calculator_manager` from `ManagerBundle`/`create_managers`
   and the explicit `CalculatorHandler` registration, now calls `register_all`.
   Behavior-preserving: 473 tests pass, clippy clean.
-- [ ] `DECOUP.2` Frontend scaffolding + calculator manifest. Add
-  `FeatureManifest` type + an aggregator that folds `manifests[]` into
-  `PanelRegistry` / `GateKey` set / `KIND_BADGE`. Migrate calculator's frontend
-  manifest; other features still register centrally (coexist).
+- [x] `DECOUP.2` Frontend scaffolding + calculator manifest.
+  `features/featureManifest.ts`: `FeatureManifest` type + `FEATURE_MANIFESTS` +
+  `manifestPanels()` / `manifestPanelGates()`. `features/calculator/manifest.ts`
+  owns the calculator panel (lazy) + its panel gate. `PanelRegistry.tsx` and
+  `usePalettePanels.ts` dropped calculator and spread the manifest maps. (Result
+  badges / routes join in DECOUP.5.) Behavior-preserving: lint + tsc clean, 170
+  vitest pass.
 - [ ] `DECOUP.3` Roll out leaf backend features, one batch each: `translation`,
   `notes`, `history`, `system` + `system_monitoring`, `nvim`,
   `learning_material`. Each: move its manager construction + handler + builtin +
