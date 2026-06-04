@@ -16,19 +16,11 @@ import { manifestPanelGates } from "../../featureManifest";
 import type { BuiltinCommandResult } from "../../../hooks/useCommands";
 import type { TerminalLaunchSpec } from "../../../types/terminal";
 
-// Panels gated by a `features.*` flag (panel name → feature). `model`/`setting`/
-// `nvim_download` are intentionally absent: the model panel must stay reachable
-// while AI is off (bootstrap), and setting/nvim are not feature-gated.
-// Un-migrated features are listed here; DECOUP/ADR-0044 manifest features (e.g.
-// calculator) fold in via `manifestPanelGates()`.
-const PANEL_FEATURE: Readonly<Record<string, GateKey>> = {
-  translation: "translation",
-  note: "notes",
-  history: "history",
-  system: "system",
-  system_monitoring: "system",
-  ...manifestPanelGates(),
-};
+// Panel name → gate key, sourced entirely from feature manifests
+// (DECOUP.5 / ADR-0044). `model`/`setting`/`nvim_download` contribute no gate:
+// the model panel must stay reachable while AI is off (bootstrap), and
+// setting/nvim are not feature-gated.
+const PANEL_FEATURE: Readonly<Record<string, GateKey>> = manifestPanelGates();
 
 interface Deps {
   mode: "search" | "command" | "terminal";

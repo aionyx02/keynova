@@ -13,6 +13,12 @@ import type React from "react";
 import type { GateKey } from "../context/FeatureFlagsContext";
 import type { PanelProps } from "../types/panel";
 import { calculatorManifest } from "./calculator/manifest";
+import { historyManifest } from "./history/manifest";
+import { notesManifest } from "./notes/manifest";
+import { nvimManifest } from "./nvim/manifest";
+import { systemManifest } from "./system/manifest";
+import { systemMonitorManifest } from "./system-monitor/manifest";
+import { translationManifest } from "./translation/manifest";
 
 export interface FeatureManifest {
   /** Panels this feature contributes: panel name → lazy component. */
@@ -22,7 +28,15 @@ export interface FeatureManifest {
 }
 
 /** Self-registering frontend features (ADR-0044). */
-export const FEATURE_MANIFESTS: readonly FeatureManifest[] = [calculatorManifest];
+export const FEATURE_MANIFESTS: readonly FeatureManifest[] = [
+  calculatorManifest,
+  translationManifest,
+  notesManifest,
+  historyManifest,
+  systemManifest,
+  systemMonitorManifest,
+  nvimManifest,
+];
 
 /** Merged panel name → component map contributed by all manifests. */
 export function manifestPanels(): Record<string, React.ComponentType<PanelProps>> {

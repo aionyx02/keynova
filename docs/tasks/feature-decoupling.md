@@ -60,9 +60,13 @@ registrar — migrated last.
   namespace guard built from registered `FeatureSpec`s (retire the hand-kept
   `NAMESPACE_FEATURE_GUARDS`); `settings_schema` concatenates per-feature
   fragments.
-- [ ] `DECOUP.5` Roll out remaining frontend manifests; the aggregator array
-  becomes the only per-feature list (retire central `PanelRegistry` /
-  `GateKey` / `KIND_BADGE` hand-lists).
+- [x] `DECOUP.5` Frontend panel rollout. `features/<x>/manifest.ts` for
+  translation / notes / history / system / system-monitor / nvim (panel + gate).
+  `PanelRegistry.tsx` now hand-lists only `setting` + `model` (bootstrap-exempt)
+  and spreads `manifestPanels()`; `usePalettePanels` `PANEL_FEATURE` =
+  `manifestPanelGates()` (no hardcodes left). (Result-badge `KIND_BADGE` for the
+  memory kind stays central — single AI-owned row, not worth a manifest field
+  yet.) Behavior-preserving: lint + tsc clean, 170 vitest pass.
 - [ ] `DECOUP.6` Cross-cutting backend (`search`, `ai_capability`, `agent`):
   consume shared managers via `AssemblyCtx`; search providers (note/history/
   memory/model/command) register through a registrar hook instead of the
