@@ -47,10 +47,15 @@ registrar — migrated last.
   `usePalettePanels.ts` dropped calculator and spread the manifest maps. (Result
   badges / routes join in DECOUP.5.) Behavior-preserving: lint + tsc clean, 170
   vitest pass.
-- [ ] `DECOUP.3` Roll out leaf backend features, one batch each: `translation`,
-  `notes`, `history`, `system` + `system_monitoring`, `nvim`,
-  `learning_material`. Each: move its manager construction + handler + builtin +
-  spec into its `register` fn; drop its lines from the central files.
+- [x] `DECOUP.3` Roll out backend features. `translation` + `system` (leaf —
+  build own manager in `register`), `notes` / `history` / `learning_material`
+  (handler self-registers; shared `note_manager`/`history_manager`/`workspace_manager`
+  come from `AssemblyCtx`), `nvim` + `system_monitoring` (no manager; shared
+  `event_bus`/`config`). `AssemblyCtx` grew the 5 shared handles; `register_all`
+  takes `&ctx`. `state.rs` dropped 7 registrations + the 2 leaf managers from
+  `ManagerBundle`/`create_managers` + 9 imports. Builtin-command + `FeatureSpec`
+  migration deferred (builtins stay central; spec lands with DECOUP.4).
+  Behavior-preserving: 473 tests pass, clippy clean.
 - [ ] `DECOUP.4` Derive cross-cutting central lists from specs: `dispatch.rs`
   namespace guard built from registered `FeatureSpec`s (retire the hand-kept
   `NAMESPACE_FEATURE_GUARDS`); `settings_schema` concatenates per-feature

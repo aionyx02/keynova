@@ -2,6 +2,7 @@ use std::sync::{Arc, Mutex};
 
 use serde_json::{json, Value};
 
+use crate::app::feature_registry::{AssemblyCtx, FeatureRegistrar};
 use crate::core::{CommandHandler, CommandResult};
 use crate::managers::{note_manager::NoteManager, workspace_manager::WorkspaceManager};
 
@@ -33,6 +34,15 @@ impl NoteHandler {
             workspace.remove_note(name);
         }
     }
+}
+
+/// DECOUP.3 (ADR-0044): self-register notes. `note_manager` + `workspace_manager`
+/// are shared (search / agent / local_context / learning), so they come from ctx.
+pub fn register(reg: &mut FeatureRegistrar, ctx: &AssemblyCtx) {
+    reg.handler(Arc::new(NoteHandler::new(
+        Arc::clone(&ctx.note_manager),
+        Arc::clone(&ctx.workspace_manager),
+    )));
 }
 
 impl CommandHandler for NoteHandler {
