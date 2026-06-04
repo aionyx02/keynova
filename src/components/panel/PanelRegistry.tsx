@@ -1,5 +1,6 @@
 import React from "react";
 import type { PanelProps } from "../../types/panel";
+import { manifestPanels } from "../../features/featureManifest";
 
 export type { PanelProps };
 
@@ -21,9 +22,6 @@ const TranslationPanel = React.lazy(() =>
 const NoteEditor = React.lazy(() =>
   import("../../features/notes/NoteEditor").then((m) => ({ default: m.NoteEditor })),
 );
-const CalculatorPanel = React.lazy(() =>
-  import("../../features/calculator/CalculatorPanel").then((m) => ({ default: m.CalculatorPanel })),
-);
 const HistoryPanel = React.lazy(() =>
   import("../../features/history/HistoryPanel").then((m) => ({ default: m.HistoryPanel })),
 );
@@ -39,15 +37,16 @@ const NvimDownloadPanel = React.lazy(() =>
   import("../../features/nvim/NvimDownloadPanel").then((m) => ({ default: m.NvimDownloadPanel })),
 );
 
-/** 將後端回傳的 panel name 對應至 React 元件。新增面板只需在此 Record 加一筆。 */
+/** 將後端回傳的 panel name 對應至 React 元件。尚未遷移的面板列在此；已採用
+ * DECOUP/ADR-0044 manifest 的功能（如 calculator）由 `manifestPanels()` 併入。 */
 export const PanelRegistry: Record<string, React.ComponentType<PanelProps>> = {
   setting: SettingPanel as React.ComponentType<PanelProps>,
   model: ModelPanel,
   translation: TranslationPanel,
   note: NoteEditor,
-  calculator: CalculatorPanel,
   history: HistoryPanel,
   system: SystemPanel,
   system_monitoring: SystemMonitoringPanel,
   nvim_download: NvimDownloadPanel,
+  ...manifestPanels(),
 };
