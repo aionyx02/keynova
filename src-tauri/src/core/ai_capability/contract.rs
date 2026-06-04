@@ -133,4 +133,9 @@ pub struct CapabilityDeps {
     /// When set, the capability emits incremental chunks via this callback in
     /// addition to returning the accumulated reply.
     pub stream_chunk: Option<StreamChunkFn>,
+    /// Privacy boundary (ADR-0043): personal memory is injected into prompts
+    /// only when the resolved provider is local (ollama). The handler sets this
+    /// from `AiRuntimeConfig.provider`; cloud providers leave it `false` so
+    /// personal memory never leaves the device via a cloud prompt.
+    pub allow_memory_grounding: bool,
 }

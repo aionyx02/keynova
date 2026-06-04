@@ -2,7 +2,7 @@
 type: architecture_spec
 status: active
 priority: p1
-updated: 2026-06-03
+updated: 2026-06-04
 context_policy: retrieve_only
 owner: project
 ---
@@ -154,7 +154,8 @@ src-tauri/src/
 │   │   ├── registry.rs         # CapabilityId::{Explain,Summarize,FixError,GenCommand,SuggestNext,Remember,Recall} + static CapabilityMeta {audit, accepts_context_hash} per ADR-0030 §4
 │   │   ├── contract.rs         # CapabilityRequest/Response/Output/Error/Deps; ChatProvider trait (test-stubbable); AiManagerChatProvider production adapter
 │   │   ├── parse.rs            # shared extract_first_json_object for strict-JSON capabilities (gen_command, remember)
-│   │   ├── prompt.rs           # CAPABILITY_PROMPT_BUDGET_CHARS=1400; build_prompt drops context block on overrun; maybe_audit gated by CapabilityMeta.audit
+│   │   ├── prompt.rs           # CAPABILITY_PROMPT_BUDGET_CHARS=1400; build_prompt trims lowest-priority sources from the tail to fit the budget (truncates only if system+task alone overrun); maybe_audit gated by CapabilityMeta.audit
+│   │   ├── memory.rs           # MEM.1.B (ADR-0043): push_memory_sources reads scope="personal" + term_score ranking → ≤3 redacted GroundingSources; gated by CapabilityDeps.allow_memory_grounding (local provider only). term_score reused by recall.rs
 │   │   ├── capabilities/       # one file per capability
 │   │   │   ├── explain.rs           # local_context-grounded explanation; audit=true; risk=none
 │   │   │   ├── summarize.rs         # pure text transform; audit=false; risk=none

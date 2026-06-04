@@ -8,6 +8,7 @@
 
 mod capabilities;
 pub mod contract;
+pub(crate) mod memory;
 pub(crate) mod parse;
 pub mod prompt;
 pub mod registry;

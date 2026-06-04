@@ -2,7 +2,7 @@
 type: task_index
 status: active
 priority: p0
-updated: 2026-06-03
+updated: 2026-06-04
 context_policy: always_retrievable
 owner: project
 tags: [refactor, ai-capability, search-first, p0]
@@ -40,9 +40,9 @@ Detailed batch definitions, done criteria, non-goals, file map, and validation g
 
 ### P1
 
-- [~] `MEM.1` personal-memory layer (ADR-0043 proposed). MEM.1.A capture+recall
-  landed; .B local-only grounding + .C memory-in-search pending. Detail:
-  `docs/tasks/personal-memory.md`.
+- [~] `MEM.1` personal-memory layer (ADR-0043 proposed). .A capture+recall and
+  .B local-only grounding + prompt-budget trim landed; .C memory-in-search
+  pending. Detail: `docs/tasks/personal-memory.md`.
 
 ### P2
 

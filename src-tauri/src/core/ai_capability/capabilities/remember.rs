@@ -215,6 +215,7 @@ mod tests {
             knowledge_store: store,
             cancel: Arc::new(AtomicBool::new(false)),
             stream_chunk: None,
+            allow_memory_grounding: false,
         }
     }
 
