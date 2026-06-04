@@ -3,7 +3,7 @@ use std::sync::{Arc, Mutex};
 
 use serde_json::{json, Value};
 
-use crate::app::feature_registry::{AssemblyCtx, FeatureRegistrar};
+use crate::app::feature_registry::{AssemblyCtx, FeatureRegistrar, FeatureSpec};
 use crate::core::config_manager::ConfigManager;
 use crate::core::{CommandHandler, CommandResult};
 use crate::managers::{
@@ -40,6 +40,10 @@ pub fn register(reg: &mut FeatureRegistrar, ctx: &AssemblyCtx) {
         Arc::clone(&ctx.config),
         Arc::clone(&ctx.note_manager),
     )));
+    reg.spec(FeatureSpec {
+        namespace: "learning_material",
+        flag_key: None,
+    });
 }
 
 impl CommandHandler for LearningMaterialHandler {

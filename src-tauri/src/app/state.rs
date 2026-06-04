@@ -50,6 +50,9 @@ use crate::models::agent::AgentRun;
 
 pub(crate) struct AppState {
     pub(crate) command_router: CommandRouter,
+    /// DECOUP.4: `(namespace, features.* flag)` pairs derived from feature specs;
+    /// the dispatch namespace guard reads this instead of a hand-kept const.
+    pub(crate) feature_namespace_guards: Vec<(&'static str, &'static str)>,
     pub(crate) action_arena: Arc<ActionArena>,
     pub(crate) event_bus: EventBus,
     pub(crate) knowledge_store: KnowledgeStoreHandle,
@@ -257,7 +260,7 @@ fn build_command_router(
     action_arena: &Arc<ActionArena>,
     knowledge_store: &KnowledgeStoreHandle,
     mouse_active: &Arc<AtomicBool>,
-) -> CommandRouter {
+) -> (CommandRouter, Vec<(&'static str, &'static str)>) {
     let builtin_registry = build_builtin_registry(&bundle.config_manager, &bundle.note_manager);
 
     let agent_tantivy_dir = bundle
@@ -367,9 +370,9 @@ fn build_command_router(
         note_manager: Arc::clone(&bundle.note_manager),
         history_manager: Arc::clone(&bundle.history_manager),
     };
-    feature_registry::register_all(&mut router, &assembly_ctx);
+    let feature_namespace_guards = feature_registry::register_all(&mut router, &assembly_ctx);
 
-    router
+    (router, feature_namespace_guards)
 }
 
 impl AppState {
@@ -380,7 +383,7 @@ impl AppState {
         let mouse_active = Arc::new(AtomicBool::new(false));
 
         let bundle = create_managers(&event_bus, &knowledge_store);
-        let command_router = build_command_router(
+        let (command_router, feature_namespace_guards) = build_command_router(
             &bundle,
             &event_bus,
             &action_arena,
@@ -390,6 +393,7 @@ impl AppState {
 
         Self {
             command_router,
+            feature_namespace_guards,
             action_arena,
             event_bus,
             knowledge_store,

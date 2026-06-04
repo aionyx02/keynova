@@ -2,7 +2,7 @@ use std::sync::{Arc, Mutex};
 
 use serde_json::{json, Value};
 
-use crate::app::feature_registry::{AssemblyCtx, FeatureRegistrar};
+use crate::app::feature_registry::{AssemblyCtx, FeatureRegistrar, FeatureSpec};
 use crate::core::{CommandHandler, CommandResult};
 use crate::managers::{note_manager::NoteManager, workspace_manager::WorkspaceManager};
 
@@ -43,6 +43,10 @@ pub fn register(reg: &mut FeatureRegistrar, ctx: &AssemblyCtx) {
         Arc::clone(&ctx.note_manager),
         Arc::clone(&ctx.workspace_manager),
     )));
+    reg.spec(FeatureSpec {
+        namespace: "note",
+        flag_key: Some("features.notes"),
+    });
 }
 
 impl CommandHandler for NoteHandler {

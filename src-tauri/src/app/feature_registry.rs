@@ -30,21 +30,39 @@ pub(crate) struct AssemblyCtx {
     pub history_manager: Arc<Mutex<HistoryManager>>,
 }
 
-/// Collects a feature's contributions during assembly. Currently only handler
-/// registration; builtin commands, search providers, settings fragments, and a
-/// `FeatureSpec` join here in later batches.
+/// A feature's gate metadata (DECOUP.4 / ADR-0044): the IPC namespace it owns and
+/// the `features.*` flag that gates it. `flag_key = None` means always-on (e.g.
+/// nvim, which has no config flag). This is the single source for the dispatch
+/// namespace guard — removing a feature removes its guard automatically.
+pub(crate) struct FeatureSpec {
+    pub namespace: &'static str,
+    pub flag_key: Option<&'static str>,
+}
+
+/// Collects a feature's contributions during assembly: handler registration +
+/// its `FeatureSpec`. (Builtin commands / search providers join in DECOUP.6.)
 pub(crate) struct FeatureRegistrar<'r> {
     router: &'r mut CommandRouter,
+    specs: Vec<FeatureSpec>,
 }
 
 impl<'r> FeatureRegistrar<'r> {
     pub(crate) fn new(router: &'r mut CommandRouter) -> Self {
-        Self { router }
+        Self {
+            router,
+            specs: Vec::new(),
+        }
     }
 
     /// Register an IPC handler for this feature's namespace.
     pub(crate) fn handler(&mut self, handler: Arc<dyn CommandHandler>) -> &mut Self {
         self.router.register(handler);
+        self
+    }
+
+    /// Declare this feature's namespace + gating flag.
+    pub(crate) fn spec(&mut self, spec: FeatureSpec) -> &mut Self {
+        self.specs.push(spec);
         self
     }
 }
@@ -62,10 +80,19 @@ pub(crate) const REGISTRARS: &[fn(&mut FeatureRegistrar, &AssemblyCtx)] = &[
     crate::handlers::system_monitoring::register,
 ];
 
-/// Run every registrar against the router (called from `build_command_router`).
-pub(crate) fn register_all(router: &mut CommandRouter, ctx: &AssemblyCtx) {
+/// Run every registrar against the router and return the `(namespace, flag)`
+/// pairs for features that declare a gating flag — the source for the dispatch
+/// namespace guard (DECOUP.4). Features with `flag_key = None` are omitted.
+pub(crate) fn register_all(
+    router: &mut CommandRouter,
+    ctx: &AssemblyCtx,
+) -> Vec<(&'static str, &'static str)> {
     let mut reg = FeatureRegistrar::new(router);
     for register in REGISTRARS {
         register(&mut reg, ctx);
     }
+    reg.specs
+        .iter()
+        .filter_map(|spec| spec.flag_key.map(|flag| (spec.namespace, flag)))
+        .collect()
 }

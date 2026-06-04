@@ -141,22 +141,17 @@ fn dispatch_command(
     Ok(result)
 }
 
-/// Namespaces fully gated by a `features.*` flag (route prefix → config key).
+/// Maps a route to the `features.*` key gating it, or `None` if ungated. The
+/// `guards` are `(namespace, flag)` pairs derived from feature specs (DECOUP.4),
+/// so the dispatch guard no longer hand-lists features. Matching is on the route
+/// namespace segment, so e.g. `system.` does not catch `system_monitoring.`.
 /// A missing/empty flag means enabled (repo-wide `unwrap_or(true)` idiom); only
 /// an explicit `false` refuses the namespace.
-const NAMESPACE_FEATURE_GUARDS: &[(&str, &str)] = &[
-    ("note.", "features.notes"),
-    ("history.", "features.history"),
-    ("translation.", "features.translation"),
-    ("calculator.", "features.calculator"),
-    ("system.", "features.system"),
-];
-
-/// Maps a route to the `features.*` key gating it, or `None` if ungated.
-fn route_feature_key(route: &str) -> Option<&'static str> {
-    NAMESPACE_FEATURE_GUARDS
+fn route_feature_key<'a>(route: &str, guards: &'a [(&'static str, &'static str)]) -> Option<&'a str> {
+    let ns = route.split('.').next()?;
+    guards
         .iter()
-        .find(|(prefix, _)| route.starts_with(prefix))
+        .find(|(namespace, _)| *namespace == ns)
         .map(|(_, key)| *key)
 }
 
@@ -165,7 +160,7 @@ fn namespace_feature_block(
     route: &str,
     state: &tauri::State<'_, AppState>,
 ) -> Result<Option<String>, IpcError> {
-    let Some(key) = route_feature_key(route) else {
+    let Some(key) = route_feature_key(route, &state.feature_namespace_guards) else {
         return Ok(None);
     };
     let enabled = state
@@ -703,34 +698,50 @@ mod tests {
     use super::*;
     use serde_json::json;
 
+    // Mirrors the `(namespace, flag)` pairs the feature specs derive at assembly
+    // (DECOUP.4); the live guards come from `AppState::feature_namespace_guards`.
+    const TEST_GUARDS: &[(&str, &str)] = &[
+        ("calculator", "features.calculator"),
+        ("translation", "features.translation"),
+        ("system", "features.system"),
+        ("note", "features.notes"),
+        ("history", "features.history"),
+    ];
+
     #[test]
     fn route_feature_key_gates_feature_namespaces() {
-        assert_eq!(route_feature_key("note.save"), Some("features.notes"));
-        assert_eq!(route_feature_key("history.list"), Some("features.history"));
+        assert_eq!(route_feature_key("note.save", TEST_GUARDS), Some("features.notes"));
         assert_eq!(
-            route_feature_key("translation.translate"),
+            route_feature_key("history.list", TEST_GUARDS),
+            Some("features.history")
+        );
+        assert_eq!(
+            route_feature_key("translation.translate", TEST_GUARDS),
             Some("features.translation")
         );
         assert_eq!(
-            route_feature_key("calculator.eval"),
+            route_feature_key("calculator.eval", TEST_GUARDS),
             Some("features.calculator")
         );
-        assert_eq!(route_feature_key("system.shutdown"), Some("features.system"));
+        assert_eq!(
+            route_feature_key("system.shutdown", TEST_GUARDS),
+            Some("features.system")
+        );
     }
 
     #[test]
     fn route_feature_key_leaves_ai_and_core_namespaces_ungated() {
         // AI namespaces gate per-route in their handlers (so `ai.check_setup`
         // stays reachable while AI is off); the dispatch guard must not touch them.
-        assert_eq!(route_feature_key("capability.call"), None);
-        assert_eq!(route_feature_key("ai.check_setup"), None);
-        assert_eq!(route_feature_key("agent.start"), None);
+        assert_eq!(route_feature_key("capability.call", TEST_GUARDS), None);
+        assert_eq!(route_feature_key("ai.check_setup", TEST_GUARDS), None);
+        assert_eq!(route_feature_key("agent.start", TEST_GUARDS), None);
         // Core namespaces are never feature-gated.
-        assert_eq!(route_feature_key("setting.set"), None);
-        assert_eq!(route_feature_key("search.query"), None);
-        assert_eq!(route_feature_key("model.list"), None);
-        // `system_monitoring.*` must not be caught by the `system.` prefix.
-        assert_eq!(route_feature_key("system_monitoring.snapshot"), None);
+        assert_eq!(route_feature_key("setting.set", TEST_GUARDS), None);
+        assert_eq!(route_feature_key("search.query", TEST_GUARDS), None);
+        assert_eq!(route_feature_key("model.list", TEST_GUARDS), None);
+        // `system_monitoring.*` must not be caught by the `system` namespace.
+        assert_eq!(route_feature_key("system_monitoring.snapshot", TEST_GUARDS), None);
     }
 
     #[test]

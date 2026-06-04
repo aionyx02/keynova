@@ -2,7 +2,7 @@ use std::sync::{Arc, Mutex};
 
 use serde_json::{json, Value};
 
-use crate::app::feature_registry::{AssemblyCtx, FeatureRegistrar};
+use crate::app::feature_registry::{AssemblyCtx, FeatureRegistrar, FeatureSpec};
 use crate::core::{CommandHandler, CommandResult};
 use crate::managers::system_manager::SystemManager;
 
@@ -22,6 +22,10 @@ impl SystemControlHandler {
 pub fn register(reg: &mut FeatureRegistrar, _ctx: &AssemblyCtx) {
     let manager = Arc::new(Mutex::new(SystemManager::new()));
     reg.handler(Arc::new(SystemControlHandler::new(manager)));
+    reg.spec(FeatureSpec {
+        namespace: "system",
+        flag_key: Some("features.system"),
+    });
 }
 
 impl CommandHandler for SystemControlHandler {

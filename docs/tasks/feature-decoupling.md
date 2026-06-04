@@ -56,10 +56,15 @@ registrar — migrated last.
   `ManagerBundle`/`create_managers` + 9 imports. Builtin-command + `FeatureSpec`
   migration deferred (builtins stay central; spec lands with DECOUP.4).
   Behavior-preserving: 473 tests pass, clippy clean.
-- [ ] `DECOUP.4` Derive cross-cutting central lists from specs: `dispatch.rs`
-  namespace guard built from registered `FeatureSpec`s (retire the hand-kept
-  `NAMESPACE_FEATURE_GUARDS`); `settings_schema` concatenates per-feature
-  fragments.
+- [x] `DECOUP.4` Spec-derived dispatch guard. `FeatureSpec { namespace,
+  flag_key }` added to the registrar; each `register` declares one. `register_all`
+  returns the `(namespace, flag)` pairs for flagged features; `build_command_router`
+  returns them and `AppState.feature_namespace_guards` stores them; `dispatch.rs`
+  `route_feature_key(route, guards)` matches the route's namespace segment against
+  that runtime list (retired the hand-kept `NAMESPACE_FEATURE_GUARDS` const).
+  Removing a feature now auto-removes its dispatch guard. `settings_schema`
+  fragment derivation deferred (low coupling value, large list). Behavior-
+  preserving: 473 tests pass, clippy clean.
 - [x] `DECOUP.5` Frontend panel rollout. `features/<x>/manifest.ts` for
   translation / notes / history / system / system-monitor / nvim (panel + gate).
   `PanelRegistry.tsx` now hand-lists only `setting` + `model` (bootstrap-exempt)
