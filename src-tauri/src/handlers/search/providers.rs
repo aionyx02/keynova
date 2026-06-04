@@ -24,20 +24,27 @@ impl SearchHandler {
         session: &ActionSession,
         out: &mut Vec<UiSearchItem>,
     ) -> Result<(), String> {
-        self.append_command_results(query, plan.command_limit, session, out)?;
-        // Feature-gated providers (hidden when the feature is off). The model
-        // provider stays ungated so users can configure/download a model before
-        // enabling AI (avoids a bootstrap deadlock).
-        if self.feature_enabled("features.notes") {
-            self.append_note_results(query, plan.note_limit, session, out)?;
+        // Declarative provider chain (DECOUP.6 / ADR-0044): `(provider, limit,
+        // gate)`. Per ADR-0044 §2 `search` stays a cross-cutting consumer — its
+        // providers share the handler's managers rather than being owned by each
+        // feature — but the chain order + feature gating now live in one list, so
+        // a gated provider is a one-line change. `command` self-filters per
+        // command; `model` is ungated (AI-config bootstrap). The gate flags match
+        // the dispatch-guard / `COMMAND_FEATURE_GUARDS` source of truth.
+        type Provider =
+            fn(&SearchHandler, &str, usize, &ActionSession, &mut Vec<UiSearchItem>) -> Result<(), String>;
+        let chain: [(Provider, usize, Option<&str>); 5] = [
+            (SearchHandler::append_command_results, plan.command_limit, None),
+            (SearchHandler::append_note_results, plan.note_limit, Some("features.notes")),
+            (SearchHandler::append_history_results, plan.history_limit, Some("features.history")),
+            (SearchHandler::append_memory_results, plan.memory_limit, Some("features.ai")),
+            (SearchHandler::append_model_results, plan.model_limit, None),
+        ];
+        for (run, limit, gate) in chain {
+            if gate.is_none_or(|flag| self.feature_enabled(flag)) {
+                run(self, query, limit, session, out)?;
+            }
         }
-        if self.feature_enabled("features.history") {
-            self.append_history_results(query, plan.history_limit, session, out)?;
-        }
-        if self.feature_enabled("features.ai") {
-            self.append_memory_results(query, plan.memory_limit, session, out)?;
-        }
-        self.append_model_results(query, plan.model_limit, session, out)?;
         Ok(())
     }
 

@@ -72,10 +72,20 @@ registrar — migrated last.
   `manifestPanelGates()` (no hardcodes left). (Result-badge `KIND_BADGE` for the
   memory kind stays central — single AI-owned row, not worth a manifest field
   yet.) Behavior-preserving: lint + tsc clean, 170 vitest pass.
-- [ ] `DECOUP.6` Cross-cutting backend (`search`, `ai_capability`, `agent`):
-  consume shared managers via `AssemblyCtx`; search providers (note/history/
-  memory/model/command) register through a registrar hook instead of the
-  hard-coded `append_non_file_results` chain. Largest, last.
+- [x] `DECOUP.6` Cross-cutting backend. Scoped to the principled subset: the
+  `search` non-file provider chain is now a **declarative table**
+  (`append_non_file_results`: `(provider, limit, gate)` list driving order +
+  feature gating in one place) instead of scattered `if feature_enabled` calls.
+  Per ADR-0044 §2, `search` / `ai_capability` / `agent` stay **centrally
+  assembled** — they share many managers, so self-registration would violate the
+  "don't force isolation of shared infra" boundary; their providers also stay on
+  `SearchHandler` (shared managers) rather than being owned per-feature.
+  Behavior-preserving: 473 tests pass, clippy clean.
+
+DECOUP complete at unit level. Remaining minor per-feature touchpoints
+(intentionally left central, each a one-line edit): `builtin_cmd` command
+registration + `COMMAND_FEATURE_GUARDS`, `settings_schema` fragments +
+`default_config.toml [features]`, frontend `GateKey` union + `KIND_BADGE`.
 
 ## Non-goals
 
