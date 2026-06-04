@@ -75,7 +75,7 @@ src/
 ├── main.tsx               # React 入口，掛載 <App>
 ├── App.tsx                # 頂層元件，管理 CommandPalette + FloatingWindow
 ├── components/                  # REF.6.H 後僅保留 app shell + legacy fallback
-│   ├── AppContainer.tsx         # IPCProvider + FeatureProvider + ErrorBoundary 組裝
+│   ├── AppContainer.tsx         # IPCProvider + FeatureFlagsProvider + FeatureProvider + ErrorBoundary 組裝（FeatureFlagsProvider = context/FeatureFlagsContext.tsx, FEAT.GATE persisted features.* single source of truth → useFeatureFlags().isEnabled(key); distinct from FeatureContext session lazy-activation）
 │   ├── CommandPalette.tsx       # 核心 UI：搜尋框 + 結果列表（feature 拆分後的主進入點）
 │   ├── AiPanel.tsx              # REF.6.G / REF.7.A / REF.8: ai.legacy_agent=true 時透過 PanelRegistry["ai_legacy"] + /ai_legacy_chat 進入
 │   ├── FloatingWindow.tsx       # 浮動視窗容器
@@ -119,7 +119,7 @@ src-tauri/src/
 ├── main.rs / lib.rs       # Tauri app 入口
 ├── app/
 │   ├── bootstrap.rs       # 初始化流程
-│   ├── dispatch.rs        # IPC 命令分派實作
+│   ├── dispatch.rs        # IPC 命令分派實作。FEAT.GATE: NAMESPACE_FEATURE_GUARDS + namespace_feature_block refuse note/history/translation/calculator/system namespaces when their features.* flag is off (AI namespaces gate per-route in handlers so ai.check_setup/model setup stay reachable).
 │   ├── state.rs           # AppState（全域狀態組裝）
 │   ├── control_server.rs  # 控制伺服器
 │   ├── migration.rs       # 資料遷移
@@ -181,9 +181,9 @@ src-tauri/src/
 │   │   ├── safety.rs           # sanitize_external_query / long_term_memory_opt_in / looks_sensitive_path / resolve_readable_path
 │   │   └── web.rs              # web-search provider abstraction (duckduckgo + tavily + searxng + github trending)
 │   ├── ai.rs / model.rs / translation.rs
-│   ├── ai_capability.rs       # REF.4: capability.* IPC (list/call/cancel). Async worker via thread::spawn; per-request cancel flag; emits capability.response + (when stream=true) capability.stream.chunk events.
+│   ├── ai_capability.rs       # REF.4: capability.* IPC (list/call/cancel). Async worker via thread::spawn; per-request cancel flag; emits capability.response + (when stream=true) capability.stream.chunk events. FEAT.GATE: capability.call refuses when features.ai=false (covers remember/recall); list/cancel ungated.
 │   ├── workflow_memory.rs     # REF.5: workflow.* IPC (recent/suggest). Synchronous read via KnowledgeStoreHandle::recent_workflows_blocking; suggest resolves context_hash server-side.
-│   ├── search.rs              # REF.6.A: search.query IPC now emits UnifiedResult[] (via to_unified_results helper). UiSearchItem stays internal; conversion happens at sync return, stream-init batch, and emit_search_chunk boundaries.
+│   ├── search.rs              # REF.6.A: search.query IPC now emits UnifiedResult[] (via to_unified_results helper). UiSearchItem stays internal; conversion happens at sync return, stream-init batch, and emit_search_chunk boundaries. MEM.1.C: holds config + knowledge_store; providers.rs append_memory_results surfaces scope=personal memories as ResultKind::Memory rows (gated by features.ai); note/history providers gated by their flags.
 │   │   └── search/{icon,ranking,providers}.rs  # REF.9.E: icon/svg render (pub(crate) icon_key_for_item) / scoring+sort / non-file result providers split out
 │   ├── launcher.rs / search.rs / history.rs
 │   ├── hotkey.rs / mouse.rs

@@ -22,17 +22,10 @@ tags: [refactor, ai-capability, search-first, p0]
 - [x] `REF.3` split `handlers/agent/mod.rs` (landed 616 lines, observation target `< 600`).
 - [x] `REF.4` stateless AI capability layer. All 5 capabilities are now live behind one `call_capability` entry: `explain`, `summarize`, `fix_error`, `gen_command`, `suggest_next`.
 - [x] `REF.5` workflow memory schema v4 + `record` / `suggest`.
-- [~] `REF.6` search box = pure dispatcher. Sub-batches:
-  - [x] `REF.6.A` inline AI MVP wire format (UnifiedResult + capability stream); per-row chip + `Ctrl+E` ripped out in `REF.6.B`.
-  - [x] `REF.6.B` prefix dispatcher + `explain` / `summarize` end-to-end (`CapabilityAnswerCard`, `parseCapabilityPrefix`, `usePaletteMode`, `useCapabilityStream`, hint line). Unit tests green; manual `tauri dev` smoke pending.
-  - [x] `REF.6.C` backend `gen_command` + `suggest_next` capabilities + IPC + hooks. Unit tests green; `gen_command` live smoke passed on the local `qwen3:0.6b` model.
-  - [x] `REF.6.D` `fix <error>` prefix wired to `CapabilityAnswerCard`. Backend payload remap (`raw_output` vs `text`) lives in `useCapabilityStream`; UI shares the existing answer card with a new `fix` label. Final manual validation still needs `npm run tauri dev`.
-  - [x] `REF.6.E` `next` prefix + `CapabilityListCard`. Auto-mounts on empty palette. Tauri smoke pending.
-  - [x] `REF.6.F` `cmd <intent>` prefix + `CapabilityCommandCard`. No-result NL queries auto-surface. Tauri smoke pending.
-  - [x] `REF.6.G` palette hot-path mounts + UI-owned confirm — current-state audit confirmed criteria already satisfied by prior batches. Unified `useActionConfirm` hook deferred.
+- [~] `REF.6` search box = pure dispatcher. Sub-batches `A`–`G`, `I`, `J` done
+  (prefix dispatcher + all 5 capabilities + `CapabilityAnswerCard` family +
+  `classifyNlIntent` NL fallback + ADR-0040). Only `REF.6.H` open:
   - [~] `REF.6.H` feature-first directory migration. 11 panels + 3 model panels relocated to `src/features/<feature>/`; 7 shared components moved to `src/shared/components/`. Model-manager tab consolidation deferred.
-  - [x] `REF.6.I` ADR-0040 (proposed) template slimming to 4 sections (ADR-0030 slot was already taken by Backend Risk Tag Contract; reassigned to 0040).
-  - [x] `REF.6.J` rule-based NL intent router (fallback). `classifyNlIntent` routes no-result NL queries to `explain` / `summarize` / `fix` / `cmd` so the user no longer needs the explicit prefix for common asks. Re-uses the existing stabilization debounce + dismissed-key gate; explicit prefixes still take priority.
 - [~] `REF.7` quantitative gates, default `ai.legacy_agent = false`. .A + .B shipped in v0.3.0 (tag `v0.3.0`, merged to `main`). .C release notes shipped as `docs/release-notes/v0.3.0.md`; ADR-0029 §10 measurement scaffolded, `pending REF.7.D`. .D is user-action (`qwen2.5:7b` 4.7 GB bench). Observation-window items (`ai.legacy_agent` off, idle RSS) stay `pending observation`.
 - [~] `REF.8` physical removal. Done: `AiPanel.tsx` + `ai_legacy` route + `ai_legacy_chat` builtin deleted (developer lifted the observation gate 2026-06-01). Retained by developer decision: `agent_runtime.rs` + `handlers/agent/` + `ai.legacy_agent` flag (dormant, no UI entry). Not done: backend agent trim/removal, flag removal, superseding ADRs 0011/0016/0022/0026.
 
@@ -40,9 +33,12 @@ Detailed batch definitions, done criteria, non-goals, file map, and validation g
 
 ### P1
 
-- [~] `MEM.1` personal-memory layer (ADR-0043 proposed). .A capture+recall and
-  .B local-only grounding + prompt-budget trim landed; .C memory-in-search
-  pending. Detail: `docs/tasks/personal-memory.md`.
+- [x] `MEM.1` personal-memory layer (ADR-0043 proposed). .A/.B/.C all landed at
+  unit level. Detail: `docs/tasks/personal-memory.md`.
+- [x] `FEAT.GATE` feature-visibility gating (developer-directed; overrides REF.7
+  freeze). `features.*` gate UI + IPC end-to-end (capability.call, dispatch
+  namespace guard, search providers, frontend `FeatureFlagsContext`); model
+  manager exempt. Detail: `docs/memory/sessions/2026-06-04.md`.
 
 ### P2
 

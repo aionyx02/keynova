@@ -52,6 +52,7 @@ import { useSuggestNext } from "../features/ai-capability/hooks/useSuggestNext";
 import type { CapabilitySurfaceMode } from "../features/command-palette/CapabilityResultArea";
 import { CapabilityHintLine } from "../features/command-palette/CapabilityHintLine";
 import { classifyNlIntent } from "../features/command-palette/utils/classifyNlIntent";
+import { useFeatureFlags } from "../context/FeatureFlagsContext";
 
 const TerminalPanel = React.lazy(() =>
   import("../features/terminal/TerminalPanel").then((m) => ({ default: m.TerminalPanel })),
@@ -205,8 +206,15 @@ export function CommandPalette() {
 
   const { mode, rawInput } = parseInputMode(query);
 
+  // Feature gate: when AI is disabled every inline-AI surface is suppressed.
+  // Gating the three capability sources (explicit prefix, smart-next,
+  // smart-intent) collapses `capabilityMode` to null, which transitively hides
+  // the capability cards, their keyboard nav, and the hint line.
+  const aiEnabled = useFeatureFlags().isEnabled("ai");
+
   const paletteMode = usePaletteMode(query);
-  const explicitCapabilityMode = paletteMode.kind === "capability" ? paletteMode : null;
+  const explicitCapabilityMode =
+    aiEnabled && paletteMode.kind === "capability" ? paletteMode : null;
   const trimmedQuery = query.trim();
   const [smartNextDismissed, setSmartNextDismissed] = useState(false);
   const [smartCommandDismissedKey, setSmartCommandDismissedKey] = useState<string | null>(null);
@@ -219,6 +227,7 @@ export function CommandPalette() {
   }, [explicitCapabilityMode, mode, trimmedQuery]);
 
   const showSmartNext =
+    aiEnabled &&
     explicitCapabilityMode === null &&
     mode === "search" &&
     trimmedQuery === "" &&
@@ -231,6 +240,7 @@ export function CommandPalette() {
   // returned id picks the card variant. The dismissal key intentionally keys
   // on the trimmed query so a different query gets a fresh chance to surface.
   const smartIntentMatch =
+    aiEnabled &&
     explicitCapabilityMode === null &&
     mode === "search" &&
     trimmedQuery !== "" &&
@@ -708,6 +718,7 @@ export function CommandPalette() {
 
   const showCapabilityResult = capabilityMode !== null;
   const showCapabilityHintLine =
+    aiEnabled &&
     paletteMode.kind === "search" &&
     mode === "search" &&
     query === "" &&

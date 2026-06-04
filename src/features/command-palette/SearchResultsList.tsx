@@ -53,6 +53,11 @@ const KIND_BADGE: Record<string, { label: string; cls: string; icon: UiIconName 
     cls: "border-[color:rgba(88,211,166,0.22)] bg-[color:var(--kn-success-wash)] text-[color:var(--kn-success)]",
     icon: "model",
   },
+  memory: {
+    label: "Mem",
+    cls: "border-[color:rgba(138,168,255,0.2)] bg-[color:var(--kn-accent-wash)] text-[color:var(--kn-accent)]",
+    icon: "database",
+  },
 };
 
 function hasEncodingError(s: string | undefined | null): boolean {

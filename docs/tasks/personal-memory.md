@@ -68,10 +68,18 @@ ranking + empty-query; frontend prefix + parser tests.
 
 Detail: `docs/memory/sessions/2026-06-04.md`.
 
-## MEM.1.C — Memory in search results  (pending; largest surface, can defer)
+## MEM.1.C — Memory in search results  (done at unit level)
 
-- Memory search provider emitting a `memory` `UnifiedResult` kind; frontend
-  result-row handling (icon, primary action = expand/paste).
+- `ResultKind::Memory` (additive, serde `"memory"`) + `append_memory_results`
+  in `handlers/search/providers.rs`: reads `scope=personal`, ranks with the
+  shared `term_score`, emits rows. Gated by `features.ai` at the call site
+  (memory follows the AI flag, per developer decision). `SearchHandler` now
+  holds `config` + `knowledge_store`.
+- Frontend: `ResultKind`/`SourceFilter` add `"memory"`; `SearchResultsList`
+  `KIND_BADGE` "Mem" (database icon); `useFileActions.launchResult` pastes the
+  memory content into the query (mirrors the `recall` card).
+
+Detail: `docs/memory/sessions/2026-06-04.md`.
 
 ## Non-goals
 
