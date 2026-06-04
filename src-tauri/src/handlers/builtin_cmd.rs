@@ -22,6 +22,8 @@ pub(crate) const COMMAND_FEATURE_GUARDS: &[(&str, &str)] = &[
     ("note", "features.notes"),
     ("history", "features.history"),
     ("cal", "features.calculator"),
+    ("system", "features.system"),
+    ("system_monitoring", "features.system"),
 ];
 
 pub struct HelpCommand;
