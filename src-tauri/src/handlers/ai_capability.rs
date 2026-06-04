@@ -21,7 +21,7 @@ use crate::core::knowledge_store::KnowledgeStoreHandle;
 use crate::core::local_context::LocalContextSearcher;
 use crate::core::AppEvent;
 use crate::core::{CommandHandler, CommandResult};
-use crate::managers::ai_manager::{resolve_ai_runtime_config, AiManager};
+use crate::managers::ai_manager::{resolve_ai_runtime_config, AiManager, AiProvider};
 
 pub struct AiCapabilityHandler {
     ai: Arc<AiManager>,
@@ -127,6 +127,11 @@ impl AiCapabilityHandler {
             context_hash,
         };
 
+        // Privacy boundary (ADR-0043): personal memory is injected into prompts
+        // only for a local provider. Computed before `runtime` is moved into the
+        // chat provider below.
+        let allow_memory_grounding = matches!(runtime.provider, AiProvider::Ollama { .. });
+
         let chat: Arc<dyn ChatProvider> = Arc::new(AiManagerChatProvider {
             ai: Arc::clone(&self.ai),
             runtime,
@@ -157,6 +162,7 @@ impl AiCapabilityHandler {
                 knowledge_store: Some(knowledge_store),
                 cancel: Arc::clone(&cancel_flag),
                 stream_chunk,
+                allow_memory_grounding,
             };
 
             let event = match ai_capability::call_capability(request, &deps) {

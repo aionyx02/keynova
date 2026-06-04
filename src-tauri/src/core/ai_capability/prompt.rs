@@ -26,18 +26,37 @@ pub const CAPABILITY_SNIPPET_MAX_CHARS: usize = 160;
 /// <user_text>
 /// ```
 ///
-/// Sources beyond `CAPABILITY_PROMPT_SOURCE_LIMIT` are dropped; if the total
-/// exceeds the char budget, the context block is dropped first; if that still
-/// overruns, the result is truncated at the char boundary by
-/// [`crate::core::grounding::truncate`].
+/// Sources beyond `CAPABILITY_PROMPT_SOURCE_LIMIT` are dropped. If the total
+/// exceeds the char budget, the lowest-priority sources (those latest in the
+/// list) are dropped one at a time — preserving the highest-priority context —
+/// until it fits; only when even system + task alone overruns is the result
+/// truncated at the char boundary by [`crate::core::grounding::truncate`].
 pub fn build_prompt(system_preamble: &str, sources: &[GroundingSource], user_text: &str) -> String {
+    let capped: Vec<&GroundingSource> =
+        sources.iter().take(CAPABILITY_PROMPT_SOURCE_LIMIT).collect();
+
+    // Try all capped sources, then progressively fewer (dropping from the tail,
+    // which is lowest priority), keeping the earliest/highest-priority sources.
+    for n in (0..=capped.len()).rev() {
+        let candidate = render(system_preamble, &capped[..n], user_text);
+        if candidate.chars().count() <= CAPABILITY_PROMPT_BUDGET_CHARS {
+            return candidate;
+        }
+    }
+
+    // Even system + task without any context overran: truncate.
+    let bare = render(system_preamble, &[], user_text);
+    truncate(&bare, CAPABILITY_PROMPT_BUDGET_CHARS)
+}
+
+fn render(system_preamble: &str, sources: &[&GroundingSource], user_text: &str) -> String {
     let mut prompt = String::new();
     prompt.push_str(system_preamble.trim());
     prompt.push_str("\n\n");
 
     if !sources.is_empty() {
         prompt.push_str("### Context\n");
-        for s in sources.iter().take(CAPABILITY_PROMPT_SOURCE_LIMIT) {
+        for s in sources {
             prompt.push_str(&format!(
                 "- {}: {}\n",
                 s.title,
@@ -49,19 +68,7 @@ pub fn build_prompt(system_preamble: &str, sources: &[GroundingSource], user_tex
 
     prompt.push_str("### Task\n");
     prompt.push_str(user_text);
-
-    if prompt.chars().count() <= CAPABILITY_PROMPT_BUDGET_CHARS {
-        return prompt;
-    }
-
-    let mut shrunk = String::new();
-    shrunk.push_str(system_preamble.trim());
-    shrunk.push_str("\n\n### Task\n");
-    shrunk.push_str(user_text);
-    if shrunk.chars().count() > CAPABILITY_PROMPT_BUDGET_CHARS {
-        return truncate(&shrunk, CAPABILITY_PROMPT_BUDGET_CHARS);
-    }
-    shrunk
+    prompt
 }
 
 /// Emit an audit entry for a capability call. No-op when `audit_required`
@@ -128,6 +135,21 @@ mod tests {
         let p = build_prompt("sys", &sources, &long_task);
         assert!(p.contains("### Task"));
         assert!(!p.contains("### Context"));
+    }
+
+    #[test]
+    fn build_prompt_trims_sources_incrementally_instead_of_dropping_all() {
+        // A long task plus several large sources: all 6 overrun, but a couple
+        // fit. The context block must survive (trimmed), not be dropped wholesale.
+        let long_task = "x".repeat(1000);
+        let big = "y".repeat(CAPABILITY_SNIPPET_MAX_CHARS);
+        let sources: Vec<_> = (0..6).map(|i| src(&format!("s{i}"), &big)).collect();
+        let p = build_prompt("sys", &sources, &long_task);
+        assert!(p.contains("### Context"), "context should be retained, not dropped");
+        let kept = p.matches("- s").count();
+        assert!((1..6).contains(&kept), "expected partial trim, kept {kept}");
+        assert!(p.chars().count() <= CAPABILITY_PROMPT_BUDGET_CHARS);
+        assert!(p.contains("### Task"));
     }
 
     #[test]

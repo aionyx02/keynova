@@ -83,6 +83,7 @@ mod tests {
             knowledge_store: None,
             cancel: Arc::new(AtomicBool::new(false)),
             stream_chunk: None,
+            allow_memory_grounding: false,
         }
     }
 
@@ -127,6 +128,7 @@ mod tests {
             knowledge_store: None,
             cancel,
             stream_chunk: None,
+            allow_memory_grounding: false,
         };
         assert!(matches!(
             call(req(serde_json::json!({ "text": "hello" })), &d).unwrap_err(),

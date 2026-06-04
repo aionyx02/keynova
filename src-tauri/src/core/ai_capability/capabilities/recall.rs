@@ -11,6 +11,7 @@ use crate::core::ai_capability::capabilities::remember::PERSONAL_MEMORY_SCOPE;
 use crate::core::ai_capability::contract::{
     CapabilityDeps, CapabilityError, CapabilityOutput, CapabilityRequest, CapabilityResponse,
 };
+use crate::core::ai_capability::memory::term_score;
 use crate::core::ai_capability::registry::CapabilityId;
 use crate::models::unified_result::RiskTag;
 
@@ -71,7 +72,7 @@ fn rank(
     let mut scored: Vec<RecalledMemory> = rows
         .into_iter()
         .map(|row| {
-            let score = score_match(query, &row.title, &row.content);
+            let score = term_score(query, &row.title, &row.content);
             RecalledMemory {
                 id: row.id,
                 snippet: snippet_of(&row.content),
@@ -94,24 +95,6 @@ fn rank(
     }
     scored.truncate(limit);
     scored
-}
-
-fn score_match(query: &str, title: &str, content: &str) -> f32 {
-    if query.is_empty() {
-        return 1.0;
-    }
-    let title_l = title.to_lowercase();
-    let content_l = content.to_lowercase();
-    let mut score = 0.0f32;
-    for term in query.split_whitespace() {
-        if title_l.contains(term) {
-            score += 2.0;
-        }
-        if content_l.contains(term) {
-            score += 1.0;
-        }
-    }
-    score
 }
 
 fn snippet_of(content: &str) -> String {
@@ -159,6 +142,7 @@ mod tests {
             knowledge_store: Some(store),
             cancel: Arc::new(AtomicBool::new(false)),
             stream_chunk: None,
+            allow_memory_grounding: false,
         }
     }
 

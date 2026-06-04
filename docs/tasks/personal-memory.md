@@ -53,14 +53,20 @@ Frontend:
 Tests: registry/handler counts; `remember` store roundtrip + fallback; `recall`
 ranking + empty-query; frontend prefix + parser tests.
 
-## MEM.1.B — Local-model personalization + prompt budget  (pending)
+## MEM.1.B — Local-model personalization + prompt budget  (done at unit level)
 
-- `local_context::push_memory_sources(query, sources)` reading `scope=personal`.
-- `CapabilityDeps` grounding flag set from `AiRuntimeConfig.provider == Ollama`
-  in `handlers/ai_capability.rs`; called from `explain` / `fix_error` /
-  `gen_command` only when set. Test: cloud provider injects nothing.
-- `prompt.rs`: over-budget fallback trims lowest-priority sources / truncates
-  per source instead of dropping all context (current 1400-char wholesale drop).
+- `core/ai_capability/memory.rs` (new): `push_memory_sources(store, query,
+  sources)` reads `scope=personal`, term-ranks (shared `term_score`, reused by
+  `recall`), pushes ≤3 redacted `GroundingSource`s. Best-effort.
+- `CapabilityDeps.allow_memory_grounding` set from `runtime.provider ==
+  Ollama` in `handlers/ai_capability.rs`; `explain` / `fix_error` /
+  `gen_command` ground only when set. Cloud-provider omission tested in
+  `explain.rs`.
+- `prompt.rs`: over-budget fallback now drops lowest-priority sources from the
+  tail one at a time (keeps highest-priority context); truncates only when
+  system + task alone overrun. Replaces the wholesale context drop.
+
+Detail: `docs/memory/sessions/2026-06-04.md`.
 
 ## MEM.1.C — Memory in search results  (pending; largest surface, can defer)
 
