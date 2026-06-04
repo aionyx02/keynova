@@ -39,6 +39,11 @@ Detailed batch definitions, done criteria, non-goals, file map, and validation g
   freeze). `features.*` gate UI + IPC end-to-end (capability.call, dispatch
   namespace guard, search providers, frontend `FeatureFlagsContext`); model
   manager exempt. Detail: `docs/memory/sessions/2026-06-04.md`.
+- [~] `DECOUP` feature self-registration decoupling (ADR-0044 proposed;
+  developer-directed). Each feature owns its wiring so removal = delete module +
+  one manifest entry. Behavior-preserving, batch-by-batch (`DECOUP.1`–`.6`),
+  manifest + central wiring coexist during rollout. Detail:
+  `docs/tasks/feature-decoupling.md`.
 
 ### P2
 

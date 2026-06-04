@@ -2,7 +2,7 @@
 type: decision_index
 status: active
 priority: p1
-updated: 2026-06-03
+updated: 2026-06-04
 context_policy: retrieve_only
 owner: project
 ---
@@ -73,6 +73,7 @@ owner: project
 | [0038](adr/0038-currency-online-rates.md)                  | Currency Online Rates Network Boundary                                  | 提議                             | 2026-05-18 |
 | [0040](adr/0040-adr-template-slim.md)                      | ADR Template Slim — 4-Section Default                                   | 提議                             | 2026-05-29 |
 | [0043](adr/0043-personal-memory-capability.md)            | Personal Memory Capability + Local-Only Grounding                       | 提議                             | 2026-06-03 |
+| [0044](adr/0044-feature-self-registration.md)             | Feature Self-Registration Manifest                                      | 提議                             | 2026-06-04 |
 
 ---
 
