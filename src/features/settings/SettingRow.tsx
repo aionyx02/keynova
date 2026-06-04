@@ -22,6 +22,8 @@ interface SettingRowProps {
   rowIdx: number;
   saving: boolean;
   saved: boolean;
+  /** True when this is a sensitive key that already has a stored value. */
+  secretIsSet?: boolean;
   showSection: boolean;
   registerRef: (el: HTMLElement | null) => void;
   onChange: (key: string, value: string) => void;
@@ -54,6 +56,7 @@ export function SettingRow({
   rowIdx,
   saving,
   saved,
+  secretIsSet = false,
   showSection,
   registerRef,
   onChange,
@@ -182,13 +185,27 @@ export function SettingRow({
         onKeyDown={(e) => onKeyDown(e, key, rowIdx, displayValue, isHotkey ? "hotkey" : "text")}
         onBlur={isHotkey ? undefined : () => onBlur(key)}
         placeholder={
-          isHotkey ? "Press the shortcut" : isSecret ? "Enter a new secret value" : undefined
+          isHotkey
+            ? "Press the shortcut"
+            : isSecret
+              ? secretIsSet
+                ? "Saved · type to replace"
+                : "Enter a new secret value"
+              : undefined
         }
         className={`kn-field flex-1 px-2 py-1 text-sm ${isHotkey ? "cursor-pointer" : ""} ${
           saving ? "opacity-60" : ""
         }`}
         spellCheck={false}
       />
+      {isSecret && secretIsSet && !displayValue && (
+        <span
+          className="shrink-0 rounded bg-[color:var(--kn-success-wash)] px-1.5 py-0.5 text-[10px] text-[color:var(--kn-success)]"
+          title="A value is stored in the OS keychain"
+        >
+          Set
+        </span>
+      )}
       {resetButton}
       <StatusBadge saving={saving} saved={saved} />
     </div>

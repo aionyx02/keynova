@@ -344,7 +344,10 @@ mod tests {
             .find(|(key, _, _)| key == "translation.api_key")
             .expect("translation.api_key row");
 
-        assert_eq!(entry.1, "");
+        // A SET secret is masked (not leaked) but non-empty, so the UI can show
+        // it as configured rather than blank.
+        assert_eq!(entry.1, "********");
+        assert!(!entry.1.contains("secret-value"));
         assert!(entry.2);
     }
 }
