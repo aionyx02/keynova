@@ -3,6 +3,7 @@ use std::time::Instant;
 
 use serde_json::json;
 
+use crate::app::feature_registry;
 use crate::core::agent_runtime::AgentArchiveSink;
 use crate::core::config_manager::ConfigManager;
 use crate::core::knowledge_store::AgentArchiveEntry;
@@ -22,7 +23,6 @@ use crate::handlers::{
         NoteCommand, OnboardCommand, RebuildSearchIndexCommand, ReloadCommand, SettingCommand,
         SysCtlCommand, SysMonitorCommand, TrCommand,
     },
-    calculator::CalculatorHandler,
     dev_utils_cmd::{
         B64decCmd, B64encCmd, ColorCmd, CronCmd, HashCmd, JsonCmd, JsonmCmd, JwtCmd, KillPortCmd,
         NanoidCmd, PwCmd, RegexCmd, UrldecCmd, UrlencCmd, UuidCmd,
@@ -48,7 +48,7 @@ use crate::handlers::{
     workspace::WorkspaceHandler,
 };
 use crate::managers::{
-    ai_manager::AiManager, app_manager::AppManager, calculator_manager::CalculatorManager,
+    ai_manager::AiManager, app_manager::AppManager,
     history_manager::HistoryManager, hotkey_manager::HotkeyManager, model_manager::ModelManager,
     mouse_manager::MouseManager, note_manager::NoteManager, search_manager::SearchManager,
     search_service::SearchService, system_manager::SystemManager,
@@ -82,7 +82,6 @@ struct ManagerBundle {
     hotkey_manager: Arc<Mutex<HotkeyManager>>,
     mouse_manager: Arc<Mutex<MouseManager>>,
     system_manager: Arc<Mutex<SystemManager>>,
-    calculator_manager: Arc<Mutex<CalculatorManager>>,
     workspace_manager: Arc<Mutex<WorkspaceManager>>,
     model_manager: Arc<ModelManager>,
     note_manager: Arc<Mutex<NoteManager>>,
@@ -123,7 +122,6 @@ fn create_managers(event_bus: &EventBus, knowledge_store: &KnowledgeStoreHandle)
     let hotkey_manager = Arc::new(Mutex::new(HotkeyManager::new()));
     let mouse_manager = Arc::new(Mutex::new(MouseManager::new()));
     let system_manager = Arc::new(Mutex::new(SystemManager::new()));
-    let calculator_manager = Arc::new(Mutex::new(CalculatorManager::new()));
     let workspace_manager = Arc::new(Mutex::new(WorkspaceManager::new()));
     let model_manager = Arc::new(ModelManager::new());
 
@@ -207,7 +205,6 @@ fn create_managers(event_bus: &EventBus, knowledge_store: &KnowledgeStoreHandle)
         hotkey_manager,
         mouse_manager,
         system_manager,
-        calculator_manager,
         workspace_manager,
         model_manager,
         note_manager,
@@ -338,9 +335,6 @@ fn build_command_router(
     router.register(Arc::new(SettingHandler::new(Arc::clone(
         &bundle.config_manager,
     ))));
-    router.register(Arc::new(CalculatorHandler::new(Arc::clone(
-        &bundle.calculator_manager,
-    ))));
     router.register(Arc::new(WorkspaceHandler::new(Arc::clone(
         &bundle.workspace_manager,
     ))));
@@ -407,6 +401,11 @@ fn build_command_router(
             workspace_manager: Arc::clone(&bundle.workspace_manager),
         },
     )));
+
+    // DECOUP (ADR-0044): self-registering feature modules. Migrated features
+    // wire themselves here instead of being hand-listed above.
+    feature_registry::register_all(&mut router);
+
     router
 }
 
