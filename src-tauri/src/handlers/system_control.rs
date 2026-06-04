@@ -2,6 +2,7 @@ use std::sync::{Arc, Mutex};
 
 use serde_json::{json, Value};
 
+use crate::app::feature_registry::{AssemblyCtx, FeatureRegistrar};
 use crate::core::{CommandHandler, CommandResult};
 use crate::managers::system_manager::SystemManager;
 
@@ -14,6 +15,13 @@ impl SystemControlHandler {
     pub fn new(manager: Arc<Mutex<SystemManager>>) -> Self {
         Self { manager }
     }
+}
+
+/// DECOUP.3 (ADR-0044): self-register system control. Leaf — builds its own
+/// manager and needs nothing from ctx.
+pub fn register(reg: &mut FeatureRegistrar, _ctx: &AssemblyCtx) {
+    let manager = Arc::new(Mutex::new(SystemManager::new()));
+    reg.handler(Arc::new(SystemControlHandler::new(manager)));
 }
 
 impl CommandHandler for SystemControlHandler {

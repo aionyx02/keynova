@@ -3,6 +3,7 @@ use std::sync::{Arc, Mutex};
 
 use serde_json::{json, Value};
 
+use crate::app::feature_registry::{AssemblyCtx, FeatureRegistrar};
 use crate::core::config_manager::ConfigManager;
 use crate::core::{CommandHandler, CommandResult};
 use crate::managers::{
@@ -30,6 +31,15 @@ impl LearningMaterialHandler {
         let config = self.config.lock().map_err(|e| e.to_string())?;
         Ok(LearningMaterialManager::from_config(&config))
     }
+}
+
+/// DECOUP.3 (ADR-0044): self-register learning material. Uses shared `config` +
+/// `note_manager` from ctx (note storage is shared with notes/search/agent).
+pub fn register(reg: &mut FeatureRegistrar, ctx: &AssemblyCtx) {
+    reg.handler(Arc::new(LearningMaterialHandler::new(
+        Arc::clone(&ctx.config),
+        Arc::clone(&ctx.note_manager),
+    )));
 }
 
 impl CommandHandler for LearningMaterialHandler {
