@@ -8,6 +8,7 @@ use serde_json::json;
 
 use crate::core::action_registry::ActionSession;
 use crate::core::ai_capability::memory::{term_score, PERSONAL_MEMORY_SCOPE};
+use crate::handlers::builtin_cmd::COMMAND_FEATURE_GUARDS;
 use crate::managers::model_manager::HardwareInfo;
 use crate::models::action::{Action, ScoreBreakdown, UiSearchItem};
 use crate::models::search_result::ResultKind;
@@ -53,6 +54,15 @@ impl SearchHandler {
             .list()
             .into_iter()
             .filter_map(|meta| {
+                // FEAT.GATE fix: hide a disabled feature's command from search so
+                // its visibility matches executability (the builtin handler also
+                // refuses it). Same source of truth as the handler guard.
+                if COMMAND_FEATURE_GUARDS
+                    .iter()
+                    .any(|&(name, flag)| name == meta.name && !self.feature_enabled(flag))
+                {
+                    return None;
+                }
                 let score = command_match_score(meta.name, meta.description, &q)?;
                 Some((meta, score))
             })
