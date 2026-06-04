@@ -4,7 +4,7 @@ import type { SettingEntry, SettingSchema } from "./settingTypes";
 export type SettingControlKind = "text" | "hotkey" | "toggle" | "select";
 
 const FEATURE_DESCRIPTIONS: Record<string, string> = {
-  "features.ai": "需要 Ollama 或 API Key",
+  "features.ai": "行內 AI（explain / summarize / cmd / 記憶搜尋），需 Ollama 或 API Key",
   "features.agent": "需要 Ollama 或支援工具呼叫的模型",
   "features.translation": "Google Cloud Translation API（需 API key）",
   "features.notes": "內建筆記與 LazyVim 整合",

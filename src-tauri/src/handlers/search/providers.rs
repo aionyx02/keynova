@@ -7,6 +7,7 @@
 use serde_json::json;
 
 use crate::core::action_registry::ActionSession;
+use crate::core::ai_capability::memory::{term_score, PERSONAL_MEMORY_SCOPE};
 use crate::managers::model_manager::HardwareInfo;
 use crate::models::action::{Action, ScoreBreakdown, UiSearchItem};
 use crate::models::search_result::ResultKind;
@@ -23,8 +24,18 @@ impl SearchHandler {
         out: &mut Vec<UiSearchItem>,
     ) -> Result<(), String> {
         self.append_command_results(query, plan.command_limit, session, out)?;
-        self.append_note_results(query, plan.note_limit, session, out)?;
-        self.append_history_results(query, plan.history_limit, session, out)?;
+        // Feature-gated providers (hidden when the feature is off). The model
+        // provider stays ungated so users can configure/download a model before
+        // enabling AI (avoids a bootstrap deadlock).
+        if self.feature_enabled("features.notes") {
+            self.append_note_results(query, plan.note_limit, session, out)?;
+        }
+        if self.feature_enabled("features.history") {
+            self.append_history_results(query, plan.history_limit, session, out)?;
+        }
+        if self.feature_enabled("features.ai") {
+            self.append_memory_results(query, plan.memory_limit, session, out)?;
+        }
         self.append_model_results(query, plan.model_limit, session, out)?;
         Ok(())
     }
@@ -160,6 +171,68 @@ impl SearchHandler {
                 kind: ResultKind::History,
                 name: snippet,
                 path: format!("history://{}", entry.id),
+                score_breakdown: ScoreBreakdown::default(),
+            };
+            self.apply_rank_boost(&mut item);
+            out.push(item);
+        }
+        Ok(())
+    }
+
+    /// MEM.1.C — surface stored personal memories (scope=`personal`) as search
+    /// rows. Gated by `features.ai` at the call site. Ranking reuses the
+    /// capability layer's `term_score` so a memory ranks here the same way it
+    /// would under the `recall` card. Best-effort: store errors yield no rows.
+    fn append_memory_results(
+        &self,
+        query: &str,
+        limit: usize,
+        session: &ActionSession,
+        out: &mut Vec<UiSearchItem>,
+    ) -> Result<(), String> {
+        // Personal memories are stored workspace-agnostic (`workspace_id = None`),
+        // mirroring `recall` and the grounding reader.
+        let rows = self
+            .knowledge_store
+            .agent_memories_blocking(Some(PERSONAL_MEMORY_SCOPE.to_string()), None, 50)
+            .unwrap_or_default();
+
+        let q = query.trim().to_lowercase();
+        let mut scored: Vec<(f32, crate::core::knowledge_store::AgentMemoryEntry)> = rows
+            .into_iter()
+            .map(|row| (term_score(&q, &row.title, &row.content), row))
+            .collect();
+        if !q.is_empty() {
+            scored.retain(|(s, _)| *s > 0.0);
+            scored.sort_by(|a, b| b.0.partial_cmp(&a.0).unwrap_or(std::cmp::Ordering::Equal));
+        }
+
+        for (_, row) in scored.into_iter().take(limit) {
+            // One-line content carried in `subtitle` for both display and the
+            // frontend "paste into query" action (memory rows are short).
+            let content_line = row.content.replace('\n', " ");
+            // The frontend short-circuits memory rows to paste `subtitle` into the
+            // query; this benign route only runs if that path ever regresses.
+            let action = Action::command_route(
+                format!("memory:{}", row.id),
+                "Paste",
+                "search.record_selection",
+                json!({ "source": "memory", "path": format!("memory://{}", row.id) }),
+            );
+            let action_ref = self.action_arena.insert(session, action)?;
+            let mut item = UiSearchItem {
+                item_ref: action_ref.clone(),
+                title: row.title.clone(),
+                subtitle: content_line,
+                source: "memory".into(),
+                score: 68,
+                icon_key: Some("memory".into()),
+                primary_action: action_ref,
+                primary_action_label: "Paste".into(),
+                secondary_action_count: 0,
+                kind: ResultKind::Memory,
+                name: row.title,
+                path: format!("memory://{}", row.id),
                 score_breakdown: ScoreBreakdown::default(),
             };
             self.apply_rank_boost(&mut item);

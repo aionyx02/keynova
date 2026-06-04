@@ -316,6 +316,8 @@ fn build_command_router(
         history_manager: Arc::clone(&bundle.history_manager),
         workspace_manager: Arc::clone(&bundle.workspace_manager),
         model_manager: Arc::clone(&bundle.model_manager),
+        config: Arc::clone(&bundle.config_manager),
+        knowledge_store: knowledge_store.clone(),
         event_bus: event_bus.clone(),
         search_service: SearchService::new(),
     })));

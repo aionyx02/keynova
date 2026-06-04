@@ -101,6 +101,15 @@ fn dispatch_command(
         return run_builtin_control_command(app, name);
     }
 
+    // Feature-visibility gate: refuse a disabled feature's whole IPC namespace.
+    // The AI namespaces (`capability`/`ai`/`agent`) are intentionally absent —
+    // they gate per-route in their handlers so model-setup routes
+    // (`ai.check_setup`, `capability.list`) stay reachable while AI is off,
+    // avoiding a model-configuration bootstrap deadlock.
+    if let Some(reason) = namespace_feature_block(route, state)? {
+        return Err(IpcError::handler(route, reason));
+    }
+
     let before = should_apply_config_after_dispatch(route, &payload)
         .then(|| {
             state
@@ -130,6 +139,44 @@ fn dispatch_command(
         .map_err(|e| IpcError::handler("terminal.register_launch", e))?;
 
     Ok(result)
+}
+
+/// Namespaces fully gated by a `features.*` flag (route prefix → config key).
+/// A missing/empty flag means enabled (repo-wide `unwrap_or(true)` idiom); only
+/// an explicit `false` refuses the namespace.
+const NAMESPACE_FEATURE_GUARDS: &[(&str, &str)] = &[
+    ("note.", "features.notes"),
+    ("history.", "features.history"),
+    ("translation.", "features.translation"),
+    ("calculator.", "features.calculator"),
+    ("system.", "features.system"),
+];
+
+/// Maps a route to the `features.*` key gating it, or `None` if ungated.
+fn route_feature_key(route: &str) -> Option<&'static str> {
+    NAMESPACE_FEATURE_GUARDS
+        .iter()
+        .find(|(prefix, _)| route.starts_with(prefix))
+        .map(|(_, key)| *key)
+}
+
+/// Returns `Some(reason)` when `route` belongs to a disabled feature namespace.
+fn namespace_feature_block(
+    route: &str,
+    state: &tauri::State<'_, AppState>,
+) -> Result<Option<String>, IpcError> {
+    let Some(key) = route_feature_key(route) else {
+        return Ok(None);
+    };
+    let enabled = state
+        ._config_manager
+        .lock()
+        .map_err(|e| IpcError::state_lock("config_manager", e.to_string()))?
+        .get(key)
+        .as_deref()
+        .map(|v| !v.eq_ignore_ascii_case("false"))
+        .unwrap_or(true);
+    Ok((!enabled).then(|| format!("{key} 功能已停用。請前往 /setting → Features 開啟。")))
 }
 
 fn register_terminal_launch_from_response(value: &Value, state: &AppState) -> Result<(), String> {
@@ -655,6 +702,36 @@ fn truncate_workflow_label(value: String, max_chars: usize) -> String {
 mod tests {
     use super::*;
     use serde_json::json;
+
+    #[test]
+    fn route_feature_key_gates_feature_namespaces() {
+        assert_eq!(route_feature_key("note.save"), Some("features.notes"));
+        assert_eq!(route_feature_key("history.list"), Some("features.history"));
+        assert_eq!(
+            route_feature_key("translation.translate"),
+            Some("features.translation")
+        );
+        assert_eq!(
+            route_feature_key("calculator.eval"),
+            Some("features.calculator")
+        );
+        assert_eq!(route_feature_key("system.shutdown"), Some("features.system"));
+    }
+
+    #[test]
+    fn route_feature_key_leaves_ai_and_core_namespaces_ungated() {
+        // AI namespaces gate per-route in their handlers (so `ai.check_setup`
+        // stays reachable while AI is off); the dispatch guard must not touch them.
+        assert_eq!(route_feature_key("capability.call"), None);
+        assert_eq!(route_feature_key("ai.check_setup"), None);
+        assert_eq!(route_feature_key("agent.start"), None);
+        // Core namespaces are never feature-gated.
+        assert_eq!(route_feature_key("setting.set"), None);
+        assert_eq!(route_feature_key("search.query"), None);
+        assert_eq!(route_feature_key("model.list"), None);
+        // `system_monitoring.*` must not be caught by the `system.` prefix.
+        assert_eq!(route_feature_key("system_monitoring.snapshot"), None);
+    }
 
     #[test]
     fn workflow_label_for_cmd_payload_keeps_args() {

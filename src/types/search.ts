@@ -1,4 +1,12 @@
-export type ResultKind = "app" | "file" | "folder" | "command" | "note" | "history" | "model";
+export type ResultKind =
+  | "app"
+  | "file"
+  | "folder"
+  | "command"
+  | "note"
+  | "history"
+  | "model"
+  | "memory";
 
 export interface ActionRef {
   id: string;
@@ -32,7 +40,7 @@ export interface SearchResult {
 }
 
 /** Set of source-type filter chips applied client-side. */
-export type SourceFilter = "app" | "file" | "command" | "note" | "history" | "model";
+export type SourceFilter = "app" | "file" | "command" | "note" | "history" | "model" | "memory";
 
 /** Result of `file.preview` IPC. */
 export interface FilePreviewResult {

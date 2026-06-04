@@ -144,6 +144,13 @@ export function useFileActions(deps: UseFileActionsDeps): UseFileActions {
 
   const launchResult = useCallback(
     async (result: SearchResult) => {
+      // Memory rows (MEM.1.C) paste their content into the query instead of
+      // running a backend action — mirrors the `recall` card's paste affordance.
+      if (result.kind === "memory") {
+        setQuery(result.subtitle ?? result.name ?? "");
+        flashCopyHint("Pasted memory");
+        return;
+      }
       try {
         await dispatch(IPC.SEARCH_RECORD_SELECTION, {
           source: result.source ?? result.kind,
@@ -175,7 +182,7 @@ export function useFileActions(deps: UseFileActionsDeps): UseFileActions {
     },
     // dispatch is intentionally omitted — useIPC returns a fresh wrapper each render.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [setCmdResult, setQuery, setResults],
+    [setCmdResult, setQuery, setResults, flashCopyHint],
   );
 
   const handleSecondaryAction = useCallback(

@@ -5,6 +5,8 @@ use std::time::{Duration, Instant};
 
 use serde_json::{json, Value};
 
+use crate::core::config_manager::ConfigManager;
+use crate::core::knowledge_store::KnowledgeStoreHandle;
 use crate::core::{
     observability, ActionArena, AppEvent, BuiltinCommandRegistry, CommandHandler, CommandResult,
     EventBus,
@@ -51,6 +53,7 @@ const COMMAND_LIMIT: usize = 8;
 const NOTE_LIMIT: usize = 8;
 const HISTORY_LIMIT: usize = 12;
 const MODEL_LIMIT: usize = 6;
+const MEMORY_LIMIT: usize = 6;
 
 #[derive(Debug, Clone)]
 struct SearchPlan {
@@ -61,6 +64,7 @@ struct SearchPlan {
     note_limit: usize,
     history_limit: usize,
     model_limit: usize,
+    memory_limit: usize,
     file_limit: usize,
 }
 
@@ -75,6 +79,7 @@ impl SearchPlan {
             note_limit: NOTE_LIMIT,
             history_limit: HISTORY_LIMIT,
             model_limit: MODEL_LIMIT,
+            memory_limit: MEMORY_LIMIT,
             file_limit: display_limit.saturating_mul(FILE_LIMIT_MULTIPLIER).max(120),
         }
     }
@@ -89,6 +94,8 @@ pub struct SearchHandler {
     history_manager: Arc<Mutex<HistoryManager>>,
     workspace_manager: Arc<Mutex<crate::managers::workspace_manager::WorkspaceManager>>,
     model_manager: Arc<ModelManager>,
+    config: Arc<Mutex<ConfigManager>>,
+    knowledge_store: KnowledgeStoreHandle,
     event_bus: EventBus,
     search_service: Arc<SearchService>,
 }
@@ -101,6 +108,8 @@ pub struct SearchHandlerDeps {
     pub history_manager: Arc<Mutex<HistoryManager>>,
     pub workspace_manager: Arc<Mutex<crate::managers::workspace_manager::WorkspaceManager>>,
     pub model_manager: Arc<ModelManager>,
+    pub config: Arc<Mutex<ConfigManager>>,
+    pub knowledge_store: KnowledgeStoreHandle,
     pub event_bus: EventBus,
     pub search_service: Arc<SearchService>,
 }
@@ -115,9 +124,23 @@ impl SearchHandler {
             history_manager: deps.history_manager,
             workspace_manager: deps.workspace_manager,
             model_manager: deps.model_manager,
+            config: deps.config,
+            knowledge_store: deps.knowledge_store,
             event_bus: deps.event_bus,
             search_service: deps.search_service,
         }
+    }
+
+    /// Reads a `features.*` flag. Missing/empty ⇒ enabled (matches the repo-wide
+    /// `unwrap_or(true)` idiom); only an explicit `false` disables.
+    fn feature_enabled(&self, key: &str) -> bool {
+        self.config
+            .lock()
+            .ok()
+            .and_then(|cfg| cfg.get(key))
+            .as_deref()
+            .map(|v| !v.eq_ignore_ascii_case("false"))
+            .unwrap_or(true)
     }
 }
 
@@ -547,6 +570,9 @@ impl SearchHandler {
                     ResultKind::Note => "note",
                     ResultKind::History => "history",
                     ResultKind::Model => "model",
+                    // Memory rows are built by the memory provider, not here, but
+                    // the match must stay exhaustive.
+                    ResultKind::Memory => "memory",
                 };
                 let source = source.to_string();
                 let icon_key = icon_key_for_item(&source, &result.path, &result.kind);

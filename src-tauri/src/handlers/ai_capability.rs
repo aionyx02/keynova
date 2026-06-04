@@ -109,9 +109,19 @@ impl AiCapabilityHandler {
             .and_then(Value::as_bool)
             .unwrap_or(false);
 
-        // Resolve provider config now so we fail fast before spawning.
+        // Resolve provider config now so we fail fast before spawning. The same
+        // lock also gates the whole inline-AI surface on `features.ai` (the new
+        // capability layer was previously ungated); mirrors `handlers/ai.rs`.
         let runtime = {
             let cfg = self.config.lock().map_err(|e| e.to_string())?;
+            let enabled = cfg
+                .get("features.ai")
+                .as_deref()
+                .map(|v| !v.eq_ignore_ascii_case("false"))
+                .unwrap_or(true);
+            if !enabled {
+                return Err("AI 功能已停用。請前往 /setting → Features 開啟。".into());
+            }
             resolve_ai_runtime_config(|key| cfg.get(key))?
         };
 

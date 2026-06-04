@@ -1,5 +1,6 @@
 import { IPCProvider } from "../context/IPCContext";
 import { FeatureProvider } from "../context/FeatureContext";
+import { FeatureFlagsProvider } from "../context/FeatureFlagsContext";
 import { CommandPalette } from "./CommandPalette";
 import { ErrorBoundary } from "../shared/components/ErrorBoundary";
 
@@ -7,9 +8,11 @@ export function AppContainer() {
   const palette = (
     <ErrorBoundary>
       <IPCProvider>
-        <FeatureProvider>
-          <CommandPalette />
-        </FeatureProvider>
+        <FeatureFlagsProvider>
+          <FeatureProvider>
+            <CommandPalette />
+          </FeatureProvider>
+        </FeatureFlagsProvider>
       </IPCProvider>
     </ErrorBoundary>
   );

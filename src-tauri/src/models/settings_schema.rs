@@ -233,7 +233,7 @@ pub fn builtin_setting_schema() -> Vec<SettingSchema> {
         SettingSchema::new(
             "features.ai",
             "features",
-            "AI Chat & Assistant",
+            "AI Assistant (inline)",
             Boolean,
             "false",
             false,

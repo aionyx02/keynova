@@ -11,8 +11,21 @@
 // into one hook keeps the lookup table close to the panel registry.
 
 import { PanelRegistry } from "../../../components/panel/PanelRegistry";
+import { useFeatureFlags, type GateKey } from "../../../context/FeatureFlagsContext";
 import type { BuiltinCommandResult } from "../../../hooks/useCommands";
 import type { TerminalLaunchSpec } from "../../../types/terminal";
+
+// Panels gated by a `features.*` flag (panel name → feature). `model`/`setting`/
+// `nvim_download` are intentionally absent: the model panel must stay reachable
+// while AI is off (bootstrap), and setting/nvim are not feature-gated.
+const PANEL_FEATURE: Readonly<Record<string, GateKey>> = {
+  translation: "translation",
+  note: "notes",
+  calculator: "calculator",
+  history: "history",
+  system: "system",
+  system_monitoring: "system",
+};
 
 interface Deps {
   mode: "search" | "command" | "terminal";
@@ -47,7 +60,14 @@ export function usePalettePanels({
       : liveTranslationPanel
         ? "translation"
         : "";
-  const PanelComponent = activePanelName ? (PanelRegistry[activePanelName] ?? null) : null;
+  // Defense in depth: refuse a disabled feature's panel even if a Panel result
+  // reaches the frontend (backend builtins + the dispatch namespace guard are
+  // the primary gates).
+  const { isEnabled } = useFeatureFlags();
+  const gatedFeature = PANEL_FEATURE[activePanelName];
+  const panelBlocked = gatedFeature !== undefined && !isEnabled(gatedFeature);
+  const PanelComponent =
+    activePanelName && !panelBlocked ? (PanelRegistry[activePanelName] ?? null) : null;
   const panelInitialArgs =
     cmdResult?.ui_type.type === "Panel" ? cmdResult.text : liveTranslationPanel ? cmdArgs : "";
   const terminalLaunchSpec: TerminalLaunchSpec | null =

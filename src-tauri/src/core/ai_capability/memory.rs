@@ -7,7 +7,10 @@
 //! leaves the device via a cloud prompt. `visibility_filtered_source` still
 //! redacts secret-shaped content as a second line of defence.
 
-use crate::core::ai_capability::capabilities::remember::PERSONAL_MEMORY_SCOPE;
+// Re-exported at crate visibility so crate-external readers (e.g. the search
+// memory provider) can reach the personal-memory scope without the private
+// `capabilities` module path.
+pub(crate) use crate::core::ai_capability::capabilities::remember::PERSONAL_MEMORY_SCOPE;
 use crate::core::grounding::visibility_filtered_source;
 use crate::core::knowledge_store::KnowledgeStoreHandle;
 use crate::models::agent::GroundingSource;
