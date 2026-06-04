@@ -2,7 +2,7 @@ use std::sync::{Arc, Mutex};
 
 use serde_json::{json, Value};
 
-use crate::app::feature_registry::{AssemblyCtx, FeatureRegistrar};
+use crate::app::feature_registry::{AssemblyCtx, FeatureRegistrar, FeatureSpec};
 use crate::core::{CommandHandler, CommandResult};
 use crate::managers::calculator_manager::CalculatorManager;
 
@@ -23,6 +23,10 @@ impl CalculatorHandler {
 pub fn register(reg: &mut FeatureRegistrar, _ctx: &AssemblyCtx) {
     let manager = Arc::new(Mutex::new(CalculatorManager::new()));
     reg.handler(Arc::new(CalculatorHandler::new(manager)));
+    reg.spec(FeatureSpec {
+        namespace: "calculator",
+        flag_key: Some("features.calculator"),
+    });
 }
 
 impl CommandHandler for CalculatorHandler {

@@ -2,7 +2,7 @@ use std::sync::{Arc, Mutex};
 
 use serde_json::{json, Value};
 
-use crate::app::feature_registry::{AssemblyCtx, FeatureRegistrar};
+use crate::app::feature_registry::{AssemblyCtx, FeatureRegistrar, FeatureSpec};
 use crate::core::{CommandHandler, CommandResult};
 use crate::managers::history_manager::HistoryManager;
 
@@ -21,6 +21,10 @@ impl HistoryHandler {
 /// (search / agent), so it comes from ctx.
 pub fn register(reg: &mut FeatureRegistrar, ctx: &AssemblyCtx) {
     reg.handler(Arc::new(HistoryHandler::new(Arc::clone(&ctx.history_manager))));
+    reg.spec(FeatureSpec {
+        namespace: "history",
+        flag_key: Some("features.history"),
+    });
 }
 
 impl CommandHandler for HistoryHandler {

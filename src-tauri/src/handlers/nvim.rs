@@ -2,7 +2,7 @@ use std::sync::{Arc, Mutex};
 
 use serde_json::{json, Value};
 
-use crate::app::feature_registry::{AssemblyCtx, FeatureRegistrar};
+use crate::app::feature_registry::{AssemblyCtx, FeatureRegistrar, FeatureSpec};
 use crate::core::config_manager::ConfigManager;
 use crate::core::{AppEvent, CommandHandler, CommandResult, EventBus};
 use crate::managers::portable_nvim_manager;
@@ -25,6 +25,10 @@ pub fn register(reg: &mut FeatureRegistrar, ctx: &AssemblyCtx) {
         Arc::new(ctx.event_bus.clone()),
         Arc::clone(&ctx.config),
     )));
+    reg.spec(FeatureSpec {
+        namespace: "nvim",
+        flag_key: None,
+    });
 }
 
 impl CommandHandler for NvimHandler {

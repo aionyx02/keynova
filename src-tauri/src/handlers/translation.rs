@@ -2,7 +2,7 @@ use std::sync::{Arc, Mutex};
 
 use serde_json::{json, Value};
 
-use crate::app::feature_registry::{AssemblyCtx, FeatureRegistrar};
+use crate::app::feature_registry::{AssemblyCtx, FeatureRegistrar, FeatureSpec};
 use crate::core::config_manager::ConfigManager;
 use crate::core::network_policy::{allowlist_from_config, enforce_known_endpoint};
 use crate::core::{CommandHandler, CommandResult};
@@ -52,6 +52,10 @@ pub fn register(reg: &mut FeatureRegistrar, ctx: &AssemblyCtx) {
         manager,
         Arc::clone(&ctx.config),
     )));
+    reg.spec(FeatureSpec {
+        namespace: "translation",
+        flag_key: Some("features.translation"),
+    });
 }
 
 impl CommandHandler for TranslationHandler {
