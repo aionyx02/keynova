@@ -1,5 +1,5 @@
-import { render, screen } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import { fireEvent, render, screen } from "@testing-library/react";
+import { describe, expect, it, vi } from "vitest";
 
 import { CapabilityHintLine } from "./CapabilityHintLine";
 
@@ -9,18 +9,25 @@ describe("CapabilityHintLine", () => {
     expect(container.firstChild).toBeNull();
   });
 
-  it("renders all five prefix hints when visible=true", () => {
+  it("renders quick-start prefix hints when visible=true", () => {
     render(<CapabilityHintLine visible={true} />);
-    expect(screen.getByText("explain")).not.toBeNull();
-    expect(screen.getByText("summarize")).not.toBeNull();
-    expect(screen.getByText("cmd")).not.toBeNull();
-    expect(screen.getByText("fix")).not.toBeNull();
-    expect(screen.getByText("next")).not.toBeNull();
+    expect(screen.getByText("Quick starts")).not.toBeNull();
+    expect(screen.getByText("Next")).not.toBeNull();
+    expect(screen.getByText("Command")).not.toBeNull();
+    expect(screen.getByText("Remember")).not.toBeNull();
+    expect(screen.getAllByRole("button")).toHaveLength(7);
   });
 
   it("renders args placeholder for prefixes with args", () => {
     render(<CapabilityHintLine visible={true} />);
-    expect(screen.getByText("<question>")).not.toBeNull();
-    expect(screen.getByText("<intent>")).not.toBeNull();
+    expect(screen.getByText("explain <question>")).not.toBeNull();
+    expect(screen.getByText("cmd <intent>")).not.toBeNull();
+  });
+
+  it("fills the selected prefix when clicked", () => {
+    const onPickPrefix = vi.fn();
+    render(<CapabilityHintLine visible={true} onPickPrefix={onPickPrefix} />);
+    fireEvent.click(screen.getAllByRole("button")[1]);
+    expect(onPickPrefix).toHaveBeenCalledWith("cmd ");
   });
 });

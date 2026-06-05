@@ -176,6 +176,37 @@ body,
     background: rgba(255, 255, 255, 0.018);
   }
 
+  .kn-quick-start {
+    display: inline-flex;
+    min-height: 3.25rem;
+    width: 9.4rem;
+    align-items: center;
+    gap: 0.65rem;
+    border: 1px solid rgba(255, 255, 255, 0.075);
+    border-radius: 8px;
+    background:
+      linear-gradient(180deg, rgba(255, 255, 255, 0.04), transparent 42%),
+      rgba(255, 255, 255, 0.026);
+    padding: 0.55rem 0.65rem;
+    color: var(--kn-text-soft);
+    text-align: left;
+    transition:
+      border-color 150ms ease,
+      background 150ms ease,
+      transform 150ms ease;
+  }
+
+  .kn-quick-start:hover,
+  .kn-quick-start:focus-visible {
+    border-color: rgba(125, 216, 193, 0.24);
+    background:
+      linear-gradient(180deg, rgba(125, 216, 193, 0.09), transparent 48%), rgba(255, 255, 255, 0.04);
+  }
+
+  .kn-quick-start:active {
+    transform: translateY(1px);
+  }
+
   .kn-panel-focus {
     transition:
       border-color 160ms ease,
