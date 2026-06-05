@@ -306,11 +306,14 @@ against governance then.
 Unblocks the dormant workspace features. Nothing populated `WorkspaceManager`
 `project_root` (no UI setter; `withGlobalTauri` off), so 1.A `workspace_boost`,
 the pre-existing workspace search filter, and 1.D project commands never fired
-end-to-end. Now `core/project_commands.rs::detect_project_root(start)` walks cwd
-ancestors for a project marker (`.git`/`Cargo.toml`/`package.json`/`go.mod`/
-`pyproject.toml`/`Makefile`/`justfile`/`pom.xml`/`build.gradle`/`.hg`/`.svn`),
-stopping at `$HOME` / a drive root so a stray home marker can't make the whole
-home tree the project. `state.rs` runs it once at startup and calls
+end-to-end. Now `core/project_commands.rs::detect_project_root(start)` walks cwd ancestors
+preferring the nearest **VCS root** (`.git`/`.hg`/`.svn`), falling back to the
+nearest manifest (`Cargo.toml`/`package.json`/`go.mod`/`pyproject.toml`/`Makefile`/
+`justfile`/`pom.xml`/`build.gradle`), stopping at `$HOME` / a drive root.
+**VCS-first is essential:** `tauri dev` runs with cwd = `src-tauri/`, so a
+manifest-only detector picked `src-tauri` and filtered the repo-root folder +
+sibling dirs out of search (dogfood: "keynova folder doesn't appear"). VCS-first
+returns the real repo root. `state.rs` runs it once at startup and calls
 `WorkspaceManager::set_project_root_if_unset` (preserves any user/persisted root;
 no project found ⇒ no-op = global search as before). 3 new tests. No ADR (local
 read + existing workspace field).

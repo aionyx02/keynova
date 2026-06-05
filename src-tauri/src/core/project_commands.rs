@@ -57,9 +57,13 @@ fn is_risky(name: &str) -> bool {
     DESTRUCTIVE.iter().any(|kw| n.contains(kw))
 }
 
-/// Files/dirs that mark a directory as a project root, most-common first.
-const ROOT_MARKERS: &[&str] = &[
-    ".git",
+/// VCS markers identify the *true* repo root. They win over manifest markers so a
+/// nested sub-crate (e.g. `src-tauri/Cargo.toml`) never shadows the repo root —
+/// critical because `tauri dev` runs with cwd = `src-tauri/`.
+const VCS_MARKERS: &[&str] = &[".git", ".hg", ".svn"];
+
+/// Manifest markers identify a project when there is no enclosing VCS root.
+const MANIFEST_MARKERS: &[&str] = &[
     "Cargo.toml",
     "package.json",
     "go.mod",
@@ -68,29 +72,33 @@ const ROOT_MARKERS: &[&str] = &[
     "justfile",
     "pom.xml",
     "build.gradle",
-    ".hg",
-    ".svn",
 ];
 
-/// PROJECT_ROOT.wire — walk `start` and its ancestors, returning the nearest
-/// directory that holds a project marker. `.git` matches both a dir and a
-/// worktree file (`exists()`). The walk stops at the home directory and at a
-/// filesystem/drive root, so a stray marker in `$HOME` (or above) never makes
-/// the whole home tree the "project" — only a genuine sub-project is returned.
-/// Used to populate the workspace `project_root` at startup so workspace-aware
-/// search + project command discovery activate.
+/// PROJECT_ROOT.wire — find the project root for `start`. Prefers the nearest
+/// enclosing **VCS root** (`.git`/`.hg`/`.svn`, matched via `exists()` so a
+/// worktree `.git` file counts); only when there is no VCS root does it fall back
+/// to the nearest manifest directory. The walk stops at the home directory and a
+/// filesystem/drive root, so a stray marker in `$HOME` (or above) never makes the
+/// whole home tree the "project". Populates the workspace `project_root` at
+/// startup so workspace-aware search + project command discovery activate.
 pub fn detect_project_root(start: &Path) -> Option<std::path::PathBuf> {
     let home = home_dir();
+    let mut nearest_manifest: Option<std::path::PathBuf> = None;
     for dir in start.ancestors() {
         // Never treat home itself or a drive/filesystem root as a project root.
         if dir.parent().is_none() || home.as_deref() == Some(dir) {
             break;
         }
-        if ROOT_MARKERS.iter().any(|marker| dir.join(marker).exists()) {
+        if VCS_MARKERS.iter().any(|marker| dir.join(marker).exists()) {
             return Some(dir.to_path_buf());
         }
+        if nearest_manifest.is_none()
+            && MANIFEST_MARKERS.iter().any(|marker| dir.join(marker).exists())
+        {
+            nearest_manifest = Some(dir.to_path_buf());
+        }
     }
-    None
+    nearest_manifest
 }
 
 fn home_dir() -> Option<std::path::PathBuf> {
@@ -310,6 +318,21 @@ mod tests {
         // From a nested dir, detection climbs to the marker-bearing root.
         let found = detect_project_root(&nested).expect("should find root");
         assert_eq!(found, root);
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn detect_project_root_prefers_vcs_over_nested_manifest() {
+        // Regression: `tauri dev` cwd = src-tauri/ (a Cargo.toml sub-crate). The
+        // detected root must be the .git repo root, not the nested crate, or the
+        // repo-root folder + sibling dirs get filtered out of search.
+        let root = temp_root();
+        fs::create_dir_all(root.join(".git")).unwrap();
+        let sub = root.join("src-tauri");
+        fs::create_dir_all(&sub).unwrap();
+        fs::write(sub.join("Cargo.toml"), "[package]\nname = \"x\"\n").unwrap();
+        let found = detect_project_root(&sub).expect("should find repo root");
+        assert_eq!(found, root, "VCS root wins over the nested Cargo.toml crate");
         let _ = fs::remove_dir_all(root);
     }
 
