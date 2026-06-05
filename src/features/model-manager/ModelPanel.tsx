@@ -229,7 +229,11 @@ function InstalledView({ onClose }: ViewProps) {
 
       <div className="kn-panel-footer">
         <span>Enter activates · Delete removes a local model</span>
-        <span className={error ? "text-red-300" : ""}>
+        <span
+          role="status"
+          aria-live="polite"
+          className={error ? "text-red-300" : ""}
+        >
           {error || notice || "Tab switches view"}
         </span>
       </div>
