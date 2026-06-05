@@ -7,6 +7,8 @@ export const enUS: I18nKeys = {
     noResultsFor: "No results for {query}.",
     searching: "Searching…",
     aiGenerating: "AI response in progress…",
+    aiReady: "AI response ready",
+    aiError: "AI request failed",
     resultCount: "{count} results",
     open: "Open",
     close: "Close",
