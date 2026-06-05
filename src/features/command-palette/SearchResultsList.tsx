@@ -141,6 +141,7 @@ export function SearchResultsList({
             {visibleResults.map((result, index) => {
               const isSelected = index === safeSelected;
               const badge = KIND_BADGE[result.kind] ?? KIND_BADGE.file;
+              const localizedKind = t.search.kinds[result.kind] ?? badge.label;
               const iconKey = result.icon_key ?? "";
               const icon = iconKey ? iconsByKey[iconKey] : null;
               const showIconImage = Boolean(icon && !brokenIconKeys[iconKey]);
@@ -150,8 +151,11 @@ export function SearchResultsList({
                 : (result.title ?? result.name);
               const detailSource =
                 result.kind === "app" ? result.subtitle : (result.subtitle ?? result.path);
+              // UX.AUDIT.5 fallback: if the mojibake guard trips on the detail line,
+              // show the raw path instead of masking it as "Path unavailable" so the
+              // row stays actionable (open/reveal still work off result.path).
               const detail = hasEncodingError(detailSource)
-                ? t.search.pathUnavailable
+                ? result.path || detailSource
                 : detailSource;
 
               return (
@@ -170,14 +174,14 @@ export function SearchResultsList({
                     onHoverStart(index, event.currentTarget.getBoundingClientRect());
                   }}
                   onMouseLeave={onHoverEnd}
-                  className="kn-result-row flex cursor-pointer items-center gap-3 px-3 py-2.5"
+                  className="kn-result-row flex min-h-16 cursor-pointer items-center gap-3 px-3 py-2.5"
                 >
                   {showIconImage ? (
-                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[8px] border border-white/5 bg-white/[0.035] shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]">
+                    <div className="kn-result-icon border border-white/5 bg-white/[0.035]">
                       <img
                         src={icon?.data_url}
                         alt=""
-                        className="h-7 w-7 shrink-0 rounded-[7px]"
+                        className="h-7 w-7 shrink-0 rounded-[7px] object-contain"
                         draggable={false}
                         onError={() => {
                           if (!iconKey) return;
@@ -188,10 +192,7 @@ export function SearchResultsList({
                       />
                     </div>
                   ) : (
-                    <div
-                      className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-[8px] border ${badge.cls}`}
-                      title={t.search.kinds[result.kind] ?? badge.label}
-                    >
+                    <div className={`kn-result-icon border ${badge.cls}`} title={localizedKind}>
                       <UiIcon name={badge.icon} className="h-[18px] w-[18px]" />
                     </div>
                   )}
@@ -205,11 +206,6 @@ export function SearchResultsList({
                       >
                         {title}
                       </span>
-                      {Boolean(result.secondary_action_count) && (
-                        <span className="kn-chip px-1.5 py-0 text-[10px]">
-                          +{result.secondary_action_count}
-                        </span>
-                      )}
                     </div>
                     {detail && (
                       <div
@@ -221,6 +217,15 @@ export function SearchResultsList({
                       >
                         {detail}
                       </div>
+                    )}
+                  </div>
+
+                  <div className="hidden shrink-0 items-center gap-2 sm:flex">
+                    <span className={`kn-result-kind ${badge.cls}`}>{localizedKind}</span>
+                    {Boolean(result.secondary_action_count) && (
+                      <span className="kn-chip px-1.5 py-0 text-[10px]">
+                        +{result.secondary_action_count}
+                      </span>
                     )}
                   </div>
                 </li>
@@ -307,7 +312,7 @@ export function SearchResultsList({
         </div>
       )}
 
-      <div className="kn-panel-footer flex-wrap">
+      <div className="kn-panel-footer kn-result-footer flex-wrap">
         <span className="min-w-0 flex-1 truncate">{footerHint}</span>
         <div className="flex items-center gap-3">
           <span className="flex items-center gap-1.5">

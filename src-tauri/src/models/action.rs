@@ -115,13 +115,21 @@ pub enum ActionResult {
 /// Per-result score decomposition for the rank tooltip.
 ///
 /// `base` is the source-specific score (tantivy / app fuzzy / fixed const) before
-/// any rank memory boost; `recency_boost` and `frequency_boost` are derived from
-/// `SearchManager::rank_memory` and added back into `UiSearchItem.score`.
+/// any boost. `workspace_boost` (PRODUCT.1.A) rewards file/app results under the
+/// active workspace root; `config_boost` rewards README/config files.
+/// `recency_boost` and `frequency_boost` are derived from
+/// `SearchManager::rank_memory`. `noise_penalty` (PRODUCT.1.C, negative) demotes
+/// results inside generated/dependency dirs. All are added into `UiSearchItem.score`.
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
 pub struct ScoreBreakdown {
     pub base: i64,
+    /// Structural boost for apps/folders over plain files (PRODUCT.1.A follow-up).
+    pub kind_boost: i64,
+    pub workspace_boost: i64,
+    pub config_boost: i64,
     pub recency_boost: i64,
     pub frequency_boost: i64,
+    pub noise_penalty: i64,
 }
 
 /// Display-only search item sent over IPC.

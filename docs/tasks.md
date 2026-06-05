@@ -2,7 +2,7 @@
 type: task_index_root
 status: active
 priority: p2
-updated: 2026-05-20
+updated: 2026-06-05
 context_policy: on_demand
 owner: project
 ---
@@ -18,6 +18,7 @@ Current strategy: P0 search-first refactor, with detailed batch planning kept ou
 - Active now: `docs/tasks/active.md`
 - P0 refactor batches: `docs/tasks/refactor-ai-capability.md`
 - Backlog: `docs/tasks/backlog.md`
+- Product roadmap: `docs/tasks/product-roadmap.md`
 - Blocked / safety constraints: `docs/tasks/blocked.md`
 - Completed index: `docs/tasks/completed.md`
 
@@ -26,5 +27,7 @@ Current strategy: P0 search-first refactor, with detailed batch planning kept ou
 - For implementation, read `active.md` first.
 - For the current P0 track, read `refactor-ai-capability.md` after `active.md`.
 - For planning and safety, include `blocked.md`.
+- For post-refactor product planning, read `product-roadmap.md` with
+  `backlog.md`.
 - `completed.md` is a compact historical index.
 - Do not load all task files unless explicitly requested.

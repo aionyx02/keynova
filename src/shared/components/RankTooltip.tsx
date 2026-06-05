@@ -20,7 +20,14 @@ export function RankTooltip({ breakdown, anchorRect, visible }: Props) {
   const t = useI18n().rank;
   if (!visible || !breakdown || !anchorRect) return null;
 
-  const total = breakdown.base + breakdown.recency_boost + breakdown.frequency_boost;
+  const total =
+    breakdown.base +
+    breakdown.kind_boost +
+    breakdown.workspace_boost +
+    breakdown.config_boost +
+    breakdown.recency_boost +
+    breakdown.frequency_boost +
+    breakdown.noise_penalty;
   const margin = 8;
   const estWidth = 220;
   const wantsRight = anchorRect.right + estWidth + margin <= window.innerWidth;
@@ -42,10 +49,34 @@ export function RankTooltip({ breakdown, anchorRect, visible }: Props) {
       <div className="grid grid-cols-[max-content_1fr] gap-x-2 gap-y-0.5 font-mono text-[10px]">
         <span className="text-gray-500">{t.base}</span>
         <span className="text-right text-gray-300">{breakdown.base}</span>
+        {breakdown.kind_boost !== 0 && (
+          <>
+            <span className="text-gray-500">{t.kind}</span>
+            <span className="text-right text-sky-300">{fmtSigned(breakdown.kind_boost)}</span>
+          </>
+        )}
+        {breakdown.workspace_boost !== 0 && (
+          <>
+            <span className="text-gray-500">{t.workspace}</span>
+            <span className="text-right text-amber-300">{fmtSigned(breakdown.workspace_boost)}</span>
+          </>
+        )}
+        {breakdown.config_boost !== 0 && (
+          <>
+            <span className="text-gray-500">{t.config}</span>
+            <span className="text-right text-violet-300">{fmtSigned(breakdown.config_boost)}</span>
+          </>
+        )}
         <span className="text-gray-500">{t.recency}</span>
         <span className="text-right text-sky-300">{fmtSigned(breakdown.recency_boost)}</span>
         <span className="text-gray-500">{t.frequency}</span>
         <span className="text-right text-emerald-300">{fmtSigned(breakdown.frequency_boost)}</span>
+        {breakdown.noise_penalty !== 0 && (
+          <>
+            <span className="text-gray-500">{t.noise}</span>
+            <span className="text-right text-rose-300">{fmtSigned(breakdown.noise_penalty)}</span>
+          </>
+        )}
       </div>
     </div>
   );

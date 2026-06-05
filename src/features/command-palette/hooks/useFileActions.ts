@@ -151,6 +151,18 @@ export function useFileActions(deps: UseFileActionsDeps): UseFileActions {
         flashCopyHint("Pasted memory");
         return;
       }
+      // PRODUCT.1.D project-command rows are copy-only: write the command string
+      // to the clipboard rather than executing (execution is 1.E). Distinguished
+      // by the `projectcmd://` path scheme the backend provider emits.
+      if (result.path?.startsWith("projectcmd://")) {
+        try {
+          await navigator.clipboard.writeText(result.name ?? result.title ?? "");
+          flashCopyHint(`Copied: ${result.name ?? result.title ?? ""}`);
+        } catch {
+          flashCopyHint("Copy failed");
+        }
+        return;
+      }
       try {
         await dispatch(IPC.SEARCH_RECORD_SELECTION, {
           source: result.source ?? result.kind,

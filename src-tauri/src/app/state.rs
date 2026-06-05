@@ -114,6 +114,17 @@ fn create_managers(event_bus: &EventBus, knowledge_store: &KnowledgeStoreHandle)
     let hotkey_manager = Arc::new(Mutex::new(HotkeyManager::new()));
     let mouse_manager = Arc::new(Mutex::new(MouseManager::new()));
     let workspace_manager = Arc::new(Mutex::new(WorkspaceManager::new()));
+    // PROJECT_ROOT.wire — detect the launch directory's project root once at
+    // startup so workspace-aware search + project command discovery (1.A/1.C/1.D)
+    // activate. `if_unset` preserves any persisted/user value; no project root
+    // found ⇒ no-op (global search, as before).
+    if let Ok(cwd) = std::env::current_dir() {
+        if let Some(root) = crate::core::project_commands::detect_project_root(&cwd) {
+            if let Ok(mut ws) = workspace_manager.lock() {
+                ws.set_project_root_if_unset(root.display().to_string());
+            }
+        }
+    }
     let model_manager = Arc::new(ModelManager::new());
 
     let config_manager = Arc::new(Mutex::new(ConfigManager::new()));

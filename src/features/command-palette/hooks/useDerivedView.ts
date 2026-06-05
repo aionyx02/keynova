@@ -116,9 +116,13 @@ export function useDerivedView(deps: Deps): UseDerivedView {
     mode === "search" &&
     visibleResults.length > 0;
 
-  const { previewByPath } = useFilePreview(visibleResults, safeSelected);
+  const { previewByPath, failedPreviewByPath } = useFilePreview(visibleResults, safeSelected);
   const previewForSelected = selectedResult ? previewByPath[selectedResult.path] : undefined;
-  const previewLoading = isPreviewable(selectedResult) && !previewForSelected;
+  const previewFailedForSelected = selectedResult
+    ? failedPreviewByPath[selectedResult.path]
+    : undefined;
+  const previewLoading =
+    isPreviewable(selectedResult) && !previewForSelected && !previewFailedForSelected;
 
   const actionLabels = useI18n().palette.actions;
   const menuItems = useMemo(

@@ -138,6 +138,24 @@ impl WorkspaceManager {
         Ok(&self.slots[self.current])
     }
 
+    /// PROJECT_ROOT.wire — set the current slot's `project_root` only when it is
+    /// unset/blank, so a startup cwd-detected root never clobbers a value the
+    /// user (or a prior `save_current`) already chose. In-memory only; the next
+    /// `save_current`/`switch` persists naturally.
+    pub fn set_project_root_if_unset(&mut self, root: String) {
+        if root.trim().is_empty() {
+            return;
+        }
+        let slot = &mut self.slots[self.current];
+        if slot
+            .project_root
+            .as_deref()
+            .is_none_or(|existing| existing.trim().is_empty())
+        {
+            slot.project_root = Some(root);
+        }
+    }
+
     /// 儲存當前工作區的查詢與模式（由前端在切換前呼叫）。
     pub fn save_current_restore_state(
         &mut self,
@@ -253,6 +271,21 @@ mod tests {
         let mut mgr = make_mgr();
         mgr.switch_to(1).unwrap();
         assert_eq!(mgr.current().id, 1);
+    }
+
+    #[test]
+    fn set_project_root_if_unset_sets_then_preserves() {
+        let mut mgr = make_mgr();
+        assert!(mgr.current().project_root.is_none());
+        mgr.set_project_root_if_unset("C:/projA".into());
+        assert_eq!(mgr.current().project_root.as_deref(), Some("C:/projA"));
+        // A second call must not clobber the existing value.
+        mgr.set_project_root_if_unset("C:/projB".into());
+        assert_eq!(mgr.current().project_root.as_deref(), Some("C:/projA"));
+        // Blank input is ignored.
+        let mut fresh = make_mgr();
+        fresh.set_project_root_if_unset("   ".into());
+        assert!(fresh.current().project_root.is_none());
     }
 
     #[test]

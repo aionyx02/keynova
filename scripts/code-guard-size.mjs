@@ -24,7 +24,10 @@ const LIMITS = new Map([
   ["src-tauri/src/handlers/agent/sources.rs", 13_312],
   ["src-tauri/src/handlers/agent/tools.rs", 23_552],
   ["src-tauri/src/handlers/builtin_cmd.rs", 44_032],
-  ["src/components/CommandPalette.tsx", 36_864],
+  // Bumped 36864→43008: a11y live regions (UX.AUDIT.2b capability completion/error)
+  // + launcher starter-actions wiring grew it; recompression declined per developer
+  // decision (REF.6 accepted overshoot). REF.8 ratchets back down.
+  ["src/components/CommandPalette.tsx", 43_008],
   ["src/features/settings/SettingPanel.tsx", 18_432],
   ["src/features/translation/TranslationPanel.tsx", 21_504],
 ]);

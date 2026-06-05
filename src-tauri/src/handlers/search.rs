@@ -187,25 +187,18 @@ impl CommandHandler for SearchHandler {
 }
 
 impl SearchHandler {
-    /// Resolves workspace scope from the query.
+    /// Cleans the query and resolves workspace scope.
     ///
-    /// - Strips a leading `:global ` (or bare `:global`) prefix and returns
-    ///   `(cleaned_query, None)` so the search runs unrestricted.
-    /// - Otherwise, returns `(query, current_workspace.project_root)`. When
-    ///   the workspace has no `project_root` configured, the second tuple
-    ///   element is `None` and search behaves globally as before.
+    /// Workspace scope is now expressed through **ranking** (`workspace_boost`),
+    /// not a hard filter: hard-filtering to `project_root` hid apps (installed
+    /// under `Program Files`, never in the repo) and every file outside the repo
+    /// (e.g. a WSL folder). So this always returns `None` as the filter root —
+    /// `apply_workspace_filter` is a no-op and search stays global, while
+    /// `workspace_boost` keeps in-workspace results on top. The leading `:global`
+    /// token is still stripped (now a harmless alias for the default).
     fn resolve_workspace_filter(&self, raw: &str) -> (String, Option<String>) {
-        let (cleaned, global) = strip_global_prefix(raw);
-        if global {
-            return (cleaned, None);
-        }
-        let workspace_root = self
-            .workspace_manager
-            .lock()
-            .ok()
-            .and_then(|mgr| mgr.current().project_root.clone())
-            .filter(|s| !s.trim().is_empty());
-        (cleaned, workspace_root)
+        let (cleaned, _global) = strip_global_prefix(raw);
+        (cleaned, None)
     }
 
     fn execute_query(&self, payload: Value) -> CommandResult {
@@ -599,20 +592,31 @@ impl SearchHandler {
 
     fn apply_rank_boost(&self, item: &mut UiSearchItem) {
         let base = item.score;
-        let Ok(manager) = self.manager.lock() else {
-            item.score_breakdown = ScoreBreakdown {
-                base,
-                recency_boost: 0,
-                frequency_boost: 0,
-            };
-            return;
+        // PRODUCT.1.A workspace_context + README/config terms. project_root is the
+        // active workspace root; for non-file sources / unset root both yield 0.
+        let project_root = self
+            .workspace_manager
+            .lock()
+            .ok()
+            .and_then(|ws| ws.current().project_root.clone())
+            .filter(|root| !root.trim().is_empty());
+        let kind = ranking::kind_boost(&item.kind);
+        let workspace = ranking::workspace_boost(&item.source, &item.path, project_root.as_deref());
+        let config = ranking::config_boost(&item.source, &item.path);
+        let noise = ranking::noise_penalty(&item.source, &item.path);
+        let (recency, frequency) = match self.manager.lock() {
+            Ok(manager) => manager.rank_boost_breakdown(&item.source, &item.path),
+            Err(_) => (0, 0),
         };
-        let (recency, frequency) = manager.rank_boost_breakdown(&item.source, &item.path);
-        item.score = base + recency + frequency;
+        item.score = base + kind + workspace + config + recency + frequency + noise;
         item.score_breakdown = ScoreBreakdown {
             base,
+            kind_boost: kind,
+            workspace_boost: workspace,
+            config_boost: config,
             recency_boost: recency,
             frequency_boost: frequency,
+            noise_penalty: noise,
         };
     }
 
