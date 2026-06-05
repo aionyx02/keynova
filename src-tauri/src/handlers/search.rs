@@ -609,17 +609,19 @@ impl SearchHandler {
             .filter(|root| !root.trim().is_empty());
         let workspace = ranking::workspace_boost(&item.source, &item.path, project_root.as_deref());
         let config = ranking::config_boost(&item.source, &item.path);
+        let noise = ranking::noise_penalty(&item.source, &item.path);
         let (recency, frequency) = match self.manager.lock() {
             Ok(manager) => manager.rank_boost_breakdown(&item.source, &item.path),
             Err(_) => (0, 0),
         };
-        item.score = base + workspace + config + recency + frequency;
+        item.score = base + workspace + config + recency + frequency + noise;
         item.score_breakdown = ScoreBreakdown {
             base,
             workspace_boost: workspace,
             config_boost: config,
             recency_boost: recency,
             frequency_boost: frequency,
+            noise_penalty: noise,
         };
     }
 
