@@ -39,12 +39,9 @@ Detailed batch definitions, done criteria, non-goals, file map, and validation g
   freeze). `features.*` gate UI + IPC end-to-end (capability.call, dispatch
   namespace guard, search providers, frontend `FeatureFlagsContext`); model
   manager exempt. Detail: `docs/memory/sessions/2026-06-04.md`.
-- [x] `DECOUP` feature self-registration decoupling (ADR-0044 proposed;
-  developer-directed). `.1`–`.6` all landed at unit level: 8 backend features +
-  6 frontend panels self-register; dispatch guard spec-derived; search chain
-  declarative. Removing a feature ≈ delete module/folder + manifest entries.
-  Cross-cutting search/ai/agent stay central by ADR-0044 §2. Detail:
-  `docs/tasks/feature-decoupling.md`.
+- [x] `DECOUP` feature self-registration decoupling (ADR-0044 proposed). `.1`–`.6`
+  landed: 8 backend features + 6 frontend panels self-register; removing a feature
+  ≈ delete module/folder + manifest. Detail: `docs/tasks/feature-decoupling.md`.
 
 - [~] `UX.AUDIT` UI/UX consistency pass (developer-directed). Done: stale "AI
   Chat" copy, a11y live regions (incl. AI capability completion/error), full
@@ -54,8 +51,9 @@ Detailed batch definitions, done criteria, non-goals, file map, and validation g
 - [ ] `PRODUCT.1` v0.6 stable workflow core — **UNFROZEN 2026-06-05** (conditional
   partial unfreeze; search-core is orthogonal to the REF.7 AI gates). Batches
   `A`–`H`: ranking, result-contract audit, workspace search, command discovery,
-  terminal, file actions, dev utilities, kbd/perf. Start `PRODUCT.1.A`. Detail:
-  `docs/tasks/product-roadmap.md`.
+  terminal, file actions, dev utilities, kbd/perf. `PRODUCT.1.A` scoped (add a
+  `workspace_context` score term; defer action_success/risk/noise). Detail:
+  `docs/tasks/product-1-workflow-core.md`.
 
 ### P2
 
