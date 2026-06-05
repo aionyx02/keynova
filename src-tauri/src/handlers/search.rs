@@ -187,25 +187,18 @@ impl CommandHandler for SearchHandler {
 }
 
 impl SearchHandler {
-    /// Resolves workspace scope from the query.
+    /// Cleans the query and resolves workspace scope.
     ///
-    /// - Strips a leading `:global ` (or bare `:global`) prefix and returns
-    ///   `(cleaned_query, None)` so the search runs unrestricted.
-    /// - Otherwise, returns `(query, current_workspace.project_root)`. When
-    ///   the workspace has no `project_root` configured, the second tuple
-    ///   element is `None` and search behaves globally as before.
+    /// Workspace scope is now expressed through **ranking** (`workspace_boost`),
+    /// not a hard filter: hard-filtering to `project_root` hid apps (installed
+    /// under `Program Files`, never in the repo) and every file outside the repo
+    /// (e.g. a WSL folder). So this always returns `None` as the filter root —
+    /// `apply_workspace_filter` is a no-op and search stays global, while
+    /// `workspace_boost` keeps in-workspace results on top. The leading `:global`
+    /// token is still stripped (now a harmless alias for the default).
     fn resolve_workspace_filter(&self, raw: &str) -> (String, Option<String>) {
-        let (cleaned, global) = strip_global_prefix(raw);
-        if global {
-            return (cleaned, None);
-        }
-        let workspace_root = self
-            .workspace_manager
-            .lock()
-            .ok()
-            .and_then(|mgr| mgr.current().project_root.clone())
-            .filter(|s| !s.trim().is_empty());
-        (cleaned, workspace_root)
+        let (cleaned, _global) = strip_global_prefix(raw);
+        (cleaned, None)
     }
 
     fn execute_query(&self, payload: Value) -> CommandResult {
