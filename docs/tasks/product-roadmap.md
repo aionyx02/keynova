@@ -176,15 +176,18 @@ Done:
 - A project with both npm and cargo commands shows both without hiding cwd.
 - Command cards can be copied from the keyboard.
 
-### PRODUCT.1.E - Terminal Workflow
+### PRODUCT.1.E - Terminal Workflow — DROPPED (2026-06-05)
 
-Scope:
+Developer decision: command execution / terminal handoff is **not built** — it
+crosses the approval/security boundary and is the risk the developer wants to
+avoid. Project commands stay copy-only (1.D); the user pastes into their own
+terminal. `copy command` is already covered by 1.D. Revisiting requires a fresh
+proposed ADR (ref ADR-0027, ADR-0022).
 
-- [ ] Support `open terminal here`, `copy command`, and `send command to
-  terminal` from command cards and relevant file/workspace results.
-- [ ] Preserve cwd and command provenance when sending to terminal.
-- [ ] Classify shell commands as read-only, state-changing, or destructive.
-- [ ] Gate high-risk commands before they enter or execute in terminal.
+~~Scope (dropped):~~
+
+- ~~Support `open terminal here` / `send command to terminal`.~~
+- ~~Preserve cwd/provenance on send; classify + gate risk.~~
 
 Done:
 
