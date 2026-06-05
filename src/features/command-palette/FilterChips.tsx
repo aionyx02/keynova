@@ -37,8 +37,11 @@ export function FilterChips({ active, onChange }: Props) {
   }
 
   return (
-    <div className="flex flex-wrap items-center gap-2 border-b border-[color:var(--kn-border)] bg-white/[0.02] px-3 py-2">
-      <span className="mr-1 inline-flex items-center gap-1.5 text-[10px] uppercase tracking-[0.2em] text-[color:var(--kn-text-faint)]">
+    <div
+      className="kn-filter-strip kn-scroll flex items-center gap-2 overflow-x-auto px-3 py-2"
+      aria-label={p.scope}
+    >
+      <span className="mr-1 inline-flex shrink-0 items-center gap-1.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-[color:var(--kn-text-faint)]">
         <UiIcon name="filter" className="h-3.5 w-3.5" />
         {p.scope}
       </span>
@@ -50,7 +53,7 @@ export function FilterChips({ active, onChange }: Props) {
             type="button"
             onClick={() => toggle(chip.kind)}
             aria-pressed={isActive}
-            className={`kn-chip ${
+            className={`kn-chip shrink-0 ${
               isActive ? "kn-chip-active shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]" : ""
             }`}
           >
@@ -63,7 +66,7 @@ export function FilterChips({ active, onChange }: Props) {
         <button
           type="button"
           onClick={() => onChange(new Set())}
-          className="ml-auto inline-flex items-center gap-1.5 text-[11px] font-medium text-[color:var(--kn-text-muted)] transition-colors hover:text-[color:var(--kn-text-soft)]"
+          className="ml-auto inline-flex shrink-0 items-center gap-1.5 text-[11px] font-medium text-[color:var(--kn-text-muted)] transition-colors hover:text-[color:var(--kn-text-soft)]"
         >
           <UiIcon name="x" className="h-3.5 w-3.5" />
           {p.clear}
