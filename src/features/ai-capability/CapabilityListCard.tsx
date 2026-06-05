@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState, type ReactElement } from "react";
 
 import { UiIcon } from "../../components/icons/UiIcon";
+import { useI18n } from "../../i18n/useI18n";
 import type { SuggestedNextAction } from "./types";
 import type { CapabilityRunStatus } from "./hooks/useCapabilityRunState";
 
@@ -56,16 +57,17 @@ export function CapabilityListCard({
     const stop = completedAtMs ?? now;
     return stop - startedAtMs;
   })();
+  const c = useI18n().capability;
   const selected = items[selectedIndex] ?? null;
   const footerLabel = useMemo(() => {
-    if (status === "pending") return "Loading workflow suggestions";
-    if (status === "error") return "Could not load suggestions";
-    if (status === "cancelled") return "Cancelled";
-    if (status === "idle") return "Ready";
-    if (!selected) return "No recent workflows";
-    if (selected.replay) return "Arrow keys to navigate - Enter to replay";
-    return "History suggestion only - replay not available yet";
-  }, [selected, status]);
+    if (status === "pending") return c.listFooterPending;
+    if (status === "error") return c.listFooterError;
+    if (status === "cancelled") return c.listFooterCancelled;
+    if (status === "idle") return c.listFooterIdle;
+    if (!selected) return c.listFooterNoRecent;
+    if (selected.replay) return c.listFooterReplay;
+    return c.listFooterHistoryOnly;
+  }, [selected, status, c]);
 
   return (
     <div className="kn-panel-shell overflow-hidden rounded-t-none border-t-0">
@@ -73,7 +75,7 @@ export function CapabilityListCard({
         <span className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[color:var(--kn-text-soft)]">
           <span aria-hidden>AI </span>
           {`${label} - ${formatLatencyMs(latencyMs)}`}
-          {status === "error" ? " - error" : status === "cancelled" ? " - cancelled" : ""}
+          {status === "error" ? c.suffixError : status === "cancelled" ? c.suffixCancelled : ""}
         </span>
         <button
           type="button"
@@ -83,7 +85,7 @@ export function CapabilityListCard({
             else onClose();
           }}
           className="flex h-7 w-7 items-center justify-center rounded-[10px] border border-[color:var(--kn-border)] bg-white/[0.035] text-[color:var(--kn-text-muted)] transition-colors hover:bg-white/[0.06] hover:text-[color:var(--kn-text)]"
-          aria-label="Close"
+          aria-label={c.close}
         >
           <UiIcon name="x" className="h-3.5 w-3.5" />
         </button>
@@ -92,15 +94,15 @@ export function CapabilityListCard({
       <div className="kn-scroll max-h-[320px] overflow-y-auto px-2 py-2">
         {status === "pending" ? (
           <div className="px-2 py-3 text-sm text-[color:var(--kn-text-muted)]">
-            Looking at recent workflows...
+            {c.listPendingBody}
           </div>
         ) : status === "error" && error ? (
           <div className="px-2 py-3 text-sm text-rose-200">{error}</div>
         ) : status === "cancelled" ? (
-          <div className="px-2 py-3 text-sm text-[color:var(--kn-text-muted)]">Cancelled.</div>
+          <div className="px-2 py-3 text-sm text-[color:var(--kn-text-muted)]">{c.cancelledBody}</div>
         ) : items.length === 0 ? (
           <div className="px-2 py-3 text-sm text-[color:var(--kn-text-muted)]">
-            No recent workflows yet.
+            {c.listNoRecentBody}
           </div>
         ) : (
           <div className="space-y-1">
@@ -150,7 +152,7 @@ export function CapabilityListCard({
                         {Math.round(item.confidence * 100)}%
                       </div>
                       <div className="mt-1 text-[10px] text-[color:var(--kn-text-faint)]">
-                        {item.replay ? "Replay" : "History only"}
+                        {item.replay ? c.replay : c.historyOnly}
                       </div>
                     </div>
                   </div>
