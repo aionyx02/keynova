@@ -50,11 +50,10 @@ Detailed batch definitions, done criteria, non-goals, file map, and validation g
   repro (non-urgent). Detail: `docs/tasks/ux-audit.md`.
 - [ ] `PRODUCT.1` v0.6 stable workflow core — **UNFROZEN 2026-06-05** (conditional
   partial unfreeze; search-core is orthogonal to the REF.7 AI gates). Batches
-  `A`–`H`: ranking, result-contract audit, workspace search, command discovery,
-  terminal, file actions, dev utilities, kbd/perf. `A`/`B`/`C` **done**:
-  `workspace_boost`+`config_boost` (A), contract audit + per-kind test (B),
-  `noise_penalty` -30 demote for generated dirs (C). Next `PRODUCT.1.D` (project
-  command discovery). Detail: `docs/tasks/product-1-workflow-core.md`.
+  `A`–`H`. `A`–`D` **done**: A=`workspace_boost`+`config_boost`, B=contract
+  audit, C=`noise_penalty` demote, D=project-command discovery (copy-only;
+  npm/cargo/make/just). Next `PRODUCT.1.E` (terminal workflow — execution + risk
+  gate). Detail: `docs/tasks/product-1-workflow-core.md`.
 
 ### P2
 

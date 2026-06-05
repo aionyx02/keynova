@@ -227,9 +227,73 @@ src/index.js outranks node_modules same-name" regression fixture). No ADR.
 No ADR for the demote (additive bounded penalty, same class as 1.A). Revisit only
 if we move to indexer-level exclusion (changes the indexing model, governance §7).
 
-## PRODUCT.1.D–H — not yet scoped
+## PRODUCT.1.D — Project Command Discovery — DONE (2026-06-05, copy-only MVP)
 
-`D` project command discovery, `E` terminal workflow, `F` file actions/preview,
-`G` developer utilities, `H` keyboard/perf gate. Scope each here before coding.
-Risky sub-items (destructive file ops, kill-port, shell handoff) still pass their
-own approval/ADR gates.
+Shipped (developer chose **copy-only**, **4 manifests**): a new `core/project_commands.rs`
+discovers runnable commands from the active workspace root — `package.json`
+scripts (`npm run <name>`), `Cargo.toml` (standard cargo intents), `Makefile`
+targets, `justfile` recipes — with intent normalization + a `risky` flag (carried
+for 1.E, not surfaced in copy-only). A new ungated `append_project_command_results`
+search provider emits them as `command` rows (`projectcmd://` path scheme,
+subtitle = `source · cwd`, primary label "Copy"). `useFileActions.launchResult`
+intercepts `projectcmd://` rows and writes the command to the clipboard — **no
+execution**. 4 new Rust tests (parsers + intent/risk + missing manifests).
+Validation: 490 cargo tests + clippy clean; build/lint + 181 vitest. No ADR.
+
+
+
+### Audit
+
+No project-command discovery exists today. Builtin commands (the registry behind
+`command_match_score`) are app commands (`/help`, `/setting`), not project
+scripts. The active workspace `project_root` is known; the search provider chain
+(`providers.rs`) is a declarative, feature-gated list (ADR-0044); `ActionChip`
+already carries `ConfirmRequirement` for risk. Terminal handoff (open-here / send
+command) is **1.E** territory.
+
+### Primary (MVP — discovery + copy, zero execution)
+
+1. New **gated project-command provider** (`features.project_commands`, default
+   on) that, when a `project_root` is set, parses manifests in the root and emits
+   `UnifiedResult` command rows:
+   - `package.json` `scripts` → `npm run <name>` (npm default for MVP).
+   - `Cargo.toml` (presence) → standard `cargo build/test/run/clippy` intents.
+   - `Makefile` / `justfile` → targets.
+2. Each row: title = the command (`npm run dev`), subtitle = source file + cwd,
+   plus a **risk label** — low for read-only (`test`/`lint`/`build`/`check`),
+   flagged for state-changing/destructive names.
+3. **Primary action = copy** the command string. Copy-only keeps the MVP
+   read-only and safe — no execution path, no new approval surface.
+4. Intent normalization: map script names to canonical intents (dev/test/build/
+   lint/format/check/run/preview) for matching + ranking.
+5. Tests: manifest fixtures → expected rows; risk classification per intent.
+
+### Open decisions (gate implementation)
+
+- **Copy-only MVP?** Recommend yes — defer run / send-to-terminal to **1.E**
+  (which owns the terminal handoff + the high-risk confirmation gate). Cleanly
+  separates discovery (1.D, zero execution risk) from execution (1.E).
+- **Manifest set for MVP**: package.json + Cargo.toml + Makefile + justfile
+  (defer `docker-compose.yml`)? Recommended.
+- **Package-manager detection**: npm-only for MVP vs detect yarn/pnpm/bun from
+  lockfile? Recommend npm-only MVP, lockfile detection as a follow-up.
+
+### Deferred / simplification-only
+
+- Run / send-to-terminal execution + high-risk gating → **1.E**.
+- `docker-compose.yml` services.
+- yarn/pnpm/bun detection.
+
+### ADR call
+
+Copy-only discovery reuses existing patterns (ADR-0044 declarative provider,
+`UnifiedResult`/`ActionChip`, workspace file reads already within search scope) →
+no new ADR. Execution (1.E) crosses the approval boundary and must be checked
+against governance then.
+
+## PRODUCT.1.E–H — not yet scoped
+
+`E` terminal workflow (owns command execution + high-risk gating), `F` file
+actions/preview, `G` developer utilities, `H` keyboard/perf gate. Scope each here
+before coding. Risky sub-items (destructive file ops, kill-port, shell handoff)
+still pass their own approval/ADR gates.
