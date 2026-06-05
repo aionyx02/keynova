@@ -18,6 +18,7 @@ const CACHE_CAP = 64;
 export function useFilePreview(results: SearchResult[], selected: number) {
   const { dispatch } = useIPC();
   const [previewByPath, setPreviewByPath] = useState<Record<string, FilePreviewResult>>({});
+  const [failedPreviewByPath, setFailedPreviewByPath] = useState<Record<string, true>>({});
   // Track insertion order for LRU eviction without growing the map unbounded.
   const orderRef = useRef<string[]>([]);
 
@@ -27,16 +28,17 @@ export function useFilePreview(results: SearchResult[], selected: number) {
     if (!result) return;
     if (!PREVIEW_KINDS.has(result.kind)) return;
     if (previewByPath[result.path]) return;
+    if (failedPreviewByPath[result.path]) return;
 
     let cancelled = false;
+    const key = result.path;
     const timer = setTimeout(() => {
-      dispatch<FilePreviewResult>(IPC.FILE_PREVIEW, { path: result.path })
+      dispatch<FilePreviewResult>(IPC.FILE_PREVIEW, { path: key })
         .then((preview) => {
           if (cancelled) return;
           // Key the cache by the requested result path; image previews no longer
           // echo a `path` field (security wave B #1), and keying by request is
           // correct regardless.
-          const key = result.path;
           setPreviewByPath((prev) => {
             // Skip if a racing fetch already filled it.
             if (prev[key]) return prev;
@@ -52,7 +54,19 @@ export function useFilePreview(results: SearchResult[], selected: number) {
           });
         })
         .catch(() => {
-          // Swallow; PreviewPane will fall back to "no preview available".
+          if (cancelled) return;
+          setFailedPreviewByPath((prev) => {
+            if (prev[key]) return prev;
+            const next = { ...prev, [key]: true as const };
+            orderRef.current.push(key);
+            while (orderRef.current.length > CACHE_CAP) {
+              const evicted = orderRef.current.shift();
+              if (evicted && evicted !== key) {
+                delete next[evicted];
+              }
+            }
+            return next;
+          });
         });
     }, DEBOUNCE_MS);
 
@@ -60,9 +74,9 @@ export function useFilePreview(results: SearchResult[], selected: number) {
       cancelled = true;
       clearTimeout(timer);
     };
-  }, [dispatch, results, selected, previewByPath]);
+  }, [dispatch, results, selected, previewByPath, failedPreviewByPath]);
 
-  return { previewByPath };
+  return { previewByPath, failedPreviewByPath };
 }
 
 /** Returns true if the result's kind is one for which we attempt a preview. */
