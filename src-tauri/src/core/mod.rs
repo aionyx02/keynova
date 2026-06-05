@@ -19,6 +19,7 @@ pub mod observability;
 pub mod plugin_runtime;
 pub mod preview;
 pub mod process_lookup;
+pub mod project_commands;
 pub mod search_registry;
 pub mod secret_store;
 pub mod startup_preflight;
