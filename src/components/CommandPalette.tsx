@@ -6,6 +6,8 @@ import { useWindowResize } from "../hooks/useWindowResize";
 import { useSearchMetadata } from "../hooks/useSearchMetadata";
 import { useAppStore } from "../stores/appStore";
 import { parseInputMode } from "../hooks/useInputMode";
+import { IPC } from "../ipc/routes";
+import type { TerminalLaunchSpec } from "../types/terminal";
 import { useCommands } from "../hooks/useCommands";
 import { CommandSuggestions } from "../features/command-palette/CommandSuggestions";
 import { clearLegacyFilters, loadFilters } from "../features/command-palette/FilterChips";
@@ -136,6 +138,9 @@ export function CommandPalette() {
 
   // Mount terminal once and keep it alive; only toggle visibility via CSS
   const [terminalMounted, setTerminalMounted] = useState(false);
+  // ADR-0045: backend-issued default-shell spec for the human-driven `>` terminal.
+  const [shellLaunchSpec, setShellLaunchSpec] = useState<TerminalLaunchSpec | null>(null);
+  const shellRequestRef = useRef(false);
 
   const {
     copiedPath,
@@ -209,6 +214,24 @@ export function CommandPalette() {
   const inputRef = useRef<HTMLInputElement>(null);
 
   const { mode, rawInput } = parseInputMode(query);
+
+  // ADR-0045: typing `>` (a human gesture) requests a backend-issued default-shell
+  // launch spec, then mounts the persistent terminal with it. Once per session;
+  // the exit handler resets so the next `>` opens a fresh shell. The request is a
+  // no-op while already mounted (the panel just toggles visibility via CSS).
+  useEffect(() => {
+    if (mode !== "terminal" || terminalMounted || shellRequestRef.current) return;
+    shellRequestRef.current = true;
+    void (async () => {
+      try {
+        const spec = await dispatch<TerminalLaunchSpec>(IPC.TERMINAL_REQUEST_SHELL, {});
+        setShellLaunchSpec(spec);
+        setTerminalMounted(true);
+      } catch {
+        shellRequestRef.current = false; // allow a retry on the next `>`
+      }
+    })();
+  }, [mode, terminalMounted, dispatch]);
 
   // Feature gate: when AI is disabled every inline-AI surface is suppressed.
   // Gating the three capability sources (explicit prefix, smart-next,
@@ -835,7 +858,18 @@ export function CommandPalette() {
       {terminalMounted && (
         <div style={{ display: mode === "terminal" ? "block" : "none" }}>
           <Suspense fallback={<div className="kn-terminal-shell h-[520px]" />}>
-            <TerminalPanel isActive={mode === "terminal"} onExit={terminalOnExit} />
+            <TerminalPanel
+              isActive={mode === "terminal"}
+              launchSpec={shellLaunchSpec}
+              onExit={() => {
+                // Unmount + drop the spec so the PTY closes and the next `>`
+                // requests a fresh shell (ADR-0045).
+                setTerminalMounted(false);
+                setShellLaunchSpec(null);
+                shellRequestRef.current = false;
+                void terminalOnExit();
+              }}
+            />
           </Suspense>
         </div>
       )}
