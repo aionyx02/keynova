@@ -7,7 +7,10 @@ use base64::Engine as _;
 use serde_json::{json, Value};
 use sha2::{Digest, Sha256};
 
-use crate::core::preview::{classify_path, guess_image_mime, read_text_preview, PreviewKind};
+use crate::core::preview::{
+    classify_path, guess_image_mime, is_docx_path, read_docx_preview, read_text_preview,
+    PreviewKind,
+};
 use crate::core::{CommandHandler, CommandResult};
 use crate::models::ipc_requests::{
     FileDeleteRequest, FileHashRequest, FileMoveRequest, FileOpenAsTextRequest, FilePreviewRequest,
@@ -231,6 +234,21 @@ impl CommandHandler for FileHandler {
                     .ok()
                     .and_then(|t| t.duration_since(UNIX_EPOCH).ok())
                     .map(|d| d.as_millis() as i64);
+                if is_docx_path(p) && meta.is_file() {
+                    let max_bytes = req.max_bytes.unwrap_or(4096).min(64 * 1024);
+                    let max_lines = req.max_lines.unwrap_or(500).min(2000);
+                    let preview = read_docx_preview(p, max_bytes, max_lines, true)?;
+                    return Ok(json!({
+                        "path": path,
+                        "kind": "text",
+                        "size_bytes": size_bytes,
+                        "modified_ms": modified_ms,
+                        "content": preview.content,
+                        "truncated": preview.truncated,
+                        "line_count": preview.line_count,
+                        "mime": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                    }));
+                }
                 let kind = classify_path(p, &meta);
                 match kind {
                     PreviewKind::Image => {
@@ -485,6 +503,7 @@ mod tests {
     use std::fs::File;
     use std::io::Write;
     use tempfile::TempDir;
+    use zip::write::SimpleFileOptions;
 
     fn handler() -> FileHandler {
         FileHandler::new()
@@ -494,6 +513,24 @@ mod tests {
         let path = dir.path().join(name);
         let mut f = File::create(&path).expect("create temp file");
         f.write_all(contents).expect("write temp file");
+        path
+    }
+
+    fn tmp_docx(dir: &TempDir, name: &str, document_xml: &str) -> PathBuf {
+        let path = dir.path().join(name);
+        let file = File::create(&path).expect("create docx");
+        let mut zip = zip::ZipWriter::new(file);
+        let options =
+            SimpleFileOptions::default().compression_method(zip::CompressionMethod::Deflated);
+        zip.start_file("[Content_Types].xml", options)
+            .expect("content types entry");
+        zip.write_all(br#"<?xml version="1.0"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"/>"#)
+            .expect("content types xml");
+        zip.start_file("word/document.xml", options)
+            .expect("document entry");
+        zip.write_all(document_xml.as_bytes())
+            .expect("document xml");
+        zip.finish().expect("finish docx");
         path
     }
 
@@ -796,6 +833,40 @@ mod tests {
         assert_eq!(res["size_bytes"], json!(20));
         assert_eq!(res["truncated"], json!(false));
         assert!(res["line_count"].as_i64().unwrap() >= 1);
+    }
+
+    #[test]
+    fn preview_docx_file_returns_text_content() {
+        let dir = TempDir::new().unwrap();
+        let path = tmp_docx(
+            &dir,
+            "brief.docx",
+            r#"
+            <w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+              <w:body>
+                <w:p><w:r><w:t>Docx preview works</w:t></w:r></w:p>
+                <w:p><w:r><w:t>Second paragraph</w:t></w:r></w:p>
+              </w:body>
+            </w:document>
+            "#,
+        );
+        let res = handler()
+            .execute("preview", json!({ "path": path.to_string_lossy() }))
+            .expect("preview ok");
+        assert_eq!(res["kind"], json!("text"));
+        assert_eq!(
+            res["mime"],
+            json!("application/vnd.openxmlformats-officedocument.wordprocessingml.document")
+        );
+        assert!(res["content"]
+            .as_str()
+            .unwrap()
+            .contains("Docx preview works"));
+        assert!(res["content"]
+            .as_str()
+            .unwrap()
+            .contains("Second paragraph"));
+        assert_eq!(res["line_count"], json!(2));
     }
 
     #[test]
