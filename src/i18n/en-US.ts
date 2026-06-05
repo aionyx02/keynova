@@ -548,6 +548,8 @@ export const enUS: I18nKeys = {
   rank: {
     title: "Why this rank",
     base: "base",
+    workspace: "workspace",
+    config: "config",
     recency: "recency",
     frequency: "frequency",
   },

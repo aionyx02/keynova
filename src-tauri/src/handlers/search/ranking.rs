@@ -29,6 +29,67 @@ pub(super) fn command_match_score(name: &str, description: &str, q: &str) -> Opt
     }
 }
 
+/// PRODUCT.1.A workspace_context term. Rewards a file/folder/app result whose
+/// path lives under the active workspace `project_root` so that, in `:global`
+/// mode (or when no hard filter applies), the in-workspace copy of a same-named
+/// file outranks copies elsewhere. Non-file sources (synthetic `command://`,
+/// `note://`, … paths) and an unset root both yield 0 — a safe no-op default.
+pub(super) fn workspace_boost(source: &str, path: &str, project_root: Option<&str>) -> i64 {
+    // `folder` results carry source "file"; apps carry "app".
+    if !matches!(source, "file" | "app") {
+        return 0;
+    }
+    match project_root {
+        Some(root) if path_under_root(path, root) => 20,
+        _ => 0,
+    }
+}
+
+/// PRODUCT.1.A README/config nudge. Small additive boost so project entry points
+/// (README, manifests, config files) surface above incidental files. File source
+/// only; deliberately a short allow-list + a few config extensions rather than
+/// every `.json`/data file.
+pub(super) fn config_boost(source: &str, path: &str) -> i64 {
+    if source != "file" {
+        return 0;
+    }
+    let normalized = path.replace('\\', "/");
+    let name = normalized.rsplit('/').next().unwrap_or(&normalized).to_lowercase();
+    let is_readme = name.starts_with("readme");
+    let is_named_config = matches!(
+        name.as_str(),
+        "cargo.toml"
+            | "package.json"
+            | "tsconfig.json"
+            | "makefile"
+            | "justfile"
+            | "pyproject.toml"
+            | "docker-compose.yml"
+            | "docker-compose.yaml"
+            | ".env"
+    );
+    let is_config_ext = [".toml", ".yml", ".yaml", ".ini", ".cfg"]
+        .iter()
+        .any(|ext| name.ends_with(ext));
+    if is_readme || is_named_config || is_config_ext {
+        6
+    } else {
+        0
+    }
+}
+
+/// Case- and separator-insensitive "is `path` inside `root`?" check. An exact
+/// match counts (selecting the project dir itself).
+fn path_under_root(path: &str, root: &str) -> bool {
+    let normalize = |s: &str| s.replace('\\', "/").trim_end_matches('/').to_lowercase();
+    let p = normalize(path);
+    let r = normalize(root);
+    if r.is_empty() {
+        return false;
+    }
+    p == r || p.starts_with(&format!("{r}/"))
+}
+
 pub(super) fn sort_truncate(results: &mut Vec<UiSearchItem>, limit: usize) {
     results.sort_by(|left, right| {
         right
@@ -130,4 +191,52 @@ pub(super) fn strip_global_prefix(raw: &str) -> (String, bool) {
         return (rest.trim_start().to_string(), true);
     }
     (raw.to_string(), false)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{config_boost, workspace_boost};
+
+    const ROOT: &str = "C:/projA";
+
+    #[test]
+    fn workspace_boost_rewards_file_under_root() {
+        assert_eq!(workspace_boost("file", "C:/projA/config.toml", Some(ROOT)), 20);
+        assert_eq!(workspace_boost("app", "C:/projA/bin/app.exe", Some(ROOT)), 20);
+    }
+
+    #[test]
+    fn workspace_boost_zero_outside_root_or_unset() {
+        assert_eq!(workspace_boost("file", "C:/projB/config.toml", Some(ROOT)), 0);
+        assert_eq!(workspace_boost("file", "C:/projA/config.toml", None), 0);
+        // The headline scenario: same-named file inside beats the one outside.
+        let inside = workspace_boost("file", "C:/projA/config.toml", Some(ROOT));
+        let outside = workspace_boost("file", "C:/projB/config.toml", Some(ROOT));
+        assert!(inside > outside);
+    }
+
+    #[test]
+    fn workspace_boost_is_case_and_separator_insensitive() {
+        assert_eq!(workspace_boost("file", r"c:\proja\src\main.rs", Some(ROOT)), 20);
+    }
+
+    #[test]
+    fn workspace_boost_ignores_non_file_sources() {
+        assert_eq!(workspace_boost("command", "command://help", Some(ROOT)), 0);
+        assert_eq!(workspace_boost("note", "note://todo", Some(ROOT)), 0);
+    }
+
+    #[test]
+    fn config_boost_rewards_readme_and_manifests() {
+        assert_eq!(config_boost("file", "C:/x/README.md"), 6);
+        assert_eq!(config_boost("file", "C:/x/Cargo.toml"), 6);
+        assert_eq!(config_boost("file", "C:/x/settings.yaml"), 6);
+    }
+
+    #[test]
+    fn config_boost_zero_for_plain_files_and_non_files() {
+        assert_eq!(config_boost("file", "C:/x/notes.txt"), 0);
+        assert_eq!(config_boost("file", "C:/x/data.json"), 0);
+        assert_eq!(config_boost("app", "C:/x/Cargo.toml"), 0);
+    }
 }

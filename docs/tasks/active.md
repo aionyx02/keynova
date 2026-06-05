@@ -51,9 +51,9 @@ Detailed batch definitions, done criteria, non-goals, file map, and validation g
 - [ ] `PRODUCT.1` v0.6 stable workflow core — **UNFROZEN 2026-06-05** (conditional
   partial unfreeze; search-core is orthogonal to the REF.7 AI gates). Batches
   `A`–`H`: ranking, result-contract audit, workspace search, command discovery,
-  terminal, file actions, dev utilities, kbd/perf. `PRODUCT.1.A` scoped (add a
-  `workspace_context` score term; defer action_success/risk/noise). Detail:
-  `docs/tasks/product-1-workflow-core.md`.
+  terminal, file actions, dev utilities, kbd/perf. `PRODUCT.1.A` **done** at unit
+  level (`workspace_boost` + `config_boost` rank terms + tooltip; deferred
+  action_success/risk/noise). Detail: `docs/tasks/product-1-workflow-core.md`.
 
 ### P2
 
