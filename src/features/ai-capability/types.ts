@@ -6,7 +6,14 @@
 import type { RiskTag } from "../../types/unified-result";
 import type { ActionRef } from "../../types/search";
 
-export type CapabilityId = "explain" | "summarize" | "fix_error" | "gen_command" | "suggest_next";
+export type CapabilityId =
+  | "explain"
+  | "summarize"
+  | "fix_error"
+  | "gen_command"
+  | "suggest_next"
+  | "remember"
+  | "recall";
 
 export interface CapabilityMeta {
   id: CapabilityId;
@@ -72,6 +79,34 @@ export interface GenCommandOutput {
   command: string;
   confidence: number;
   rationale: string;
+}
+
+/** Payload accepted by the `remember` capability. */
+export interface RememberPayload {
+  text: string;
+}
+
+/** Structured reply returned by `remember`. */
+export interface RememberOutput {
+  id: string;
+  title: string;
+  content: string;
+  saved: boolean;
+}
+
+/** Payload accepted by the `recall` capability. */
+export interface RecallPayload {
+  query: string;
+  limit?: number;
+}
+
+/** Structured row returned by the `recall` capability. */
+export interface RecalledMemory {
+  id: string;
+  title: string;
+  snippet: string;
+  content: string;
+  score: number;
 }
 
 /** Optional workflow-memory query context for `suggest_next`. */
@@ -170,6 +205,67 @@ export function parseGenCommandOutput(value: unknown): GenCommandOutput | null {
     confidence: candidate.confidence,
     rationale: candidate.rationale,
   };
+}
+
+export function parseRememberOutput(value: unknown): RememberOutput | null {
+  const structured =
+    value && typeof value === "object" && "kind" in value ? (value as CapabilityOutput) : null;
+  const candidate =
+    structured?.kind === "structured" && structured.value && typeof structured.value === "object"
+      ? (structured.value as Record<string, unknown>)
+      : value && typeof value === "object"
+        ? (value as Record<string, unknown>)
+        : null;
+  if (
+    !candidate ||
+    typeof candidate.id !== "string" ||
+    typeof candidate.title !== "string" ||
+    typeof candidate.content !== "string" ||
+    typeof candidate.saved !== "boolean"
+  ) {
+    return null;
+  }
+  return {
+    id: candidate.id,
+    title: candidate.title,
+    content: candidate.content,
+    saved: candidate.saved,
+  };
+}
+
+function parseRecalledMemory(value: unknown): RecalledMemory | null {
+  if (!value || typeof value !== "object") {
+    return null;
+  }
+  const candidate = value as Record<string, unknown>;
+  if (
+    typeof candidate.id !== "string" ||
+    typeof candidate.title !== "string" ||
+    typeof candidate.snippet !== "string" ||
+    typeof candidate.content !== "string" ||
+    typeof candidate.score !== "number"
+  ) {
+    return null;
+  }
+  return {
+    id: candidate.id,
+    title: candidate.title,
+    snippet: candidate.snippet,
+    content: candidate.content,
+    score: candidate.score,
+  };
+}
+
+export function parseRecallOutput(value: unknown): RecalledMemory[] {
+  const structured =
+    value && typeof value === "object" && "kind" in value ? (value as CapabilityOutput) : null;
+  const candidate = structured?.kind === "structured" ? structured.value : value;
+  if (!Array.isArray(candidate)) {
+    return [];
+  }
+  return candidate
+    .map((item) => parseRecalledMemory(item))
+    .filter((item): item is RecalledMemory => item !== null);
 }
 
 export function parseSuggestNextOutput(value: unknown): SuggestedNextAction[] {

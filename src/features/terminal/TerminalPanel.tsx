@@ -1,4 +1,4 @@
-﻿import {
+import {
   useEffect,
   useMemo,
   useRef,
@@ -12,6 +12,8 @@ import { listen } from "@tauri-apps/api/event";
 import { UiIcon } from "../../components/icons/UiIcon";
 import { useIPC } from "../../hooks/useIPC";
 import { useFeature } from "../../context/FeatureContext";
+import { fmt } from "../../i18n/format";
+import { useI18n } from "../../i18n/useI18n";
 import { useTerminalTheme } from "../../hooks/useTerminalTheme";
 import { IPC } from "../../ipc/routes";
 import type { SettingEntry, TerminalOpenResponse } from "../../ipc/types";
@@ -35,8 +37,8 @@ interface Props {
 
 type ConnectionState = "connecting" | "running" | "error";
 
-function formatWorkingDirectory(cwd?: string): string {
-  if (!cwd) return "Default shell";
+function formatWorkingDirectory(cwd: string | undefined, defaultShell: string): string {
+  if (!cwd) return defaultShell;
   const normalized = cwd.replace(/\\/g, "/");
   const parts = normalized.split("/").filter(Boolean);
   if (parts.length === 0) return cwd;
@@ -45,6 +47,7 @@ function formatWorkingDirectory(cwd?: string): string {
 }
 
 export function TerminalPanel({ isActive, onExit, launchSpec = null, attached = false }: Props) {
+  const t = useI18n().terminal;
   const { dispatch } = useIPC();
   const { activate } = useFeature();
   const containerRef = useRef<HTMLDivElement>(null);
@@ -55,8 +58,11 @@ export function TerminalPanel({ isActive, onExit, launchSpec = null, attached = 
   const launchKey = launchSpec?.launch_id ?? "shell";
   const isEditorSession = Boolean(launchSpec?.editor);
   const [connectionState, setConnectionState] = useState<ConnectionState>("connecting");
-  const terminalTitle = launchSpec?.title ?? (isEditorSession ? "Editor session" : "Terminal");
-  const cwdLabel = useMemo(() => formatWorkingDirectory(launchSpec?.cwd), [launchSpec?.cwd]);
+  const terminalTitle = launchSpec?.title ?? (isEditorSession ? t.editorSession : t.terminal);
+  const cwdLabel = useMemo(
+    () => formatWorkingDirectory(launchSpec?.cwd, t.defaultShell),
+    [launchSpec?.cwd, t.defaultShell],
+  );
   const statusClass =
     connectionState === "running"
       ? "border-emerald-400/20 bg-emerald-400/10 text-emerald-200"
@@ -65,10 +71,10 @@ export function TerminalPanel({ isActive, onExit, launchSpec = null, attached = 
         : "border-amber-400/20 bg-amber-400/10 text-amber-100";
   const statusLabel =
     connectionState === "running"
-      ? "Running"
+      ? t.running
       : connectionState === "error"
-        ? "Needs attention"
-        : "Connecting";
+        ? t.needsAttention
+        : t.connecting;
   const exitShortcut = isEditorSession ? "Ctrl+Shift+Q" : "Esc";
 
   // Notify the feature gate on first mount so the backend can prewarm.
@@ -243,7 +249,7 @@ export function TerminalPanel({ isActive, onExit, launchSpec = null, attached = 
         if (!cancelled) {
           setConnectionState("error");
           const message = err instanceof Error ? err.message : String(err);
-          xterm.write(`\r\n[terminal] failed to open: ${message}\r\n`);
+          xterm.write(`\r\n${fmt(t.failedToOpen, { message })}\r\n`);
         }
       }
     };
@@ -333,8 +339,8 @@ export function TerminalPanel({ isActive, onExit, launchSpec = null, attached = 
           onMouseDown={(event) => event.preventDefault()}
           onClick={() => void Promise.resolve(onExitRef.current())}
           className="flex h-8 w-8 shrink-0 items-center justify-center rounded-[12px] border border-[color:var(--kn-border)] bg-white/[0.035] text-[color:var(--kn-text-muted)] transition-colors hover:border-[color:var(--kn-border-strong)] hover:bg-white/[0.06] hover:text-[color:var(--kn-text)]"
-          title={`Close terminal (${exitShortcut})`}
-          aria-label="Close terminal"
+          title={fmt(t.closeTitle, { shortcut: exitShortcut })}
+          aria-label={t.closeAria}
         >
           <UiIcon name="x" className="h-4 w-4" />
         </button>

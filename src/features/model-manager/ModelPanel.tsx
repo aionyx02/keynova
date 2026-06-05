@@ -10,6 +10,11 @@ import {
 import { listen } from "@tauri-apps/api/event";
 import { invoke } from "@tauri-apps/api/core";
 import type { PanelProps } from "../../types/panel";
+import { useI18n } from "../../i18n/useI18n";
+import { fmt } from "../../i18n/format";
+import type { I18nKeys } from "../../i18n/zh-TW";
+
+type ModelT = I18nKeys["model"];
 
 // ---------------------------------------------------------------------------
 // Shared
@@ -21,11 +26,11 @@ async function ipcDispatch<T>(route: string, payload?: Record<string, unknown>):
 
 type TabId = "installed" | "browse" | "remove";
 
-const TABS: { id: TabId; label: string }[] = [
-  { id: "installed", label: "Installed" },
-  { id: "browse", label: "Browse" },
-  { id: "remove", label: "Remove" },
-];
+const TAB_IDS: TabId[] = ["installed", "browse", "remove"];
+
+function tabLabel(id: TabId, m: ModelT): string {
+  return id === "installed" ? m.tabInstalled : id === "browse" ? m.tabBrowse : m.tabRemove;
+}
 
 interface ViewProps {
   onClose: () => void;
@@ -63,12 +68,13 @@ type ModelRow =
   | (LocalModel & { kind: "local"; label: string })
   | (ApiModel & { kind: "api"; label: string });
 
-function modelSize(model: ModelRow) {
+function modelSize(model: ModelRow, m: ModelT) {
   if (model.kind === "api") return "API";
-  return typeof model.size_gb === "number" ? `${model.size_gb.toFixed(1)} GB` : "Local";
+  return typeof model.size_gb === "number" ? `${model.size_gb.toFixed(1)} GB` : m.sizeLocal;
 }
 
 function InstalledView({ onClose }: ViewProps) {
+  const m = useI18n().model;
   const [data, setData] = useState<ModelListResponse | null>(null);
   const [selected, setSelected] = useState(0);
   const [notice, setNotice] = useState("");
@@ -115,7 +121,7 @@ function InstalledView({ onClose }: ViewProps) {
   async function activateRow(row: ModelRow) {
     setError("");
     if (row.kind === "api" && !row.configured) {
-      setNotice(`Use the Browse tab to configure ${row.label}.`);
+      setNotice(fmt(m.configureInBrowse, { label: row.label }));
       return;
     }
     const payload =
@@ -123,7 +129,7 @@ function InstalledView({ onClose }: ViewProps) {
         ? { provider: "ollama", model: row.name, tool: "ai" }
         : { provider: row.provider, model: row.model, tool: "ai" };
     await ipcDispatch("model.set_active", payload);
-    setNotice(`AI Chat is now using ${row.kind === "local" ? row.name : row.label}.`);
+    setNotice(fmt(m.activeNow, { name: row.kind === "local" ? row.name : row.label }));
     await load();
   }
 
@@ -131,7 +137,7 @@ function InstalledView({ onClose }: ViewProps) {
     if (row.kind !== "local") return;
     setError("");
     await ipcDispatch("model.delete", { name: row.name });
-    setNotice(`Removed ${row.name}.`);
+    setNotice(fmt(m.removed, { name: row.name }));
     await load();
   }
 
@@ -165,26 +171,26 @@ function InstalledView({ onClose }: ViewProps) {
     >
       <div className="kn-panel-subtitle px-4 py-2">
         {data
-          ? `${data.tool_label}: ${data.active_provider}:${data.active_model}`
+          ? fmt(m.activeModel, { provider: data.active_provider, model: data.active_model })
           : loading
-            ? "Loading available models..."
-            : "Inspect the active AI Chat model"}
+            ? m.loadingAvailable
+            : m.inspectActive}
       </div>
 
       <div className="kn-scroll min-h-0 flex-1 overflow-y-auto px-2 py-2">
         {rows.length === 0 ? (
           <div className="flex h-full min-h-[200px] items-center justify-center px-4 text-center text-xs text-[color:var(--kn-text-faint)]">
-            {loading ? "Loading available models..." : "No models are currently available."}
+            {loading ? m.loadingAvailable : m.noneAvailable}
           </div>
         ) : (
           <div className="space-y-1">
             {rows.map((row, index) => {
               const isSelected = index === selected;
               const status = row.active
-                ? "Active"
+                ? m.statusActive
                 : row.kind === "api" && !row.configured
-                  ? "Needs key"
-                  : "Available";
+                  ? m.statusNeedsKey
+                  : m.statusAvailable;
               return (
                 <button
                   key={`${row.kind}-${row.kind === "local" ? row.name : row.provider}`}
@@ -209,7 +215,7 @@ function InstalledView({ onClose }: ViewProps) {
                     </span>
                   </span>
                   <span className="text-xs text-[color:var(--kn-text-muted)]">
-                    {modelSize(row)}
+                    {modelSize(row, m)}
                   </span>
                   <span
                     className={`text-xs ${
@@ -228,9 +234,13 @@ function InstalledView({ onClose }: ViewProps) {
       </div>
 
       <div className="kn-panel-footer">
-        <span>Enter activates · Delete removes a local model</span>
-        <span className={error ? "text-red-300" : ""}>
-          {error || notice || "Tab switches view"}
+        <span>{m.installedFooter}</span>
+        <span
+          role="status"
+          aria-live="polite"
+          className={error ? "text-red-300" : ""}
+        >
+          {error || notice || m.tabSwitches}
         </span>
       </div>
     </div>
@@ -299,7 +309,6 @@ interface ApiOption {
   provider: "claude" | "openai";
   label: string;
   model: string;
-  description: string;
 }
 
 interface LocalOption extends ModelCandidate {
@@ -314,34 +323,36 @@ const API_OPTIONS: ApiOption[] = [
     provider: "claude",
     label: "Claude API",
     model: "claude-sonnet-4-6",
-    description: "Use an Anthropic API key for remote chat.",
   },
   {
     kind: "api",
     provider: "openai",
     label: "OpenAI-compatible",
     model: "gpt-4o-mini",
-    description: "Point AI Chat at any OpenAI-style endpoint.",
   },
 ];
 
-function formatMb(mb: number) {
-  if (!mb) return "Unknown";
+function apiOptionDescription(option: ApiOption, m: ModelT): string {
+  return option.provider === "claude" ? m.claudeDesc : m.openaiDesc;
+}
+
+function formatMb(mb: number, m: ModelT) {
+  if (!mb) return m.unknown;
   return `${Math.round(mb / 1024)} GB`;
 }
 
-function progressText(payload: ModelEventPayload | null) {
+function progressText(payload: ModelEventPayload | null, m: ModelT) {
   if (!payload) return "";
   if (typeof payload.percent === "number") return `${Math.round(payload.percent)}%`;
-  return payload.status ?? "pulling";
+  return payload.status ?? m.progressPulling;
 }
 
-function sourceLabel(source: string) {
+function sourceLabel(source: string, m: ModelT) {
   switch (source) {
     case "recommended":
-      return "Recommended";
+      return m.sourceRecommended;
     case "catalog":
-      return "Catalog";
+      return m.sourceCatalog;
     case "library":
       return "Ollama";
     default:
@@ -372,6 +383,7 @@ function applyBootstrapState(
   setCandidates: Dispatch<SetStateAction<ModelCandidate[]>>,
   setNotice: Dispatch<SetStateAction<string>>,
   setError: Dispatch<SetStateAction<string>>,
+  m: ModelT,
 ) {
   const snapshot = payload.snapshot;
   if (snapshot) {
@@ -385,33 +397,35 @@ function applyBootstrapState(
     }
     setError("");
     if (!snapshot.model.ollama_reachable) {
-      setNotice(`Ollama is offline at ${snapshot.model.ollama_url}. Recommendations are cached.`);
+      setNotice(fmt(m.ollamaOffline, { url: snapshot.model.ollama_url }));
       return;
     }
     if (payload.running) {
-      setNotice("Refreshing local model bootstrap…");
+      setNotice(m.refreshingBootstrap);
       return;
     }
     if (snapshot.warnings.length > 0) {
       setNotice(snapshot.warnings[0]);
       return;
     }
-    setNotice("Local model bootstrap ready.");
+    setNotice(m.bootstrapReady);
     setError("");
     return;
   }
 
   if (payload.running) {
-    setNotice("Preparing local model bootstrap…");
+    setNotice(m.preparingBootstrap);
     setError("");
     return;
   }
 
-  setNotice("Bootstrap snapshot unavailable. Press Esc and reopen if it stays empty.");
+  setNotice(m.bootstrapUnavailable);
   setError("");
 }
 
 function BrowseView({ onClose }: ViewProps) {
+  const t = useI18n();
+  const m = t.model;
   const [hardware, setHardware] = useState<HardwareInfo | null>(null);
   const [candidates, setCandidates] = useState<ModelCandidate[]>([]);
   const [selected, setSelected] = useState(0);
@@ -441,7 +455,7 @@ function BrowseView({ onClose }: ViewProps) {
       try {
         const bootstrap = await ipcDispatch<BootstrapStatusPayload>("model.bootstrap_snapshot");
         if (cancelled) return;
-        applyBootstrapState(bootstrap, setHardware, setCandidates, setNotice, setError);
+        applyBootstrapState(bootstrap, setHardware, setCandidates, setNotice, setError, m);
       } catch (err) {
         if (!cancelled) setError(String(err));
       }
@@ -450,20 +464,20 @@ function BrowseView({ onClose }: ViewProps) {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [m]);
 
   useEffect(() => {
     if (!window.__TAURI_INTERNALS__) return;
     const unlistenPreflight = listen<BootstrapStatusPayload>(
       "startup-preflight-updated",
       (event) => {
-        applyBootstrapState(event.payload, setHardware, setCandidates, setNotice, setError);
+        applyBootstrapState(event.payload, setHardware, setCandidates, setNotice, setError, m);
       },
     );
     const unlistenPreflightError = listen<BootstrapStatusPayload>(
       "startup-preflight-failed",
       (event) => {
-        applyBootstrapState(event.payload, setHardware, setCandidates, setNotice, setError);
+        applyBootstrapState(event.payload, setHardware, setCandidates, setNotice, setError, m);
       },
     );
     const unlistenCatalog = listen<CatalogUpdatedPayload>("model-catalog-updated", (event) => {
@@ -472,7 +486,7 @@ function BrowseView({ onClose }: ViewProps) {
     const unlistenProgress = listen<ModelEventPayload>("model-pull-progress", (event) => {
       if (event.payload.tool && event.payload.tool !== "ai") return;
       setProgress(event.payload);
-      setNotice(`${event.payload.name} ${progressText(event.payload)}`);
+      setNotice(`${event.payload.name} ${progressText(event.payload, m)}`);
     });
     const unlistenDone = listen<ModelEventPayload>("model-pull-done", (event) => {
       if (event.payload.tool && event.payload.tool !== "ai") return;
@@ -480,13 +494,13 @@ function BrowseView({ onClose }: ViewProps) {
       setPendingDownload(null);
       setProgress(null);
       setError("");
-      setNotice(`AI Chat is now using ${event.payload.name}.`);
+      setNotice(fmt(m.activeNow, { name: event.payload.name }));
     });
     const unlistenError = listen<ModelEventPayload>("model-pull-error", (event) => {
       if (event.payload.tool && event.payload.tool !== "ai") return;
       setDownloading(null);
       setProgress(null);
-      setError(event.payload.error ?? "The model download failed.");
+      setError(event.payload.error ?? m.downloadFailed);
     });
     return () => {
       unlistenPreflight.then((fn) => fn());
@@ -496,7 +510,7 @@ function BrowseView({ onClose }: ViewProps) {
       unlistenDone.then((fn) => fn());
       unlistenError.then((fn) => fn());
     };
-  }, []);
+  }, [m]);
 
   useEffect(() => {
     apiInputRef.current?.focus();
@@ -507,7 +521,7 @@ function BrowseView({ onClose }: ViewProps) {
       setError("");
       if (pendingDownload === name) {
         setDownloading(name);
-        setNotice(`Downloading ${name}...`);
+        setNotice(fmt(m.downloading, { name }));
         await ipcDispatch("model.pull", { name, tool: "ai" });
         return;
       }
@@ -515,14 +529,14 @@ function BrowseView({ onClose }: ViewProps) {
       const check = await ipcDispatch<CheckResponse>("model.check", { name });
       if (check.exists) {
         await ipcDispatch("model.set_active", { provider: "ollama", model: name, tool: "ai" });
-        setNotice(`AI Chat is now using ${name}.`);
+        setNotice(fmt(m.activeNow, { name }));
         return;
       }
 
       setPendingDownload(name);
-      setNotice(`Press Enter again to download ${name}.`);
+      setNotice(fmt(m.pressEnterToDownload, { name }));
     },
-    [pendingDownload],
+    [pendingDownload, m],
   );
 
   const activateApi = useCallback(async () => {
@@ -536,8 +550,8 @@ function BrowseView({ onClose }: ViewProps) {
     });
     setApiPrompt(null);
     setApiKey("");
-    setNotice(`AI Chat is now using ${apiPrompt.label}.`);
-  }, [apiKey, apiPrompt]);
+    setNotice(fmt(m.activeNow, { name: apiPrompt.label }));
+  }, [apiKey, apiPrompt, m]);
 
   async function activateOption(option: DownloadOption | undefined) {
     if (!option || downloading) return;
@@ -588,15 +602,15 @@ function BrowseView({ onClose }: ViewProps) {
       className="flex min-h-0 flex-1 flex-col outline-none"
     >
       <div className="flex items-center justify-between gap-2 px-4 py-2">
-        <span className="kn-panel-subtitle">Pick a local or hosted model for AI Chat</span>
+        <span className="kn-panel-subtitle">{m.browseSubtitle}</span>
         <span className="flex items-center gap-2">
-          <span className="kn-chip">RAM {formatMb(hardware?.ram_mb ?? 0)}</span>
-          <span className="kn-chip">VRAM {formatMb(hardware?.vram_mb ?? 0)}</span>
+          <span className="kn-chip">RAM {formatMb(hardware?.ram_mb ?? 0, m)}</span>
+          <span className="kn-chip">VRAM {formatMb(hardware?.vram_mb ?? 0, m)}</span>
         </span>
       </div>
 
       <div className="border-b border-[color:var(--kn-border)] px-4 py-3">
-        <div className="kn-section-label mb-2">Custom Model</div>
+        <div className="kn-section-label mb-2">{m.customModel}</div>
         <div className="flex gap-2">
           <input
             value={modelInput}
@@ -607,7 +621,7 @@ function BrowseView({ onClose }: ViewProps) {
                 void activateInputModel();
               }
             }}
-            placeholder="qwen2.5:1.5b or an Ollama library URL"
+            placeholder={m.customPlaceholder}
             className="kn-field min-w-0 flex-1 text-sm"
           />
           <button
@@ -616,7 +630,7 @@ function BrowseView({ onClose }: ViewProps) {
             disabled={!modelInput.trim() || Boolean(downloading)}
             className="kn-button kn-button-primary px-3 disabled:opacity-40"
           >
-            Use
+            {m.use}
           </button>
         </div>
       </div>
@@ -627,7 +641,7 @@ function BrowseView({ onClose }: ViewProps) {
             const isSelected = index === selected;
             const isPending = option.kind === "local" && pendingDownload === option.name;
             const isDownloading = option.kind === "local" && downloading === option.name;
-            const sourceText = option.kind === "local" ? sourceLabel(option.source) : "API";
+            const sourceText = option.kind === "local" ? sourceLabel(option.source, m) : "API";
 
             return (
               <button
@@ -650,22 +664,22 @@ function BrowseView({ onClose }: ViewProps) {
                     {option.kind === "local" ? option.name : option.label}
                   </span>
                   <span className="block truncate text-xs text-[color:var(--kn-text-faint)]">
-                    {option.kind === "local" ? option.rating : option.description}
+                    {option.kind === "local" ? option.rating : apiOptionDescription(option, m)}
                   </span>
                 </span>
                 <span className="shrink-0 text-xs text-[color:var(--kn-text-muted)]">
                   {option.kind === "local"
                     ? option.size_gb > 0
                       ? `${option.size_gb.toFixed(1)} GB`
-                      : "Unknown size"
+                      : m.unknownSize
                     : option.model}
                 </span>
                 {isPending && (
-                  <span className="shrink-0 text-xs text-[color:var(--kn-warm)]">Press Enter</span>
+                  <span className="shrink-0 text-xs text-[color:var(--kn-warm)]">{m.pressEnter}</span>
                 )}
                 {isDownloading && (
                   <span className="shrink-0 text-xs text-[color:var(--kn-success)]">
-                    {progressText(progress)}
+                    {progressText(progress, m)}
                   </span>
                 )}
               </button>
@@ -676,7 +690,7 @@ function BrowseView({ onClose }: ViewProps) {
 
       {apiPrompt && (
         <div className="border-t border-[color:var(--kn-border)] px-4 py-3">
-          <div className="kn-section-label mb-2">{apiPrompt.label} Key</div>
+          <div className="kn-section-label mb-2">{fmt(m.apiKeyLabel, { label: apiPrompt.label })}</div>
           <div className="flex gap-2">
             <input
               ref={apiInputRef}
@@ -693,7 +707,7 @@ function BrowseView({ onClose }: ViewProps) {
                 }
               }}
               type="password"
-              placeholder="Paste API key"
+              placeholder={m.pasteApiKey}
               className="kn-field w-full text-sm"
             />
             <button
@@ -702,7 +716,7 @@ function BrowseView({ onClose }: ViewProps) {
               disabled={!apiKey.trim()}
               className="kn-button kn-button-primary px-3 disabled:opacity-40"
             >
-              Save
+              {t.note.save}
             </button>
           </div>
         </div>
@@ -718,8 +732,10 @@ function BrowseView({ onClose }: ViewProps) {
       )}
 
       <div className="kn-panel-footer">
-        <span>Arrows and Enter · Tab switches view</span>
-        <span className={error ? "text-red-300" : ""}>{error || notice || "Esc closes"}</span>
+        <span>{m.browseFooter}</span>
+        <span role="status" aria-live="polite" className={error ? "text-red-300" : ""}>
+          {error || notice || m.escCloses}
+        </span>
       </div>
     </div>
   );
@@ -730,6 +746,8 @@ function BrowseView({ onClose }: ViewProps) {
 // ---------------------------------------------------------------------------
 
 function RemoveView({ onClose }: ViewProps) {
+  const t = useI18n();
+  const m = t.model;
   const [models, setModels] = useState<LocalModel[]>([]);
   const [selected, setSelected] = useState(0);
   const [confirming, setConfirming] = useState<string | null>(null);
@@ -766,7 +784,7 @@ function RemoveView({ onClose }: ViewProps) {
     setError("");
     try {
       await ipcDispatch("model.delete", { name });
-      setNotice(`Removed ${name}.`);
+      setNotice(fmt(m.removed, { name }));
       setConfirming(null);
       await load();
     } catch (err) {
@@ -810,16 +828,16 @@ function RemoveView({ onClose }: ViewProps) {
     >
       <div className="kn-panel-subtitle px-4 py-2">
         {models.length > 0
-          ? `${models.length} local model${models.length === 1 ? "" : "s"} available`
+          ? fmt(m.localModelsAvailable, { count: models.length })
           : loading
-            ? "Loading local models..."
-            : "Delete local Ollama models"}
+            ? m.loadingLocal
+            : m.removeSubtitle}
       </div>
 
       <div className="kn-scroll min-h-0 flex-1 overflow-y-auto px-2 py-2">
         {models.length === 0 ? (
           <div className="flex h-full min-h-[200px] items-center justify-center px-4 text-center text-xs text-[color:var(--kn-text-faint)]">
-            {loading ? "Loading local models..." : "No local models to remove."}
+            {loading ? m.loadingLocal : m.noneToRemove}
           </div>
         ) : (
           <div className="space-y-1">
@@ -846,20 +864,20 @@ function RemoveView({ onClose }: ViewProps) {
                         {model.name}
                       </span>
                       <span className="block text-xs text-[color:var(--kn-text-faint)]">
-                        {model.active ? "Currently active" : "Local model"}
+                        {model.active ? m.currentlyActive : m.localModel}
                       </span>
                     </span>
                     <span className="shrink-0 text-xs text-[color:var(--kn-text-muted)]">
                       {typeof model.size_gb === "number"
                         ? `${model.size_gb.toFixed(1)} GB`
-                        : "Local"}
+                        : m.sizeLocal}
                     </span>
                     {isDeleting && (
-                      <span className="shrink-0 text-xs text-red-300">Removing...</span>
+                      <span className="shrink-0 text-xs text-red-300">{m.removing}</span>
                     )}
                     {isConfirming && !isDeleting && (
                       <span className="shrink-0 text-xs text-[color:var(--kn-warm)]">
-                        Press Enter
+                        {m.pressEnter}
                       </span>
                     )}
                   </button>
@@ -867,22 +885,21 @@ function RemoveView({ onClose }: ViewProps) {
                   {isConfirming && !isDeleting && (
                     <div className="kn-muted-surface flex items-center gap-3 border-red-400/20 bg-[color:var(--kn-danger-wash)] px-3 py-2">
                       <span className="flex-1 text-xs text-red-100">
-                        Delete <span className="font-semibold">{model.name}</span>? This removes the
-                        local copy.
+                        {fmt(m.removeConfirm, { name: model.name })}
                       </span>
                       <button
                         type="button"
                         onMouseDown={() => void deleteModel(model.name)}
                         className="kn-button kn-button-danger px-3 py-1"
                       >
-                        Delete
+                        {m.delete}
                       </button>
                       <button
                         type="button"
                         onMouseDown={() => setConfirming(null)}
                         className="kn-button px-3 py-1"
                       >
-                        Cancel
+                        {t.common.cancel}
                       </button>
                     </div>
                   )}
@@ -894,8 +911,10 @@ function RemoveView({ onClose }: ViewProps) {
       </div>
 
       <div className="kn-panel-footer">
-        <span>Enter or Delete confirms · Tab switches view</span>
-        <span className={error ? "text-red-300" : ""}>{error || notice || "Esc backs out"}</span>
+        <span>{m.removeFooter}</span>
+        <span role="status" aria-live="polite" className={error ? "text-red-300" : ""}>
+          {error || notice || m.escBacksOut}
+        </span>
       </div>
     </div>
   );
@@ -906,13 +925,14 @@ function RemoveView({ onClose }: ViewProps) {
 // ---------------------------------------------------------------------------
 
 export function ModelPanel({ onClose }: PanelProps) {
+  const m = useI18n().model;
   const [activeTab, setActiveTab] = useState<TabId>("installed");
 
   const cycleTab = useCallback((direction: 1 | -1) => {
     setActiveTab((current) => {
-      const index = TABS.findIndex((tab) => tab.id === current);
-      const next = (index + direction + TABS.length) % TABS.length;
-      return TABS[next].id;
+      const index = TAB_IDS.indexOf(current);
+      const next = (index + direction + TAB_IDS.length) % TAB_IDS.length;
+      return TAB_IDS[next];
     });
   }, []);
 
@@ -930,17 +950,17 @@ export function ModelPanel({ onClose }: PanelProps) {
       className="kn-panel-shell flex max-h-[460px] min-h-[380px] flex-col rounded-t-none border-t-0 outline-none"
     >
       <div className="kn-panel-header">
-        <div className="kn-panel-title">Models</div>
+        <div className="kn-panel-title">{m.title}</div>
         <div className="flex items-center gap-1">
-          {TABS.map((tab) => (
+          {TAB_IDS.map((id) => (
             <button
-              key={tab.id}
+              key={id}
               type="button"
-              onMouseDown={() => setActiveTab(tab.id)}
-              className={`kn-chip ${activeTab === tab.id ? "kn-chip-active" : ""}`}
-              data-selected={activeTab === tab.id}
+              onMouseDown={() => setActiveTab(id)}
+              className={`kn-chip ${activeTab === id ? "kn-chip-active" : ""}`}
+              data-selected={activeTab === id}
             >
-              {tab.label}
+              {tabLabel(id, m)}
             </button>
           ))}
         </div>

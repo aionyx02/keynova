@@ -16,6 +16,7 @@ import type { SecondaryActionItem, SecondaryActionId } from "../../utils/seconda
 import { FilterChips } from "./FilterChips";
 import { SecondaryActionMenu } from "./SecondaryActionMenu";
 import type { SecondaryInlineInput } from "./hooks/useSecondaryMenu";
+import { useI18n } from "../../i18n/useI18n";
 
 const KIND_BADGE: Record<string, { label: string; cls: string; icon: UiIconName }> = {
   app: {
@@ -52,6 +53,11 @@ const KIND_BADGE: Record<string, { label: string; cls: string; icon: UiIconName 
     label: "AI",
     cls: "border-[color:rgba(88,211,166,0.22)] bg-[color:var(--kn-success-wash)] text-[color:var(--kn-success)]",
     icon: "model",
+  },
+  memory: {
+    label: "Mem",
+    cls: "border-[color:rgba(138,168,255,0.2)] bg-[color:var(--kn-accent-wash)] text-[color:var(--kn-accent)]",
+    icon: "database",
   },
 };
 
@@ -118,6 +124,7 @@ export function SearchResultsList({
   selectedMetadata,
   footerHint,
 }: Props) {
+  const t = useI18n();
   const [brokenIconKeys, setBrokenIconKeys] = useState<Record<string, true>>({});
 
   return (
@@ -139,11 +146,13 @@ export function SearchResultsList({
               const showIconImage = Boolean(icon && !brokenIconKeys[iconKey]);
               const unified = unifiedVisible[index];
               const title = hasEncodingError(result.title ?? result.name)
-                ? "Unavailable text"
+                ? t.search.unavailableText
                 : (result.title ?? result.name);
               const detailSource =
                 result.kind === "app" ? result.subtitle : (result.subtitle ?? result.path);
-              const detail = hasEncodingError(detailSource) ? "Path unavailable" : detailSource;
+              const detail = hasEncodingError(detailSource)
+                ? t.search.pathUnavailable
+                : detailSource;
 
               return (
                 <li
@@ -181,7 +190,7 @@ export function SearchResultsList({
                   ) : (
                     <div
                       className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-[8px] border ${badge.cls}`}
-                      title={badge.label}
+                      title={t.search.kinds[result.kind] ?? badge.label}
                     >
                       <UiIcon name={badge.icon} className="h-[18px] w-[18px]" />
                     </div>
@@ -253,16 +262,18 @@ export function SearchResultsList({
         <div className="border-t border-[color:var(--kn-border)] bg-[color:var(--kn-panel-bg-strong)] px-4 py-3 text-xs text-[color:var(--kn-text-soft)]">
           <div className="mb-2 flex items-center justify-between">
             <span className="text-[10px] uppercase tracking-[0.2em] text-[color:var(--kn-text-faint)]">
-              Metadata
+              {t.search.metadata}
             </span>
-            <span className="text-[10px] text-[color:var(--kn-text-muted)]">Esc collapse</span>
+            <span className="text-[10px] text-[color:var(--kn-text-muted)]">
+              {t.search.escCollapse}
+            </span>
           </div>
           <div className="grid grid-cols-[max-content_1fr] gap-x-3 gap-y-1 font-mono text-[11px]">
-            <span className="text-[color:var(--kn-text-faint)]">path</span>
+            <span className="text-[color:var(--kn-text-faint)]">{t.search.path}</span>
             <span className="truncate text-[color:var(--kn-text-soft)]">{selectedResult.path}</span>
             {selectedMetadata?.size_bytes !== undefined && (
               <>
-                <span className="text-[color:var(--kn-text-faint)]">size</span>
+                <span className="text-[color:var(--kn-text-faint)]">{t.search.size}</span>
                 <span className="text-[color:var(--kn-text-soft)]">
                   {selectedMetadata.size_bytes.toLocaleString()} bytes
                 </span>
@@ -270,7 +281,7 @@ export function SearchResultsList({
             )}
             {selectedMetadata?.modified_ms !== undefined && (
               <>
-                <span className="text-[color:var(--kn-text-faint)]">modified</span>
+                <span className="text-[color:var(--kn-text-faint)]">{t.search.modified}</span>
                 <span className="text-[color:var(--kn-text-soft)]">
                   {new Date(selectedMetadata.modified_ms).toLocaleString()}
                 </span>
@@ -278,15 +289,15 @@ export function SearchResultsList({
             )}
             {selectedMetadata?.is_dir !== undefined && (
               <>
-                <span className="text-[color:var(--kn-text-faint)]">type</span>
+                <span className="text-[color:var(--kn-text-faint)]">{t.search.type}</span>
                 <span className="text-[color:var(--kn-text-soft)]">
-                  {selectedMetadata.is_dir ? "folder" : "file"}
+                  {selectedMetadata.is_dir ? t.search.kinds.folder : t.search.kinds.file}
                 </span>
               </>
             )}
             {selectedMetadata?.preview && (
               <>
-                <span className="text-[color:var(--kn-text-faint)]">preview</span>
+                <span className="text-[color:var(--kn-text-faint)]">{t.search.preview}</span>
                 <span className="whitespace-pre-wrap break-words text-[color:var(--kn-text-soft)]">
                   {selectedMetadata.preview}
                 </span>
@@ -301,15 +312,15 @@ export function SearchResultsList({
         <div className="flex items-center gap-3">
           <span className="flex items-center gap-1.5">
             <span className="kn-kbd">Enter</span>
-            <span>open</span>
+            <span>{t.search.open}</span>
           </span>
           <span className="flex items-center gap-1.5">
             <span className="kn-kbd">Shift+Enter</span>
-            <span>preview</span>
+            <span>{t.search.preview}</span>
           </span>
           <span className="flex items-center gap-1.5">
             <span className="kn-kbd">Tab</span>
-            <span>actions</span>
+            <span>{t.search.actions}</span>
           </span>
         </div>
       </div>

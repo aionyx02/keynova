@@ -1,5 +1,7 @@
 import { useEffect, useRef, type ReactNode } from "react";
 
+import { useI18n } from "../i18n/useI18n";
+
 interface FloatingWindowProps {
   title: string;
   children: ReactNode;
@@ -8,6 +10,7 @@ interface FloatingWindowProps {
 }
 
 export function FloatingWindow({ title, children, onClose, className = "" }: FloatingWindowProps) {
+  const c = useI18n().common;
   const ref = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -29,7 +32,7 @@ export function FloatingWindow({ title, children, onClose, className = "" }: Flo
           <button
             onClick={onClose}
             className="text-gray-500 hover:text-gray-200 text-lg leading-none"
-            aria-label="Close"
+            aria-label={c.close}
           >
             ×
           </button>

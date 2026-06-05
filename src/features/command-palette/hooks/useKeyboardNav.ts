@@ -19,6 +19,7 @@ import type { SearchResult } from "../../../types/search";
 import type { CommandMeta } from "../../../hooks/useCommands";
 import type { SecondaryActionId } from "../../../utils/secondaryActions";
 import { buildSecondaryActions } from "../../../utils/secondaryActions";
+import { useI18n } from "../../../i18n/useI18n";
 
 function isCopyShortcut(e: React.KeyboardEvent) {
   return (e.ctrlKey || e.metaKey) && !e.altKey && e.key.toLowerCase() === "c";
@@ -79,6 +80,7 @@ export interface UseKeyboardNavDeps {
 
 export function useKeyboardNav(deps: UseKeyboardNavDeps) {
   const lastGuardRef = useRef<number>(0);
+  const actionLabels = useI18n().palette.actions;
 
   const onKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     // Bug-fix 2026-05-19 (round 2) — Bug A 真根因：英文打字也會觸發
@@ -140,7 +142,7 @@ export function useKeyboardNav(deps: UseKeyboardNavDeps) {
       // Menu open: route arrows/Enter/Left to menu actions; let typed text fall through.
       if (deps.secondaryMenuOpen) {
         const r = deps.visibleResults[deps.safeSelected] ?? null;
-        const enabled = r ? buildSecondaryActions(r).filter((it) => !it.disabled) : [];
+        const enabled = r ? buildSecondaryActions(r, actionLabels).filter((it) => !it.disabled) : [];
         if (e.key === "ArrowDown") {
           e.preventDefault();
           deps.setMenuFocusedIndex((i) => Math.min(i + 1, Math.max(enabled.length - 1, 0)));

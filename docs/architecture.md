@@ -2,7 +2,7 @@
 type: architecture_spec
 status: active
 priority: p1
-updated: 2026-06-02
+updated: 2026-06-04
 context_policy: retrieve_only
 owner: project
 ---
@@ -75,7 +75,7 @@ src/
 ├── main.tsx               # React 入口，掛載 <App>
 ├── App.tsx                # 頂層元件，管理 CommandPalette + FloatingWindow
 ├── components/                  # REF.6.H 後僅保留 app shell + legacy fallback
-│   ├── AppContainer.tsx         # IPCProvider + FeatureProvider + ErrorBoundary 組裝
+│   ├── AppContainer.tsx         # IPCProvider + FeatureFlagsProvider + FeatureProvider + ErrorBoundary 組裝（FeatureFlagsProvider = context/FeatureFlagsContext.tsx, FEAT.GATE persisted features.* single source of truth → useFeatureFlags().isEnabled(key); distinct from FeatureContext session lazy-activation）
 │   ├── CommandPalette.tsx       # 核心 UI：搜尋框 + 結果列表（feature 拆分後的主進入點）
 │   ├── AiPanel.tsx              # REF.6.G / REF.7.A / REF.8: ai.legacy_agent=true 時透過 PanelRegistry["ai_legacy"] + /ai_legacy_chat 進入
 │   ├── FloatingWindow.tsx       # 浮動視窗容器
@@ -119,7 +119,8 @@ src-tauri/src/
 ├── main.rs / lib.rs       # Tauri app 入口
 ├── app/
 │   ├── bootstrap.rs       # 初始化流程
-│   ├── dispatch.rs        # IPC 命令分派實作
+│   ├── dispatch.rs        # IPC 命令分派實作。FEAT.GATE/DECOUP.4: namespace_feature_block + route_feature_key refuse a feature's namespace (note/history/translation/calculator/system) when its features.* flag is off; the (namespace,flag) list is spec-derived (AppState.feature_namespace_guards from feature_registry), not a hand-kept const. AI namespaces gate per-route in handlers so ai.check_setup/model setup stay reachable.
+│   ├── feature_registry.rs # DECOUP/ADR-0044: AssemblyCtx + FeatureRegistrar + REGISTRARS + register_all(router). Self-registering features wire themselves here instead of being hand-listed in state.rs::build_command_router (migrated so far: calculator). Grows: builtins/search hooks/settings/FeatureSpec join in DECOUP.3+.
 │   ├── state.rs           # AppState（全域狀態組裝）
 │   ├── control_server.rs  # 控制伺服器
 │   ├── migration.rs       # 資料遷移
@@ -151,15 +152,19 @@ src-tauri/src/
 │   ├── dev_runner.rs      # REF.3: bounded read-only dev command runner (run_bounded_dev_cmd / extract_compiler_errors / bound_output_n); consumed by fix_error capability (REF.4)
 │   ├── ai_capability/     # REF.4: stateless single-shot capability layer (ADR-0029). call_capability(req, deps) dispatched on a compile-time enum match.
 │   │   ├── mod.rs              # public entry + match on CapabilityId
-│   │   ├── registry.rs         # CapabilityId::{Explain,Summarize,FixError,GenCommand,SuggestNext} + static CapabilityMeta {audit, accepts_context_hash} per ADR-0030 §4
+│   │   ├── registry.rs         # CapabilityId::{Explain,Summarize,FixError,GenCommand,SuggestNext,Remember,Recall} + static CapabilityMeta {audit, accepts_context_hash} per ADR-0030 §4
 │   │   ├── contract.rs         # CapabilityRequest/Response/Output/Error/Deps; ChatProvider trait (test-stubbable); AiManagerChatProvider production adapter
-│   │   ├── prompt.rs           # CAPABILITY_PROMPT_BUDGET_CHARS=1400; build_prompt drops context block on overrun; maybe_audit gated by CapabilityMeta.audit
+│   │   ├── parse.rs            # shared extract_first_json_object for strict-JSON capabilities (gen_command, remember)
+│   │   ├── prompt.rs           # CAPABILITY_PROMPT_BUDGET_CHARS=1400; build_prompt trims lowest-priority sources from the tail to fit the budget (truncates only if system+task alone overrun); maybe_audit gated by CapabilityMeta.audit
+│   │   ├── memory.rs           # MEM.1.B (ADR-0043): push_memory_sources reads scope="personal" + term_score ranking → ≤3 redacted GroundingSources; gated by CapabilityDeps.allow_memory_grounding (local provider only). term_score reused by recall.rs
 │   │   ├── capabilities/       # one file per capability
 │   │   │   ├── explain.rs           # local_context-grounded explanation; audit=true; risk=none
 │   │   │   ├── summarize.rs         # pure text transform; audit=false; risk=none
 │   │   │   ├── fix_error.rs         # raw_output OR allowlisted dev re-run via dev_runner; "apply" variant rejected as UnsupportedAction in v1; audit=true; risk=none
 │   │   │   ├── gen_command.rs       # REF.6.C: typed {intent, ctx} → structured {command, confidence, rationale}; JSON-first parse with fallback; conservative RiskTag (read-only allowlist sets requires_confirmation=false); audit=true
-│   │   │   └── suggest_next.rs      # REF.6.C: typed {ctx:{limit?}} → Vec<SuggestedNextAction>; reads workflow_memory::suggest, re-ranks, emits best-effort replay descriptors for cmd.run rows; audit=false; risk=none
+│   │   │   ├── suggest_next.rs      # REF.6.C: typed {ctx:{limit?}} → Vec<SuggestedNextAction>; reads workflow_memory::suggest, re-ranks, emits best-effort replay descriptors for cmd.run rows; audit=false; risk=none
+│   │   │   ├── remember.rs          # MEM.1 (ADR-0043): {text} → LLM-organized {title, content} stored in agent_memories scope="personal" (no migration); audit=true; risk=none
+│   │   │   └── recall.rs            # MEM.1 (ADR-0043): {query, limit?} → Vec<RecalledMemory>; no LLM, local agent_memories read + term ranking; audit=false; risk=none
 │   │   └── live_tests.rs       # cfg(feature="live-ai"), #[ignore]: live Ollama qwen2.5:7b smoke tests (P50/P95 print to stdout for REF.7)
 │   ├── workflow_memory.rs # REF.5: workflow_history (schema v4) record + suggest + compute_context_hash + digest_payload. Heuristic recency-only ranking; coarse hash(workspace_id, mode, panel).
 │   └── ipc_error.rs
@@ -177,9 +182,9 @@ src-tauri/src/
 │   │   ├── safety.rs           # sanitize_external_query / long_term_memory_opt_in / looks_sensitive_path / resolve_readable_path
 │   │   └── web.rs              # web-search provider abstraction (duckduckgo + tavily + searxng + github trending)
 │   ├── ai.rs / model.rs / translation.rs
-│   ├── ai_capability.rs       # REF.4: capability.* IPC (list/call/cancel). Async worker via thread::spawn; per-request cancel flag; emits capability.response + (when stream=true) capability.stream.chunk events.
+│   ├── ai_capability.rs       # REF.4: capability.* IPC (list/call/cancel). Async worker via thread::spawn; per-request cancel flag; emits capability.response + (when stream=true) capability.stream.chunk events. FEAT.GATE: capability.call refuses when features.ai=false (covers remember/recall); list/cancel ungated.
 │   ├── workflow_memory.rs     # REF.5: workflow.* IPC (recent/suggest). Synchronous read via KnowledgeStoreHandle::recent_workflows_blocking; suggest resolves context_hash server-side.
-│   ├── search.rs              # REF.6.A: search.query IPC now emits UnifiedResult[] (via to_unified_results helper). UiSearchItem stays internal; conversion happens at sync return, stream-init batch, and emit_search_chunk boundaries.
+│   ├── search.rs              # REF.6.A: search.query IPC now emits UnifiedResult[] (via to_unified_results helper). UiSearchItem stays internal; conversion happens at sync return, stream-init batch, and emit_search_chunk boundaries. MEM.1.C: holds config + knowledge_store; providers.rs append_memory_results surfaces scope=personal memories as ResultKind::Memory rows (gated by features.ai); note/history providers gated by their flags.
 │   │   └── search/{icon,ranking,providers}.rs  # REF.9.E: icon/svg render (pub(crate) icon_key_for_item) / scoring+sort / non-file result providers split out
 │   ├── launcher.rs / search.rs / history.rs
 │   ├── hotkey.rs / mouse.rs

@@ -1,5 +1,6 @@
 import React from "react";
 import type { PanelProps } from "../../types/panel";
+import { manifestPanels } from "../../features/featureManifest";
 
 export type { PanelProps };
 
@@ -7,47 +8,21 @@ export type { PanelProps };
 // panel route and the `ai_legacy_chat` builtin command. The backend agent
 // (agent_runtime + handlers/agent) is retained as a dormant capability asset
 // behind the reserved `ai.legacy_agent` flag, but has no UI entry point.
+//
+// DECOUP.5 (ADR-0044): feature panels now self-register via their
+// `features/<x>/manifest.ts`; only the non-feature `setting` and the
+// AI-bootstrap-exempt `model` panel remain hand-listed here.
 const SettingPanel = React.lazy(() =>
   import("../../features/settings/SettingPanel").then((m) => ({ default: m.SettingPanel })),
 );
 const ModelPanel = React.lazy(() =>
   import("../../features/model-manager/ModelPanel").then((m) => ({ default: m.ModelPanel })),
 );
-const TranslationPanel = React.lazy(() =>
-  import("../../features/translation/TranslationPanel").then((m) => ({
-    default: m.TranslationPanel,
-  })),
-);
-const NoteEditor = React.lazy(() =>
-  import("../../features/notes/NoteEditor").then((m) => ({ default: m.NoteEditor })),
-);
-const CalculatorPanel = React.lazy(() =>
-  import("../../features/calculator/CalculatorPanel").then((m) => ({ default: m.CalculatorPanel })),
-);
-const HistoryPanel = React.lazy(() =>
-  import("../../features/history/HistoryPanel").then((m) => ({ default: m.HistoryPanel })),
-);
-const SystemPanel = React.lazy(() =>
-  import("../../features/system/SystemPanel").then((m) => ({ default: m.SystemPanel })),
-);
-const SystemMonitoringPanel = React.lazy(() =>
-  import("../../features/system-monitor/SystemMonitoringPanel").then((m) => ({
-    default: m.SystemMonitoringPanel,
-  })),
-);
-const NvimDownloadPanel = React.lazy(() =>
-  import("../../features/nvim/NvimDownloadPanel").then((m) => ({ default: m.NvimDownloadPanel })),
-);
 
-/** 將後端回傳的 panel name 對應至 React 元件。新增面板只需在此 Record 加一筆。 */
+/** 將後端回傳的 panel name 對應至 React 元件。`setting`/`model` 為非功能/豁免面板；
+ * 其餘功能面板由各自的 manifest 經 `manifestPanels()` 併入（DECOUP/ADR-0044）。 */
 export const PanelRegistry: Record<string, React.ComponentType<PanelProps>> = {
   setting: SettingPanel as React.ComponentType<PanelProps>,
   model: ModelPanel,
-  translation: TranslationPanel,
-  note: NoteEditor,
-  calculator: CalculatorPanel,
-  history: HistoryPanel,
-  system: SystemPanel,
-  system_monitoring: SystemMonitoringPanel,
-  nvim_download: NvimDownloadPanel,
+  ...manifestPanels(),
 };

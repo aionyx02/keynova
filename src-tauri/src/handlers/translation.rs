@@ -2,6 +2,7 @@ use std::sync::{Arc, Mutex};
 
 use serde_json::{json, Value};
 
+use crate::app::feature_registry::{AssemblyCtx, FeatureRegistrar, FeatureSpec};
 use crate::core::config_manager::ConfigManager;
 use crate::core::network_policy::{allowlist_from_config, enforce_known_endpoint};
 use crate::core::{CommandHandler, CommandResult};
@@ -38,6 +39,23 @@ impl TranslationHandler {
             api_key: cfg.get("translation.api_key").unwrap_or_default(),
         })
     }
+}
+
+/// DECOUP.3 (ADR-0044): self-register translation. The manager is leaf-owned
+/// (built here with the shared event bus); only `config` is borrowed from ctx.
+pub fn register(reg: &mut FeatureRegistrar, ctx: &AssemblyCtx) {
+    let eb = ctx.event_bus.clone();
+    let manager = Arc::new(TranslationManager::new(Arc::new(move |event| {
+        let _ = eb.publish(event);
+    })));
+    reg.handler(Arc::new(TranslationHandler::new(
+        manager,
+        Arc::clone(&ctx.config),
+    )));
+    reg.spec(FeatureSpec {
+        namespace: "translation",
+        flag_key: Some("features.translation"),
+    });
 }
 
 impl CommandHandler for TranslationHandler {

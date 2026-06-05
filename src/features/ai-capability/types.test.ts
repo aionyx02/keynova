@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
 
-import { parseGenCommandOutput, parseSuggestNextOutput } from "./types";
+import {
+  parseGenCommandOutput,
+  parseRecallOutput,
+  parseRememberOutput,
+  parseSuggestNextOutput,
+} from "./types";
 
 describe("ai capability structured parsers", () => {
   it("parses gen_command structured payloads", () => {
@@ -64,6 +69,39 @@ describe("ai capability structured parsers", () => {
         },
         action_ref: undefined,
       },
+    ]);
+  });
+
+  it("parses remember structured payloads", () => {
+    expect(
+      parseRememberOutput({
+        kind: "structured",
+        value: { id: "abc", title: "Coffee order", content: "- oat flat white", saved: true },
+      }),
+    ).toEqual({
+      id: "abc",
+      title: "Coffee order",
+      content: "- oat flat white",
+      saved: true,
+    });
+  });
+
+  it("rejects malformed remember payloads", () => {
+    expect(
+      parseRememberOutput({ kind: "structured", value: { id: "abc", title: "x", saved: "yes" } }),
+    ).toBeNull();
+  });
+
+  it("parses recall structured arrays and drops malformed rows", () => {
+    const parsed = parseRecallOutput({
+      kind: "structured",
+      value: [
+        { id: "1", title: "Coffee", snippet: "oat flat white", content: "oat flat white", score: 3 },
+        { id: "2", title: "bad" },
+      ],
+    });
+    expect(parsed).toEqual([
+      { id: "1", title: "Coffee", snippet: "oat flat white", content: "oat flat white", score: 3 },
     ]);
   });
 

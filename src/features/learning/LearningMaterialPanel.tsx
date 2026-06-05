@@ -1,5 +1,7 @@
-﻿import { useCallback, useRef, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import { useIPCContext } from "../../context/IPCContext";
+import { fmt } from "../../i18n/format";
+import { useI18n } from "../../i18n/useI18n";
 import type { PanelProps } from "../../types/panel";
 
 interface MaterialCandidate {
@@ -23,15 +25,6 @@ interface ReviewReport {
   stats: ScanStats;
 }
 
-const CLASS_LABELS: Record<MaterialCandidate["class"], string> = {
-  project: "Project",
-  note: "Note",
-  report: "Report",
-  presentation: "Presentation",
-  certificate: "Certificate",
-  unknown: "Unknown",
-};
-
 const CLASS_ORDER: MaterialCandidate["class"][] = [
   "project",
   "note",
@@ -48,6 +41,7 @@ function formatBytes(bytes: number): string {
 }
 
 export function LearningMaterialPanel({ onClose }: PanelProps) {
+  const l = useI18n().learning;
   const { dispatch } = useIPCContext();
   const [roots, setRoots] = useState("");
   const [report, setReport] = useState<ReviewReport | null>(null);
@@ -83,14 +77,14 @@ export function LearningMaterialPanel({ onClose }: PanelProps) {
 
   const handleExportNote = useCallback(async () => {
     if (!report) return;
-    const title = `Learning Review ${new Date().toISOString().slice(0, 10)}`;
+    const title = fmt(l.exportTitle, { date: new Date().toISOString().slice(0, 10) });
     try {
       await dispatch("learning_material.export_note", { title, report });
       setExportNote(title);
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     }
-  }, [dispatch, report]);
+  }, [dispatch, l.exportTitle, report]);
 
   const displayed =
     report?.candidates.filter((c) => activeClass === "all" || c.class === activeClass) ?? [];
@@ -103,13 +97,13 @@ export function LearningMaterialPanel({ onClose }: PanelProps) {
       {/* Header */}
       <div className="flex items-center justify-between px-4 py-2 border-b border-gray-700/50 shrink-0">
         <span className="text-xs font-semibold text-violet-400 uppercase tracking-wide">
-          Learning Material Review
+          {l.title}
         </span>
         <button
           onClick={onClose}
           className="text-gray-600 hover:text-gray-400 text-xs transition-colors"
         >
-          ✕
+          x
         </button>
       </div>
 
@@ -124,7 +118,7 @@ export function LearningMaterialPanel({ onClose }: PanelProps) {
               if (e.key === "Enter") void handleScan();
               if (e.key === "Escape") onClose();
             }}
-            placeholder="Scan roots (comma-separated paths, blank = workspace root)"
+            placeholder={l.scanPlaceholder}
             className="flex-1 bg-gray-800/60 text-gray-200 text-xs rounded px-3 py-1.5 outline-none placeholder-gray-600"
           />
           <button
@@ -132,7 +126,7 @@ export function LearningMaterialPanel({ onClose }: PanelProps) {
             disabled={loading}
             className="px-3 py-1.5 text-xs rounded bg-violet-700/80 hover:bg-violet-600/80 text-white disabled:opacity-50 transition-colors shrink-0"
           >
-            {loading ? "Scanning…" : "Scan"}
+            {loading ? l.scanning : l.scan}
           </button>
         </div>
         {error && <p className="mt-1 text-[10px] text-red-400 leading-tight">{error}</p>}
@@ -141,10 +135,12 @@ export function LearningMaterialPanel({ onClose }: PanelProps) {
       {/* Stats bar */}
       {report && (
         <div className="px-4 py-1.5 border-b border-gray-700/30 flex gap-4 text-[10px] text-gray-500 shrink-0">
-          <span className="text-gray-300">{report.stats.candidate_count} candidates</span>
-          <span>{report.stats.scanned_count} scanned</span>
-          <span>{report.stats.filtered_count} filtered</span>
-          <span>{report.stats.denied_count} denied</span>
+          <span className="text-gray-300">
+            {fmt(l.candidates, { count: report.stats.candidate_count })}
+          </span>
+          <span>{fmt(l.scanned, { count: report.stats.scanned_count })}</span>
+          <span>{fmt(l.filtered, { count: report.stats.filtered_count })}</span>
+          <span>{fmt(l.denied, { count: report.stats.denied_count })}</span>
 
           {/* Class filter tabs */}
           <div className="ml-auto flex gap-1">
@@ -156,7 +152,7 @@ export function LearningMaterialPanel({ onClose }: PanelProps) {
                   : "text-gray-500 hover:text-gray-300"
               }`}
             >
-              All
+              {l.all}
             </button>
             {CLASS_ORDER.filter((cls) => report.candidates.some((c) => c.class === cls)).map(
               (cls) => (
@@ -169,7 +165,7 @@ export function LearningMaterialPanel({ onClose }: PanelProps) {
                       : "text-gray-500 hover:text-gray-300"
                   }`}
                 >
-                  {CLASS_LABELS[cls]}
+                  {l.classes[cls]}
                 </button>
               ),
             )}
@@ -180,15 +176,15 @@ export function LearningMaterialPanel({ onClose }: PanelProps) {
       {/* Results */}
       <div className="flex-1 overflow-y-auto">
         {!report && !loading && (
-          <p className="text-[11px] text-gray-600 px-4 py-4 text-center">
-            Enter scan roots above and press Scan.
-          </p>
+          <p className="text-[11px] text-gray-600 px-4 py-4 text-center">{l.emptyPrompt}</p>
         )}
         {loading && (
-          <p className="text-[11px] text-gray-500 px-4 py-4 text-center animate-pulse">Scanning…</p>
+          <p className="text-[11px] text-gray-500 px-4 py-4 text-center animate-pulse">
+            {l.scanning}
+          </p>
         )}
         {report && displayed.length === 0 && (
-          <p className="text-[11px] text-gray-600 px-4 py-4 text-center">No candidates found.</p>
+          <p className="text-[11px] text-gray-600 px-4 py-4 text-center">{l.noCandidates}</p>
         )}
         {displayed.map((item) => (
           <div
@@ -196,7 +192,7 @@ export function LearningMaterialPanel({ onClose }: PanelProps) {
             className="flex items-start gap-2 px-4 py-2 border-b border-gray-800/50 hover:bg-gray-800/30 transition-colors"
           >
             <span className="text-[9px] uppercase font-semibold text-violet-500/80 mt-0.5 w-16 shrink-0">
-              {CLASS_LABELS[item.class]}
+              {l.classes[item.class]}
             </span>
             <div className="flex-1 min-w-0">
               <p className="text-[11px] text-gray-200 truncate">{item.name}</p>
@@ -216,9 +212,13 @@ export function LearningMaterialPanel({ onClose }: PanelProps) {
             onClick={() => void handleExportNote()}
             className="text-[11px] px-3 py-1 rounded bg-gray-800/70 hover:bg-gray-700/70 text-gray-300 transition-colors"
           >
-            Export as Note
+            {l.exportAsNote}
           </button>
-          {exportNote && <span className="text-[10px] text-green-400">Saved: {exportNote}</span>}
+          {exportNote && (
+            <span className="text-[10px] text-green-400">
+              {fmt(l.saved, { title: exportNote })}
+            </span>
+          )}
         </div>
       )}
     </div>

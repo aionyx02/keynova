@@ -1,19 +1,8 @@
 import React from "react";
 import type { SettingEntry, SettingSchema } from "./settingTypes";
+import { useI18n } from "../../i18n/useI18n";
 
 export type SettingControlKind = "text" | "hotkey" | "toggle" | "select";
-
-const FEATURE_DESCRIPTIONS: Record<string, string> = {
-  "features.ai": "需要 Ollama 或 API Key",
-  "features.agent": "需要 Ollama 或支援工具呼叫的模型",
-  "features.translation": "Google Cloud Translation API（需 API key）",
-  "features.notes": "內建筆記與 LazyVim 整合",
-  "features.history": "剪貼簿歷史記錄",
-  "features.calculator": "即時運算機",
-  "features.system": "系統資訊與控制",
-  "performance.low_memory_mode":
-    "跳過 terminal prewarm、避免重走磁碟建索引，並縮短預設 Ollama keep-alive",
-};
 
 interface SettingRowProps {
   entry: SettingEntry;
@@ -22,6 +11,8 @@ interface SettingRowProps {
   rowIdx: number;
   saving: boolean;
   saved: boolean;
+  /** True when this is a sensitive key that already has a stored value. */
+  secretIsSet?: boolean;
   showSection: boolean;
   registerRef: (el: HTMLElement | null) => void;
   onChange: (key: string, value: string) => void;
@@ -38,13 +29,16 @@ interface SettingRowProps {
 }
 
 function StatusBadge({ saving, saved }: { saving: boolean; saved: boolean }) {
-  if (saving) {
-    return <span className="shrink-0 text-[10px] text-[color:var(--kn-text-muted)]">Saving</span>;
-  }
-  if (saved) {
-    return <span className="shrink-0 text-[10px] text-[color:var(--kn-success)]">Saved</span>;
-  }
-  return null;
+  // role=status + aria-live so the save outcome is announced; sighted users see
+  // the same badge, AT users hear "Saving"/"Saved" without it.
+  const s = useI18n().settings;
+  const text = saving ? s.saving : saved ? s.savedFlash : "";
+  const tone = saving ? "var(--kn-text-muted)" : "var(--kn-success)";
+  return (
+    <span role="status" aria-live="polite" className="shrink-0 text-[10px]" style={{ color: tone }}>
+      {text}
+    </span>
+  );
 }
 
 export function SettingRow({
@@ -54,6 +48,7 @@ export function SettingRow({
   rowIdx,
   saving,
   saved,
+  secretIsSet = false,
   showSection,
   registerRef,
   onChange,
@@ -62,6 +57,7 @@ export function SettingRow({
   onBlur,
   onKeyDown,
 }: SettingRowProps) {
+  const s = useI18n().settings;
   const { key, sensitive } = entry;
   const label = fieldSchema?.label ?? key.split(".").slice(1).join(".");
   const isHotkey = fieldSchema?.value_type === "hotkey" || key.startsWith("hotkeys.");
@@ -72,7 +68,7 @@ export function SettingRow({
   const defaultValue = fieldSchema?.default_value;
   const isModified = defaultValue !== undefined && !isSecret && displayValue !== defaultValue;
   const section = key.split(".")[0];
-  const description = FEATURE_DESCRIPTIONS[key];
+  const description = s.featureDescriptions[key];
 
   const sectionTag = showSection ? (
     <span className="mr-1.5 rounded bg-white/[0.06] px-1 py-0.5 text-[9px] uppercase tracking-wide text-[color:var(--kn-text-faint)]">
@@ -182,13 +178,27 @@ export function SettingRow({
         onKeyDown={(e) => onKeyDown(e, key, rowIdx, displayValue, isHotkey ? "hotkey" : "text")}
         onBlur={isHotkey ? undefined : () => onBlur(key)}
         placeholder={
-          isHotkey ? "Press the shortcut" : isSecret ? "Enter a new secret value" : undefined
+          isHotkey
+            ? s.pressShortcut
+            : isSecret
+              ? secretIsSet
+                ? s.secretSavedHint
+                : s.secretNewHint
+              : undefined
         }
         className={`kn-field flex-1 px-2 py-1 text-sm ${isHotkey ? "cursor-pointer" : ""} ${
           saving ? "opacity-60" : ""
         }`}
         spellCheck={false}
       />
+      {isSecret && secretIsSet && !displayValue && (
+        <span
+          className="shrink-0 rounded bg-[color:var(--kn-success-wash)] px-1.5 py-0.5 text-[10px] text-[color:var(--kn-success)]"
+          title={s.secretKeychainTitle}
+        >
+          {s.secretSet}
+        </span>
+      )}
       {resetButton}
       <StatusBadge saving={saving} saved={saved} />
     </div>

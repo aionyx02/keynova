@@ -1,4 +1,7 @@
 import type { SearchResult } from "../types/search";
+import type { I18nKeys } from "../i18n/zh-TW";
+
+type ActionLabels = I18nKeys["palette"]["actions"];
 
 export type SecondaryActionId =
   | "reveal"
@@ -31,49 +34,42 @@ export function isDestructive(id: SecondaryActionId): boolean {
   return id === "rename" || id === "move" || id === "delete";
 }
 
-export function buildSecondaryActions(result: SearchResult): SecondaryActionItem[] {
+export function buildSecondaryActions(
+  result: SearchResult,
+  a: ActionLabels,
+): SecondaryActionItem[] {
   const items: SecondaryActionItem[] = [];
 
   if (isFilesystemKind(result)) {
-    items.push({
-      id: "reveal",
-      label: "Reveal in Explorer",
-      hint: "Open containing folder",
-      risk: "low",
-    });
-    items.push({ id: "copy_path", label: "Copy path", hint: "Copy absolute path", risk: "low" });
-    items.push({ id: "copy_name", label: "Copy name", hint: "Copy filename", risk: "low" });
+    items.push({ id: "reveal", label: a.revealLabel, hint: a.revealHint, risk: "low" });
+    items.push({ id: "copy_path", label: a.copyPathLabel, hint: a.copyPathHint, risk: "low" });
+    items.push({ id: "copy_name", label: a.copyNameLabel, hint: a.copyNameHint, risk: "low" });
     items.push({
       id: "show_metadata",
-      label: "Show metadata",
-      hint: "Size, modified, preview",
+      label: a.showMetadataLabel,
+      hint: a.showMetadataHint,
       risk: "low",
     });
-    items.push({ id: "open_with", label: "Open with…", hint: "OS default opener", risk: "low" });
+    items.push({ id: "open_with", label: a.openWithLabel, hint: a.openWithHint, risk: "low" });
 
     if (result.kind === "file") {
-      items.push({
-        id: "open_as_text",
-        label: "Open as text",
-        hint: "Force text editor",
-        risk: "low",
-      });
+      items.push({ id: "open_as_text", label: a.openAsTextLabel, hint: a.openAsTextHint, risk: "low" });
     }
 
     if (result.kind !== "app") {
-      items.push({ id: "rename", label: "Rename…", hint: "Enter new name", risk: "medium" });
-      items.push({ id: "move", label: "Move to…", hint: "Enter target folder", risk: "medium" });
-      items.push({ id: "delete", label: "Delete", hint: "Send to recycle bin", risk: "high" });
+      items.push({ id: "rename", label: a.renameLabel, hint: a.renameHint, risk: "medium" });
+      items.push({ id: "move", label: a.moveLabel, hint: a.moveHint, risk: "medium" });
+      items.push({ id: "delete", label: a.deleteLabel, hint: a.deleteHint, risk: "high" });
     }
 
     if (result.kind === "file") {
-      items.push({ id: "hash", label: "Compute SHA-256", hint: "Stream hash", risk: "low" });
+      items.push({ id: "hash", label: a.hashLabel, hint: a.hashHint, risk: "low" });
     }
   } else if (result.kind === "note") {
-    items.push({ id: "copy_path", label: "Copy note path", risk: "low" });
-    items.push({ id: "show_metadata", label: "Show metadata", risk: "low" });
+    items.push({ id: "copy_path", label: a.copyNotePathLabel, risk: "low" });
+    items.push({ id: "show_metadata", label: a.showMetadataLabel, risk: "low" });
   } else {
-    items.push({ id: "show_metadata", label: "Show metadata", risk: "low" });
+    items.push({ id: "show_metadata", label: a.showMetadataLabel, risk: "low" });
   }
 
   return items;

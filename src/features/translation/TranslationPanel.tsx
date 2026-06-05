@@ -1,4 +1,4 @@
-﻿import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { listen } from "@tauri-apps/api/event";
 import { invoke } from "@tauri-apps/api/core";
 import { useI18n } from "../../i18n/useI18n";
@@ -493,7 +493,7 @@ export function TranslationPanel({ onClose, initialArgs }: PanelProps) {
             focusSection("output");
           }
         }}
-        placeholder="auto zh-TW text"
+        placeholder={t.translation.commandPlaceholder}
         className="kn-field text-sm"
       />
 
@@ -547,7 +547,7 @@ export function TranslationPanel({ onClose, initialArgs }: PanelProps) {
             onClick={() => void translate(src, dst, text, true)}
             className="kn-button px-2 py-1 text-[11px]"
           >
-            Retry
+            {t.translation.retry}
           </button>
         </div>
       )}
@@ -572,7 +572,7 @@ export function TranslationPanel({ onClose, initialArgs }: PanelProps) {
             focusSection("command");
           }
         }}
-        placeholder={loading ? t.translation.translating : "Google Cloud Translation output"}
+        placeholder={loading ? t.translation.translating : t.translation.outputPlaceholder}
         rows={5}
         className="kn-textarea kn-scroll overflow-y-auto text-sm selection:bg-blue-500/40 selection:text-white"
         style={{
@@ -582,9 +582,7 @@ export function TranslationPanel({ onClose, initialArgs }: PanelProps) {
       />
 
       <div className="text-[10px] text-[color:var(--kn-text-faint)]">
-        Command：&lt;src&gt; &lt;dst&gt; &lt;text&gt;，例如{" "}
-        <span className="text-[color:var(--kn-text-muted)]">en ja 你好</span>。↑↓ 切換區域 · Esc
-        關閉
+        {t.translation.commandHelp}
       </div>
     </div>
   );

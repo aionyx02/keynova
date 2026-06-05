@@ -1,4 +1,4 @@
-﻿import { UiIcon } from "../../components/icons/UiIcon";
+import { UiIcon } from "../../components/icons/UiIcon";
 import { useWorkspace } from "../../hooks/useWorkspace";
 
 export function WorkspaceIndicator() {

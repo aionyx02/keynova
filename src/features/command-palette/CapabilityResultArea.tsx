@@ -11,14 +11,23 @@ import type { ReactElement } from "react";
 import { CapabilityAnswerCard } from "../ai-capability/CapabilityAnswerCard";
 import { CapabilityCommandCard } from "../ai-capability/CapabilityCommandCard";
 import { CapabilityListCard } from "../ai-capability/CapabilityListCard";
+import { CapabilityMemoryCard } from "../ai-capability/CapabilityMemoryCard";
+import { CapabilityRecallCard } from "../ai-capability/CapabilityRecallCard";
 import type { CapabilityRunStatus } from "../ai-capability/hooks/useCapabilityRunState";
 import type { UseCapabilityStream } from "../ai-capability/hooks/useCapabilityStream";
-import type { GenCommandOutput, SuggestedNextAction } from "../ai-capability/types";
+import type {
+  GenCommandOutput,
+  RecalledMemory,
+  RememberOutput,
+  SuggestedNextAction,
+} from "../ai-capability/types";
 import type { DispatchFn } from "../../context/IPCContext";
 
 export type CapabilitySurfaceMode =
   | { id: "explain" | "summarize" | "fix"; args: { text: string }; source: "prefix" | "smart" }
   | { id: "cmd"; args: { text: string }; source: "prefix" | "smart" }
+  | { id: "remember"; args: { text: string }; source: "prefix" | "smart" }
+  | { id: "recall"; args: { text: string }; source: "prefix" | "smart" }
   | { id: "next"; args: Record<string, never>; source: "prefix" | "smart" };
 
 interface Props {
@@ -49,6 +58,25 @@ interface Props {
     onRunSelected: (index: number) => void;
     onCancel: () => void;
   };
+  memoryCard: {
+    status: CapabilityRunStatus;
+    data: RememberOutput | null;
+    error: string | null;
+    startedAtMs: number | null;
+    completedAtMs: number | null;
+    onSubmit: () => void;
+    onCancel: () => void;
+  };
+  recallCard: {
+    status: CapabilityRunStatus;
+    items: RecalledMemory[];
+    error: string | null;
+    startedAtMs: number | null;
+    completedAtMs: number | null;
+    onSubmit: () => void;
+    onCancel: () => void;
+    onPaste: (content: string) => void;
+  };
   dispatch: DispatchFn;
   /** Called when the user closes the card via the `[×]` button; clears the
    * prefix from the palette input so the card unmounts. */
@@ -60,6 +88,8 @@ export function CapabilityResultArea({
   answerStream,
   commandCard,
   listCard,
+  memoryCard,
+  recallCard,
   dispatch,
   onClose,
 }: Props): ReactElement {
@@ -98,6 +128,35 @@ export function CapabilityResultArea({
           onSubmit={commandCard.onSubmit}
           onRun={commandCard.onRun}
           onEditBefore={commandCard.onEditBefore}
+        />
+      );
+    case "remember":
+      return (
+        <CapabilityMemoryCard
+          status={memoryCard.status}
+          data={memoryCard.data}
+          error={memoryCard.error}
+          startedAtMs={memoryCard.startedAtMs}
+          completedAtMs={memoryCard.completedAtMs}
+          intent={mode.args.text}
+          onCancel={memoryCard.onCancel}
+          onClose={onClose}
+          onSubmit={memoryCard.onSubmit}
+        />
+      );
+    case "recall":
+      return (
+        <CapabilityRecallCard
+          status={recallCard.status}
+          items={recallCard.items}
+          error={recallCard.error}
+          startedAtMs={recallCard.startedAtMs}
+          completedAtMs={recallCard.completedAtMs}
+          query={mode.args.text}
+          onCancel={recallCard.onCancel}
+          onClose={onClose}
+          onSubmit={recallCard.onSubmit}
+          onPaste={recallCard.onPaste}
         />
       );
     case "next":

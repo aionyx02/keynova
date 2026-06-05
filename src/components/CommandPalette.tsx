@@ -39,6 +39,8 @@ import { useRankHover } from "../features/command-palette/hooks/useRankHover";
 import { hasCompletedOnboarding } from "../shared/components/onboarding-state";
 import { RankTooltip } from "../shared/components/RankTooltip";
 import { PALETTE_WIDTH_NARROW } from "../hooks/useWindowResize";
+import { fmt } from "../i18n/format";
+import { useI18n } from "../i18n/useI18n";
 import type { SourceFilter } from "../types/search";
 import type { BuiltinCommandResult } from "../hooks/useCommands";
 import { unifiedToLegacy } from "../utils/search";
@@ -46,10 +48,13 @@ import { usePaletteMode } from "../features/command-palette/hooks/usePaletteMode
 import { useCapabilityStream } from "../features/ai-capability/hooks/useCapabilityStream";
 import { useCapabilityRunState } from "../features/ai-capability/hooks/useCapabilityRunState";
 import { useGenCommand } from "../features/ai-capability/hooks/useGenCommand";
+import { useRecall } from "../features/ai-capability/hooks/useRecall";
+import { useRemember } from "../features/ai-capability/hooks/useRemember";
 import { useSuggestNext } from "../features/ai-capability/hooks/useSuggestNext";
 import type { CapabilitySurfaceMode } from "../features/command-palette/CapabilityResultArea";
 import { CapabilityHintLine } from "../features/command-palette/CapabilityHintLine";
 import { classifyNlIntent } from "../features/command-palette/utils/classifyNlIntent";
+import { useFeatureFlags } from "../context/FeatureFlagsContext";
 
 const TerminalPanel = React.lazy(() =>
   import("../features/terminal/TerminalPanel").then((m) => ({ default: m.TerminalPanel })),
@@ -97,6 +102,7 @@ async function keepLauncherOpen() {
 }
 
 export function CommandPalette() {
+  const t = useI18n();
   const { dispatch } = useIPC();
   const { query, setQuery, setLoading, isLoading } = useAppStore();
   const { all, filtered, runCommand, suggestArgs } = useCommands();
@@ -203,8 +209,15 @@ export function CommandPalette() {
 
   const { mode, rawInput } = parseInputMode(query);
 
+  // Feature gate: when AI is disabled every inline-AI surface is suppressed.
+  // Gating the three capability sources (explicit prefix, smart-next,
+  // smart-intent) collapses `capabilityMode` to null, which transitively hides
+  // the capability cards, their keyboard nav, and the hint line.
+  const aiEnabled = useFeatureFlags().isEnabled("ai");
+
   const paletteMode = usePaletteMode(query);
-  const explicitCapabilityMode = paletteMode.kind === "capability" ? paletteMode : null;
+  const explicitCapabilityMode =
+    aiEnabled && paletteMode.kind === "capability" ? paletteMode : null;
   const trimmedQuery = query.trim();
   const [smartNextDismissed, setSmartNextDismissed] = useState(false);
   const [smartCommandDismissedKey, setSmartCommandDismissedKey] = useState<string | null>(null);
@@ -217,6 +230,7 @@ export function CommandPalette() {
   }, [explicitCapabilityMode, mode, trimmedQuery]);
 
   const showSmartNext =
+    aiEnabled &&
     explicitCapabilityMode === null &&
     mode === "search" &&
     trimmedQuery === "" &&
@@ -229,6 +243,7 @@ export function CommandPalette() {
   // returned id picks the card variant. The dismissal key intentionally keys
   // on the trimmed query so a different query gets a fresh chance to surface.
   const smartIntentMatch =
+    aiEnabled &&
     explicitCapabilityMode === null &&
     mode === "search" &&
     trimmedQuery !== "" &&
@@ -256,6 +271,20 @@ export function CommandPalette() {
     if (explicitCapabilityMode?.id === "cmd") {
       return {
         id: "cmd",
+        args: explicitCapabilityMode.args,
+        source: "prefix",
+      };
+    }
+    if (explicitCapabilityMode?.id === "remember") {
+      return {
+        id: "remember",
+        args: explicitCapabilityMode.args,
+        source: "prefix",
+      };
+    }
+    if (explicitCapabilityMode?.id === "recall") {
+      return {
+        id: "recall",
         args: explicitCapabilityMode.args,
         source: "prefix",
       };
@@ -303,6 +332,10 @@ export function CommandPalette() {
     capabilityMode?.id === "cmd" ? { id: capabilityMode.id, args: capabilityMode.args } : null;
   const nextCapabilityMode: { id: "next"; args: Record<string, never> } | null =
     capabilityMode?.id === "next" ? { id: capabilityMode.id, args: capabilityMode.args } : null;
+  const rememberCapabilityMode: { id: "remember"; args: { text: string } } | null =
+    capabilityMode?.id === "remember" ? { id: capabilityMode.id, args: capabilityMode.args } : null;
+  const recallCapabilityMode: { id: "recall"; args: { text: string } } | null =
+    capabilityMode?.id === "recall" ? { id: capabilityMode.id, args: capabilityMode.args } : null;
   const capabilityStream = useCapabilityStream({
     dispatch,
     id: textCapabilityMode
@@ -335,11 +368,31 @@ export function CommandPalette() {
     run: () => suggestNext.run({ ctx: { limit: 5 } }),
     cancelInner: suggestNext.cancel,
   });
+  const remember = useRemember({ dispatch });
+  const rememberState = useCapabilityRunState({
+    active: rememberCapabilityMode !== null,
+    argsKey: rememberCapabilityMode?.args.text ?? null,
+    isLoading: remember.isLoading,
+    error: remember.error,
+    run: () => remember.run({ text: rememberCapabilityMode?.args.text ?? "" }),
+    cancelInner: remember.cancel,
+  });
+  const recall = useRecall({ dispatch });
+  const recallState = useCapabilityRunState({
+    active: recallCapabilityMode !== null,
+    argsKey: recallCapabilityMode?.args.text ?? null,
+    isLoading: recall.isLoading,
+    error: recall.error,
+    run: () => recall.run({ query: recallCapabilityMode?.args.text ?? "" }),
+    cancelInner: recall.cancel,
+  });
   const activeCapabilityLoading =
     (textCapabilityMode !== null &&
       (capabilityStream.status === "pending" || capabilityStream.status === "streaming")) ||
     (commandCapabilityMode !== null && genCommand.isLoading) ||
-    (nextCapabilityMode !== null && suggestNext.isLoading);
+    (nextCapabilityMode !== null && suggestNext.isLoading) ||
+    (rememberCapabilityMode !== null && remember.isLoading) ||
+    (recallCapabilityMode !== null && recall.isLoading);
 
   const {
     modeRef,
@@ -485,11 +538,11 @@ export function CommandPalette() {
     (command: string) => {
       editGeneratedCommand(command);
       setCmdResult({
-        text: "Generated shell commands are no longer launched directly. Review the command and run it through an approved backend action.",
+        text: t.palette.generatedCommandReviewOnly,
         ui_type: { type: "Inline" },
       });
     },
-    [editGeneratedCommand],
+    [editGeneratedCommand, t.palette.generatedCommandReviewOnly],
   );
 
   const runSuggestedWorkflow = React.useCallback(
@@ -655,13 +708,20 @@ export function CommandPalette() {
     capabilityListSelected: safeCapabilitySuggestionSelected,
     setCapabilityListSelected: setCapabilitySuggestionSelected,
     onCapabilitySubmit:
-      commandCapabilityMode !== null ? genCommandState.submit : capabilityStream.submit,
+      commandCapabilityMode !== null
+        ? genCommandState.submit
+        : rememberCapabilityMode !== null
+          ? rememberState.submit
+          : recallCapabilityMode !== null
+            ? recallState.submit
+            : capabilityStream.submit,
     onCapabilityRunSelected: () => runSuggestedWorkflow(safeCapabilitySuggestionSelected),
     keepLauncherOpen,
   });
 
   const showCapabilityResult = capabilityMode !== null;
   const showCapabilityHintLine =
+    aiEnabled &&
     paletteMode.kind === "search" &&
     mode === "search" &&
     query === "" &&
@@ -680,6 +740,21 @@ export function CommandPalette() {
     mode === "search" &&
     results.length > 0 &&
     visibleResults.length === 0;
+  // Single polite live region so assistive tech hears the palette's dynamic
+  // state (result counts, empty state, AI streaming) without a visual change.
+  // Keyboard-first means many users never see these transitions paint.
+  const liveRegionText = (() => {
+    if (mode !== "search" || paletteMode.kind !== "search") return "";
+    if (activeCapabilityLoading) return t.search.aiGenerating;
+    if (showCapabilityResult) return "";
+    if (query.trim() === "") return "";
+    if (isLoading) return t.search.searching;
+    if (showSearchEmptyState) return t.search.noResults;
+    if (visibleResults.length > 0)
+      return fmt(t.search.resultCount, { count: visibleResults.length });
+    return "";
+  })();
+
   const hasPaletteContentBelow = Boolean(
     hasResults ||
     hasCmdSuggestions ||
@@ -718,6 +793,10 @@ export function CommandPalette() {
             hasContentBelow={hasPaletteContentBelow}
           />
 
+          <div className="sr-only" role="status" aria-live="polite" aria-atomic="true">
+            {liveRegionText}
+          </div>
+
           {capabilityMode && (
             <Suspense
               fallback={<div className="kn-panel-shell h-[120px] rounded-t-none border-t-0" />}
@@ -748,6 +827,25 @@ export function CommandPalette() {
                   onSelectIndex: setCapabilitySuggestionSelected,
                   onRunSelected: runSuggestedWorkflow,
                   onCancel: suggestNextState.cancel,
+                }}
+                memoryCard={{
+                  status: rememberState.status,
+                  data: remember.data,
+                  error: remember.error,
+                  startedAtMs: rememberState.startedAtMs,
+                  completedAtMs: rememberState.completedAtMs,
+                  onSubmit: rememberState.submit,
+                  onCancel: rememberState.cancel,
+                }}
+                recallCard={{
+                  status: recallState.status,
+                  items: recall.data,
+                  error: recall.error,
+                  startedAtMs: recallState.startedAtMs,
+                  completedAtMs: recallState.completedAtMs,
+                  onSubmit: recallState.submit,
+                  onCancel: recallState.cancel,
+                  onPaste: (content: string) => setQuery(content),
                 }}
                 dispatch={dispatch}
                 onClose={closeCapabilitySurface}

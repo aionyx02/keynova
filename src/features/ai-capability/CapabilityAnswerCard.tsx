@@ -9,6 +9,7 @@ import { useEffect, useState, type ReactElement } from "react";
 
 import { UiIcon } from "../../components/icons/UiIcon";
 import { Markdown } from "../../shared/components/Markdown";
+import { useI18n } from "../../i18n/useI18n";
 import type { DispatchFn } from "../../context/IPCContext";
 import type { CapabilityStreamStatus } from "./hooks/useCapabilityStream";
 
@@ -28,12 +29,6 @@ interface Props {
   onCancel: () => void;
   onClose: () => void;
 }
-
-const LABEL_TITLE: Record<AnswerCardCapability, string> = {
-  explain: "Explain",
-  summarize: "Summarize",
-  fix: "Fix",
-};
 
 function formatLatencyMs(ms: number): string {
   if (ms < 0) return "0.0s";
@@ -72,23 +67,29 @@ export function CapabilityAnswerCard({
     return stop - startedAtMs;
   })();
 
-  const headerLabel = `${LABEL_TITLE[capabilityLabel]} - ${formatLatencyMs(latencyMs)}`;
+  const c = useI18n().capability;
+  const labelTitle: Record<AnswerCardCapability, string> = {
+    explain: c.explain,
+    summarize: c.summarize,
+    fix: c.fix,
+  };
+  const headerLabel = `${labelTitle[capabilityLabel]} - ${formatLatencyMs(latencyMs)}`;
   const statusSuffix =
-    status === "error" ? " - error" : status === "cancelled" ? " - cancelled" : "";
+    status === "error" ? c.suffixError : status === "cancelled" ? c.suffixCancelled : "";
 
   const isBodyError = status === "error" && error !== null;
   const isBodyCancelled = status === "cancelled";
   const showFooterChips = status === "complete";
   const footerLabel =
     status === "pending" || status === "streaming"
-      ? "Streaming response"
+      ? c.ansFooterStreaming
       : status === "idle"
-        ? "Ready"
+        ? c.ansFooterIdle
         : status === "complete"
-          ? "Response complete"
+          ? c.ansFooterComplete
           : status === "cancelled"
-            ? "Cancelled"
-            : "Error";
+            ? c.ansFooterCancelled
+            : c.ansFooterError;
 
   const [saveState, setSaveState] = useState<"idle" | "saving" | "saved" | "error">("idle");
   const [copyState, setCopyState] = useState<"idle" | "copied">("idle");
@@ -107,7 +108,7 @@ export function CapabilityAnswerCard({
   async function handleSaveToNote() {
     if (!text) return;
     setSaveState("saving");
-    const noteName = `${LABEL_TITLE[capabilityLabel]}: ${args.text.slice(0, 40).trim()}`;
+    const noteName = `${labelTitle[capabilityLabel]}: ${args.text.slice(0, 40).trim()}`;
     try {
       await dispatch("note.save", { name: noteName, content: text });
       setSaveState("saved");
@@ -137,7 +138,7 @@ export function CapabilityAnswerCard({
             }
           }}
           className="kn-button h-7 w-7 px-0 py-0"
-          aria-label="Close"
+          aria-label={c.close}
         >
           <UiIcon name="x" className="h-3.5 w-3.5" />
         </button>
@@ -147,18 +148,16 @@ export function CapabilityAnswerCard({
         {isBodyError ? (
           <div className="whitespace-pre-wrap break-words text-rose-200">{error}</div>
         ) : isBodyCancelled ? (
-          <div className="text-[color:var(--kn-text-muted)]">Cancelled.</div>
+          <div className="text-[color:var(--kn-text-muted)]">{c.cancelledBody}</div>
         ) : text ? (
           <Markdown content={text} />
         ) : status === "pending" ? (
           <div className="text-[color:var(--kn-text-muted)]">
-            Asking model...{" "}
-            <span className="text-[color:var(--kn-text-faint)]">
-              (first call after launch may take a few seconds while the model loads)
-            </span>
+            {c.ansPendingBody}{" "}
+            <span className="text-[color:var(--kn-text-faint)]">{c.ansPendingHint}</span>
           </div>
         ) : status === "idle" && args.text.trim() ? (
-          <div className="text-[color:var(--kn-text-muted)]">Ready to ask.</div>
+          <div className="text-[color:var(--kn-text-muted)]">{c.ansIdleBody}</div>
         ) : null}
       </div>
 
@@ -173,7 +172,7 @@ export function CapabilityAnswerCard({
             className="kn-button"
           >
             <UiIcon name="file" className="h-3.5 w-3.5" />
-            {copyState === "copied" ? "Copied" : "Copy md"}
+            {copyState === "copied" ? c.copied : c.copyMd}
           </button>
           <button
             type="button"
@@ -186,12 +185,12 @@ export function CapabilityAnswerCard({
           >
             <UiIcon name="note" className="h-3.5 w-3.5" />
             {saveState === "saving"
-              ? "Saving..."
+              ? c.saving
               : saveState === "saved"
-                ? "Saved"
+                ? c.saved
                 : saveState === "error"
-                  ? "Save failed"
-                  : "Save to note"}
+                  ? c.saveFailed
+                  : c.saveToNote}
           </button>
         </div>
       )}

@@ -4,6 +4,8 @@ import { listen } from "@tauri-apps/api/event";
 import type { PanelProps } from "../../types/panel";
 import type { SettingEntry, SettingSchema } from "./settingTypes";
 import { SettingRow, type SettingControlKind } from "./SettingRow";
+import { useI18n } from "../../i18n/useI18n";
+import { fmt } from "../../i18n/format";
 
 interface ConfigReloadedPayload {
   source: string;
@@ -40,42 +42,8 @@ const DEFAULT_SECTIONS = [
   "performance",
 ];
 
-const SECTION_LABELS: Record<string, string> = {
-  hotkeys: "Hotkeys",
-  launcher: "Launcher",
-  search: "Search",
-  terminal: "Terminal",
-  mouse_control: "Mouse",
-  features: "Features",
-  ai: "AI",
-  agent: "Agent",
-  translation: "Translation",
-  notes: "Notes",
-  history: "History",
-  system: "System",
-  performance: "Performance",
-  security: "Security",
-};
-
-const SECTION_EFFECT_HINT: Record<string, string> = {
-  hotkeys: "Applies after shortcut reload.",
-  launcher: "Used by the command palette immediately.",
-  search: "Changes search behavior and index selection.",
-  terminal: "Takes effect the next time a terminal opens.",
-  mouse_control: "Used by mouse control mode.",
-  features: "Toggles feature visibility.",
-  ai: "Affects provider and model configuration.",
-  agent: "Controls agent web search and memory behavior.",
-  translation: "Used by translation requests.",
-  notes: "Affects note storage and editor integration.",
-  history: "Controls clipboard history retention.",
-  system: "Controls system panel capabilities.",
-  performance: "May apply immediately or on the next terminal / AI request.",
-  security: "Controls outbound network boundaries.",
-};
-
-function sectionDisplayLabel(section: string): string {
-  const mapped = SECTION_LABELS[section];
+function sectionDisplayLabel(section: string, labels: Record<string, string>): string {
+  const mapped = labels[section];
   if (mapped) return mapped;
   if (!section) return section;
   return section.charAt(0).toUpperCase() + section.slice(1);
@@ -96,6 +64,7 @@ function parseInitialArgs(initialArgs?: string): SettingDraftPayload {
 type Section = string;
 
 export function SettingPanel({ initialArgs }: PanelProps) {
+  const s = useI18n().settings;
   const initialDraft = parseInitialArgs(initialArgs);
   const [entries, setEntries] = useState<SettingEntry[]>([]);
   const [activeSection, setActiveSection] = useState<Section>(
@@ -147,19 +116,19 @@ export function SettingPanel({ initialArgs }: PanelProps) {
       setSaveError(null);
       setReloadNotice(
         count === 0
-          ? `Reloaded from ${event.payload.source}`
-          : `Reloaded ${count} setting(s) from ${event.payload.source}`,
+          ? fmt(s.reloadedFrom, { source: event.payload.source })
+          : fmt(s.reloadedCount, { count, source: event.payload.source }),
       );
     });
     const unlistenFailed = listen<ConfigReloadFailedPayload>("config-reload-failed", (event) => {
       setReloadNotice(null);
-      setSaveError(`Reload failed (${event.payload.source}): ${event.payload.error}`);
+      setSaveError(fmt(s.reloadFailed, { source: event.payload.source, error: event.payload.error }));
     });
     return () => {
       unlistenReload.then((fn) => fn());
       unlistenFailed.then((fn) => fn());
     };
-  }, [loadSettings]);
+  }, [loadSettings, s]);
 
   const sections =
     schema.length > 0
@@ -257,7 +226,9 @@ export function SettingPanel({ initialArgs }: PanelProps) {
     setSaveError(null);
     try {
       await ipcDispatch("setting.set", { key, value: newValue });
-      const storedValue = isSensitive ? "" : newValue;
+      // Reflect "stored" for secrets with the same mask the backend returns, so
+      // the row shows it as configured (the raw secret is never held in state).
+      const storedValue = isSensitive ? "********" : newValue;
       originalRef.current[key] = storedValue;
       setEdits((prev) => {
         if (!(key in prev)) return prev;
@@ -268,7 +239,7 @@ export function SettingPanel({ initialArgs }: PanelProps) {
       setEntries((prev) =>
         prev.map((item) => (item.key === key ? { ...item, value: storedValue } : item)),
       );
-      setReloadNotice(`Applied ${key}`);
+      setReloadNotice(fmt(s.applied, { key }));
       setSavedKey(key);
       if (savedFlashRef.current) clearTimeout(savedFlashRef.current);
       savedFlashRef.current = setTimeout(() => setSavedKey(null), 1500);
@@ -329,7 +300,7 @@ export function SettingPanel({ initialArgs }: PanelProps) {
                     : "border-transparent text-[color:var(--kn-text-faint)] hover:text-[color:var(--kn-text-soft)]"
                 }`}
               >
-                {sectionDisplayLabel(section)}
+                {sectionDisplayLabel(section, s.sectionLabels)}
               </button>
             ))}
           </div>
@@ -350,43 +321,53 @@ export function SettingPanel({ initialArgs }: PanelProps) {
               setFilter("");
             }
           }}
-          placeholder="Filter settings… (name or key)"
+          placeholder={s.filterPlaceholder}
           className="kn-field flex-1 px-2 py-1 text-[11px]"
           spellCheck={false}
         />
         <span className="shrink-0 text-[10px] text-[color:var(--kn-text-faint)]">
           {filtering
-            ? `${rows.length} match${rows.length === 1 ? "" : "es"}`
-            : (SECTION_EFFECT_HINT[activeSection] ?? "Applies after the next relevant action.")}
+            ? fmt(s.matchCount, { count: rows.length })
+            : (s.sectionHints[activeSection] ?? s.defaultHint)}
         </span>
       </div>
 
       <div className="kn-scroll max-h-[260px] space-y-3 overflow-y-auto px-4 py-3">
         {rows.length === 0 && (
           <p className="py-4 text-center text-xs text-[color:var(--kn-text-faint)]">
-            {filtering ? "No settings match." : "No settings in this section."}
+            {filtering ? s.noMatch : s.noneInSection}
           </p>
         )}
-        {rows.map((entry, rowIdx) => (
-          <SettingRow
-            key={entry.key}
-            entry={entry}
-            fieldSchema={schemaFor(entry.key)}
-            displayValue={edits[entry.key] ?? entry.value}
-            rowIdx={rowIdx}
-            saving={saving === entry.key}
-            saved={savedKey === entry.key && saving !== entry.key}
-            showSection={filtering}
-            registerRef={(el) => {
-              inputRefs.current[rowIdx] = el;
-            }}
-            onChange={handleChange}
-            onSave={(key, value) => void saveValue(key, value)}
-            onReset={(key, defaultValue) => void resetValue(key, defaultValue)}
-            onBlur={(key) => void handleBlur(key)}
-            onKeyDown={handleInputKeyDown}
-          />
-        ))}
+        {rows.map((entry, rowIdx) => {
+          const isSensitive = Boolean(entry.sensitive || schemaFor(entry.key)?.sensitive);
+          const secretIsSet = isSensitive && entry.value.length > 0;
+          // Keep the secret input empty so typing produces a clean key (never
+          // appended onto the mask); the "Set" badge signals it's configured.
+          const displayValue = isSensitive
+            ? (edits[entry.key] ?? "")
+            : (edits[entry.key] ?? entry.value);
+          return (
+            <SettingRow
+              key={entry.key}
+              entry={entry}
+              fieldSchema={schemaFor(entry.key)}
+              displayValue={displayValue}
+              rowIdx={rowIdx}
+              saving={saving === entry.key}
+              saved={savedKey === entry.key && saving !== entry.key}
+              secretIsSet={secretIsSet}
+              showSection={filtering}
+              registerRef={(el) => {
+                inputRefs.current[rowIdx] = el;
+              }}
+              onChange={handleChange}
+              onSave={(key, value) => void saveValue(key, value)}
+              onReset={(key, defaultValue) => void resetValue(key, defaultValue)}
+              onBlur={(key) => void handleBlur(key)}
+              onKeyDown={handleInputKeyDown}
+            />
+          );
+        })}
       </div>
 
       <div className="kn-panel-footer">
