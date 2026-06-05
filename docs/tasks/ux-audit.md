@@ -33,17 +33,25 @@ and completed work are detailed in `docs/memory/sessions/2026-06-05.md`. Branch:
 - `UX.AUDIT.4` UTF-8 BOM cleanup — stripped the 9-file BOM list and rechecked
   that no listed file still starts with BOM.
 
+## Done (cont.)
+
+- `UX.AUDIT.5` garbled-text (`嚙`) **fallback shipped**. The detail line no longer
+  masks to "Path unavailable"; when `hasEncodingError` trips it falls back to the
+  raw `result.path`, so a mojibake row stays actionable (open/reveal still work).
+  Removed the now-dead `search.pathUnavailable` locale key. Title still masks to
+  `search.unavailableText` (the raw path beneath identifies the row). Covered by
+  `SearchResultsList.test.tsx` (3 row-level cases).
+
 ## Open
 
-### UX.AUDIT.5 — garbled-text (`嚙`) root cause — BLOCKED on repro
+### UX.AUDIT.5 — `嚙` root cause — still BLOCKED on repro (non-urgent)
 
-`SearchResultsList.hasEncodingError('嚙')` masks mojibake titles as "Unavailable
-text". All live search-result read paths verified encoding-correct (Everything
-wide `…W` APIs + `\u{FFFD}` skip; `.lnk` `file_stem().to_str()` + FFFD guard; fs
-walk). No current code path produces `嚙`, so the guard is likely vestigial or
-masking stale store data. **Needs a concrete garbled result (raw filename/path)
-from the user to locate the source.** Fallback option if unrepro'd: show the raw
-path instead of "Path unavailable" so the row stays actionable.
+The fallback removes the user-facing harm, but the root cause is unresolved. All
+live search-result read paths verified encoding-correct (Everything wide `…W`
+APIs + `\u{FFFD}` skip; `.lnk` `file_stem().to_str()` + FFFD guard; fs walk). No
+current code path produces `嚙`, so the guard is likely vestigial or masking stale
+store data. **Needs a concrete garbled result (raw filename/path) from the user**
+to decide whether `hasEncodingError` can be deleted outright.
 
 ## Non-goals
 

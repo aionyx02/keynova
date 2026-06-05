@@ -47,8 +47,9 @@ Detailed batch definitions, done criteria, non-goals, file map, and validation g
   `docs/tasks/feature-decoupling.md`.
 
 - [~] `UX.AUDIT` UI/UX consistency pass (developer-directed). Done: stale "AI
-  Chat" copy, first a11y live regions, full i18n conversion, and UTF-8 BOM
-  cleanup. Open: garbled-text root cause (blocked on a repro). Detail:
+  Chat" copy, first a11y live regions, full i18n conversion, UTF-8 BOM cleanup,
+  and the garbled-text (`嚙`) fallback (raw path instead of "Path unavailable").
+  Open: `嚙` root cause still blocked on a repro (non-urgent). Detail:
   `docs/tasks/ux-audit.md`.
 
 ### P2

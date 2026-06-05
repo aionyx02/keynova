@@ -150,8 +150,11 @@ export function SearchResultsList({
                 : (result.title ?? result.name);
               const detailSource =
                 result.kind === "app" ? result.subtitle : (result.subtitle ?? result.path);
+              // UX.AUDIT.5 fallback: if the mojibake guard trips on the detail line,
+              // show the raw path instead of masking it as "Path unavailable" so the
+              // row stays actionable (open/reveal still work off result.path).
               const detail = hasEncodingError(detailSource)
-                ? t.search.pathUnavailable
+                ? (result.path || detailSource)
                 : detailSource;
 
               return (
