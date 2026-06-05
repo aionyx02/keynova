@@ -1,6 +1,6 @@
 export const zhTW = {
   search: {
-    placeholder: "搜尋應用程式、檔案或資料夾… 輸入 > 進入終端",
+    placeholder: "搜尋應用程式、檔案、指令或工具…",
     noResults: "找不到結果",
     noResultsFor: "找不到「{query}」的結果。",
     searching: "搜尋中…",
@@ -34,7 +34,7 @@ export const zhTW = {
   },
   command: {
     placeholder: "輸入指令… 試試 /help 或 /setting",
-    run: "執行",
+    run: "檢視",
     select: "選擇",
   },
   ai: {
@@ -360,7 +360,9 @@ export const zhTW = {
     openSetting: "開啟 /setting",
     replayOnboard: "重播 /onboard",
     generatedCommandReviewOnly:
-      "產生的 shell 指令不再直接啟動。請先檢視指令，並透過已核准的後端動作執行。",
+      "產生的 shell 指令不會直接啟動。請先檢視並複製，再由你在終端機中執行。",
+    copyCommandResult: "複製結果",
+    copiedCommandResult: "已複製結果",
     copiedPath: "已複製路徑：{path}",
     timedOut: "逾時：{providers}",
     fileTimedOut: "檔案搜尋：provider 在 800ms 後逾時",
@@ -526,6 +528,8 @@ export const zhTW = {
     size: "大小",
     modified: "修改時間",
     preview: "預覽",
+    copyPreview: "複製預覽",
+    copiedPreview: "已複製預覽",
     truncated: "已截斷",
     linesShown: "{count} 行已顯示",
   },

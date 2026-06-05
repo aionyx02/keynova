@@ -79,6 +79,9 @@ fn rank_rows(
     let mut suggestions = Vec::new();
 
     for (idx, row) in rows.into_iter().enumerate() {
+        if is_suggest_next_self_row(&row) {
+            continue;
+        }
         let dedupe_key = format!("{}::{}", row.route, row.action_label);
         if !seen.insert(dedupe_key) {
             continue;
@@ -115,6 +118,10 @@ fn rank_rows(
     });
 
     suggestions
+}
+
+fn is_suggest_next_self_row(row: &workflow_memory::WorkflowHistoryRow) -> bool {
+    row.route == "capability.call" && row.action_label.starts_with("suggest_next")
 }
 
 fn score_row(route: &str, recency_index: usize, same_context: bool) -> f32 {
@@ -291,6 +298,33 @@ mod tests {
         ];
         let items = rank_rows(rows, Some("ctx"));
         assert_eq!(items.len(), 1);
+    }
+
+    #[test]
+    fn drops_suggest_next_self_rows() {
+        let rows = vec![
+            workflow_memory::WorkflowHistoryRow {
+                id: 2,
+                context_hash: Some("ctx".into()),
+                route: "capability.call".into(),
+                action_label: "suggest_next".into(),
+                payload_digest: None,
+                workspace_id: Some(1),
+                executed_at: 20,
+            },
+            workflow_memory::WorkflowHistoryRow {
+                id: 1,
+                context_hash: Some("ctx".into()),
+                route: "cmd.run".into(),
+                action_label: "/help".into(),
+                payload_digest: None,
+                workspace_id: Some(1),
+                executed_at: 10,
+            },
+        ];
+        let items = rank_rows(rows, Some("ctx"));
+        assert_eq!(items.len(), 1);
+        assert_eq!(items[0].title, "/help");
     }
 
     #[test]

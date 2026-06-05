@@ -562,6 +562,14 @@ export function CommandPalette() {
       setPendingConfirm,
     });
 
+  const copyCommandResult = React.useCallback(
+    async (text: string) => {
+      await navigator.clipboard.writeText(text);
+      flashCopyHint(t.palette.copiedCommandResult);
+    },
+    [flashCopyHint, t.palette.copiedCommandResult],
+  );
+
   const execCommand = useExecCommand({
     runCommand,
     setQuery,
@@ -767,6 +775,7 @@ export function CommandPalette() {
     selectedArg,
     setSelectedArg,
     setQuery,
+    copyCommandResult,
     copyResultLocation,
     handleSecondaryAction,
     launchResult,

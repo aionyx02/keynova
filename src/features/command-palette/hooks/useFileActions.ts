@@ -33,6 +33,23 @@ interface SecondaryActionInfo {
   risk: "low" | "medium" | "high";
 }
 
+function parseInlineCommandResult(text: string | undefined): BuiltinCommandResult {
+  if (!text) return { text: "", ui_type: { type: "Inline" } };
+  try {
+    const parsed = JSON.parse(text) as Partial<BuiltinCommandResult>;
+    if (
+      typeof parsed.text === "string" &&
+      parsed.ui_type &&
+      typeof parsed.ui_type.type === "string"
+    ) {
+      return parsed as BuiltinCommandResult;
+    }
+  } catch {
+    // Not a JSON-encoded BuiltinCommandResult; render the raw inline text.
+  }
+  return { text, ui_type: { type: "Inline" } };
+}
+
 function isCopyableLocationResult(result: SearchResult | null) {
   return result?.kind === "app" || result?.kind === "file" || result?.kind === "folder";
 }
@@ -157,6 +174,9 @@ export function useFileActions(deps: UseFileActionsDeps): UseFileActions {
       if (result.path?.startsWith("projectcmd://")) {
         try {
           await navigator.clipboard.writeText(result.name ?? result.title ?? "");
+          if (result.primary_action) {
+            await dispatch(IPC.ACTION_RUN, { action_ref: result.primary_action }).catch(() => {});
+          }
           flashCopyHint(`Copied: ${result.name ?? result.title ?? ""}`);
         } catch {
           flashCopyHint("Copy failed");
@@ -171,6 +191,7 @@ export function useFileActions(deps: UseFileActionsDeps): UseFileActions {
         if (result.primary_action) {
           const actionResult = await dispatch<{
             type: string;
+            text?: string;
             name?: string;
             initial_args?: string;
           }>("action.run", { action_ref: result.primary_action });
@@ -179,6 +200,10 @@ export function useFileActions(deps: UseFileActionsDeps): UseFileActions {
               text: actionResult.initial_args ?? "",
               ui_type: { type: "Panel", value: actionResult.name },
             });
+            return;
+          }
+          if (actionResult.type === "inline") {
+            setCmdResult(parseInlineCommandResult(actionResult.text));
             return;
           }
         } else {

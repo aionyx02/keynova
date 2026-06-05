@@ -593,6 +593,14 @@ fn record_workflow_event(
 // handled by its own call site in `run_action_command` so the resolved
 // human-readable label is available.
 fn maybe_record_central_workflow(route: &str, payload: &Value, state: &AppState) {
+    if route == "capability.call"
+        && payload
+            .get("id")
+            .and_then(Value::as_str)
+            .is_some_and(|id| id == "suggest_next")
+    {
+        return;
+    }
     let label = match route {
         "cmd.run" => workflow_label_for_cmd_payload(payload),
         "capability.call" => workflow_label_for_capability_payload(payload),
@@ -677,7 +685,7 @@ fn workflow_label_for_action(action: &Action) -> String {
         ActionKind::CommandRoute { route, payload } if route == "cmd.run" => {
             workflow_label_for_cmd_payload(payload)
         }
-        ActionKind::CommandRoute { route, .. } => format!("Run {route}"),
+        ActionKind::CommandRoute { .. } => truncate_workflow_label(action.label.clone(), 48),
         ActionKind::Inline { text } => truncate_workflow_label(text.trim().to_string(), 48),
         ActionKind::Noop { reason } => truncate_workflow_label(reason.trim().to_string(), 48),
     }
@@ -778,6 +786,17 @@ mod tests {
     fn workflow_label_for_action_uses_launch_target_name() {
         let action = Action::launch_path("C:/work/keynova/src-tauri/src/main.rs");
         assert_eq!(workflow_label_for_action(&action), "Open main.rs");
+    }
+
+    #[test]
+    fn workflow_label_for_non_cmd_command_route_uses_action_label() {
+        let action = Action::command_route(
+            "projectcmd:npm run test",
+            "Copy npm run test",
+            "search.record_selection",
+            json!({ "source": "command", "path": "projectcmd://npm run test" }),
+        );
+        assert_eq!(workflow_label_for_action(&action), "Copy npm run test");
     }
 }
 

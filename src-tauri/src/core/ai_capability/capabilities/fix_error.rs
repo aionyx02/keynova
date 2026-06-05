@@ -49,8 +49,10 @@ enum Payload {
 }
 
 const SYSTEM: &str = "You are a senior developer's debugging assistant integrated into Keynova. \
-     Given compiler or linter output, explain the most likely root cause in plain prose, then \
-     suggest a one-line fix. Be concrete about file paths and line numbers when present. \
+     Given compiler, linter, or runtime output, turn it into a practical next step. \
+     Use concise sections: Summary, Likely cause, Check, Next step, Optional command. \
+     Keep commands copyable and non-destructive; never claim a command was run. \
+     Be concrete about file paths and line numbers when present. \
      Never invent locations that are not in the input.";
 
 pub fn call(
@@ -131,7 +133,8 @@ pub fn call(
     };
 
     let task = format!(
-        "Explain the following compiler/lint error and suggest a one-line fix.\n\n{}",
+        "Explain the following compiler/lint error and suggest the next safe action. \
+         If a command is useful, provide it as a copy-only suggestion and say why.\n\n{}",
         errors_block
     );
 

@@ -345,8 +345,98 @@ becomes informational only (no gate consumes it); leave it — harmless and chea
 If revisited later it must start from a fresh proposed ADR (ref ADR-0027
 generic-shell-sandbox, ADR-0022 approval boundary).
 
-## PRODUCT.1.F–H — not yet scoped
+## PRODUCT.1.F — File Actions And Preview Polish — DONE (2026-06-05)
 
-`F` file actions/preview, `G` developer utilities, `H` keyboard/perf gate. Scope
-each here before coding. Risky sub-items (destructive file ops, kill-port) still
-pass their own approval/ADR gates.
+Audit outcome: the risky file-action spine was already stronger than the roadmap
+baseline. `file.rename` / `file.move` / `file.delete` use a two-phase preview /
+confirm flow and verify the real filesystem state after mutation; `file.preview`
+is bounded for text/docx/image/binary paths and avoids the disabled asset
+protocol by returning bounded inline image data.
+
+Shipped this pass:
+
+- Text preview now has a one-click copy button in `PreviewPane`, so config /
+  README / log / docx snippets can be copied without opening the file.
+- The preview copy action is renderer-only and does not broaden filesystem
+  access; it only copies the bounded preview content already returned by
+  `file.preview`.
+- Existing destructive file actions remain confirmation-gated; no terminal or
+  shell execution path added.
+
+Deferred:
+
+- Workspace-relative path copy.
+- Query-aware preview affordances for non-file rows.
+
+## PRODUCT.1.G — Developer Utilities MVP — DONE (2026-06-05)
+
+Audit outcome: the core utility primitives and builtin wrappers already existed
+(`uuid`, `nanoid`, `pw`, `hash`, `b64enc` / `b64dec`, `urlenc` / `urldec`,
+`json` / `jsonm`, `regex`, `jwt`, `color`, `cron`, `killport`). `killport` is
+preview-only; direct termination remains disabled without a dedicated approval
+flow.
+
+Shipped this pass:
+
+- Slashless utility queries now produce direct inline command rows in search mode:
+  `jwt <token>`, `json <blob>`, `regex <pattern> <text>`, `hash <algo> <text>`,
+  `color <value>`, `cron <expr>`, etc. Users no longer need to switch to `/`
+  command mode for the common path.
+- Common aliases map to the existing safe commands: `base64` -> `b64enc`,
+  `base64dec` -> `b64dec`, `password` -> `pw`, `jsonminify` -> `jsonm`.
+- Search-result command actions now render inline command output in the palette
+  instead of returning an ignored `ActionResult::Inline` payload.
+- Inline command output now has a copy button, and `Ctrl+C` copies the visible
+  inline result when no input text is selected.
+
+Done criteria:
+
+- Utility output is reachable from keyboard-first search rows.
+- Utility output is copyable without selecting text manually.
+- Side-effect utility behavior does not expand; `killport <port> kill` still
+  refuses direct termination.
+
+## PRODUCT.1.H — Keyboard And Performance Gate — DONE (2026-06-05, unit + checklist)
+
+This batch locks the keyboard contract that can be tested in CI and publishes
+the manual dogfood gate for the parts that require the real desktop shell. It
+does **not** claim a physical `Ctrl+K` timing sample yet; that measurement stays
+in the release dogfood checklist below.
+
+Shipped this pass:
+
+- `useKeyboardNav` regression coverage now includes the zero-mouse search-result
+  paths: `Enter` launches the selected row, `Shift+Enter` runs the first
+  secondary action, `Tab` at end-of-input opens the secondary menu, `Ctrl+C`
+  copies selected file/app/folder locations when no text is selected, and
+  secondary-menu `Enter` triggers the focused action.
+- Existing capability keyboard coverage remains in the same test file:
+  capability `Enter`, IME composition guard, `Shift+Enter` non-submit, and
+  `next` list arrow/enter routing.
+- `useQueryChange` now has focused coverage for the dispatcher boundary:
+  slashless utilities reach search providers, capability prefixes suppress
+  duplicate backend search, and direct `>` input does not mount a terminal while
+  the secure human-terminal path is handled separately.
+
+Manual dogfood checklist (top 10 daily workflows):
+
+| # | Workflow | Target |
+|---|----------|--------|
+| 1 | Open a current-workspace file from search | `Ctrl+K` to input-ready < 200 ms; intended row top-3; zero mouse |
+| 2 | Open an app or external file from global search | Apps/out-of-repo files remain visible; workspace rows are ranked, not hard-filtered |
+| 3 | Copy a file/app/folder location | Search row selected, `Ctrl+C`, no launch side effect |
+| 4 | Copy a discovered project command | Row reads as copy/review-only; clipboard receives the command; no terminal execution |
+| 5 | Run a slashless utility | `json`, `jwt`, `hash`, `regex`, `color`, `cron`, etc. produce inline output from a search row |
+| 6 | Copy a text preview snippet | Preview loads bounded content; copy action copies the preview body |
+| 7 | Preview/cancel risky file actions | Rename/move/delete preview shows before confirm; cancel leaves filesystem unchanged |
+| 8 | Use `fix` on an error snippet | Output is concise, copyable, and suggests only user-run commands |
+| 9 | Use `next` after repeated workflows | Suggestions do not include `suggest_next` self-pollution |
+| 10 | Search a noisy generated path scenario | Clean workspace result outranks `node_modules`/`target`/`dist` hits while noisy rows stay reachable |
+
+Manual release pass should record:
+
+- `Ctrl+K` -> focused input timing on the primary Windows machine.
+- First useful result rank for each checklist row (`top-1`, `top-3`, or miss).
+- Whether the workflow is keyboard-complete; any required mouse step becomes a
+  follow-up issue.
+- Any jank while indexing, previewing, or streaming capability output.

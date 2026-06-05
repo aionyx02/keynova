@@ -4,6 +4,7 @@ export type UiIconName =
   | "app"
   | "arrow-right"
   | "command"
+  | "copy"
   | "database"
   | "file"
   | "filter"
@@ -40,6 +41,13 @@ function paths(name: UiIconName) {
             strokeLinecap="round"
             strokeLinejoin="round"
           />
+        </>
+      );
+    case "copy":
+      return (
+        <>
+          <rect x="8.25" y="7.25" width="10.5" height="12.5" rx="1.5" />
+          <path d="M5.25 15.75V5.5A1.5 1.5 0 0 1 6.75 4h8.5" strokeLinecap="round" />
         </>
       );
     case "database":

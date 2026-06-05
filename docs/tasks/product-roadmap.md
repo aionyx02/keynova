@@ -215,11 +215,11 @@ Done:
 
 Scope:
 
-- [ ] Ship keyboard-first utilities for UUID, hash, base64, JSON format, JWT
+- [x] Ship keyboard-first utilities for UUID, hash, base64, JSON format, JWT
   decode, regex quick-check, and kill-port.
-- [ ] Return immediate results inline where possible.
-- [ ] Let `Enter` copy the primary utility output.
-- [ ] Mark utilities with side effects, especially kill-port, as risk-gated.
+- [x] Return immediate results inline where possible.
+- [x] Let `Ctrl+C` / copy button copy the primary utility output.
+- [x] Mark utilities with side effects, especially kill-port, as risk-gated.
 
 Done:
 
@@ -231,19 +231,21 @@ Done:
 
 Scope:
 
-- [ ] Verify `Ctrl+K` to input-ready feels under 200 ms on the primary Windows
-  target machine.
-- [ ] Verify MVP primary paths require zero mouse operations.
-- [ ] Keep focus, IME, Enter, Escape, arrow navigation, and secondary-menu
-  behavior stable.
-- [ ] Add manual dogfood checklist entries for the top 10 daily workflows.
+- [x] Add CI-level coverage for MVP zero-mouse search-result paths.
+- [x] Keep focus, IME, Enter, Escape, arrow navigation, and secondary-menu
+  behavior stable at hook-test level.
+- [x] Add manual dogfood checklist entries for the top 10 daily workflows.
+- [ ] Capture a real `Ctrl+K` to input-ready timing sample on the primary
+  Windows target machine during release dogfood.
 
 Done:
 
-- Palette open/input, first-result navigation, copy/open/run, and close are
-  keyboard-complete.
-- No obvious jank appears while indexing, previewing, or streaming capability
-  output.
+- Search-result `Enter`, `Shift+Enter`, `Tab`, `Ctrl+C`, and secondary-menu
+  `Enter` paths are covered by Vitest.
+- Capability `Enter`, IME, `next` list navigation, and Escape unwind behavior
+  have focused regression coverage.
+- Manual release pass must still record physical timing, first useful result
+  rank, keyboard completeness, and indexing/preview/streaming jank notes.
 
 ## PRODUCT.2 - v0.7 AI Capabilities That Are Useful
 
