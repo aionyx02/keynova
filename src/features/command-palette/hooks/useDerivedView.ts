@@ -18,6 +18,7 @@
 import { useEffect, useMemo } from "react";
 
 import { useFilePreview, isPreviewable } from "../../../hooks/useFilePreview";
+import { useI18n } from "../../../i18n/useI18n";
 import { buildSecondaryActions, type SecondaryActionItem } from "../../../utils/secondaryActions";
 import type {
   FilePreviewResult,
@@ -119,9 +120,10 @@ export function useDerivedView(deps: Deps): UseDerivedView {
   const previewForSelected = selectedResult ? previewByPath[selectedResult.path] : undefined;
   const previewLoading = isPreviewable(selectedResult) && !previewForSelected;
 
+  const actionLabels = useI18n().palette.actions;
   const menuItems = useMemo(
-    () => (selectedResult ? buildSecondaryActions(selectedResult) : []),
-    [selectedResult],
+    () => (selectedResult ? buildSecondaryActions(selectedResult, actionLabels) : []),
+    [selectedResult, actionLabels],
   );
 
   // Close secondary menu / collapse metadata when result selection or list

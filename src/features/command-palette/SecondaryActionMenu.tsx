@@ -7,6 +7,8 @@ import {
   type SecondaryActionId,
   type SecondaryActionItem,
 } from "../../utils/secondaryActions";
+import { useI18n } from "../../i18n/useI18n";
+import { fmt } from "../../i18n/format";
 
 interface Props {
   result: SearchResult;
@@ -31,6 +33,7 @@ export function SecondaryActionMenu({
   onInlineInputChange,
   onInlineInputKeyDown,
 }: Props) {
+  const p = useI18n().palette;
   const enabled = items.filter((item) => !item.disabled);
   const focusedId = enabled[focusedIndex]?.id ?? null;
   const itemRefs = useRef<Record<string, HTMLDivElement | null>>({});
@@ -43,11 +46,11 @@ export function SecondaryActionMenu({
   return (
     <div
       role="menu"
-      aria-label="Secondary actions"
+      aria-label={p.secondaryActions}
       className="kn-panel-shell absolute right-3 top-3 z-20 flex h-[380px] max-h-[calc(100vh-24px)] w-[400px] max-w-[calc(100%-24px)] flex-col overflow-hidden rounded-[8px]"
     >
       <div className="shrink-0 border-b border-[color:var(--kn-border)] bg-white/[0.02] px-4 py-2 text-[10px] uppercase tracking-[0.16em] text-[color:var(--kn-text-faint)]">
-        Actions / {result.title ?? result.name}
+        {p.actionsFor} / {result.title ?? result.name}
       </div>
 
       <div className="kn-scroll min-h-0 flex-1 overflow-y-auto px-2 py-2">
@@ -93,7 +96,7 @@ export function SecondaryActionMenu({
                 data-selected={isFocused && !isArmedDestructive ? "true" : "false"}
               >
                 <span className="truncate font-medium">
-                  {isArmedDestructive ? `Confirm ${item.label}? Press Enter again` : item.label}
+                  {isArmedDestructive ? fmt(p.confirmAction, { label: item.label }) : item.label}
                 </span>
                 {item.disabled && item.disabledReason ? (
                   <span className="shrink-0 text-[10px] text-[color:var(--kn-text-faint)]">
@@ -117,11 +120,11 @@ export function SecondaryActionMenu({
                     onMouseDown={(event) => event.stopPropagation()}
                     className="kn-field w-full text-sm"
                     placeholder={
-                      inlineInput.for === "rename" ? "New name" : "Target folder absolute path"
+                      inlineInput.for === "rename" ? p.renamePlaceholder : p.movePlaceholder
                     }
                   />
                   <div className="mt-1 text-[10px] text-[color:var(--kn-text-muted)]">
-                    Enter preview / Enter again to confirm / Esc cancel
+                    {p.inlineHint}
                   </div>
                 </div>
               ) : null}
@@ -133,15 +136,15 @@ export function SecondaryActionMenu({
       <div className="kn-panel-footer shrink-0">
         <span className="flex items-center gap-1.5">
           <span className="kn-kbd">Up/Down</span>
-          <span>navigate</span>
+          <span>{p.navigate}</span>
         </span>
         <span className="flex items-center gap-1.5">
           <span className="kn-kbd">Enter</span>
-          <span>run</span>
+          <span>{p.run}</span>
         </span>
         <span className="flex items-center gap-1.5">
           <span className="kn-kbd">Esc</span>
-          <span>close</span>
+          <span>{p.close}</span>
         </span>
       </div>
     </div>
