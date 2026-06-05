@@ -37,6 +37,7 @@ export const enUS: I18nKeys = {
     new: "New note",
     save: "Save",
     saved: "Saved",
+    saveFailed: "Save failed",
     delete: "Delete",
     rename: "Rename",
     placeholder: "Start typing…",

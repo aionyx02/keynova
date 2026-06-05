@@ -40,13 +40,20 @@ interface SettingRowProps {
 }
 
 function StatusBadge({ saving, saved }: { saving: boolean; saved: boolean }) {
-  if (saving) {
-    return <span className="shrink-0 text-[10px] text-[color:var(--kn-text-muted)]">Saving</span>;
-  }
-  if (saved) {
-    return <span className="shrink-0 text-[10px] text-[color:var(--kn-success)]">Saved</span>;
-  }
-  return null;
+  // role=status + aria-live so the save outcome is announced; sighted users see
+  // the same badge, AT users hear "Saving"/"Saved" without it.
+  const text = saving ? "Saving" : saved ? "Saved" : "";
+  const tone = saving ? "var(--kn-text-muted)" : "var(--kn-success)";
+  return (
+    <span
+      role="status"
+      aria-live="polite"
+      className="shrink-0 text-[10px]"
+      style={{ color: tone }}
+    >
+      {text}
+    </span>
+  );
 }
 
 export function SettingRow({

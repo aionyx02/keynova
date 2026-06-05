@@ -190,10 +190,21 @@ export function NoteEditor({ onClose, initialArgs }: PanelProps) {
               </span>
               <div className="flex items-center gap-3">
                 {saveStatus === "saved" && (
-                  <span className="text-[10px] text-[color:var(--kn-success)]">{t.note.saved}</span>
+                  <span
+                    role="status"
+                    aria-live="polite"
+                    className="text-[10px] text-[color:var(--kn-success)]"
+                  >
+                    {t.note.saved}
+                  </span>
                 )}
                 {saveStatus === "error" && (
-                  <span className="text-[10px] text-[color:var(--kn-danger)]">Save failed</span>
+                  <span
+                    role="alert"
+                    className="text-[10px] text-[color:var(--kn-danger)]"
+                  >
+                    {t.note.saveFailed}
+                  </span>
                 )}
                 {confirmDelete ? (
                   <span className="flex gap-2 text-[10px] text-[color:var(--kn-danger)]">

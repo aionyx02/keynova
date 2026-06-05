@@ -35,6 +35,7 @@ export const zhTW = {
     new: "新增筆記",
     save: "儲存",
     saved: "已儲存",
+    saveFailed: "儲存失敗",
     delete: "刪除",
     rename: "重新命名",
     placeholder: "開始輸入…",

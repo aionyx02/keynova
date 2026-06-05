@@ -737,6 +737,20 @@ export function CommandPalette() {
     mode === "search" &&
     results.length > 0 &&
     visibleResults.length === 0;
+  // Single polite live region so assistive tech hears the palette's dynamic
+  // state (result counts, empty state, AI streaming) without a visual change.
+  // Keyboard-first means many users never see these transitions paint.
+  const liveRegionText = (() => {
+    if (mode !== "search" || paletteMode.kind !== "search") return "";
+    if (activeCapabilityLoading) return "AI 回應產生中…";
+    if (showCapabilityResult) return "";
+    if (query.trim() === "") return "";
+    if (isLoading) return "搜尋中…";
+    if (showSearchEmptyState) return "找不到結果";
+    if (visibleResults.length > 0) return `${visibleResults.length} 個結果`;
+    return "";
+  })();
+
   const hasPaletteContentBelow = Boolean(
     hasResults ||
     hasCmdSuggestions ||
@@ -774,6 +788,10 @@ export function CommandPalette() {
             onFocus={() => void keepLauncherOpen()}
             hasContentBelow={hasPaletteContentBelow}
           />
+
+          <div className="sr-only" role="status" aria-live="polite" aria-atomic="true">
+            {liveRegionText}
+          </div>
 
           {capabilityMode && (
             <Suspense
