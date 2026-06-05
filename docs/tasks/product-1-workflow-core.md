@@ -117,10 +117,45 @@ score model is consistent with the un-ADR'd recency/frequency boosts. **If** a
 later batch reworks ranking into weighted/normalized scoring (a real algorithmic
 change per governance §7), that needs an ADR first.
 
-## PRODUCT.1.B–H — not yet scoped
+## PRODUCT.1.B — Unified Result Contract Audit — DONE (2026-06-05)
 
-`B` unified-result contract audit, `C` workspace-aware search (incl. noise
-suppression), `D` project command discovery, `E` terminal workflow, `F` file
+Audit outcome: **the contract is already uniform and functional.** Every result
+source crosses IPC as `UnifiedResult` via `From<UiSearchItem>` (search rows) and
+`From<BuiltinCommandResult>` / `From<SearchResult>` (other producers). The shim
+preserves a stable `id` (`item_ref.id`), `kind`, `path`, `score` + `breakdown`,
+exactly one primary `ActionChip`, lazy `preview` (`PreviewPayload::None` until the
+user expands), and `secondary_action_count`. Risk is `ConfirmRequirement::none()`
+on search rows **by design** — risk lives on actions / capability chips, not rows.
+
+Done this batch:
+
+- **Per-source-kind test coverage** (done-criterion): new
+  `ui_search_item_shim_covers_every_source_kind` in `models/unified_result.rs`
+  asserts all 8 `ResultKind`s (App/File/Folder/Command/Note/History/Model/Memory)
+  map with stable id, preserved kind/path/score, one primary action, no row-level
+  confirm.
+- **Audit recorded** (this section).
+
+Confirmed clean (no change needed):
+
+- Source-specific frontend branches in `utils/secondaryActions.ts` are legitimate
+  per-kind *actions* (open/reveal/rename for files; note open), not duplicated
+  behavior. The memory-row paste short-circuit is a real distinct capability.
+
+### Deferred finding (not a regression)
+
+The `From<UiSearchItem>` shim wraps **every** source as `ResultSource::File { kind,
+path }`, so the `ResultSource::BuiltinCommand` / `Other` variants are unused by the
+search path. Reworking `ResultSource` into proper per-source variants is a **data
+contract change** (governance §7) that ripples through `unifiedToLegacy` /
+`unifiedKindOf` / `unifiedBucketKey` and needs an ADR — out of scope for the
+audit. Kept as a documented deviation; revisit if a source needs semantics the
+`File`-wrapper cannot express.
+
+## PRODUCT.1.C–H — not yet scoped
+
+`C` workspace-aware search (incl. noise suppression — absorbs 1.A's deferred
+`noise_penalty`), `D` project command discovery, `E` terminal workflow, `F` file
 actions/preview, `G` developer utilities, `H` keyboard/perf gate. Scope each batch
 here (primary vs simplification-only) before coding, per the task-persistence rule.
 Risky sub-items (destructive file ops, kill-port, shell handoff) still pass their
