@@ -291,6 +291,25 @@ Copy-only discovery reuses existing patterns (ADR-0044 declarative provider,
 no new ADR. Execution (1.E) crosses the approval boundary and must be checked
 against governance then.
 
+## PROJECT_ROOT.wire — DONE (2026-06-05)
+
+Unblocks the dormant workspace features. Nothing populated `WorkspaceManager`
+`project_root` (no UI setter; `withGlobalTauri` off), so 1.A `workspace_boost`,
+the pre-existing workspace search filter, and 1.D project commands never fired
+end-to-end. Now `core/project_commands.rs::detect_project_root(start)` walks cwd
+ancestors for a project marker (`.git`/`Cargo.toml`/`package.json`/`go.mod`/
+`pyproject.toml`/`Makefile`/`justfile`/`pom.xml`/`build.gradle`/`.hg`/`.svn`),
+stopping at `$HOME` / a drive root so a stray home marker can't make the whole
+home tree the project. `state.rs` runs it once at startup and calls
+`WorkspaceManager::set_project_root_if_unset` (preserves any user/persisted root;
+no project found ⇒ no-op = global search as before). 3 new tests. No ADR (local
+read + existing workspace field).
+
+**Behavior change:** launching from inside a project now scopes file search to it
+(`:global` escapes); 1.D command rows appear; `workspace_boost` is observable in
+`:global`. Known limit: detects the launch cwd once — does not follow the
+foreground window's project (deeper follow-up).
+
 ## PRODUCT.1.E–H — not yet scoped
 
 `E` terminal workflow (owns command execution + high-risk gating), `F` file

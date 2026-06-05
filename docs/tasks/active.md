@@ -51,9 +51,10 @@ Detailed batch definitions, done criteria, non-goals, file map, and validation g
 - [ ] `PRODUCT.1` v0.6 stable workflow core — **UNFROZEN 2026-06-05** (conditional
   partial unfreeze; search-core is orthogonal to the REF.7 AI gates). Batches
   `A`–`H`. `A`–`D` **done**: A=`workspace_boost`+`config_boost`, B=contract
-  audit, C=`noise_penalty` demote, D=project-command discovery (copy-only;
-  npm/cargo/make/just). Next `PRODUCT.1.E` (terminal workflow — execution + risk
-  gate). Detail: `docs/tasks/product-1-workflow-core.md`.
+  audit, C=`noise_penalty` demote, D=project-command discovery (copy-only).
+  `PROJECT_ROOT.wire` **done**: startup cwd detection lights up A/filter/D
+  (search now workspace-scoped; `:global` escapes). Next `PRODUCT.1.E`
+  (terminal workflow). Detail: `docs/tasks/product-1-workflow-core.md`.
 
 ### P2
 
