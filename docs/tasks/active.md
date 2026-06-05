@@ -48,13 +48,13 @@ Detailed batch definitions, done criteria, non-goals, file map, and validation g
   i18n conversion, UTF-8 BOM cleanup, and the garbled-text (`嚙`) fallback (raw
   path instead of "Path unavailable"). Open: `嚙` root cause still blocked on a
   repro (non-urgent). Detail: `docs/tasks/ux-audit.md`.
-- [ ] `PRODUCT.1` v0.6 stable workflow core — **UNFROZEN 2026-06-05** (conditional
-  partial unfreeze; search-core is orthogonal to the REF.7 AI gates). Batches
-  `A`–`H`. `A`–`D` **done**: A=`workspace_boost`+`config_boost`, B=contract
-  audit, C=`noise_penalty` demote, D=project-command discovery (copy-only).
-  `PROJECT_ROOT.wire` **done**: startup VCS-root detection lights up A boost + D
-  commands (search stays global; hard workspace filter removed after it hid apps
-  + non-repo files). Next `PRODUCT.1.E`. Detail: `docs/tasks/product-1-workflow-core.md`.
+- [~] `PRODUCT.1` v0.6 stable workflow core (UNFROZEN 2026-06-05; search-core,
+  orthogonal to REF.7). `A`–`D` **done**: workspace+config boost (A), contract
+  audit (B), noise demote (C), project-command discovery copy-only (D).
+  `PROJECT_ROOT.wire` done (startup VCS-root detection; search stays global +
+  workspace-ranked, hard filter removed). `1.E` (command execution/terminal)
+  **dropped** — no execution path, copy-only stays. Next `1.F`/`1.G`. Detail:
+  `docs/tasks/product-1-workflow-core.md`.
 
 ### P2
 
