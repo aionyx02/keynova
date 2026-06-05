@@ -40,7 +40,7 @@ pub(super) fn workspace_boost(source: &str, path: &str, project_root: Option<&st
         return 0;
     }
     match project_root {
-        Some(root) if path_under_root(path, root) => 20,
+        Some(root) if path_under_root(path, root) => 12,
         _ => 0,
     }
 }
@@ -72,7 +72,7 @@ pub(super) fn config_boost(source: &str, path: &str) -> i64 {
         .iter()
         .any(|ext| name.ends_with(ext));
     if is_readme || is_named_config || is_config_ext {
-        6
+        4
     } else {
         0
     }
@@ -243,8 +243,8 @@ mod tests {
 
     #[test]
     fn workspace_boost_rewards_file_under_root() {
-        assert_eq!(workspace_boost("file", "C:/projA/config.toml", Some(ROOT)), 20);
-        assert_eq!(workspace_boost("app", "C:/projA/bin/app.exe", Some(ROOT)), 20);
+        assert_eq!(workspace_boost("file", "C:/projA/config.toml", Some(ROOT)), 12);
+        assert_eq!(workspace_boost("app", "C:/projA/bin/app.exe", Some(ROOT)), 12);
     }
 
     #[test]
@@ -259,7 +259,7 @@ mod tests {
 
     #[test]
     fn workspace_boost_is_case_and_separator_insensitive() {
-        assert_eq!(workspace_boost("file", r"c:\proja\src\main.rs", Some(ROOT)), 20);
+        assert_eq!(workspace_boost("file", r"c:\proja\src\main.rs", Some(ROOT)), 12);
     }
 
     #[test]
@@ -270,9 +270,9 @@ mod tests {
 
     #[test]
     fn config_boost_rewards_readme_and_manifests() {
-        assert_eq!(config_boost("file", "C:/x/README.md"), 6);
-        assert_eq!(config_boost("file", "C:/x/Cargo.toml"), 6);
-        assert_eq!(config_boost("file", "C:/x/settings.yaml"), 6);
+        assert_eq!(config_boost("file", "C:/x/README.md"), 4);
+        assert_eq!(config_boost("file", "C:/x/Cargo.toml"), 4);
+        assert_eq!(config_boost("file", "C:/x/settings.yaml"), 4);
     }
 
     #[test]

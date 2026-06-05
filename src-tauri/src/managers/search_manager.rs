@@ -275,17 +275,20 @@ impl SearchManager {
         let Some(entry) = memory.get(&key) else {
             return (0, 0);
         };
+        // Workflow boosts are deliberately gentle tie-breakers: they must not bury
+        // a strong base/exact-name match under a merely frequently-used file.
+        // (Halved from the original 25/15/8 + count*4 after dogfood feedback.)
         let age_secs = now_secs().saturating_sub(entry.last_seen_secs);
         let recency = if age_secs < 60 * 60 {
-            25
+            12
         } else if age_secs < 24 * 60 * 60 {
-            15
-        } else if age_secs < 7 * 24 * 60 * 60 {
             8
+        } else if age_secs < 7 * 24 * 60 * 60 {
+            4
         } else {
             0
         };
-        let frequency = entry.count.min(10) as i64 * 4;
+        let frequency = entry.count.min(10) as i64 * 2;
         (recency, frequency)
     }
 
@@ -675,8 +678,8 @@ mod tests {
             manager.record_selection("file", "C:/tmp/a.txt");
         }
         let (recency, frequency) = manager.rank_boost_breakdown("file", "C:/tmp/a.txt");
-        assert_eq!(recency, 25, "fresh selection should give max recency");
-        assert_eq!(frequency, 12, "count=3 should give frequency = 3*4 = 12");
+        assert_eq!(recency, 12, "fresh selection should give max recency");
+        assert_eq!(frequency, 6, "count=3 should give frequency = 3*2 = 6");
     }
 
     #[test]
@@ -730,8 +733,8 @@ mod tests {
         }
         let (_, frequency) = manager.rank_boost_breakdown("file", "C:/tmp/a.txt");
         assert_eq!(
-            frequency, 40,
-            "count.min(10) * 4 = 40 even with 15 selections"
+            frequency, 20,
+            "count.min(10) * 2 = 20 even with 15 selections"
         );
     }
 
@@ -750,8 +753,8 @@ mod tests {
         let (recency, frequency) = manager.rank_boost_breakdown("file", "C:/tmp/a.txt");
         assert_eq!(recency, 0, "8-day-old selection should give 0 recency");
         assert_eq!(
-            frequency, 4,
-            "one selection should give frequency = 1*4 = 4"
+            frequency, 2,
+            "one selection should give frequency = 1*2 = 2"
         );
     }
 

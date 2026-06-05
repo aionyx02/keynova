@@ -41,11 +41,21 @@ action_success - risk_penalty - noise_penalty`. **Live today:** text_match,
 recency, frequency (+ workspace as a filter). **Missing:** workspace_context as a
 *score*, action_success, risk_penalty, noise_penalty.
 
+## RANK.tune — boost magnitudes lowered after dogfood (2026-06-05)
+
+Dogfood feedback: boosts (esp. recency/frequency) buried strong exact-name
+matches (e.g. the `keynova` folder didn't surface). Halved the workflow boosts
+and trimmed the others so `base` (relevance/exactness) leads and boosts are
+tie-breakers. Current magnitudes: `recency` 12/8/4 (was 25/15/8), `frequency`
+`count.min(10)*2` max 20 (was *4 max 40), `workspace_boost` 12 (was 20),
+`config_boost` 4 (was 6), `noise_penalty` -30 (unchanged). Positive ceiling
+~48 vs base ~95. Tunable; re-verify and adjust.
+
 ## PRODUCT.1.A — Ranking Baseline — DONE (2026-06-05, unit level)
 
-Shipped: `workspace_boost` (+20 for file/folder/app under the active
-`project_root`) and `config_boost` (+6 for README/manifests/config files) as two
-new additive `ScoreBreakdown` terms, surfaced in `RankTooltip` (rows shown when
+Shipped: `workspace_boost` (file/folder/app under the active `project_root`) and
+`config_boost` (README/manifests/config files) as two new additive `ScoreBreakdown`
+terms, surfaced in `RankTooltip` (rows shown when
 non-zero) with `rank.workspace` / `rank.config` localized. Pure scoring helpers
 live in `handlers/search/ranking.rs` (6 unit tests incl. the headline
 "in-workspace file outranks same-name outside" case); `apply_rank_boost` resolves
