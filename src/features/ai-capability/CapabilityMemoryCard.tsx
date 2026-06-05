@@ -1,6 +1,7 @@
 import { useEffect, useState, type ReactElement } from "react";
 
 import { UiIcon } from "../../components/icons/UiIcon";
+import { useI18n } from "../../i18n/useI18n";
 import type { RememberOutput } from "./types";
 import type { CapabilityRunStatus } from "./hooks/useCapabilityRunState";
 
@@ -49,21 +50,22 @@ export function CapabilityMemoryCard({
     const stop = completedAtMs ?? now;
     return stop - startedAtMs;
   })();
+  const c = useI18n().capability;
   const statusSuffix =
-    status === "error" ? " - error" : status === "cancelled" ? " - cancelled" : "";
+    status === "error" ? c.suffixError : status === "cancelled" ? c.suffixCancelled : "";
 
   const footerLabel =
     status === "pending"
-      ? "Organizing and saving locally"
+      ? c.memFooterPending
       : status === "idle"
-        ? "Press Enter to organize and save"
+        ? c.memFooterIdle
         : status === "cancelled"
-          ? "Cancelled - press Enter to try again"
+          ? c.memFooterCancelled
           : status === "error"
-            ? "Error - press Enter to retry"
+            ? c.memFooterError
             : data?.saved
-              ? "Saved to local memory"
-              : "Not saved";
+              ? c.memFooterSaved
+              : c.memFooterNotSaved;
 
   return (
     <div className="kn-panel-shell overflow-hidden rounded-t-none border-t-0">
@@ -81,7 +83,7 @@ export function CapabilityMemoryCard({
             else onClose();
           }}
           className="flex h-7 w-7 items-center justify-center rounded-[10px] border border-[color:var(--kn-border)] bg-white/[0.035] text-[color:var(--kn-text-muted)] transition-colors hover:bg-white/[0.06] hover:text-[color:var(--kn-text)]"
-          aria-label="Close"
+          aria-label={c.close}
         >
           <UiIcon name="x" className="h-3.5 w-3.5" />
         </button>
@@ -91,14 +93,14 @@ export function CapabilityMemoryCard({
         {status === "error" && error ? (
           <div className="whitespace-pre-wrap break-words text-rose-200">{error}</div>
         ) : status === "cancelled" ? (
-          <div className="text-[color:var(--kn-text-muted)]">Cancelled.</div>
+          <div className="text-[color:var(--kn-text-muted)]">{c.cancelledBody}</div>
         ) : data ? (
           <div className="space-y-3">
             <div className="flex items-center gap-2">
               {data.saved && (
                 <span className="inline-flex items-center gap-1 rounded-[10px] border border-emerald-300/25 bg-emerald-300/10 px-2 py-0.5 text-[11px] font-medium text-emerald-100">
                   <span aria-hidden>✓</span>
-                  Saved
+                  {c.savedBadge}
                 </span>
               )}
               <span className="font-semibold text-[color:var(--kn-text)]">{data.title}</span>
@@ -108,14 +110,13 @@ export function CapabilityMemoryCard({
             </div>
           </div>
         ) : status === "pending" ? (
-          <div className="text-[color:var(--kn-text-muted)]">
-            Organizing your note into a memory and saving it locally...
-          </div>
+          <div className="text-[color:var(--kn-text-muted)]">{c.memPendingBody}</div>
         ) : (
           <div className="space-y-2 text-[color:var(--kn-text-muted)]">
-            <div>AI will tidy this into a titled memory stored on this device.</div>
+            <div>{c.memIdleBody}</div>
             <div className="text-[12px] text-[color:var(--kn-text-faint)]">
-              Note: <span className="font-medium text-[color:var(--kn-text-soft)]">{intent}</span>
+              {c.noteLabel}{" "}
+              <span className="font-medium text-[color:var(--kn-text-soft)]">{intent}</span>
             </div>
           </div>
         )}
@@ -132,7 +133,7 @@ export function CapabilityMemoryCard({
             className="inline-flex items-center gap-1.5 rounded-[12px] border border-[color:var(--kn-border)] bg-white/[0.035] px-2.5 py-1.5 font-medium text-[color:var(--kn-text-soft)] transition-colors hover:bg-white/[0.06] hover:text-[color:var(--kn-text)]"
           >
             <UiIcon name="command" className="h-3.5 w-3.5" />
-            {status === "idle" ? "Remember" : "Retry"}
+            {status === "idle" ? c.remember : c.retry}
           </button>
         </div>
       )}

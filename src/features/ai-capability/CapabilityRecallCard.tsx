@@ -1,6 +1,7 @@
 import { useEffect, useState, type ReactElement } from "react";
 
 import { UiIcon } from "../../components/icons/UiIcon";
+import { useI18n } from "../../i18n/useI18n";
 import type { RecalledMemory } from "./types";
 import type { CapabilityRunStatus } from "./hooks/useCapabilityRunState";
 
@@ -51,21 +52,22 @@ export function CapabilityRecallCard({
     const stop = completedAtMs ?? now;
     return stop - startedAtMs;
   })();
+  const c = useI18n().capability;
   const statusSuffix =
-    status === "error" ? " - error" : status === "cancelled" ? " - cancelled" : "";
+    status === "error" ? c.suffixError : status === "cancelled" ? c.suffixCancelled : "";
 
   const footerLabel =
     status === "pending"
-      ? "Searching local memories"
+      ? c.recallFooterPending
       : status === "idle"
-        ? "Press Enter to recall"
+        ? c.recallFooterIdle
         : status === "cancelled"
-          ? "Cancelled"
+          ? c.recallFooterCancelled
           : status === "error"
-            ? "Could not recall"
+            ? c.recallFooterError
             : items.length > 0
-              ? "Click a memory to paste it"
-              : "No matching memories";
+              ? c.recallFooterClickPaste
+              : c.recallFooterNoMatch;
 
   return (
     <div className="kn-panel-shell overflow-hidden rounded-t-none border-t-0">
@@ -83,7 +85,7 @@ export function CapabilityRecallCard({
             else onClose();
           }}
           className="flex h-7 w-7 items-center justify-center rounded-[10px] border border-[color:var(--kn-border)] bg-white/[0.035] text-[color:var(--kn-text-muted)] transition-colors hover:bg-white/[0.06] hover:text-[color:var(--kn-text)]"
-          aria-label="Close"
+          aria-label={c.close}
         >
           <UiIcon name="x" className="h-3.5 w-3.5" />
         </button>
@@ -93,23 +95,19 @@ export function CapabilityRecallCard({
         {status === "error" && error ? (
           <div className="whitespace-pre-wrap break-words px-2 py-1 text-rose-200">{error}</div>
         ) : status === "cancelled" ? (
-          <div className="px-2 py-1 text-[color:var(--kn-text-muted)]">Cancelled.</div>
+          <div className="px-2 py-1 text-[color:var(--kn-text-muted)]">{c.cancelledBody}</div>
         ) : status === "pending" ? (
-          <div className="px-2 py-1 text-[color:var(--kn-text-muted)]">
-            Looking through your saved memories...
-          </div>
+          <div className="px-2 py-1 text-[color:var(--kn-text-muted)]">{c.recallPendingBody}</div>
         ) : status === "idle" ? (
           <div className="space-y-2 px-2 py-1 text-[color:var(--kn-text-muted)]">
-            <div>Recall what you have saved.</div>
+            <div>{c.recallIdleBody}</div>
             <div className="text-[12px] text-[color:var(--kn-text-faint)]">
-              Query: <span className="font-medium text-[color:var(--kn-text-soft)]">{query}</span>
+              {c.queryLabel}{" "}
+              <span className="font-medium text-[color:var(--kn-text-soft)]">{query}</span>
             </div>
           </div>
         ) : items.length === 0 ? (
-          <div className="px-2 py-1 text-[color:var(--kn-text-muted)]">
-            No matching memories yet. Save one with{" "}
-            <span className="font-medium text-[color:var(--kn-text-soft)]">remember</span>.
-          </div>
+          <div className="px-2 py-1 text-[color:var(--kn-text-muted)]">{c.recallNoMatchBody}</div>
         ) : (
           <div className="space-y-1">
             {items.map((item) => (
@@ -146,7 +144,7 @@ export function CapabilityRecallCard({
             className="inline-flex items-center gap-1.5 rounded-[12px] border border-[color:var(--kn-border)] bg-white/[0.035] px-2.5 py-1.5 font-medium text-[color:var(--kn-text-soft)] transition-colors hover:bg-white/[0.06] hover:text-[color:var(--kn-text)]"
           >
             <UiIcon name="command" className="h-3.5 w-3.5" />
-            {status === "idle" ? "Recall" : "Refresh"}
+            {status === "idle" ? c.recall : c.refresh}
           </button>
         </div>
       )}
