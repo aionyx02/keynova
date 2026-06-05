@@ -1,5 +1,6 @@
 import { useState } from "react";
 
+import { UiIcon } from "../../components/icons/UiIcon";
 import { fmt } from "../../i18n/format";
 import { useI18n } from "../../i18n/useI18n";
 import type { FilePreviewResult, SearchResult } from "../../types/search";
@@ -25,6 +26,18 @@ function formatMtime(ms: number | undefined, unknown: string): string {
 export function PreviewPane({ result, preview, loading }: Props) {
   const p = useI18n().previewPane;
   const [imageFailed, setImageFailed] = useState(false);
+  const [copied, setCopied] = useState(false);
+
+  async function copyPreview() {
+    if (preview?.kind !== "text" || !preview.content) return;
+    try {
+      await navigator.clipboard.writeText(preview.content);
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 1200);
+    } catch {
+      setCopied(false);
+    }
+  }
 
   if (!result) {
     return (
@@ -104,11 +117,22 @@ export function PreviewPane({ result, preview, loading }: Props) {
     <div className="flex h-full flex-col">
       <div className="flex items-center justify-between border-b border-[color:var(--kn-border)] bg-white/[0.02] px-3 py-2 text-[10px] uppercase tracking-[0.16em] text-[color:var(--kn-text-faint)]">
         <span>{p.preview}</span>
-        {preview.truncated && (
-          <span className="rounded-full border border-amber-400/20 bg-amber-400/10 px-2 py-0.5 text-[9px] text-amber-200">
-            {p.truncated}
-          </span>
-        )}
+        <span className="flex items-center gap-2">
+          {preview.truncated && (
+            <span className="rounded-full border border-amber-400/20 bg-amber-400/10 px-2 py-0.5 text-[9px] text-amber-200">
+              {p.truncated}
+            </span>
+          )}
+          <button
+            type="button"
+            onClick={() => void copyPreview()}
+            className="flex h-6 w-6 items-center justify-center rounded-[8px] border border-[color:var(--kn-border)] bg-white/[0.035] text-[color:var(--kn-text-muted)] transition-colors hover:bg-white/[0.06] hover:text-[color:var(--kn-text)]"
+            title={copied ? p.copiedPreview : p.copyPreview}
+            aria-label={copied ? p.copiedPreview : p.copyPreview}
+          >
+            <UiIcon name="copy" className="h-3.5 w-3.5" />
+          </button>
+        </span>
       </div>
       <pre className="kn-scroll flex-1 overflow-y-auto whitespace-pre-wrap break-words bg-transparent px-3 py-3 font-mono text-[11px] leading-6 text-[color:var(--kn-text-soft)]">
         {preview.content ?? ""}

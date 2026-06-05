@@ -172,7 +172,7 @@ export function CapabilityCommandCard({
             }}
             className="inline-flex items-center gap-1.5 rounded-[12px] border border-[color:var(--kn-border)] bg-white/[0.035] px-2.5 py-1.5 font-medium text-[color:var(--kn-text-soft)] transition-colors hover:bg-white/[0.06] hover:text-[color:var(--kn-text)]"
           >
-            <UiIcon name="terminal" className="h-3.5 w-3.5" />
+            <UiIcon name="command" className="h-3.5 w-3.5" />
             {c.run}
           </button>
           <button

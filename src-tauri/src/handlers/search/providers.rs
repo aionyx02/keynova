@@ -58,6 +58,46 @@ impl SearchHandler {
     ) -> Result<(), String> {
         let q = query.to_lowercase();
         let registry = self.builtin_registry.lock().map_err(|e| e.to_string())?;
+        if let Some((name, args)) = parse_direct_utility_query(query) {
+            if let Some(meta) = registry.list().into_iter().find(|meta| meta.name == name) {
+                let display = if args.is_empty() {
+                    format!("/{name}")
+                } else {
+                    format!("/{name} {args}")
+                };
+                let action = Action::command_route(
+                    format!("cmd:{name}:direct:{args}"),
+                    display.clone(),
+                    "cmd.run",
+                    json!({ "name": name, "args": args }),
+                );
+                let action_ref = self.action_arena.insert(session, action)?;
+                let hint = meta.args_hint.unwrap_or("");
+                let subtitle = if args.is_empty() && !hint.is_empty() {
+                    format!("{} · {}", meta.description, hint)
+                } else {
+                    format!("{} · inline result", meta.description)
+                };
+                let mut item = UiSearchItem {
+                    item_ref: action_ref.clone(),
+                    title: display,
+                    subtitle,
+                    source: "command".into(),
+                    score: 110,
+                    icon_key: Some("command".into()),
+                    primary_action: action_ref,
+                    primary_action_label: "Use".into(),
+                    secondary_action_count: 0,
+                    kind: ResultKind::Command,
+                    name: name.to_string(),
+                    path: format!("command://{name}:direct:{args}"),
+                    score_breakdown: ScoreBreakdown::default(),
+                };
+                self.apply_rank_boost(&mut item);
+                out.push(item);
+                return Ok(());
+            }
+        }
         for (meta, score) in registry
             .list()
             .into_iter()
@@ -145,7 +185,7 @@ impl SearchHandler {
             // clipboard copy, so this never dispatches in the happy path.
             let action = Action::command_route(
                 format!("projectcmd:{}", cmd.command),
-                "Copy command",
+                format!("Copy {}", cmd.command),
                 "search.record_selection",
                 json!({ "source": "command", "path": format!("projectcmd://{}", cmd.command) }),
             );
@@ -371,5 +411,67 @@ impl SearchHandler {
             out.push(item);
         }
         Ok(())
+    }
+}
+
+fn parse_direct_utility_query(query: &str) -> Option<(&'static str, String)> {
+    let trimmed = query.trim();
+    if trimmed.is_empty() {
+        return None;
+    }
+    let mut parts = trimmed.splitn(2, char::is_whitespace);
+    let head = parts.next()?;
+    let args = parts.next().unwrap_or("").trim().to_string();
+    direct_utility_name(&head.to_lowercase()).map(|name| (name, args))
+}
+
+fn direct_utility_name(name: &str) -> Option<&'static str> {
+    match name {
+        "uuid" => Some("uuid"),
+        "nanoid" => Some("nanoid"),
+        "pw" | "password" => Some("pw"),
+        "hash" => Some("hash"),
+        "b64enc" | "base64" | "base64enc" => Some("b64enc"),
+        "b64dec" | "base64dec" => Some("b64dec"),
+        "urlenc" | "urlencode" => Some("urlenc"),
+        "urldec" | "urldecode" => Some("urldec"),
+        "json" => Some("json"),
+        "jsonm" | "jsonmin" | "jsonminify" => Some("jsonm"),
+        "regex" => Some("regex"),
+        "jwt" => Some("jwt"),
+        "color" => Some("color"),
+        "cron" => Some("cron"),
+        "killport" => Some("killport"),
+        _ => None,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{direct_utility_name, parse_direct_utility_query};
+
+    #[test]
+    fn direct_utility_query_accepts_slashless_args() {
+        assert_eq!(
+            parse_direct_utility_query(r#"json {"a":1}"#),
+            Some(("json", r#"{"a":1}"#.to_string()))
+        );
+        assert_eq!(
+            parse_direct_utility_query("jwt header.payload.sig"),
+            Some(("jwt", "header.payload.sig".to_string()))
+        );
+    }
+
+    #[test]
+    fn direct_utility_query_supports_common_aliases() {
+        assert_eq!(direct_utility_name("base64"), Some("b64enc"));
+        assert_eq!(direct_utility_name("password"), Some("pw"));
+        assert_eq!(direct_utility_name("jsonminify"), Some("jsonm"));
+    }
+
+    #[test]
+    fn direct_utility_query_ignores_regular_search_text() {
+        assert_eq!(parse_direct_utility_query("readme"), None);
+        assert_eq!(parse_direct_utility_query("terminal"), None);
     }
 }

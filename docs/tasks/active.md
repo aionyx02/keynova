@@ -53,7 +53,9 @@ Detailed batch definitions, done criteria, non-goals, file map, and validation g
   audit (B), noise demote (C), project-command discovery copy-only (D).
   `PROJECT_ROOT.wire` done (startup VCS-root detection; search stays global +
   workspace-ranked, hard filter removed). `1.E` (command execution/terminal)
-  **dropped** — no execution path, copy-only stays. Next `1.F`/`1.G`. Detail:
+  **dropped** — no execution path, copy-only stays. `1.F`/`1.G` done
+  (preview-copy polish + slashless inline utilities). `1.H` unit/docs done;
+  manual `Ctrl+K` timing remains. Detail:
   `docs/tasks/product-1-workflow-core.md`.
 
 ### P2
@@ -74,8 +76,7 @@ Keep `active.md` compact. Put batch-level task detail in `docs/tasks/refactor-ai
 
 ## Next Phase Candidates
 
-- Scope and start `PRODUCT.1.A` (ranking baseline) — write the batch plan into
-  `docs/tasks/product-roadmap.md` (primary vs simplification-only) before coding.
+- Run `PRODUCT.1.H` dogfood checklist and capture real `Ctrl+K` timing.
 - `REF.7.D` stays available as a non-blocking tracking item: `ollama pull
   qwen2.5:7b && npm run bench:ai -- --runs 10 --model qwen2.5:7b`, then fill
   ADR-0029 §10 to close `REF.7.C` and unfreeze `PRODUCT.2`.

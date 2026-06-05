@@ -2,7 +2,7 @@ import type { I18nKeys } from "./zh-TW";
 
 export const enUS: I18nKeys = {
   search: {
-    placeholder: "Search apps, files or folders… type > for terminal",
+    placeholder: "Search apps, files, commands, or tools…",
     noResults: "No results found",
     noResultsFor: "No results for {query}.",
     searching: "Searching…",
@@ -36,7 +36,7 @@ export const enUS: I18nKeys = {
   },
   command: {
     placeholder: "Type a command… try /help or /setting",
-    run: "Run",
+    run: "Review",
     select: "Select",
   },
   ai: {
@@ -363,7 +363,9 @@ export const enUS: I18nKeys = {
     openSetting: "Open /setting",
     replayOnboard: "Replay /onboard",
     generatedCommandReviewOnly:
-      "Generated shell commands are no longer launched directly. Review the command and run it through an approved backend action.",
+      "Generated shell commands are not launched directly. Review and copy the command, then run it yourself in a terminal.",
+    copyCommandResult: "Copy result",
+    copiedCommandResult: "Copied result",
     copiedPath: "Copied path: {path}",
     timedOut: "Timed out: {providers}",
     fileTimedOut: "File search: provider timed out after 800ms",
@@ -529,6 +531,8 @@ export const enUS: I18nKeys = {
     size: "size",
     modified: "modified",
     preview: "Preview",
+    copyPreview: "Copy preview",
+    copiedPreview: "Preview copied",
     truncated: "truncated",
     linesShown: "{count} lines shown",
   },

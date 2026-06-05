@@ -43,9 +43,11 @@ owner: project
 
 ## Next Step
 
-- `PRODUCT.1` search-core is unfrozen — next is to scope `PRODUCT.1.A` (ranking
-  baseline) into `docs/tasks/product-roadmap.md` (primary vs simplification-only)
-  before coding.
+- `PRODUCT.1` search-core is unfrozen. `1.A`–`1.D` + `PROJECT_ROOT.wire` + `1.F`
+  preview polish + `1.G` slashless inline utilities + `1.H` unit/docs keyboard
+  gate are done; `1.E` command execution / terminal handoff is intentionally
+  dropped for now. Next is the `PRODUCT.1.H` manual dogfood pass with a real
+  `Ctrl+K` input-ready timing sample.
 - REF.7.D stays user-action but non-blocking: `ollama pull qwen2.5:7b && npm run bench:ai -- --runs 10 --model qwen2.5:7b`. Only `qwen3:0.6b` is local.
 - REF.7.C closes by filling ADR-0029 §10 from the REF.7.D output (one follow-up edit) + user-side Bug A/B smoke; that unfreezes `PRODUCT.2`.
 - `v0.5.0` tagged from `main` — the release that actually carries everything: REF.8 (AiPanel/chat removed, agent backend dormant), all 3 release-CI fixes (Linux apt conflict, macOS `mainBinaryName`, Windows NSIS-only/no-MSI), consolidated features (Google Translate v2, single-tab ModelPanel, setting redaction, icon-warm), and the AGPL-3.0 relicense. `v0.4.0` (`479ebf8`) failed CI (Windows MSI) and is superseded. UNSIGNED. 22 fully-merged branches + brand-icon (unmergeable, icons already on main) pending cleanup decision. Detail in `sessions/2026-06-01.md`.

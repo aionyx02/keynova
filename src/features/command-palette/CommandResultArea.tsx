@@ -1,6 +1,7 @@
-import React, { Suspense } from "react";
+import React, { Suspense, useState } from "react";
 
 import { PanelRegistry } from "../../components/panel/PanelRegistry";
+import { UiIcon } from "../../components/icons/UiIcon";
 import { useI18n } from "../../i18n/useI18n";
 import type { BuiltinCommandResult, CommandMeta } from "../../hooks/useCommands";
 import type { TerminalLaunchSpec } from "../../types/terminal";
@@ -35,7 +36,18 @@ export function CommandResultArea({
   onPanelCommandResult,
 }: Props) {
   const p = useI18n().palette;
+  const [copiedInline, setCopiedInline] = useState(false);
   const showArgsHint = isArgsPhase && exactCmd && !cmdResult && !PanelComponent;
+
+  async function copyInlineResult(text: string) {
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopiedInline(true);
+      window.setTimeout(() => setCopiedInline(false), 1200);
+    } catch {
+      setCopiedInline(false);
+    }
+  }
 
   return (
     <>
@@ -55,6 +67,17 @@ export function CommandResultArea({
 
       {cmdResult?.ui_type.type === "Inline" && cmdResult.text && (
         <div className="kn-panel-shell rounded-t-none border-t-0 px-4 py-4">
+          <div className="mb-3 flex justify-end">
+            <button
+              type="button"
+              onClick={() => void copyInlineResult(cmdResult.text)}
+              className="flex h-7 w-7 items-center justify-center rounded-[8px] border border-[color:var(--kn-border)] bg-white/[0.035] text-[color:var(--kn-text-muted)] transition-colors hover:bg-white/[0.06] hover:text-[color:var(--kn-text)]"
+              title={copiedInline ? p.copiedCommandResult : p.copyCommandResult}
+              aria-label={copiedInline ? p.copiedCommandResult : p.copyCommandResult}
+            >
+              <UiIcon name="copy" className="h-3.5 w-3.5" />
+            </button>
+          </div>
           <pre className="whitespace-pre-wrap text-sm leading-7 text-[color:var(--kn-text-soft)]">
             {cmdResult.text}
           </pre>

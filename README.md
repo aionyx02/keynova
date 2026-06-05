@@ -53,7 +53,7 @@ Keynova 是一個 unified workflow entry：把搜尋、啟動、檔案操作、�
 | File Actions               | 開啟、在檔案總管顯示、預覽、重新命名、移動、刪除（含真實刪除驗證）                             |
 | Secondary Action Menu      | 結果列上的二級操作與 confirmation flow                                                         |
 | Preview Pane               | 文字、圖片與檔案 metadata 預覽                                                                 |
-| Terminal                   | 內嵌終端機面板、lazy runtime、附加 launch spec                                                 |
+| Terminal                   | 內嵌終端機面板、lazy runtime、附加 launch spec（調整中）                                       |
 | Notes                      | Markdown 筆記與工作區脈絡                                                                      |
 | Calculator / Dev Utilities | 計算、轉換與開發者小工具（hash / uuid / regex / jwt / killport 等）                            |
 | Translation                | 文字翻譯，採用 Google Cloud Translation v2                                                     |
@@ -131,7 +131,7 @@ cmd <用自然語言描述你想做的事>
 
 - capability 是**單步、stateless**：呼叫後串流回答到 result area，可一鍵 Copy 為 Markdown 或存進筆記，不保留 session memory、不自主連續執行工具。
 - 空白 palette 會直接顯示 `next` 工作流建議；查無結果的自然語言意圖會自動判斷成 `explain` / `summarize` / `fix` / `cmd`，不一定要打前綴。
-- `cmd` 會生成可複製、可編輯、可送進附加終端機的命令卡；`next` 會顯示近期工作流建議並支援 replay。
+- `cmd` 會生成可複製、可編輯的命令卡；`next` 會顯示近期工作流建議並支援安全的 replay。
 - 高風險操作（刪除 / 重新命名 / 移動等）走 UI confirmation gate；命令是否執行始終由使用者決定。
 
 > 舊版 chat-first AI 介面（`AiPanel`）已移除。後端的 typed-tool + approval agent runtime 以休眠形式保留（`ai.legacy_agent` 為無 UI 入口的保留旗標），供日後 tool-using capability 重新接用。

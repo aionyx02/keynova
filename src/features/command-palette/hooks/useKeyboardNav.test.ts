@@ -7,6 +7,7 @@
 import { renderHook } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
+import type { SearchResult } from "../../../types/search";
 import { useKeyboardNav, type UseKeyboardNavDeps } from "./useKeyboardNav";
 
 function makeDeps(overrides: Partial<UseKeyboardNavDeps> = {}): UseKeyboardNavDeps {
@@ -35,6 +36,7 @@ function makeDeps(overrides: Partial<UseKeyboardNavDeps> = {}): UseKeyboardNavDe
     selectedArg: 0,
     setSelectedArg: setNoop as never,
     setQuery: noop,
+    copyCommandResult: vi.fn(async () => undefined),
     copyResultLocation: vi.fn(async () => undefined),
     handleSecondaryAction: vi.fn(async () => undefined),
     launchResult: vi.fn(async () => undefined),
@@ -53,32 +55,57 @@ function makeDeps(overrides: Partial<UseKeyboardNavDeps> = {}): UseKeyboardNavDe
   };
 }
 
-function fakeEnter(
-  opts: { shiftKey?: boolean; isComposing?: boolean } = {},
+function fileResult(overrides: Partial<SearchResult> = {}): SearchResult {
+  return {
+    kind: "file",
+    name: "README.md",
+    path: "C:\\repo\\README.md",
+    score: 100,
+    ...overrides,
+  };
+}
+
+function fakeKey(
+  key: string,
+  opts: {
+    shiftKey?: boolean;
+    ctrlKey?: boolean;
+    metaKey?: boolean;
+    altKey?: boolean;
+    isComposing?: boolean;
+    value?: string;
+    selectionStart?: number;
+    selectionEnd?: number;
+  } = {},
 ): React.KeyboardEvent<HTMLInputElement> {
   const preventDefault = vi.fn();
+  const value = opts.value ?? "";
+  const selectionStart = opts.selectionStart ?? value.length;
+  const selectionEnd = opts.selectionEnd ?? selectionStart;
   return {
-    key: "Enter",
+    key,
     shiftKey: opts.shiftKey ?? false,
-    ctrlKey: false,
-    metaKey: false,
-    altKey: false,
+    ctrlKey: opts.ctrlKey ?? false,
+    metaKey: opts.metaKey ?? false,
+    altKey: opts.altKey ?? false,
     preventDefault,
+    currentTarget: {
+      value,
+      selectionStart,
+      selectionEnd,
+    },
     nativeEvent: { isComposing: opts.isComposing ?? false } as KeyboardEvent,
   } as unknown as React.KeyboardEvent<HTMLInputElement>;
 }
 
+function fakeEnter(
+  opts: { shiftKey?: boolean; isComposing?: boolean } = {},
+): React.KeyboardEvent<HTMLInputElement> {
+  return fakeKey("Enter", opts);
+}
+
 function fakeArrow(key: "ArrowDown" | "ArrowUp"): React.KeyboardEvent<HTMLInputElement> {
-  const preventDefault = vi.fn();
-  return {
-    key,
-    shiftKey: false,
-    ctrlKey: false,
-    metaKey: false,
-    altKey: false,
-    preventDefault,
-    nativeEvent: { isComposing: false } as KeyboardEvent,
-  } as unknown as React.KeyboardEvent<HTMLInputElement>;
+  return fakeKey(key);
 }
 
 describe("useKeyboardNav - capability Enter routing", () => {
@@ -184,5 +211,145 @@ describe("useKeyboardNav - capability Enter routing", () => {
     expect(e.preventDefault).toHaveBeenCalledTimes(1);
     expect(onCapabilityRunSelected).toHaveBeenCalledTimes(1);
     expect(onCapabilitySubmit).not.toHaveBeenCalled();
+  });
+});
+
+describe("useKeyboardNav - search result keyboard paths", () => {
+  it("launches the selected search result on Enter", () => {
+    const row = fileResult();
+    const launchResult = vi.fn(async () => undefined);
+    const runFirstSecondary = vi.fn(async () => undefined);
+    const { result } = renderHook(() =>
+      useKeyboardNav(
+        makeDeps({
+          query: "readme",
+          visibleResults: [row],
+          safeSelected: 0,
+          launchResult,
+          runFirstSecondary,
+        }),
+      ),
+    );
+    const e = fakeEnter();
+    result.current.onKeyDown(e);
+    expect(e.preventDefault).toHaveBeenCalledTimes(1);
+    expect(launchResult).toHaveBeenCalledWith(row);
+    expect(runFirstSecondary).not.toHaveBeenCalled();
+  });
+
+  it("runs the first secondary action on Shift+Enter", () => {
+    const row = fileResult();
+    const launchResult = vi.fn(async () => undefined);
+    const runFirstSecondary = vi.fn(async () => undefined);
+    const { result } = renderHook(() =>
+      useKeyboardNav(
+        makeDeps({
+          query: "readme",
+          visibleResults: [row],
+          safeSelected: 0,
+          launchResult,
+          runFirstSecondary,
+        }),
+      ),
+    );
+    const e = fakeEnter({ shiftKey: true });
+    result.current.onKeyDown(e);
+    expect(e.preventDefault).toHaveBeenCalledTimes(1);
+    expect(runFirstSecondary).toHaveBeenCalledWith(row);
+    expect(launchResult).not.toHaveBeenCalled();
+  });
+
+  it("opens the secondary menu with Tab at the end of the input", () => {
+    const row = fileResult();
+    const setSecondaryMenuOpen = vi.fn();
+    const setMenuFocusedIndex = vi.fn();
+    const launchResult = vi.fn(async () => undefined);
+    const { result } = renderHook(() =>
+      useKeyboardNav(
+        makeDeps({
+          query: "readme",
+          visibleResults: [row],
+          safeSelected: 0,
+          setSecondaryMenuOpen: setSecondaryMenuOpen as never,
+          setMenuFocusedIndex: setMenuFocusedIndex as never,
+          launchResult,
+        }),
+      ),
+    );
+    const e = fakeKey("Tab", { value: "readme", selectionStart: 6, selectionEnd: 6 });
+    result.current.onKeyDown(e);
+    expect(e.preventDefault).toHaveBeenCalledTimes(1);
+    expect(setSecondaryMenuOpen).toHaveBeenCalledWith(true);
+    expect(setMenuFocusedIndex).toHaveBeenCalledWith(0);
+    expect(launchResult).not.toHaveBeenCalled();
+  });
+
+  it("copies a selected file location with Ctrl+C when no text is selected", () => {
+    const row = fileResult();
+    const copyResultLocation = vi.fn(async () => undefined);
+    const launchResult = vi.fn(async () => undefined);
+    const { result } = renderHook(() =>
+      useKeyboardNav(
+        makeDeps({
+          query: "readme",
+          visibleResults: [row],
+          safeSelected: 0,
+          copyResultLocation,
+          launchResult,
+        }),
+      ),
+    );
+    const e = fakeKey("c", { ctrlKey: true, value: "readme", selectionStart: 6, selectionEnd: 6 });
+    result.current.onKeyDown(e);
+    expect(e.preventDefault).toHaveBeenCalledTimes(1);
+    expect(copyResultLocation).toHaveBeenCalledWith(row);
+    expect(launchResult).not.toHaveBeenCalled();
+  });
+
+  it("copies an inline command result with Ctrl+C before selected row paths", () => {
+    const row = fileResult();
+    const copyCommandResult = vi.fn(async () => undefined);
+    const copyResultLocation = vi.fn(async () => undefined);
+    const { result } = renderHook(() =>
+      useKeyboardNav(
+        makeDeps({
+          query: "json",
+          cmdResult: { text: '{\n  "a": 1\n}', ui_type: { type: "Inline" } },
+          visibleResults: [row],
+          safeSelected: 0,
+          copyCommandResult,
+          copyResultLocation,
+        }),
+      ),
+    );
+    const e = fakeKey("c", { ctrlKey: true, value: "json", selectionStart: 4, selectionEnd: 4 });
+    result.current.onKeyDown(e);
+    expect(e.preventDefault).toHaveBeenCalledTimes(1);
+    expect(copyCommandResult).toHaveBeenCalledWith('{\n  "a": 1\n}');
+    expect(copyResultLocation).not.toHaveBeenCalled();
+  });
+
+  it("runs the focused secondary menu item on Enter", () => {
+    const row = fileResult();
+    const handleSecondaryAction = vi.fn(async () => undefined);
+    const launchResult = vi.fn(async () => undefined);
+    const { result } = renderHook(() =>
+      useKeyboardNav(
+        makeDeps({
+          query: "readme",
+          visibleResults: [row],
+          safeSelected: 0,
+          secondaryMenuOpen: true,
+          menuFocusedIndex: 1,
+          handleSecondaryAction,
+          launchResult,
+        }),
+      ),
+    );
+    const e = fakeEnter();
+    result.current.onKeyDown(e);
+    expect(e.preventDefault).toHaveBeenCalledTimes(1);
+    expect(handleSecondaryAction).toHaveBeenCalledWith("copy_path", row);
+    expect(launchResult).not.toHaveBeenCalled();
   });
 });

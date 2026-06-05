@@ -16,7 +16,7 @@
 import { useRef } from "react";
 
 import type { SearchResult } from "../../../types/search";
-import type { CommandMeta } from "../../../hooks/useCommands";
+import type { BuiltinCommandResult, CommandMeta } from "../../../hooks/useCommands";
 import type { SecondaryActionId } from "../../../utils/secondaryActions";
 import { buildSecondaryActions } from "../../../utils/secondaryActions";
 import { useI18n } from "../../../i18n/useI18n";
@@ -29,11 +29,17 @@ function isCopyableLocationResult(result: SearchResult | null) {
   return result?.kind === "app" || result?.kind === "file" || result?.kind === "folder";
 }
 
+function inlineCommandResultText(result: BuiltinCommandResult | null): string | null {
+  if (result?.ui_type.type !== "Inline") return null;
+  const text = result.text.trim();
+  return text ? result.text : null;
+}
+
 export interface UseKeyboardNavDeps {
   /** Current parsed mode (search / command / terminal). */
   mode: "search" | "command" | "terminal";
   query: string;
-  cmdResult: unknown;
+  cmdResult: BuiltinCommandResult | null;
   visibleResults: SearchResult[];
   safeSelected: number;
   setSelected: React.Dispatch<React.SetStateAction<number>>;
@@ -57,6 +63,7 @@ export interface UseKeyboardNavDeps {
   setSelectedArg: React.Dispatch<React.SetStateAction<number>>;
   setQuery: (q: string) => void;
   // Action callbacks.
+  copyCommandResult: (text: string) => Promise<void>;
   copyResultLocation: (r: SearchResult) => Promise<void>;
   handleSecondaryAction: (id: SecondaryActionId, r: SearchResult) => Promise<void>;
   launchResult: (r: SearchResult) => Promise<void>;
@@ -183,6 +190,12 @@ export function useKeyboardNav(deps: UseKeyboardNavDeps) {
       if (isCopyShortcut(e)) {
         const target = e.currentTarget;
         if (target.selectionStart !== target.selectionEnd) return;
+        const commandText = inlineCommandResultText(deps.cmdResult);
+        if (commandText) {
+          e.preventDefault();
+          void deps.copyCommandResult(commandText);
+          return;
+        }
         const r = deps.visibleResults[deps.safeSelected] ?? null;
         if (isCopyableLocationResult(r) && r) {
           e.preventDefault();
