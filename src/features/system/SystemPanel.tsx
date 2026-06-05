@@ -83,12 +83,10 @@ export function SystemPanel({ onClose }: PanelProps) {
       <div className="kn-panel-header">
         <div>
           <div className="kn-panel-title">{t.system.title}</div>
-          <div className="kn-panel-subtitle">
-            Quick access to system controls and wireless state
-          </div>
+          <div className="kn-panel-subtitle">{t.system.subtitle}</div>
         </div>
         <button type="button" onClick={() => void load()} className="kn-button py-1 text-[10px]">
-          Refresh
+          {t.system.refresh}
         </button>
       </div>
 
@@ -161,7 +159,7 @@ export function SystemPanel({ onClose }: PanelProps) {
                       {network.ssid}
                     </div>
                     <div className="text-xs text-[color:var(--kn-text-faint)]">
-                      {network.connected ? "Connected" : "Nearby network"}
+                      {network.connected ? t.system.connected : t.system.nearbyNetwork}
                     </div>
                   </div>
                   <div className="shrink-0 text-xs text-[color:var(--kn-text-muted)]">
@@ -181,10 +179,8 @@ export function SystemPanel({ onClose }: PanelProps) {
       </div>
 
       <div className="kn-panel-footer">
-        <span>Esc closes</span>
-        <span>
-          {loading ? "Refreshing status..." : "Controls update the current machine immediately"}
-        </span>
+        <span>{t.system.escCloses}</span>
+        <span>{loading ? t.system.refreshingStatus : t.system.controlsUpdateImmediately}</span>
       </div>
     </div>
   );

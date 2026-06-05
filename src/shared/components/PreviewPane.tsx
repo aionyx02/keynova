@@ -1,5 +1,7 @@
 import { useState } from "react";
 
+import { fmt } from "../../i18n/format";
+import { useI18n } from "../../i18n/useI18n";
 import type { FilePreviewResult, SearchResult } from "../../types/search";
 
 interface Props {
@@ -15,18 +17,19 @@ function formatBytes(n: number): string {
   return `${(n / 1024 / 1024 / 1024).toFixed(1)} GB`;
 }
 
-function formatMtime(ms?: number): string {
-  if (!ms) return "Unknown";
+function formatMtime(ms: number | undefined, unknown: string): string {
+  if (!ms) return unknown;
   return new Date(ms).toLocaleString();
 }
 
 export function PreviewPane({ result, preview, loading }: Props) {
+  const p = useI18n().previewPane;
   const [imageFailed, setImageFailed] = useState(false);
 
   if (!result) {
     return (
       <div className="flex h-full items-center justify-center px-6 text-sm text-[color:var(--kn-text-muted)]">
-        Select a result to preview
+        {p.selectResult}
       </div>
     );
   }
@@ -45,7 +48,7 @@ export function PreviewPane({ result, preview, loading }: Props) {
   if (!preview) {
     return (
       <div className="flex h-full flex-col justify-center px-5 text-sm text-[color:var(--kn-text-muted)]">
-        <div className="mb-1 text-[color:var(--kn-text-soft)]">No preview available</div>
+        <div className="mb-1 text-[color:var(--kn-text-soft)]">{p.noPreview}</div>
         <div className="truncate text-[11px] uppercase tracking-[0.14em] text-[color:var(--kn-text-faint)]">
           {result.name}
         </div>
@@ -61,7 +64,7 @@ export function PreviewPane({ result, preview, loading }: Props) {
         <div className="flex flex-1 items-center justify-center overflow-hidden rounded-[8px] border border-[color:var(--kn-border)] bg-white/[0.03] shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]">
           {imageUnavailable ? (
             <div className="px-5 text-center text-sm text-[color:var(--kn-text-muted)]">
-              {preview.oversized ? "Image too large to preview" : "Image preview failed to load"}
+              {preview.oversized ? p.imageTooLarge : p.imageFailed}
             </div>
           ) : (
             <img
@@ -74,7 +77,7 @@ export function PreviewPane({ result, preview, loading }: Props) {
           )}
         </div>
         <div className="mt-2 truncate text-[11px] text-[color:var(--kn-text-muted)]">
-          {formatBytes(preview.size_bytes)} / {formatMtime(preview.modified_ms)}
+          {formatBytes(preview.size_bytes)} / {formatMtime(preview.modified_ms, p.unknown)}
         </div>
       </div>
     );
@@ -84,14 +87,14 @@ export function PreviewPane({ result, preview, loading }: Props) {
     return (
       <div className="flex h-full flex-col justify-center px-5 text-sm text-[color:var(--kn-text-soft)]">
         <div className="mb-2 text-[10px] uppercase tracking-[0.2em] text-[color:var(--kn-text-faint)]">
-          Binary
+          {p.binary}
         </div>
         <div className="mb-2 truncate font-medium text-[color:var(--kn-text)]">{result.name}</div>
         <div className="text-[11px] text-[color:var(--kn-text-muted)]">
-          size: {formatBytes(preview.size_bytes)}
+          {p.size}: {formatBytes(preview.size_bytes)}
         </div>
         <div className="text-[11px] text-[color:var(--kn-text-muted)]">
-          modified: {formatMtime(preview.modified_ms)}
+          {p.modified}: {formatMtime(preview.modified_ms, p.unknown)}
         </div>
       </div>
     );
@@ -100,10 +103,10 @@ export function PreviewPane({ result, preview, loading }: Props) {
   return (
     <div className="flex h-full flex-col">
       <div className="flex items-center justify-between border-b border-[color:var(--kn-border)] bg-white/[0.02] px-3 py-2 text-[10px] uppercase tracking-[0.16em] text-[color:var(--kn-text-faint)]">
-        <span>Preview</span>
+        <span>{p.preview}</span>
         {preview.truncated && (
           <span className="rounded-full border border-amber-400/20 bg-amber-400/10 px-2 py-0.5 text-[9px] text-amber-200">
-            truncated
+            {p.truncated}
           </span>
         )}
       </div>
@@ -112,7 +115,8 @@ export function PreviewPane({ result, preview, loading }: Props) {
       </pre>
       <div className="border-t border-[color:var(--kn-border)] px-3 py-2 text-[11px] text-[color:var(--kn-text-muted)]">
         {formatBytes(preview.size_bytes)}
-        {preview.line_count !== undefined && ` / ${preview.line_count} lines shown`}
+        {preview.line_count !== undefined &&
+          ` / ${fmt(p.linesShown, { count: preview.line_count })}`}
       </div>
     </div>
   );

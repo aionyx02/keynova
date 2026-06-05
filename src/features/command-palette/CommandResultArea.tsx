@@ -1,6 +1,7 @@
 import React, { Suspense } from "react";
 
 import { PanelRegistry } from "../../components/panel/PanelRegistry";
+import { useI18n } from "../../i18n/useI18n";
 import type { BuiltinCommandResult, CommandMeta } from "../../hooks/useCommands";
 import type { TerminalLaunchSpec } from "../../types/terminal";
 
@@ -33,6 +34,7 @@ export function CommandResultArea({
   onPanelClose,
   onPanelCommandResult,
 }: Props) {
+  const p = useI18n().palette;
   const showArgsHint = isArgsPhase && exactCmd && !cmdResult && !PanelComponent;
 
   return (
@@ -45,7 +47,9 @@ export function CommandResultArea({
               {exactCmd.args_hint}
             </span>
           )}
-          <span className="ml-3">Tab complete / Enter run</span>
+          <span className="ml-3">
+            Tab {p.complete} / Enter {p.run}
+          </span>
         </div>
       )}
 

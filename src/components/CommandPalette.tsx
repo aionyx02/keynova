@@ -39,6 +39,8 @@ import { useRankHover } from "../features/command-palette/hooks/useRankHover";
 import { hasCompletedOnboarding } from "../shared/components/onboarding-state";
 import { RankTooltip } from "../shared/components/RankTooltip";
 import { PALETTE_WIDTH_NARROW } from "../hooks/useWindowResize";
+import { fmt } from "../i18n/format";
+import { useI18n } from "../i18n/useI18n";
 import type { SourceFilter } from "../types/search";
 import type { BuiltinCommandResult } from "../hooks/useCommands";
 import { unifiedToLegacy } from "../utils/search";
@@ -100,6 +102,7 @@ async function keepLauncherOpen() {
 }
 
 export function CommandPalette() {
+  const t = useI18n();
   const { dispatch } = useIPC();
   const { query, setQuery, setLoading, isLoading } = useAppStore();
   const { all, filtered, runCommand, suggestArgs } = useCommands();
@@ -535,11 +538,11 @@ export function CommandPalette() {
     (command: string) => {
       editGeneratedCommand(command);
       setCmdResult({
-        text: "Generated shell commands are no longer launched directly. Review the command and run it through an approved backend action.",
+        text: t.palette.generatedCommandReviewOnly,
         ui_type: { type: "Inline" },
       });
     },
-    [editGeneratedCommand],
+    [editGeneratedCommand, t.palette.generatedCommandReviewOnly],
   );
 
   const runSuggestedWorkflow = React.useCallback(
@@ -742,12 +745,13 @@ export function CommandPalette() {
   // Keyboard-first means many users never see these transitions paint.
   const liveRegionText = (() => {
     if (mode !== "search" || paletteMode.kind !== "search") return "";
-    if (activeCapabilityLoading) return "AI 回應產生中…";
+    if (activeCapabilityLoading) return t.search.aiGenerating;
     if (showCapabilityResult) return "";
     if (query.trim() === "") return "";
-    if (isLoading) return "搜尋中…";
-    if (showSearchEmptyState) return "找不到結果";
-    if (visibleResults.length > 0) return `${visibleResults.length} 個結果`;
+    if (isLoading) return t.search.searching;
+    if (showSearchEmptyState) return t.search.noResults;
+    if (visibleResults.length > 0)
+      return fmt(t.search.resultCount, { count: visibleResults.length });
     return "";
   })();
 

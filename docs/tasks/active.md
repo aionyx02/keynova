@@ -47,9 +47,8 @@ Detailed batch definitions, done criteria, non-goals, file map, and validation g
   `docs/tasks/feature-decoupling.md`.
 
 - [~] `UX.AUDIT` UI/UX consistency pass (developer-directed). Done: stale "AI
-  Chat" copy, first a11y live regions, i18n infra + 5 batches (model/settings/
-  capability cards/palette/search). Open: i18n for ~11 overlays/secondary panels,
-  UTF-8 BOM cleanup, garbled-text root cause (blocked on a repro). Detail:
+  Chat" copy, first a11y live regions, full i18n conversion, and UTF-8 BOM
+  cleanup. Open: garbled-text root cause (blocked on a repro). Detail:
   `docs/tasks/ux-audit.md`.
 
 ### P2

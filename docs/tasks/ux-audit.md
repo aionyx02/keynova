@@ -14,46 +14,26 @@ Developer-directed (2026-06-05). Full code-level frontend walkthrough; findings
 and completed work are detailed in `docs/memory/sessions/2026-06-05.md`. Branch:
 `feature/personal-memory`.
 
-## Done (committed)
+## Done
 
 - `UX.AUDIT.1` drop stale "AI Chat" naming → inline-AI wording (`cba9fd4`).
 - `UX.AUDIT.2` first screen-reader live regions, `aria-live`/`role=status|alert`
   on palette search state + SettingRow/ModelPanel/NoteEditor status (`66ecab9`).
-- `UX.AUDIT.3` full i18n conversion — **infra + 5 batches done**:
+- `UX.AUDIT.3` full i18n conversion — **infra + all batches done**:
   - Infra: `src/i18n/format.ts` `fmt(template, vars)` `{token}` interpolation.
   - Batch 1 ModelPanel (`model.*`), Batch 2 SettingPanel/SettingRow (`settings.*`),
     Batch 3 five AI capability cards (`capability.*`), Batch 4 palette secondary
     actions + suggestion footers (`palette.*` + `buildSecondaryActions(result,
     labels)`), Batch 5 SearchResultsList (`search.*` kinds/fallbacks/footer).
+  - Final sweep: Cheatsheet/Onboarding overlays, Terminal/Learning/SystemMonitor/
+    Nvim/Preview/ErrorBoundary/Rank/FloatingWindow panels, plus command-palette,
+    calculator/history/system/translation stragglers. JSX visible-text scan now
+    only reports key glyphs, brands/acronyms, route/type declarations, or
+    non-localized path constants.
+- `UX.AUDIT.4` UTF-8 BOM cleanup — stripped the 9-file BOM list and rechecked
+  that no listed file still starts with BOM.
 
 ## Open
-
-### UX.AUDIT.3 (remaining i18n components)
-
-Convert each to `useI18n` (default zh-TW); add keys to `src/i18n/zh-TW.ts` +
-`src/i18n/en-US.ts`; verify `tsc` + `eslint` + `vitest` + `docs:refresh`. Pattern
-is established — mechanical. Components (string counts approx):
-
-- [ ] `shared/components/CheatsheetOverlay.tsx` (~19) — `?` overlay, highest count
-- [ ] `shared/components/OnboardingTour.tsx` (~12) — first-run tour
-- [ ] `features/terminal/TerminalPanel.tsx` (~11)
-- [ ] `features/learning/LearningMaterialPanel.tsx` (~10)
-- [ ] `features/system-monitor/SystemMonitoringPanel.tsx` (~9)
-- [ ] `features/nvim/NvimDownloadPanel.tsx` (~9)
-- [ ] `shared/components/PreviewPane.tsx` (~4)
-- [ ] `components/FloatingWindow.tsx` (~2) — incl. `×` close, check `aria-label`
-- [ ] `shared/components/ErrorBoundary.tsx` (~2)
-- [ ] `features/command-palette/CommandResultArea.tsx` (~1)
-- [ ] `shared/components/RankTooltip.tsx` (~1)
-- [ ] Re-grep `MouseControlOverlay.tsx` (zh-only `title`) + `CapabilityHintLine.tsx`
-  for any stragglers after the above.
-
-### UX.AUDIT.4 — UTF-8 BOM cleanup (cosmetic)
-
-9 source files carry a UTF-8 BOM (CalculatorPanel, HistoryPanel, NoteEditor,
-TerminalPanel, LearningMaterialPanel, MouseControlOverlay, TranslationPanel,
-OnboardingTour, WorkspaceIndicator). Strip BOM for consistency; verify no
-encoding regressions.
 
 ### UX.AUDIT.5 — garbled-text (`嚙`) root cause — BLOCKED on repro
 

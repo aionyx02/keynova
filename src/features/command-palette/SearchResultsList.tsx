@@ -262,16 +262,18 @@ export function SearchResultsList({
         <div className="border-t border-[color:var(--kn-border)] bg-[color:var(--kn-panel-bg-strong)] px-4 py-3 text-xs text-[color:var(--kn-text-soft)]">
           <div className="mb-2 flex items-center justify-between">
             <span className="text-[10px] uppercase tracking-[0.2em] text-[color:var(--kn-text-faint)]">
-              Metadata
+              {t.search.metadata}
             </span>
-            <span className="text-[10px] text-[color:var(--kn-text-muted)]">Esc collapse</span>
+            <span className="text-[10px] text-[color:var(--kn-text-muted)]">
+              {t.search.escCollapse}
+            </span>
           </div>
           <div className="grid grid-cols-[max-content_1fr] gap-x-3 gap-y-1 font-mono text-[11px]">
-            <span className="text-[color:var(--kn-text-faint)]">path</span>
+            <span className="text-[color:var(--kn-text-faint)]">{t.search.path}</span>
             <span className="truncate text-[color:var(--kn-text-soft)]">{selectedResult.path}</span>
             {selectedMetadata?.size_bytes !== undefined && (
               <>
-                <span className="text-[color:var(--kn-text-faint)]">size</span>
+                <span className="text-[color:var(--kn-text-faint)]">{t.search.size}</span>
                 <span className="text-[color:var(--kn-text-soft)]">
                   {selectedMetadata.size_bytes.toLocaleString()} bytes
                 </span>
@@ -279,7 +281,7 @@ export function SearchResultsList({
             )}
             {selectedMetadata?.modified_ms !== undefined && (
               <>
-                <span className="text-[color:var(--kn-text-faint)]">modified</span>
+                <span className="text-[color:var(--kn-text-faint)]">{t.search.modified}</span>
                 <span className="text-[color:var(--kn-text-soft)]">
                   {new Date(selectedMetadata.modified_ms).toLocaleString()}
                 </span>
@@ -287,15 +289,15 @@ export function SearchResultsList({
             )}
             {selectedMetadata?.is_dir !== undefined && (
               <>
-                <span className="text-[color:var(--kn-text-faint)]">type</span>
+                <span className="text-[color:var(--kn-text-faint)]">{t.search.type}</span>
                 <span className="text-[color:var(--kn-text-soft)]">
-                  {selectedMetadata.is_dir ? "folder" : "file"}
+                  {selectedMetadata.is_dir ? t.search.kinds.folder : t.search.kinds.file}
                 </span>
               </>
             )}
             {selectedMetadata?.preview && (
               <>
-                <span className="text-[color:var(--kn-text-faint)]">preview</span>
+                <span className="text-[color:var(--kn-text-faint)]">{t.search.preview}</span>
                 <span className="whitespace-pre-wrap break-words text-[color:var(--kn-text-soft)]">
                   {selectedMetadata.preview}
                 </span>

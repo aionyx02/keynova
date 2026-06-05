@@ -35,12 +35,7 @@ function StatusBadge({ saving, saved }: { saving: boolean; saved: boolean }) {
   const text = saving ? s.saving : saved ? s.savedFlash : "";
   const tone = saving ? "var(--kn-text-muted)" : "var(--kn-success)";
   return (
-    <span
-      role="status"
-      aria-live="polite"
-      className="shrink-0 text-[10px]"
-      style={{ color: tone }}
-    >
+    <span role="status" aria-live="polite" className="shrink-0 text-[10px]" style={{ color: tone }}>
       {text}
     </span>
   );
@@ -199,7 +194,7 @@ export function SettingRow({
       {isSecret && secretIsSet && !displayValue && (
         <span
           className="shrink-0 rounded bg-[color:var(--kn-success-wash)] px-1.5 py-0.5 text-[10px] text-[color:var(--kn-success)]"
-          title="A value is stored in the OS keychain"
+          title={s.secretKeychainTitle}
         >
           {s.secretSet}
         </span>

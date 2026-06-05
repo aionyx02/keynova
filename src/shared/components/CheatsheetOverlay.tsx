@@ -1,5 +1,7 @@
 import { useEffect } from "react";
 
+import { useI18n } from "../../i18n/useI18n";
+
 interface Binding {
   keys: string;
   desc: string;
@@ -10,50 +12,52 @@ interface Section {
   bindings: Binding[];
 }
 
-const SECTIONS: Section[] = [
-  {
-    title: "Global",
-    bindings: [
-      { keys: "Ctrl+K", desc: "Open / focus launcher" },
-      { keys: "Esc", desc: "Close panel or hide window" },
-      { keys: "?", desc: "Toggle this cheatsheet" },
-      { keys: "/", desc: "Switch to command mode (try /help, /setting)" },
-    ],
-  },
-  {
-    title: "Search results",
-    bindings: [
-      { keys: "↑ / ↓", desc: "Navigate results" },
-      { keys: "Enter", desc: "Open selected result" },
-      { keys: "Shift+Enter", desc: "Run first secondary action" },
-      { keys: "→ / Tab", desc: "Open secondary action menu" },
-      { keys: "Ctrl+C", desc: "Copy path of selected result" },
-    ],
-  },
-  {
-    title: "Secondary action menu",
-    bindings: [
-      { keys: "↑ / ↓ / Tab", desc: "Navigate actions" },
-      { keys: "Enter", desc: "Run focused action (twice for destructive)" },
-      { keys: "← / Esc", desc: "Close menu" },
-    ],
-  },
-  {
-    title: "Onboarding tour",
-    bindings: [
-      { keys: "→ / Enter", desc: "Next step" },
-      { keys: "←", desc: "Previous step" },
-      { keys: "Esc", desc: "Skip / dismiss" },
-    ],
-  },
-];
-
 interface Props {
   onClose: () => void;
 }
 
 /** Mount only when visible; parent gates with `{open && <CheatsheetOverlay … />}`. */
 export function CheatsheetOverlay({ onClose }: Props) {
+  const t = useI18n().cheatsheet;
+  const s = t.sections;
+  const sections: Section[] = [
+    {
+      title: s.globalTitle,
+      bindings: [
+        { keys: "Ctrl+K", desc: s.openFocusLauncher },
+        { keys: "Esc", desc: s.closePanelOrHideWindow },
+        { keys: "?", desc: s.toggleCheatsheet },
+        { keys: "/", desc: s.switchCommandMode },
+      ],
+    },
+    {
+      title: s.searchResultsTitle,
+      bindings: [
+        { keys: "↑ / ↓", desc: s.navigateResults },
+        { keys: "Enter", desc: s.openSelectedResult },
+        { keys: "Shift+Enter", desc: s.runFirstSecondaryAction },
+        { keys: "→ / Tab", desc: s.openSecondaryActionMenu },
+        { keys: "Ctrl+C", desc: s.copySelectedPath },
+      ],
+    },
+    {
+      title: s.secondaryActionMenuTitle,
+      bindings: [
+        { keys: "↑ / ↓ / Tab", desc: s.navigateActions },
+        { keys: "Enter", desc: s.runFocusedAction },
+        { keys: "← / Esc", desc: s.closeMenu },
+      ],
+    },
+    {
+      title: s.onboardingTitle,
+      bindings: [
+        { keys: "→ / Enter", desc: s.nextStep },
+        { keys: "←", desc: s.previousStep },
+        { keys: "Esc", desc: s.skipDismiss },
+      ],
+    },
+  ];
+
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if (e.key === "Escape" || e.key === "?") {
@@ -78,13 +82,11 @@ export function CheatsheetOverlay({ onClose }: Props) {
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-baseline justify-between border-b border-gray-700/50 px-5 py-3">
-          <span className="text-base font-semibold text-gray-100">Keyboard cheatsheet</span>
-          <span className="text-[10px] uppercase tracking-wider text-gray-500">
-            Esc / ? to close
-          </span>
+          <span className="text-base font-semibold text-gray-100">{t.title}</span>
+          <span className="text-[10px] uppercase tracking-wider text-gray-500">{t.closeHint}</span>
         </div>
         <div className="space-y-4 px-5 py-4">
-          {SECTIONS.map((section) => (
+          {sections.map((section) => (
             <div key={section.title}>
               <div className="mb-1 text-[10px] uppercase tracking-wider text-gray-500">
                 {section.title}
