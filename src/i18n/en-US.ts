@@ -14,7 +14,6 @@ export const enUS: I18nKeys = {
     preview: "preview",
     actions: "actions",
     unavailableText: "Unavailable text",
-    pathUnavailable: "Path unavailable",
     metadata: "Metadata",
     escCollapse: "Esc collapse",
     path: "path",

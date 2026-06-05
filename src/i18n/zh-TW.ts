@@ -12,7 +12,6 @@ export const zhTW = {
     preview: "預覽",
     actions: "動作",
     unavailableText: "無法顯示的文字",
-    pathUnavailable: "路徑無法取得",
     metadata: "中繼資料",
     escCollapse: "Esc 收合",
     path: "路徑",
