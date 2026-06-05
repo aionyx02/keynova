@@ -552,6 +552,7 @@ export const enUS: I18nKeys = {
     config: "config",
     recency: "recency",
     frequency: "frequency",
+    noise: "noise",
   },
   capabilityHint: {
     title: "Quick starts",

@@ -152,11 +152,84 @@ contract change** (governance §7) that ripples through `unifiedToLegacy` /
 audit. Kept as a documented deviation; revisit if a source needs semantics the
 `File`-wrapper cannot express.
 
-## PRODUCT.1.C–H — not yet scoped
+## PRODUCT.1.C — Workspace-Aware Search + Noise Suppression — DONE (2026-06-05)
 
-`C` workspace-aware search (incl. noise suppression — absorbs 1.A's deferred
-`noise_penalty`), `D` project command discovery, `E` terminal workflow, `F` file
-actions/preview, `G` developer utilities, `H` keyboard/perf gate. Scope each batch
-here (primary vs simplification-only) before coding, per the task-persistence rule.
+Shipped (developer chose **demote -30**): `noise_penalty` term — file/folder
+results inside a generated/dependency dir (denylist: `node_modules`, `target`,
+`dist`, `build`, `.git`, `.next`, `.nuxt`, `.venv`, `venv`, `__pycache__`,
+`.cache`, `coverage`, `.gradle`, `.idea`, `.svn`, `.tox`, `.pytest_cache`,
+`.mypy_cache`) get `-30`, demoting them below clean matches while staying
+reachable. Segment-exact match (`mytarget` does not trip `target`); file source
+only. Surfaced in `ScoreBreakdown.noise_penalty` + `RankTooltip` (`rank.noise`,
+rose, shown when non-zero). Workspace coverage + switch-without-restart confirmed
+already working in the audit (no code). Validation: 486 cargo tests + clippy
+clean; build/lint + 181 vitest (3 new noise/ranking cases incl. the "clean
+src/index.js outranks node_modules same-name" regression fixture). No ADR.
+
+
+
+### Audit
+
+- **Workspace coverage already largely works.** `resolve_workspace_filter`
+  restricts file/folder/app results to `current().project_root` (`:global`
+  escapes), and 1.A's `workspace_boost` ranks the in-workspace copy first. The
+  workspace root is read per search, so **switching workspaces updates context
+  without restart** (no code needed).
+- **Noise is the real gap.** The `IgnoreWalk` fallback already respects
+  `.gitignore` + hidden dirs (skips `node_modules`/`target`/`.git`), but the
+  **primary providers — Everything (Windows) and Tantivy — do not filter
+  generated dirs**, so on the main dev target `node_modules`/`target`/`dist`
+  hits can dominate the first page. This is exactly 1.A's deferred `noise_penalty`.
+
+### Primary (this batch)
+
+1. **Generated-dir noise control** (headline; provider-agnostic). A denylist of
+   generated path segments (`node_modules`, `target`, `dist`, `build`, `.git`,
+   `.next`, `.venv`, `__pycache__`, `.cache`, `coverage`, `out`, `.gradle`, …)
+   applied to file/folder results after provider merge. **Default policy:
+   demote** — subtract a `noise_penalty` so noisy hits fall below clean results
+   but stay reachable (never silently hidden). Surface `noise_penalty` (negative)
+   in `ScoreBreakdown` + `RankTooltip`.
+2. **Regression fixtures**: duplicate-filename-across-workspaces (in-workspace
+   wins via `workspace_boost`) and noise demotion (clean `src/index.js` outranks
+   `node_modules/.../index.js`).
+
+### Open decision (gates implementation)
+
+- **Demote vs hide** generated-dir hits. Recommend **demote** (safe, reachable,
+  additive like 1.A → no ADR). Hide is a harder filter (removes rows) — cleaner
+  first page but can surprise; would still not need an ADR (result-policy, not a
+  data contract) but is more aggressive.
+- `noise_penalty` magnitude (proposed `-30`, enough to sink below clean
+  `base`+boosts but not absurd).
+
+### Simplification-only / deferred (do NOT block 1.C closure)
+
+- **Query-aware exemption** (don't penalize when the query itself names a noisy
+  segment, e.g. typing `node_modules`). Needs the cleaned query threaded into
+  scoring — deferred refinement; MVP demotes unconditionally (still reachable).
+- **Indexer-level exclusion** (teach Tantivy's walk / Everything to not index
+  generated dirs). Everything is a system index we don't own; the post-merge
+  penalty covers the user-visible need. Defer.
+- **Workspace-identity badge** (show which project a row belongs to when the same
+  file exists in multiple workspaces). UI polish; `workspace_boost` already ranks
+  correctly. Defer.
+
+### File map (once go'd)
+
+- `handlers/search/ranking.rs` — pure `noise_penalty(source, path) -> i64` + tests.
+- `models/action.rs` + `types/search.ts` — `ScoreBreakdown.noise_penalty`.
+- `handlers/search.rs::apply_rank_boost` — subtract the penalty into score + breakdown.
+- `RankTooltip.tsx` + i18n `rank.noise`.
+
+### ADR call
+
+No ADR for the demote (additive bounded penalty, same class as 1.A). Revisit only
+if we move to indexer-level exclusion (changes the indexing model, governance §7).
+
+## PRODUCT.1.D–H — not yet scoped
+
+`D` project command discovery, `E` terminal workflow, `F` file actions/preview,
+`G` developer utilities, `H` keyboard/perf gate. Scope each here before coding.
 Risky sub-items (destructive file ops, kill-port, shell handoff) still pass their
 own approval/ADR gates.

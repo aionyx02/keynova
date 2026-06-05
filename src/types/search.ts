@@ -21,6 +21,7 @@ export interface ScoreBreakdown {
   config_boost: number;
   recency_boost: number;
   frequency_boost: number;
+  noise_penalty: number;
 }
 
 export interface SearchResult {

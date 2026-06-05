@@ -549,6 +549,7 @@ export const zhTW = {
     config: "設定檔",
     recency: "近期",
     frequency: "頻率",
+    noise: "雜訊",
   },
   capabilityHint: {
     title: "快速開始",

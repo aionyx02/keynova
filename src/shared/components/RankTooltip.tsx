@@ -25,7 +25,8 @@ export function RankTooltip({ breakdown, anchorRect, visible }: Props) {
     breakdown.workspace_boost +
     breakdown.config_boost +
     breakdown.recency_boost +
-    breakdown.frequency_boost;
+    breakdown.frequency_boost +
+    breakdown.noise_penalty;
   const margin = 8;
   const estWidth = 220;
   const wantsRight = anchorRect.right + estWidth + margin <= window.innerWidth;
@@ -63,6 +64,12 @@ export function RankTooltip({ breakdown, anchorRect, visible }: Props) {
         <span className="text-right text-sky-300">{fmtSigned(breakdown.recency_boost)}</span>
         <span className="text-gray-500">{t.frequency}</span>
         <span className="text-right text-emerald-300">{fmtSigned(breakdown.frequency_boost)}</span>
+        {breakdown.noise_penalty !== 0 && (
+          <>
+            <span className="text-gray-500">{t.noise}</span>
+            <span className="text-right text-rose-300">{fmtSigned(breakdown.noise_penalty)}</span>
+          </>
+        )}
       </div>
     </div>
   );

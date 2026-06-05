@@ -78,6 +78,48 @@ pub(super) fn config_boost(source: &str, path: &str) -> i64 {
     }
 }
 
+/// Generated / dependency directory segments. A result whose path passes through
+/// one of these is build output or a dependency, not the user's own work.
+const NOISE_SEGMENTS: &[&str] = &[
+    "node_modules",
+    "target",
+    "dist",
+    "build",
+    ".git",
+    ".next",
+    ".nuxt",
+    ".venv",
+    "venv",
+    "__pycache__",
+    ".cache",
+    "coverage",
+    ".gradle",
+    ".idea",
+    ".svn",
+    ".tox",
+    ".pytest_cache",
+    ".mypy_cache",
+];
+
+/// PRODUCT.1.C noise suppression. Demotes a file/folder result living inside a
+/// generated/dependency directory so it falls below clean matches but stays
+/// reachable (never hidden). Returns a negative penalty or 0. Segment-exact match
+/// (so `mytarget/` does not trip `target`).
+pub(super) fn noise_penalty(source: &str, path: &str) -> i64 {
+    if source != "file" {
+        return 0;
+    }
+    let normalized = path.replace('\\', "/").to_lowercase();
+    let in_noise = normalized
+        .split('/')
+        .any(|segment| NOISE_SEGMENTS.contains(&segment));
+    if in_noise {
+        -30
+    } else {
+        0
+    }
+}
+
 /// Case- and separator-insensitive "is `path` inside `root`?" check. An exact
 /// match counts (selecting the project dir itself).
 fn path_under_root(path: &str, root: &str) -> bool {
@@ -238,5 +280,37 @@ mod tests {
         assert_eq!(config_boost("file", "C:/x/notes.txt"), 0);
         assert_eq!(config_boost("file", "C:/x/data.json"), 0);
         assert_eq!(config_boost("app", "C:/x/Cargo.toml"), 0);
+    }
+
+    #[test]
+    fn noise_penalty_demotes_generated_dirs() {
+        assert_eq!(
+            super::noise_penalty("file", "C:/projA/node_modules/react/index.js"),
+            -30
+        );
+        assert_eq!(super::noise_penalty("file", "C:/projA/target/debug/app"), -30);
+        assert_eq!(super::noise_penalty("file", r"C:\projA\.git\config"), -30);
+    }
+
+    #[test]
+    fn noise_penalty_zero_for_clean_and_segment_exact() {
+        assert_eq!(super::noise_penalty("file", "C:/projA/src/index.js"), 0);
+        // segment-exact: `mytarget` must not trip `target`.
+        assert_eq!(super::noise_penalty("file", "C:/projA/mytarget/x.rs"), 0);
+        // non-file sources are never penalized.
+        assert_eq!(super::noise_penalty("command", "command://build"), 0);
+    }
+
+    #[test]
+    fn clean_file_outranks_noisy_same_name_even_with_higher_base() {
+        // PRODUCT.1.C regression fixture: a clean src file beats a higher-base
+        // node_modules file of the same name once boosts + penalty apply.
+        let clean = 83
+            + workspace_boost("file", "C:/projA/src/index.js", Some(ROOT))
+            + super::noise_penalty("file", "C:/projA/src/index.js"); // 83 + 20 + 0
+        let noisy = 90
+            + workspace_boost("file", "C:/projA/node_modules/react/index.js", Some(ROOT))
+            + super::noise_penalty("file", "C:/projA/node_modules/react/index.js"); // 90 + 20 - 30
+        assert!(clean > noisy, "clean {clean} should beat noisy {noisy}");
     }
 }

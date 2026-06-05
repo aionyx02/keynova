@@ -24,6 +24,7 @@ const zero: ScoreBreakdown = {
   config_boost: 0,
   recency_boost: 0,
   frequency_boost: 0,
+  noise_penalty: 0,
 };
 
 describe("RankTooltip (PRODUCT.1.A workspace term)", () => {
@@ -34,9 +35,17 @@ describe("RankTooltip (PRODUCT.1.A workspace term)", () => {
     expect(screen.getByText("100")).toBeTruthy(); // 80 base + 20 workspace
   });
 
-  it("hides the workspace/config rows when their boost is zero", () => {
+  it("hides the workspace/config/noise rows when their value is zero", () => {
     render(<RankTooltip breakdown={zero} anchorRect={anchor()} visible />);
     expect(screen.queryByText("workspace")).toBeNull();
     expect(screen.queryByText("config")).toBeNull();
+    expect(screen.queryByText("noise")).toBeNull();
+  });
+
+  it("renders the noise row negative and subtracts it from the total", () => {
+    render(<RankTooltip breakdown={{ ...zero, noise_penalty: -30 }} anchorRect={anchor()} visible />);
+    expect(screen.getByText("noise")).toBeTruthy();
+    expect(screen.getByText("-30")).toBeTruthy();
+    expect(screen.getByText("50")).toBeTruthy(); // 80 base - 30 noise
   });
 });

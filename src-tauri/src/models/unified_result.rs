@@ -419,6 +419,7 @@ mod tests {
                 config_boost: 0,
                 recency_boost: 10,
                 frequency_boost: 10,
+                noise_penalty: 0,
             },
         };
         let u: UnifiedResult = item.into();
