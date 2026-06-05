@@ -16,6 +16,7 @@ import { PipelineStatusRow } from "../features/command-palette/PipelineStatusRow
 import { ArgsSuggestionsList } from "../features/command-palette/ArgsSuggestionsList";
 import { SearchResultsList } from "../features/command-palette/SearchResultsList";
 import { CommandResultArea } from "../features/command-palette/CommandResultArea";
+import { StarterActionsLine } from "../features/command-palette/StarterActionsLine";
 import { useRecentlyDeleted } from "../features/command-palette/hooks/useRecentlyDeleted";
 import { usePipeline } from "../features/command-palette/hooks/usePipeline";
 import { useSearchStream } from "../features/command-palette/hooks/useSearchStream";
@@ -400,10 +401,26 @@ export function CommandPalette() {
   const activeCapabilityOutcome: { kind: "done" } | { kind: "error"; message: string } | null =
     (() => {
       const active = [
-        { on: textCapabilityMode !== null, status: capabilityStream.status, error: capabilityStream.error },
-        { on: commandCapabilityMode !== null, status: genCommandState.status, error: genCommand.error },
-        { on: nextCapabilityMode !== null, status: suggestNextState.status, error: suggestNext.error },
-        { on: rememberCapabilityMode !== null, status: rememberState.status, error: remember.error },
+        {
+          on: textCapabilityMode !== null,
+          status: capabilityStream.status,
+          error: capabilityStream.error,
+        },
+        {
+          on: commandCapabilityMode !== null,
+          status: genCommandState.status,
+          error: genCommand.error,
+        },
+        {
+          on: nextCapabilityMode !== null,
+          status: suggestNextState.status,
+          error: suggestNext.error,
+        },
+        {
+          on: rememberCapabilityMode !== null,
+          status: rememberState.status,
+          error: remember.error,
+        },
         { on: recallCapabilityMode !== null, status: recallState.status, error: recall.error },
       ].find((entry) => entry.on);
       if (!active) return null;
@@ -534,6 +551,19 @@ export function CommandPalette() {
       setSmartNextDismissed(false);
       setSmartCommandDismissedKey(null);
       void handleQueryChange(value);
+    },
+    [handleQueryChange, setSmartCommandDismissedKey, setSmartNextDismissed],
+  );
+
+  const startSuggestedQuery = React.useCallback(
+    (value: string) => {
+      setSmartNextDismissed(false);
+      setSmartCommandDismissedKey(null);
+      void handleQueryChange(value);
+      requestAnimationFrame(() => {
+        inputRef.current?.focus();
+        inputRef.current?.setSelectionRange(value.length, value.length);
+      });
     },
     [handleQueryChange, setSmartCommandDismissedKey, setSmartNextDismissed],
   );
@@ -745,6 +775,8 @@ export function CommandPalette() {
     query === "" &&
     showCapabilityHint &&
     !showCapabilityResult;
+  const showStarterActionsLine =
+    paletteMode.kind === "search" && mode === "search" && query === "" && !showCapabilityResult;
   const showSearchEmptyState =
     paletteMode.kind === "search" &&
     mode === "search" &&
@@ -777,9 +809,7 @@ export function CommandPalette() {
   // Errors get an assertive region so assistive tech interrupts (the card body
   // carries the detailed message; this only flags that a failure happened).
   const capabilityErrorText =
-    mode === "search" &&
-    paletteMode.kind === "search" &&
-    activeCapabilityOutcome?.kind === "error"
+    mode === "search" && paletteMode.kind === "search" && activeCapabilityOutcome?.kind === "error"
       ? t.search.aiError
       : "";
 
@@ -793,6 +823,7 @@ export function CommandPalette() {
     pipelineRunning ||
     pipelineResult ||
     showCapabilityResult ||
+    showStarterActionsLine ||
     showCapabilityHintLine ||
     showSearchEmptyState ||
     showEmptyFilterState,
@@ -884,9 +915,18 @@ export function CommandPalette() {
             </Suspense>
           )}
 
+          {showStarterActionsLine && (
+            <StarterActionsLine
+              visible={showStarterActionsLine}
+              onPickQuery={startSuggestedQuery}
+            />
+          )}
+
           {/* Capability prefix discovery hint, shown on empty
               palette so first-time users see the available prefixes. */}
-          {showCapabilityHintLine && <CapabilityHintLine visible={showCapabilityHint} />}
+          {showCapabilityHintLine && (
+            <CapabilityHintLine visible={showCapabilityHint} onPickPrefix={startSuggestedQuery} />
+          )}
 
           {showSearchEmptyState && (
             <EmptyStateCTA
