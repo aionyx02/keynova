@@ -57,6 +57,48 @@ fn is_risky(name: &str) -> bool {
     DESTRUCTIVE.iter().any(|kw| n.contains(kw))
 }
 
+/// Files/dirs that mark a directory as a project root, most-common first.
+const ROOT_MARKERS: &[&str] = &[
+    ".git",
+    "Cargo.toml",
+    "package.json",
+    "go.mod",
+    "pyproject.toml",
+    "Makefile",
+    "justfile",
+    "pom.xml",
+    "build.gradle",
+    ".hg",
+    ".svn",
+];
+
+/// PROJECT_ROOT.wire — walk `start` and its ancestors, returning the nearest
+/// directory that holds a project marker. `.git` matches both a dir and a
+/// worktree file (`exists()`). The walk stops at the home directory and at a
+/// filesystem/drive root, so a stray marker in `$HOME` (or above) never makes
+/// the whole home tree the "project" — only a genuine sub-project is returned.
+/// Used to populate the workspace `project_root` at startup so workspace-aware
+/// search + project command discovery activate.
+pub fn detect_project_root(start: &Path) -> Option<std::path::PathBuf> {
+    let home = home_dir();
+    for dir in start.ancestors() {
+        // Never treat home itself or a drive/filesystem root as a project root.
+        if dir.parent().is_none() || home.as_deref() == Some(dir) {
+            break;
+        }
+        if ROOT_MARKERS.iter().any(|marker| dir.join(marker).exists()) {
+            return Some(dir.to_path_buf());
+        }
+    }
+    None
+}
+
+fn home_dir() -> Option<std::path::PathBuf> {
+    std::env::var_os("USERPROFILE")
+        .or_else(|| std::env::var_os("HOME"))
+        .map(std::path::PathBuf::from)
+}
+
 /// Discover runnable commands from the manifests in `root` (non-recursive).
 pub fn discover(root: &Path) -> Vec<ProjectCommand> {
     let mut out = Vec::new();
@@ -256,6 +298,27 @@ mod tests {
     fn missing_manifests_yield_nothing() {
         let root = temp_root();
         assert!(discover(&root).is_empty());
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn detect_project_root_walks_to_nearest_marker() {
+        let root = temp_root();
+        fs::write(root.join("Cargo.toml"), "[package]\nname = \"x\"\n").unwrap();
+        let nested = root.join("src").join("inner");
+        fs::create_dir_all(&nested).unwrap();
+        // From a nested dir, detection climbs to the marker-bearing root.
+        let found = detect_project_root(&nested).expect("should find root");
+        assert_eq!(found, root);
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn detect_project_root_none_without_markers() {
+        let root = temp_root();
+        let nested = root.join("a").join("b");
+        fs::create_dir_all(&nested).unwrap();
+        assert!(detect_project_root(&nested).is_none());
         let _ = fs::remove_dir_all(root);
     }
 }
