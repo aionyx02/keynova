@@ -1,4 +1,5 @@
 import { UiIcon } from "../../components/icons/UiIcon";
+import { useI18n } from "../../i18n/useI18n";
 import type { CommandMeta } from "../../hooks/useCommands";
 
 interface Props {
@@ -9,6 +10,7 @@ interface Props {
 }
 
 export function CommandSuggestions({ commands, selectedIndex, onSelect, onHover }: Props) {
+  const p = useI18n().palette;
   if (commands.length === 0) return null;
 
   return (
@@ -56,15 +58,15 @@ export function CommandSuggestions({ commands, selectedIndex, onSelect, onHover 
       <div className="kn-panel-footer">
         <span className="flex items-center gap-1.5">
           <span className="kn-kbd">Up/Down</span>
-          <span>move</span>
+          <span>{p.move}</span>
         </span>
         <span className="flex items-center gap-1.5">
           <span className="kn-kbd">Enter</span>
-          <span>run</span>
+          <span>{p.run}</span>
         </span>
         <span className="flex items-center gap-1.5">
           <span className="kn-kbd">Esc</span>
-          <span>close</span>
+          <span>{p.close}</span>
         </span>
       </div>
     </div>
