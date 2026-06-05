@@ -1,17 +1,19 @@
 // Footer hint string for the search results card.
 //
 // Priority chain (first non-empty wins):
-//   1. `copyHint` (transient, e.g. "SHA-256 copied: …"),
-//   2. `copiedPath`        ("Copied path: <path>"),
-//   3. provider timeout    ("Timed out: <comma list>"),
+//   1. `copyHint` (transient, e.g. "SHA-256 copied: ..."),
+//   2. `copiedPath`,
+//   3. provider timeout,
 //   4. file-search diagnostic (fallback reason / display-limit truncation),
 //   5. selected file's preview text,
 //   6. selected file's size_bytes,
 //   7. default keyboard hint.
 //
 // Extracted because the inline ternary in CommandPalette had grown to
-// 7 levels deep — easier to maintain as a regular function.
+// 7 levels deep, easier to maintain as a regular function.
 
+import { fmt } from "../../../i18n/format";
+import { useI18n } from "../../../i18n/useI18n";
 import type { SearchChunkDiagnostics, SearchMetadata } from "../../../types/search";
 
 interface Deps {
@@ -29,31 +31,36 @@ export function useSearchFooterHint({
   fileDiagnostics,
   selectedMetadata,
 }: Deps): string {
+  const p = useI18n().palette;
+
   if (copyHint) return copyHint;
-  if (copiedPath) return `Copied path: ${copiedPath}`;
+  if (copiedPath) return fmt(p.copiedPath, { path: copiedPath });
   if (timedOutProviders.length > 0 && !fileDiagnostics) {
-    return `Timed out: ${timedOutProviders.join(", ")}`;
+    return fmt(p.timedOut, { providers: timedOutProviders.join(", ") });
   }
 
   if (fileDiagnostics) {
     if (fileDiagnostics.timed_out) {
-      return "File search: provider timed out after 800ms";
+      return p.fileTimedOut;
     }
     if (fileDiagnostics.indexing) {
-      return "File search: indexing in background";
+      return p.fileIndexing;
     }
     if (fileDiagnostics.fallback_reason) {
-      return `File search: ${fileDiagnostics.fallback_reason}`;
+      return fmt(p.fileFallback, { reason: fileDiagnostics.fallback_reason });
     }
     const hidden = fileDiagnostics.pre_balance_count - fileDiagnostics.returned_count;
     if (hidden > 0) {
-      return `File search: ${fileDiagnostics.returned_count} shown, ${hidden} hidden by display limit`;
+      return fmt(p.fileDisplayLimit, {
+        shown: fileDiagnostics.returned_count,
+        hidden,
+      });
     }
   }
 
   if (selectedMetadata?.preview) return selectedMetadata.preview;
   if (selectedMetadata?.size_bytes !== undefined) {
-    return `${selectedMetadata.size_bytes.toLocaleString()} bytes`;
+    return fmt(p.bytes, { count: selectedMetadata.size_bytes.toLocaleString() });
   }
-  return "↑↓ 選擇";
+  return `↑/↓ ${p.navigate}`;
 }

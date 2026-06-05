@@ -1,4 +1,4 @@
-﻿import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useNotes } from "../../hooks/useNotes";
 import { useI18n } from "../../i18n/useI18n";
 import type { PanelProps } from "../../types/panel";

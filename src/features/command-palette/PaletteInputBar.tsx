@@ -24,6 +24,7 @@ export function PaletteInputBar({
   hasContentBelow,
 }: Props) {
   const t = useI18n();
+  const p = t.palette;
   const iconShellClass = [
     "flex h-9 w-9 shrink-0 items-center justify-center rounded-[8px] border",
     "shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]",
@@ -31,7 +32,7 @@ export function PaletteInputBar({
       ? "border-[color:rgba(242,191,112,0.18)] bg-[rgba(242,191,112,0.1)] text-[color:var(--kn-warm)]"
       : "border-[color:var(--kn-border)] bg-white/[0.035] text-[color:var(--kn-text-soft)]",
   ].join(" ");
-  const modeLabel = mode === "command" ? "Commands" : "Search";
+  const modeLabel = mode === "command" ? p.modeCommands : p.modeSearch;
 
   return (
     <div
@@ -51,9 +52,7 @@ export function PaletteInputBar({
         <div className="mb-0.5 flex items-center gap-1.5 text-[9px] text-[color:var(--kn-text-faint)]">
           <span className="kn-chip px-1.5 py-0">{modeLabel}</span>
           <span className="truncate">
-            {mode === "command"
-              ? "Run actions without leaving the keyboard"
-              : "Apps, files, notes, commands"}
+            {mode === "command" ? p.commandSubtitle : p.searchSubtitle}
           </span>
         </div>
         <div className="rounded-[8px] border border-[color:rgba(255,255,255,0.08)] bg-white/[0.02] px-2.5 py-1.5 transition-colors focus-within:border-[color:rgba(138,168,255,0.3)] focus-within:bg-white/[0.035]">
@@ -70,11 +69,9 @@ export function PaletteInputBar({
           />
         </div>
         <div className="mt-1 flex items-center gap-1.5 text-[10px] text-[color:var(--kn-text-faint)]">
-          <span>
-            {mode === "command" ? "Slash to switch back to search" : "Type / for commands"}
-          </span>
+          <span>{mode === "command" ? p.commandFooterHint : p.searchFooterHint}</span>
           <span className="h-1 w-1 rounded-full bg-white/10" />
-          <span>Keyboard-first</span>
+          <span>{p.keyboardFirst}</span>
         </div>
       </div>
 

@@ -1,19 +1,19 @@
 import { UiIcon, type UiIconName } from "../../components/icons/UiIcon";
+import { useI18n } from "../../i18n/useI18n";
 import type { SourceFilter } from "../../types/search";
 
 interface ChipSpec {
   kind: SourceFilter;
-  label: string;
   icon: UiIconName;
 }
 
 const CHIPS: ChipSpec[] = [
-  { kind: "file", label: "Files", icon: "file" },
-  { kind: "note", label: "Notes", icon: "note" },
-  { kind: "app", label: "Apps", icon: "app" },
-  { kind: "command", label: "Commands", icon: "command" },
-  { kind: "history", label: "History", icon: "history" },
-  { kind: "model", label: "Models", icon: "model" },
+  { kind: "file", icon: "file" },
+  { kind: "note", icon: "note" },
+  { kind: "app", icon: "app" },
+  { kind: "command", icon: "command" },
+  { kind: "history", icon: "history" },
+  { kind: "model", icon: "model" },
 ];
 
 const STORAGE_KEY = "keynova.searchFilters";
@@ -24,6 +24,8 @@ interface Props {
 }
 
 export function FilterChips({ active, onChange }: Props) {
+  const p = useI18n().palette;
+
   function toggle(kind: SourceFilter) {
     const next = new Set(active);
     if (next.has(kind)) {
@@ -38,7 +40,7 @@ export function FilterChips({ active, onChange }: Props) {
     <div className="flex flex-wrap items-center gap-2 border-b border-[color:var(--kn-border)] bg-white/[0.02] px-3 py-2">
       <span className="mr-1 inline-flex items-center gap-1.5 text-[10px] uppercase tracking-[0.2em] text-[color:var(--kn-text-faint)]">
         <UiIcon name="filter" className="h-3.5 w-3.5" />
-        Scope
+        {p.scope}
       </span>
       {CHIPS.map((chip) => {
         const isActive = active.has(chip.kind);
@@ -53,7 +55,7 @@ export function FilterChips({ active, onChange }: Props) {
             }`}
           >
             <UiIcon name={chip.icon} className="h-3.5 w-3.5" />
-            {chip.label}
+            {p.filterLabels[chip.kind]}
           </button>
         );
       })}
@@ -64,7 +66,7 @@ export function FilterChips({ active, onChange }: Props) {
           className="ml-auto inline-flex items-center gap-1.5 text-[11px] font-medium text-[color:var(--kn-text-muted)] transition-colors hover:text-[color:var(--kn-text-soft)]"
         >
           <UiIcon name="x" className="h-3.5 w-3.5" />
-          Clear
+          {p.clear}
         </button>
       )}
     </div>

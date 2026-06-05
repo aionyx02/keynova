@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
+import { fmt } from "../../i18n/format";
+import { useI18n } from "../../i18n/useI18n";
 import type { PanelProps } from "../../types/panel";
 
 interface DiskInfo {
@@ -55,6 +57,7 @@ function UsageBar({ pct, tone }: { pct: number; tone: "accent" | "warm" | "dange
 }
 
 export function SystemMonitoringPanel({ onClose }: PanelProps) {
+  const t = useI18n().systemMonitor;
   const [snap, setSnap] = useState<Snapshot | null>(null);
   const [streaming, setStreaming] = useState(false);
   const [error, setError] = useState("");
@@ -109,13 +112,11 @@ export function SystemMonitoringPanel({ onClose }: PanelProps) {
     >
       <div className="kn-panel-header">
         <div>
-          <div className="kn-panel-title">System Monitor</div>
-          <div className="kn-panel-subtitle">
-            Live CPU, memory, disk, network, and process telemetry
-          </div>
+          <div className="kn-panel-title">{t.title}</div>
+          <div className="kn-panel-subtitle">{t.subtitle}</div>
         </div>
         <span className={`kn-chip ${streaming ? "kn-chip-active" : ""}`}>
-          {streaming ? "Live" : "Stopped"}
+          {streaming ? t.live : t.stopped}
         </span>
       </div>
 
@@ -128,7 +129,7 @@ export function SystemMonitoringPanel({ onClose }: PanelProps) {
 
         {!snap ? (
           <div className="flex min-h-[260px] items-center justify-center text-xs text-[color:var(--kn-text-faint)]">
-            Loading live system data...
+            {t.loading}
           </div>
         ) : (
           <div className="space-y-4">
@@ -144,7 +145,7 @@ export function SystemMonitoringPanel({ onClose }: PanelProps) {
               </div>
               <div className="kn-muted-surface p-3">
                 <div className="mb-2 flex items-center justify-between">
-                  <span className="kn-section-label">Memory</span>
+                  <span className="kn-section-label">{t.memory}</span>
                   <span className="font-mono text-xs text-[color:var(--kn-text-soft)]">
                     {snap.ram_used_mb.toLocaleString()} / {snap.ram_total_mb.toLocaleString()} MB
                   </span>
@@ -155,7 +156,7 @@ export function SystemMonitoringPanel({ onClose }: PanelProps) {
 
             {snap.disks.length > 0 && (
               <div>
-                <div className="kn-section-label mb-2">Disks</div>
+                <div className="kn-section-label mb-2">{t.disks}</div>
                 <div className="space-y-2">
                   {snap.disks.map((disk) => (
                     <div key={disk.mount} className="kn-muted-surface px-3 py-2.5">
@@ -176,7 +177,7 @@ export function SystemMonitoringPanel({ onClose }: PanelProps) {
 
             {activeNetworks.length > 0 && (
               <div>
-                <div className="kn-section-label mb-2">Network</div>
+                <div className="kn-section-label mb-2">{t.network}</div>
                 <div className="space-y-1">
                   {activeNetworks.map((network) => (
                     <div
@@ -187,10 +188,10 @@ export function SystemMonitoringPanel({ onClose }: PanelProps) {
                         {network.name}
                       </span>
                       <span className="shrink-0 text-[color:var(--kn-accent)]">
-                        Down {network.rx_kbps.toFixed(0)} KB/s
+                        {fmt(t.down, { value: network.rx_kbps.toFixed(0) })}
                       </span>
                       <span className="shrink-0 text-[color:var(--kn-success)]">
-                        Up {network.tx_kbps.toFixed(0)} KB/s
+                        {fmt(t.up, { value: network.tx_kbps.toFixed(0) })}
                       </span>
                     </div>
                   ))}
@@ -200,7 +201,7 @@ export function SystemMonitoringPanel({ onClose }: PanelProps) {
 
             <div>
               <div className="mb-2 flex items-center justify-between">
-                <div className="kn-section-label">Top Processes</div>
+                <div className="kn-section-label">{t.topProcesses}</div>
                 <div className="flex gap-1.5">
                   <button
                     type="button"
@@ -248,8 +249,8 @@ export function SystemMonitoringPanel({ onClose }: PanelProps) {
       </div>
 
       <div className="kn-panel-footer">
-        <span>Esc closes</span>
-        <span>{streaming ? "Updates every 2 seconds" : "Stream paused"}</span>
+        <span>{t.escCloses}</span>
+        <span>{streaming ? t.updatesEveryTwoSeconds : t.streamPaused}</span>
       </div>
     </div>
   );

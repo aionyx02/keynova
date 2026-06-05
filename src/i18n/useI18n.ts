@@ -10,6 +10,7 @@ const locales: Record<string, I18nKeys> = {
 };
 
 function getBrowserLocale(): string {
+  if (typeof navigator === "undefined") return "zh-TW";
   const lang = navigator.language ?? "zh-TW";
   if (lang in locales) return lang;
   const prefix = lang.split("-")[0];
@@ -17,10 +18,14 @@ function getBrowserLocale(): string {
   return "zh-TW";
 }
 
+export function resolveI18n(overrideLocale?: string): I18nKeys {
+  const key = overrideLocale ?? getBrowserLocale();
+  return locales[key] ?? zhTW;
+}
+
 /** 回傳目前語言的翻譯物件。語言由 navigator.language 決定，未來可從設定覆蓋。 */
 export function useI18n(overrideLocale?: string): I18nKeys {
   return useMemo(() => {
-    const key = overrideLocale ?? getBrowserLocale();
-    return locales[key] ?? zhTW;
+    return resolveI18n(overrideLocale);
   }, [overrideLocale]);
 }
