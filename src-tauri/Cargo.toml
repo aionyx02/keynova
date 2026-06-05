@@ -58,6 +58,7 @@ regex = "1"
 cron = "0.12"
 urlencoding = "2"
 rand = "0.8"
+zip = { version = "2", default-features = false, features = ["deflate"] }
 # Base keyring with no credential-store backend. Each OS pulls its native store
 # via the target tables below; without a backend keyring 3.x silently uses a
 # non-persistent in-memory mock store, so stored secrets never round-trip.

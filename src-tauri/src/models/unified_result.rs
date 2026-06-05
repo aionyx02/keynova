@@ -415,8 +415,12 @@ mod tests {
             path: "C:/Foo.exe".to_string(),
             score_breakdown: ScoreBreakdown {
                 base: 80,
+                kind_boost: 0,
+                workspace_boost: 0,
+                config_boost: 0,
                 recency_boost: 10,
                 frequency_boost: 10,
+                noise_penalty: 0,
             },
         };
         let u: UnifiedResult = item.into();
@@ -432,6 +436,57 @@ mod tests {
         // REF.6.A: secondary_action_count == 0 must serialize as None so
         // skip_serializing_if drops the field from the wire format.
         assert_eq!(u.source_metadata.secondary_action_count, None);
+    }
+
+    #[test]
+    fn ui_search_item_shim_covers_every_source_kind() {
+        // PRODUCT.1.B contract audit: every result-source kind must map into a
+        // UnifiedResult with stable id, preserved kind/path/score, exactly one
+        // primary action chip, and no row-level confirm (risk lives on actions /
+        // capabilities, not search rows). One representative per kind.
+        let kinds = [
+            (ResultKind::App, "app://foo"),
+            (ResultKind::File, "/tmp/foo.txt"),
+            (ResultKind::Folder, "/tmp/dir"),
+            (ResultKind::Command, "command://help"),
+            (ResultKind::Note, "note://todo"),
+            (ResultKind::History, "history://1"),
+            (ResultKind::Model, "model://qwen"),
+            (ResultKind::Memory, "memory://1"),
+        ];
+        for (kind, path) in kinds {
+            let item = UiSearchItem {
+                item_ref: ActionRef::new("res-k", None, 1),
+                title: "T".to_string(),
+                subtitle: path.to_string(),
+                source: "x".to_string(),
+                score: 42,
+                icon_key: None,
+                primary_action: ActionRef::new("act-k", None, 1),
+                primary_action_label: "Go".to_string(),
+                secondary_action_count: 0,
+                kind: kind.clone(),
+                name: "T".to_string(),
+                path: path.to_string(),
+                score_breakdown: ScoreBreakdown::default(),
+            };
+            let u: UnifiedResult = item.into();
+            assert_eq!(u.id, "res-k", "id stable for {kind:?}");
+            assert_eq!(u.rank.score, 42, "score preserved for {kind:?}");
+            assert_eq!(u.actions.len(), 1, "one primary action for {kind:?}");
+            assert!(u.actions[0].primary);
+            assert!(
+                !u.actions[0].confirm.requires_confirmation,
+                "search rows carry no row-level confirm for {kind:?}"
+            );
+            match u.source {
+                ResultSource::File { kind: k, path: p } => {
+                    assert_eq!(k, kind, "kind preserved for {kind:?}");
+                    assert_eq!(p, path, "path preserved for {kind:?}");
+                }
+                other => panic!("expected ResultSource::File for {kind:?}, got {other:?}"),
+            }
+        }
     }
 
     #[test]

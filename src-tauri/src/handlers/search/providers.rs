@@ -33,8 +33,9 @@ impl SearchHandler {
         // the dispatch-guard / `COMMAND_FEATURE_GUARDS` source of truth.
         type Provider =
             fn(&SearchHandler, &str, usize, &ActionSession, &mut Vec<UiSearchItem>) -> Result<(), String>;
-        let chain: [(Provider, usize, Option<&str>); 5] = [
+        let chain: [(Provider, usize, Option<&str>); 6] = [
             (SearchHandler::append_command_results, plan.command_limit, None),
+            (SearchHandler::append_project_command_results, plan.command_limit, None),
             (SearchHandler::append_note_results, plan.note_limit, Some("features.notes")),
             (SearchHandler::append_history_results, plan.history_limit, Some("features.history")),
             (SearchHandler::append_memory_results, plan.memory_limit, Some("features.ai")),
@@ -95,6 +96,73 @@ impl SearchHandler {
                 kind: ResultKind::Command,
                 name: meta.name.to_string(),
                 path: format!("command://{}", meta.name),
+                score_breakdown: ScoreBreakdown::default(),
+            };
+            self.apply_rank_boost(&mut item);
+            out.push(item);
+        }
+        Ok(())
+    }
+
+    /// PRODUCT.1.D — discover runnable commands from the active workspace's
+    /// manifests (package.json / Cargo.toml / Makefile / justfile) and surface
+    /// them as copy-only rows. No project root ⇒ no rows. Copy-only: the primary
+    /// action is intercepted on the frontend (via the `projectcmd://` path) to
+    /// write the command to the clipboard; execution is PRODUCT.1.E.
+    fn append_project_command_results(
+        &self,
+        query: &str,
+        limit: usize,
+        session: &ActionSession,
+        out: &mut Vec<UiSearchItem>,
+    ) -> Result<(), String> {
+        let q = query.trim().to_lowercase();
+        if q.is_empty() {
+            return Ok(());
+        }
+        let Some(root) = self
+            .workspace_manager
+            .lock()
+            .ok()
+            .and_then(|ws| ws.current().project_root.clone())
+            .filter(|root| !root.trim().is_empty())
+        else {
+            return Ok(());
+        };
+        let root_path = std::path::Path::new(&root);
+        let cwd = root_path
+            .file_name()
+            .and_then(|name| name.to_str())
+            .unwrap_or(root.as_str())
+            .to_string();
+
+        for cmd in crate::core::project_commands::discover(root_path)
+            .into_iter()
+            .filter(|cmd| cmd.command.to_lowercase().contains(&q) || cmd.intent.contains(&q))
+            .take(limit)
+        {
+            // Benign action: the frontend short-circuits `projectcmd://` rows to a
+            // clipboard copy, so this never dispatches in the happy path.
+            let action = Action::command_route(
+                format!("projectcmd:{}", cmd.command),
+                "Copy command",
+                "search.record_selection",
+                json!({ "source": "command", "path": format!("projectcmd://{}", cmd.command) }),
+            );
+            let action_ref = self.action_arena.insert(session, action)?;
+            let mut item = UiSearchItem {
+                item_ref: action_ref.clone(),
+                title: cmd.command.clone(),
+                subtitle: format!("{} · {}", cmd.source_file, cwd),
+                source: "command".into(),
+                score: 72,
+                icon_key: Some("command".into()),
+                primary_action: action_ref,
+                primary_action_label: "Copy".into(),
+                secondary_action_count: 0,
+                kind: ResultKind::Command,
+                name: cmd.command.clone(),
+                path: format!("projectcmd://{}:{}", cmd.source_file, cmd.command),
                 score_breakdown: ScoreBreakdown::default(),
             };
             self.apply_rank_boost(&mut item);

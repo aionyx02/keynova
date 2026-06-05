@@ -6,6 +6,7 @@
 use std::collections::HashSet;
 
 use crate::models::action::UiSearchItem;
+use crate::models::search_result::ResultKind;
 
 use super::{APP_LIMIT, COMMAND_LIMIT, HISTORY_LIMIT, MODEL_LIMIT, NOTE_LIMIT};
 
@@ -27,6 +28,121 @@ pub(super) fn command_match_score(name: &str, description: &str, q: &str) -> Opt
     } else {
         None
     }
+}
+
+/// Structural target-type boost: a whole app or folder (project) is usually a
+/// bigger, more likely target than an individual document file, so it should rank
+/// above same-relevance plain files instead of being buried under them. Deliberate
+/// preference (not usage noise), so it is a fixed bump per kind.
+pub(super) fn kind_boost(kind: &ResultKind) -> i64 {
+    match kind {
+        ResultKind::App => 20,
+        ResultKind::Folder => 12,
+        _ => 0,
+    }
+}
+
+/// PRODUCT.1.A workspace_context term. Rewards a file/folder/app result whose
+/// path lives under the active workspace `project_root` so that, in `:global`
+/// mode (or when no hard filter applies), the in-workspace copy of a same-named
+/// file outranks copies elsewhere. Non-file sources (synthetic `command://`,
+/// `note://`, … paths) and an unset root both yield 0 — a safe no-op default.
+pub(super) fn workspace_boost(source: &str, path: &str, project_root: Option<&str>) -> i64 {
+    // `folder` results carry source "file"; apps carry "app".
+    if !matches!(source, "file" | "app") {
+        return 0;
+    }
+    match project_root {
+        Some(root) if path_under_root(path, root) => 12,
+        _ => 0,
+    }
+}
+
+/// PRODUCT.1.A README/config nudge. Small additive boost so project entry points
+/// (README, manifests, config files) surface above incidental files. File source
+/// only; deliberately a short allow-list + a few config extensions rather than
+/// every `.json`/data file.
+pub(super) fn config_boost(source: &str, path: &str) -> i64 {
+    if source != "file" {
+        return 0;
+    }
+    let normalized = path.replace('\\', "/");
+    let name = normalized.rsplit('/').next().unwrap_or(&normalized).to_lowercase();
+    let is_readme = name.starts_with("readme");
+    let is_named_config = matches!(
+        name.as_str(),
+        "cargo.toml"
+            | "package.json"
+            | "tsconfig.json"
+            | "makefile"
+            | "justfile"
+            | "pyproject.toml"
+            | "docker-compose.yml"
+            | "docker-compose.yaml"
+            | ".env"
+    );
+    let is_config_ext = [".toml", ".yml", ".yaml", ".ini", ".cfg"]
+        .iter()
+        .any(|ext| name.ends_with(ext));
+    if is_readme || is_named_config || is_config_ext {
+        4
+    } else {
+        0
+    }
+}
+
+/// Generated / dependency directory segments. A result whose path passes through
+/// one of these is build output or a dependency, not the user's own work.
+const NOISE_SEGMENTS: &[&str] = &[
+    "node_modules",
+    "target",
+    "dist",
+    "build",
+    ".git",
+    ".next",
+    ".nuxt",
+    ".venv",
+    "venv",
+    "__pycache__",
+    ".cache",
+    "coverage",
+    ".gradle",
+    ".idea",
+    ".svn",
+    ".tox",
+    ".pytest_cache",
+    ".mypy_cache",
+];
+
+/// PRODUCT.1.C noise suppression. Demotes a file/folder result living inside a
+/// generated/dependency directory so it falls below clean matches but stays
+/// reachable (never hidden). Returns a negative penalty or 0. Segment-exact match
+/// (so `mytarget/` does not trip `target`).
+pub(super) fn noise_penalty(source: &str, path: &str) -> i64 {
+    if source != "file" {
+        return 0;
+    }
+    let normalized = path.replace('\\', "/").to_lowercase();
+    let in_noise = normalized
+        .split('/')
+        .any(|segment| NOISE_SEGMENTS.contains(&segment));
+    if in_noise {
+        -30
+    } else {
+        0
+    }
+}
+
+/// Case- and separator-insensitive "is `path` inside `root`?" check. An exact
+/// match counts (selecting the project dir itself).
+fn path_under_root(path: &str, root: &str) -> bool {
+    let normalize = |s: &str| s.replace('\\', "/").trim_end_matches('/').to_lowercase();
+    let p = normalize(path);
+    let r = normalize(root);
+    if r.is_empty() {
+        return false;
+    }
+    p == r || p.starts_with(&format!("{r}/"))
 }
 
 pub(super) fn sort_truncate(results: &mut Vec<UiSearchItem>, limit: usize) {
@@ -130,4 +246,97 @@ pub(super) fn strip_global_prefix(raw: &str) -> (String, bool) {
         return (rest.trim_start().to_string(), true);
     }
     (raw.to_string(), false)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{config_boost, workspace_boost};
+
+    const ROOT: &str = "C:/projA";
+
+    #[test]
+    fn workspace_boost_rewards_file_under_root() {
+        assert_eq!(workspace_boost("file", "C:/projA/config.toml", Some(ROOT)), 12);
+        assert_eq!(workspace_boost("app", "C:/projA/bin/app.exe", Some(ROOT)), 12);
+    }
+
+    #[test]
+    fn workspace_boost_zero_outside_root_or_unset() {
+        assert_eq!(workspace_boost("file", "C:/projB/config.toml", Some(ROOT)), 0);
+        assert_eq!(workspace_boost("file", "C:/projA/config.toml", None), 0);
+        // The headline scenario: same-named file inside beats the one outside.
+        let inside = workspace_boost("file", "C:/projA/config.toml", Some(ROOT));
+        let outside = workspace_boost("file", "C:/projB/config.toml", Some(ROOT));
+        assert!(inside > outside);
+    }
+
+    #[test]
+    fn workspace_boost_is_case_and_separator_insensitive() {
+        assert_eq!(workspace_boost("file", r"c:\proja\src\main.rs", Some(ROOT)), 12);
+    }
+
+    #[test]
+    fn workspace_boost_ignores_non_file_sources() {
+        assert_eq!(workspace_boost("command", "command://help", Some(ROOT)), 0);
+        assert_eq!(workspace_boost("note", "note://todo", Some(ROOT)), 0);
+    }
+
+    #[test]
+    fn config_boost_rewards_readme_and_manifests() {
+        assert_eq!(config_boost("file", "C:/x/README.md"), 4);
+        assert_eq!(config_boost("file", "C:/x/Cargo.toml"), 4);
+        assert_eq!(config_boost("file", "C:/x/settings.yaml"), 4);
+    }
+
+    #[test]
+    fn config_boost_zero_for_plain_files_and_non_files() {
+        assert_eq!(config_boost("file", "C:/x/notes.txt"), 0);
+        assert_eq!(config_boost("file", "C:/x/data.json"), 0);
+        assert_eq!(config_boost("app", "C:/x/Cargo.toml"), 0);
+    }
+
+    #[test]
+    fn kind_boost_lifts_apps_and_folders_over_files() {
+        use crate::models::search_result::ResultKind;
+        assert_eq!(super::kind_boost(&ResultKind::App), 20);
+        assert_eq!(super::kind_boost(&ResultKind::Folder), 12);
+        assert_eq!(super::kind_boost(&ResultKind::File), 0);
+        assert_eq!(super::kind_boost(&ResultKind::Note), 0);
+        // A folder beats a same-base file; an app beats it too.
+        let base = 95;
+        assert!(base + super::kind_boost(&ResultKind::Folder) > base);
+        assert!(base + super::kind_boost(&ResultKind::App) > base + super::kind_boost(&ResultKind::File));
+    }
+
+    #[test]
+    fn noise_penalty_demotes_generated_dirs() {
+        assert_eq!(
+            super::noise_penalty("file", "C:/projA/node_modules/react/index.js"),
+            -30
+        );
+        assert_eq!(super::noise_penalty("file", "C:/projA/target/debug/app"), -30);
+        assert_eq!(super::noise_penalty("file", r"C:\projA\.git\config"), -30);
+    }
+
+    #[test]
+    fn noise_penalty_zero_for_clean_and_segment_exact() {
+        assert_eq!(super::noise_penalty("file", "C:/projA/src/index.js"), 0);
+        // segment-exact: `mytarget` must not trip `target`.
+        assert_eq!(super::noise_penalty("file", "C:/projA/mytarget/x.rs"), 0);
+        // non-file sources are never penalized.
+        assert_eq!(super::noise_penalty("command", "command://build"), 0);
+    }
+
+    #[test]
+    fn clean_file_outranks_noisy_same_name_even_with_higher_base() {
+        // PRODUCT.1.C regression fixture: a clean src file beats a higher-base
+        // node_modules file of the same name once boosts + penalty apply.
+        let clean = 83
+            + workspace_boost("file", "C:/projA/src/index.js", Some(ROOT))
+            + super::noise_penalty("file", "C:/projA/src/index.js"); // 83 + 20 + 0
+        let noisy = 90
+            + workspace_boost("file", "C:/projA/node_modules/react/index.js", Some(ROOT))
+            + super::noise_penalty("file", "C:/projA/node_modules/react/index.js"); // 90 + 20 - 30
+        assert!(clean > noisy, "clean {clean} should beat noisy {noisy}");
+    }
 }

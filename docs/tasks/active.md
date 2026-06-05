@@ -14,7 +14,7 @@ tags: [refactor, ai-capability, search-first, p0]
 
 ### P0
 
-`PERF.1.FU`, `PREFLIGHT`, and `BRAND.ICON` completed in v0.3.0 (see `sessions/2026-05-30.md` COMPLETED markers). `PERF.1.FU` closed: real unique footprint is `~80 MB`, under the `200 MB` goal.
+`PERF.1.FU`, `PREFLIGHT`, `BRAND.ICON` completed in v0.3.0 (`sessions/2026-05-30.md`).
 
 - [x] `REF.0` lock ADR-0029 as the governing decision for the AI capability refactor.
 - [x] `REF.1` define `UnifiedResult` as the shared result/action contract.
@@ -26,8 +26,8 @@ tags: [refactor, ai-capability, search-first, p0]
   (prefix dispatcher + all 5 capabilities + `CapabilityAnswerCard` family +
   `classifyNlIntent` NL fallback + ADR-0040). Only `REF.6.H` open:
   - [~] `REF.6.H` feature-first directory migration. 11 panels + 3 model panels relocated to `src/features/<feature>/`; 7 shared components moved to `src/shared/components/`. Model-manager tab consolidation deferred.
-- [~] `REF.7` quantitative gates, default `ai.legacy_agent = false`. .A + .B shipped in v0.3.0 (tag `v0.3.0`, merged to `main`). .C release notes shipped as `docs/release-notes/v0.3.0.md`; ADR-0029 §10 measurement scaffolded, `pending REF.7.D`. .D is user-action (`qwen2.5:7b` 4.7 GB bench). Observation-window items (`ai.legacy_agent` off, idle RSS) stay `pending observation`.
-- [~] `REF.8` physical removal. Done: `AiPanel.tsx` + `ai_legacy` route + `ai_legacy_chat` builtin deleted (developer lifted the observation gate 2026-06-01). Retained by developer decision: `agent_runtime.rs` + `handlers/agent/` + `ai.legacy_agent` flag (dormant, no UI entry). Not done: backend agent trim/removal, flag removal, superseding ADRs 0011/0016/0022/0026.
+- [~] `REF.7` quantitative gates, default `ai.legacy_agent = false`. .A/.B shipped in v0.3.0. .C release notes shipped; ADR-0029 §10 scaffolded, `pending REF.7.D` (`qwen2.5:7b` bench, user-action). Observation items stay `pending observation`.
+- [~] `REF.8` physical removal. Done: `AiPanel.tsx` + `ai_legacy` route/builtin deleted (2026-06-01). Retained (developer): `agent_runtime.rs` + `handlers/agent/` + `ai.legacy_agent` flag (dormant). Not done: backend agent trim, flag removal, supersede ADRs 0011/0016/0022/0026.
 
 Detailed batch definitions, done criteria, non-goals, file map, and validation gates live in `docs/tasks/refactor-ai-capability.md`.
 
@@ -39,17 +39,22 @@ Detailed batch definitions, done criteria, non-goals, file map, and validation g
   freeze). `features.*` gate UI + IPC end-to-end (capability.call, dispatch
   namespace guard, search providers, frontend `FeatureFlagsContext`); model
   manager exempt. Detail: `docs/memory/sessions/2026-06-04.md`.
-- [x] `DECOUP` feature self-registration decoupling (ADR-0044 proposed;
-  developer-directed). `.1`–`.6` all landed at unit level: 8 backend features +
-  6 frontend panels self-register; dispatch guard spec-derived; search chain
-  declarative. Removing a feature ≈ delete module/folder + manifest entries.
-  Cross-cutting search/ai/agent stay central by ADR-0044 §2. Detail:
-  `docs/tasks/feature-decoupling.md`.
+- [x] `DECOUP` feature self-registration decoupling (ADR-0044 proposed). `.1`–`.6`
+  landed: 8 backend features + 6 frontend panels self-register; removing a feature
+  ≈ delete module/folder + manifest. Detail: `docs/tasks/feature-decoupling.md`.
 
 - [~] `UX.AUDIT` UI/UX consistency pass (developer-directed). Done: stale "AI
-  Chat" copy, first a11y live regions, full i18n conversion, and UTF-8 BOM
-  cleanup. Open: garbled-text root cause (blocked on a repro). Detail:
-  `docs/tasks/ux-audit.md`.
+  Chat" copy, a11y live regions (incl. AI capability completion/error), full
+  i18n conversion, UTF-8 BOM cleanup, and the garbled-text (`嚙`) fallback (raw
+  path instead of "Path unavailable"). Open: `嚙` root cause still blocked on a
+  repro (non-urgent). Detail: `docs/tasks/ux-audit.md`.
+- [ ] `PRODUCT.1` v0.6 stable workflow core — **UNFROZEN 2026-06-05** (conditional
+  partial unfreeze; search-core is orthogonal to the REF.7 AI gates). Batches
+  `A`–`H`. `A`–`D` **done**: A=`workspace_boost`+`config_boost`, B=contract
+  audit, C=`noise_penalty` demote, D=project-command discovery (copy-only).
+  `PROJECT_ROOT.wire` **done**: startup VCS-root detection lights up A boost + D
+  commands (search stays global; hard workspace filter removed after it hid apps
+  + non-repo files). Next `PRODUCT.1.E`. Detail: `docs/tasks/product-1-workflow-core.md`.
 
 ### P2
 
@@ -59,12 +64,19 @@ Detailed batch definitions, done criteria, non-goals, file map, and validation g
 
 Keynova's active priority is the search-first workflow refactor: AI is a stateless capability layer invoked inline from unified result rows and prefix-keyword palette flows; chat-first surfaces leave the hot path.
 
-Until `REF.7` is complete, freeze new feature work unless it is required for the refactor, fixing a P0 regression, or protecting a safety boundary. `PREFLIGHT`, `BRAND.ICON`, and `PERF.1.FU` shipped/closed in v0.3.0.
+Freeze status (conditional partial unfreeze, 2026-06-05): `PRODUCT.1` search-core
+is **unfrozen** (orthogonal to the AI hot path the REF.7 gates measure). Frozen
+until `REF.7.D` + observation window close: `PRODUCT.2` and any AI/agent-touching
+work. `REF.7.D` + observation items are now non-blocking tracking items, not a
+queue gate. Other parked tracks (`AGENT.*`, `CLIP.1`, etc.) stay frozen.
 
 Keep `active.md` compact. Put batch-level task detail in `docs/tasks/refactor-ai-capability.md`, detailed implementation notes in `docs/memory/sessions/YYYY-MM-DD.md`, and future non-refactor ideas in `docs/tasks/backlog.md`.
 
 ## Next Phase Candidates
 
-- Run `REF.7.D` (`ollama pull qwen2.5:7b && npm run bench:ai -- --runs 10 --model qwen2.5:7b`), then fill ADR-0029 §10 to close `REF.7.C`.
-- After `REF.7`, revalidate parked tracks from `docs/tasks/backlog.md`.
+- Scope and start `PRODUCT.1.A` (ranking baseline) — write the batch plan into
+  `docs/tasks/product-roadmap.md` (primary vs simplification-only) before coding.
+- `REF.7.D` stays available as a non-blocking tracking item: `ollama pull
+  qwen2.5:7b && npm run bench:ai -- --runs 10 --model qwen2.5:7b`, then fill
+  ADR-0029 §10 to close `REF.7.C` and unfreeze `PRODUCT.2`.
 - After `REF.8`, refresh affected ADR statuses and architecture docs.
