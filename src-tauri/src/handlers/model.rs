@@ -29,7 +29,7 @@ struct LocalModelEntry {
 }
 
 fn tool_label(_tool: &str) -> &'static str {
-    "AI Chat"
+    "AI Assistant"
 }
 
 fn tool_keys(tool: &str) -> Result<(&'static str, &'static str), String> {

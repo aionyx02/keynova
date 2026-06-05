@@ -123,7 +123,7 @@ function InstalledView({ onClose }: ViewProps) {
         ? { provider: "ollama", model: row.name, tool: "ai" }
         : { provider: row.provider, model: row.model, tool: "ai" };
     await ipcDispatch("model.set_active", payload);
-    setNotice(`AI Chat is now using ${row.kind === "local" ? row.name : row.label}.`);
+    setNotice(`AI is now using ${row.kind === "local" ? row.name : row.label}.`);
     await load();
   }
 
@@ -168,7 +168,7 @@ function InstalledView({ onClose }: ViewProps) {
           ? `${data.tool_label}: ${data.active_provider}:${data.active_model}`
           : loading
             ? "Loading available models..."
-            : "Inspect the active AI Chat model"}
+            : "Inspect the active AI model"}
       </div>
 
       <div className="kn-scroll min-h-0 flex-1 overflow-y-auto px-2 py-2">
@@ -321,7 +321,7 @@ const API_OPTIONS: ApiOption[] = [
     provider: "openai",
     label: "OpenAI-compatible",
     model: "gpt-4o-mini",
-    description: "Point AI Chat at any OpenAI-style endpoint.",
+    description: "Point the AI assistant at any OpenAI-style endpoint.",
   },
 ];
 
@@ -480,7 +480,7 @@ function BrowseView({ onClose }: ViewProps) {
       setPendingDownload(null);
       setProgress(null);
       setError("");
-      setNotice(`AI Chat is now using ${event.payload.name}.`);
+      setNotice(`AI is now using ${event.payload.name}.`);
     });
     const unlistenError = listen<ModelEventPayload>("model-pull-error", (event) => {
       if (event.payload.tool && event.payload.tool !== "ai") return;
@@ -515,7 +515,7 @@ function BrowseView({ onClose }: ViewProps) {
       const check = await ipcDispatch<CheckResponse>("model.check", { name });
       if (check.exists) {
         await ipcDispatch("model.set_active", { provider: "ollama", model: name, tool: "ai" });
-        setNotice(`AI Chat is now using ${name}.`);
+        setNotice(`AI is now using ${name}.`);
         return;
       }
 
@@ -536,7 +536,7 @@ function BrowseView({ onClose }: ViewProps) {
     });
     setApiPrompt(null);
     setApiKey("");
-    setNotice(`AI Chat is now using ${apiPrompt.label}.`);
+    setNotice(`AI is now using ${apiPrompt.label}.`);
   }, [apiKey, apiPrompt]);
 
   async function activateOption(option: DownloadOption | undefined) {
@@ -588,7 +588,7 @@ function BrowseView({ onClose }: ViewProps) {
       className="flex min-h-0 flex-1 flex-col outline-none"
     >
       <div className="flex items-center justify-between gap-2 px-4 py-2">
-        <span className="kn-panel-subtitle">Pick a local or hosted model for AI Chat</span>
+        <span className="kn-panel-subtitle">Pick a local or hosted model for the AI assistant</span>
         <span className="flex items-center gap-2">
           <span className="kn-chip">RAM {formatMb(hardware?.ram_mb ?? 0)}</span>
           <span className="kn-chip">VRAM {formatMb(hardware?.vram_mb ?? 0)}</span>
