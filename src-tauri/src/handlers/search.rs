@@ -600,6 +600,7 @@ impl SearchHandler {
             .ok()
             .and_then(|ws| ws.current().project_root.clone())
             .filter(|root| !root.trim().is_empty());
+        let kind = ranking::kind_boost(&item.kind);
         let workspace = ranking::workspace_boost(&item.source, &item.path, project_root.as_deref());
         let config = ranking::config_boost(&item.source, &item.path);
         let noise = ranking::noise_penalty(&item.source, &item.path);
@@ -607,9 +608,10 @@ impl SearchHandler {
             Ok(manager) => manager.rank_boost_breakdown(&item.source, &item.path),
             Err(_) => (0, 0),
         };
-        item.score = base + workspace + config + recency + frequency + noise;
+        item.score = base + kind + workspace + config + recency + frequency + noise;
         item.score_breakdown = ScoreBreakdown {
             base,
+            kind_boost: kind,
             workspace_boost: workspace,
             config_boost: config,
             recency_boost: recency,

@@ -41,6 +41,14 @@ action_success - risk_penalty - noise_penalty`. **Live today:** text_match,
 recency, frequency (+ workspace as a filter). **Missing:** workspace_context as a
 *score*, action_success, risk_penalty, noise_penalty.
 
+## RANK.kind — apps/folders rank above plain files (2026-06-05)
+
+Dogfood: whole apps / project folders ranked *below* small document files. Added
+a structural `kind_boost` term: **App +20, Folder +12, else 0** (`ranking.rs::kind_boost`,
+new `ScoreBreakdown.kind_boost`, tooltip `rank.kind`). Deliberate target-type
+preference (not usage noise), so a fixed per-kind bump. A same-base folder now
+beats a file; apps are not buried under high-base docs.
+
 ## RANK.tune — boost magnitudes lowered after dogfood (2026-06-05)
 
 Dogfood feedback: boosts (esp. recency/frequency) buried strong exact-name

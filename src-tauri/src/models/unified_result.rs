@@ -415,6 +415,7 @@ mod tests {
             path: "C:/Foo.exe".to_string(),
             score_breakdown: ScoreBreakdown {
                 base: 80,
+                kind_boost: 0,
                 workspace_boost: 0,
                 config_boost: 0,
                 recency_boost: 10,

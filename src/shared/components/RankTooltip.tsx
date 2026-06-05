@@ -22,6 +22,7 @@ export function RankTooltip({ breakdown, anchorRect, visible }: Props) {
 
   const total =
     breakdown.base +
+    breakdown.kind_boost +
     breakdown.workspace_boost +
     breakdown.config_boost +
     breakdown.recency_boost +
@@ -48,6 +49,12 @@ export function RankTooltip({ breakdown, anchorRect, visible }: Props) {
       <div className="grid grid-cols-[max-content_1fr] gap-x-2 gap-y-0.5 font-mono text-[10px]">
         <span className="text-gray-500">{t.base}</span>
         <span className="text-right text-gray-300">{breakdown.base}</span>
+        {breakdown.kind_boost !== 0 && (
+          <>
+            <span className="text-gray-500">{t.kind}</span>
+            <span className="text-right text-sky-300">{fmtSigned(breakdown.kind_boost)}</span>
+          </>
+        )}
         {breakdown.workspace_boost !== 0 && (
           <>
             <span className="text-gray-500">{t.workspace}</span>
