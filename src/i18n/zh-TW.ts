@@ -5,6 +5,8 @@ export const zhTW = {
     noResultsFor: "找不到「{query}」的結果。",
     searching: "搜尋中…",
     aiGenerating: "AI 回應產生中…",
+    aiReady: "AI 回應完成",
+    aiError: "AI 發生錯誤",
     resultCount: "{count} 個結果",
     open: "開啟",
     close: "關閉",

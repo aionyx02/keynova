@@ -19,6 +19,14 @@ and completed work are detailed in `docs/memory/sessions/2026-06-05.md`. Branch:
 - `UX.AUDIT.1` drop stale "AI Chat" naming → inline-AI wording (`cba9fd4`).
 - `UX.AUDIT.2` first screen-reader live regions, `aria-live`/`role=status|alert`
   on palette search state + SettingRow/ModelPanel/NoteEditor status (`66ecab9`).
+- `UX.AUDIT.2b` a11y live-region deepening for AI capabilities. The palette
+  polite region previously announced "AI generating…" at start then went silent
+  on completion; now it announces `search.aiReady` on completion, and a new
+  assertive `role=alert` region announces `search.aiError` on failure. Derived
+  centrally in `CommandPalette` from the active capability's run-state
+  (`capabilityStream` / `genCommandState` / `suggestNextState` / `rememberState`
+  / `recallState`) so all 5 surfaces are covered without per-card duplication.
+  Event-driven; verify under `tauri dev` (no unit test per Tauri-stream norm).
 - `UX.AUDIT.3` full i18n conversion — **infra + all batches done**:
   - Infra: `src/i18n/format.ts` `fmt(template, vars)` `{token}` interpolation.
   - Batch 1 ModelPanel (`model.*`), Batch 2 SettingPanel/SettingRow (`settings.*`),

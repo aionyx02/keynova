@@ -394,6 +394,24 @@ export function CommandPalette() {
     (rememberCapabilityMode !== null && remember.isLoading) ||
     (recallCapabilityMode !== null && recall.isLoading);
 
+  // Terminal outcome of whichever capability is active, so the palette live
+  // region can announce completion (polite) and failure (assertive) — not just
+  // the "AI generating…" start. Status enums converge on complete/error.
+  const activeCapabilityOutcome: { kind: "done" } | { kind: "error"; message: string } | null =
+    (() => {
+      const active = [
+        { on: textCapabilityMode !== null, status: capabilityStream.status, error: capabilityStream.error },
+        { on: commandCapabilityMode !== null, status: genCommandState.status, error: genCommand.error },
+        { on: nextCapabilityMode !== null, status: suggestNextState.status, error: suggestNext.error },
+        { on: rememberCapabilityMode !== null, status: rememberState.status, error: remember.error },
+        { on: recallCapabilityMode !== null, status: recallState.status, error: recall.error },
+      ].find((entry) => entry.on);
+      if (!active) return null;
+      if (active.status === "error") return { kind: "error", message: active.error ?? "" };
+      if (active.status === "complete") return { kind: "done" };
+      return null;
+    })();
+
   const {
     modeRef,
     cmdResultRef,
@@ -746,6 +764,7 @@ export function CommandPalette() {
   const liveRegionText = (() => {
     if (mode !== "search" || paletteMode.kind !== "search") return "";
     if (activeCapabilityLoading) return t.search.aiGenerating;
+    if (activeCapabilityOutcome?.kind === "done") return t.search.aiReady;
     if (showCapabilityResult) return "";
     if (query.trim() === "") return "";
     if (isLoading) return t.search.searching;
@@ -754,6 +773,15 @@ export function CommandPalette() {
       return fmt(t.search.resultCount, { count: visibleResults.length });
     return "";
   })();
+
+  // Errors get an assertive region so assistive tech interrupts (the card body
+  // carries the detailed message; this only flags that a failure happened).
+  const capabilityErrorText =
+    mode === "search" &&
+    paletteMode.kind === "search" &&
+    activeCapabilityOutcome?.kind === "error"
+      ? t.search.aiError
+      : "";
 
   const hasPaletteContentBelow = Boolean(
     hasResults ||
@@ -795,6 +823,9 @@ export function CommandPalette() {
 
           <div className="sr-only" role="status" aria-live="polite" aria-atomic="true">
             {liveRegionText}
+          </div>
+          <div className="sr-only" role="alert" aria-live="assertive" aria-atomic="true">
+            {capabilityErrorText}
           </div>
 
           {capabilityMode && (
