@@ -2,6 +2,7 @@ use std::sync::{Arc, Mutex};
 
 use serde_json::{json, Value};
 
+use crate::app::feature_registry::{AssemblyCtx, FeatureRegistrar, FeatureSpec};
 use crate::core::config_manager::ConfigManager;
 use crate::core::{AppEvent, CommandHandler, CommandResult, EventBus};
 use crate::managers::portable_nvim_manager;
@@ -15,6 +16,19 @@ impl NvimHandler {
     pub fn new(event_bus: Arc<EventBus>, config: Arc<Mutex<ConfigManager>>) -> Self {
         Self { event_bus, config }
     }
+}
+
+/// DECOUP.3 (ADR-0044): self-register nvim. No manager; uses the shared event
+/// bus + config from ctx.
+pub fn register(reg: &mut FeatureRegistrar, ctx: &AssemblyCtx) {
+    reg.handler(Arc::new(NvimHandler::new(
+        Arc::new(ctx.event_bus.clone()),
+        Arc::clone(&ctx.config),
+    )));
+    reg.spec(FeatureSpec {
+        namespace: "nvim",
+        flag_key: None,
+    });
 }
 
 impl CommandHandler for NvimHandler {

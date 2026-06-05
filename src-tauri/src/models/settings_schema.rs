@@ -233,7 +233,7 @@ pub fn builtin_setting_schema() -> Vec<SettingSchema> {
         SettingSchema::new(
             "features.ai",
             "features",
-            "AI Chat & Assistant",
+            "AI Assistant (inline)",
             Boolean,
             "false",
             false,
@@ -766,9 +766,14 @@ fn contains_unsafe_command_chars(value: &str) -> bool {
         .any(|c| c.is_control() || matches!(c, ';' | '&' | '|' | '<' | '>' | '`' | '$'))
 }
 
+/// Mask shown for a sensitive setting that HAS a stored value, so the UI can
+/// tell "set" from "unset" without leaking the secret. An unset secret stays
+/// empty. Mirrors the `setting.get` mask.
+pub const SECRET_MASK: &str = "********";
+
 pub fn redact_setting_value(key: &str, value: &str) -> String {
     if is_sensitive_key(key) && !value.is_empty() {
-        String::new()
+        SECRET_MASK.to_string()
     } else {
         value.to_string()
     }

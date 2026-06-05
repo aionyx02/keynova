@@ -1,6 +1,7 @@
 import { useEffect, useState, type ReactElement } from "react";
 
 import { UiIcon } from "../../components/icons/UiIcon";
+import { useI18n } from "../../i18n/useI18n";
 import type { GenCommandOutput } from "./types";
 import type { CapabilityRunStatus } from "./hooks/useCapabilityRunState";
 
@@ -62,10 +63,11 @@ export function CapabilityCommandCard({
     const stop = completedAtMs ?? now;
     return stop - startedAtMs;
   })();
+  const c = useI18n().capability;
   const confidence = data ? confidenceLabel(data.confidence) : null;
   const headerSuffix = confidence ? ` - confidence: ${confidence}` : "";
   const statusSuffix =
-    status === "error" ? " - error" : status === "cancelled" ? " - cancelled" : "";
+    status === "error" ? c.suffixError : status === "cancelled" ? c.suffixCancelled : "";
 
   const [copyState, setCopyState] = useState<"idle" | "copied">("idle");
 
@@ -82,16 +84,16 @@ export function CapabilityCommandCard({
 
   const footerLabel =
     status === "pending"
-      ? "Generating command"
+      ? c.cmdFooterPending
       : status === "idle"
-        ? "Press Enter to generate"
+        ? c.cmdFooterIdle
         : status === "cancelled"
-          ? "Cancelled - press Enter to try again"
+          ? c.cmdFooterCancelled
           : status === "error"
-            ? "Error - press Enter to retry"
+            ? c.cmdFooterError
             : data?.command
-              ? "Command ready"
-              : "Command unavailable";
+              ? c.cmdFooterReady
+              : c.cmdFooterUnavailable;
 
   return (
     <div className="kn-panel-shell overflow-hidden rounded-t-none border-t-0">
@@ -110,7 +112,7 @@ export function CapabilityCommandCard({
             else onClose();
           }}
           className="flex h-7 w-7 items-center justify-center rounded-[10px] border border-[color:var(--kn-border)] bg-white/[0.035] text-[color:var(--kn-text-muted)] transition-colors hover:bg-white/[0.06] hover:text-[color:var(--kn-text)]"
-          aria-label="Close"
+          aria-label={c.close}
         >
           <UiIcon name="x" className="h-3.5 w-3.5" />
         </button>
@@ -120,7 +122,7 @@ export function CapabilityCommandCard({
         {status === "error" && error ? (
           <div className="whitespace-pre-wrap break-words text-rose-200">{error}</div>
         ) : status === "cancelled" ? (
-          <div className="text-[color:var(--kn-text-muted)]">Cancelled.</div>
+          <div className="text-[color:var(--kn-text-muted)]">{c.cancelledBody}</div>
         ) : data?.command ? (
           <div className="space-y-3">
             <div
@@ -133,31 +135,28 @@ export function CapabilityCommandCard({
             </div>
             <div className="space-y-1">
               <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[color:var(--kn-text-faint)]">
-                Rationale
+                {c.rationale}
               </div>
               <div className="text-[13px] leading-6 text-[color:var(--kn-text)]">
-                {data.rationale || "No rationale returned."}
+                {data.rationale || c.noRationale}
               </div>
             </div>
             {riskRequiresConfirmation && (
               <div className="rounded-[14px] border border-amber-300/25 bg-amber-300/8 px-3 py-2 text-[12px] leading-5 text-amber-100">
-                Generated command may change local system state. Review before running.
+                {c.riskWarning}
               </div>
             )}
           </div>
         ) : status === "pending" ? (
-          <div className="text-[color:var(--kn-text-muted)]">
-            Generating a single command for your intent...
-          </div>
+          <div className="text-[color:var(--kn-text-muted)]">{c.cmdPendingBody}</div>
         ) : status === "complete" ? (
-          <div className="text-[color:var(--kn-text-muted)]">
-            Model returned an unreadable command. Press Enter to retry.
-          </div>
+          <div className="text-[color:var(--kn-text-muted)]">{c.cmdUnreadable}</div>
         ) : (
           <div className="space-y-2 text-[color:var(--kn-text-muted)]">
-            <div>Ready to turn your intent into a single command.</div>
+            <div>{c.cmdIdleBody}</div>
             <div className="text-[12px] text-[color:var(--kn-text-faint)]">
-              Intent: <span className="font-medium text-[color:var(--kn-text-soft)]">{intent}</span>
+              {c.intentLabel}{" "}
+              <span className="font-medium text-[color:var(--kn-text-soft)]">{intent}</span>
             </div>
           </div>
         )}
@@ -174,7 +173,7 @@ export function CapabilityCommandCard({
             className="inline-flex items-center gap-1.5 rounded-[12px] border border-[color:var(--kn-border)] bg-white/[0.035] px-2.5 py-1.5 font-medium text-[color:var(--kn-text-soft)] transition-colors hover:bg-white/[0.06] hover:text-[color:var(--kn-text)]"
           >
             <UiIcon name="terminal" className="h-3.5 w-3.5" />
-            Run
+            {c.run}
           </button>
           <button
             type="button"
@@ -185,7 +184,7 @@ export function CapabilityCommandCard({
             className="inline-flex items-center gap-1.5 rounded-[12px] border border-[color:var(--kn-border)] bg-white/[0.035] px-2.5 py-1.5 font-medium text-[color:var(--kn-text-soft)] transition-colors hover:bg-white/[0.06] hover:text-[color:var(--kn-text)]"
           >
             <UiIcon name="command" className="h-3.5 w-3.5" />
-            Edit before
+            {c.editBefore}
           </button>
           <button
             type="button"
@@ -196,7 +195,7 @@ export function CapabilityCommandCard({
             className="inline-flex items-center gap-1.5 rounded-[12px] border border-[color:var(--kn-border)] bg-white/[0.035] px-2.5 py-1.5 font-medium text-[color:var(--kn-text-soft)] transition-colors hover:bg-white/[0.06] hover:text-[color:var(--kn-text)]"
           >
             <UiIcon name="file" className="h-3.5 w-3.5" />
-            {copyState === "copied" ? "Copied" : "Copy"}
+            {copyState === "copied" ? c.copied : c.copy}
           </button>
         </div>
       )}
@@ -212,7 +211,7 @@ export function CapabilityCommandCard({
             className="inline-flex items-center gap-1.5 rounded-[12px] border border-[color:var(--kn-border)] bg-white/[0.035] px-2.5 py-1.5 font-medium text-[color:var(--kn-text-soft)] transition-colors hover:bg-white/[0.06] hover:text-[color:var(--kn-text)]"
           >
             <UiIcon name="command" className="h-3.5 w-3.5" />
-            {status === "idle" ? "Generate" : "Retry"}
+            {status === "idle" ? c.generate : c.retry}
           </button>
         </div>
       )}

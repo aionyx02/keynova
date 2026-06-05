@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
+import { useI18n } from "../../i18n/useI18n";
 import type { PanelProps } from "../../types/panel";
 
 type Stage = "idle" | "downloading" | "extracting" | "done" | "error";
@@ -17,6 +18,7 @@ async function ipcDispatch<T>(route: string, payload?: Record<string, unknown>):
 }
 
 export function NvimDownloadPanel({ onClose }: PanelProps) {
+  const t = useI18n().nvim;
   const [stage, setStage] = useState<Stage>("idle");
   const [pct, setPct] = useState(0);
   const [nvimPath, setNvimPath] = useState<string | null>(null);
@@ -50,14 +52,6 @@ export function NvimDownloadPanel({ onClose }: PanelProps) {
     });
   }
 
-  const stageLabel: Record<Stage, string> = {
-    idle: "Ready",
-    downloading: "Downloading",
-    extracting: "Extracting",
-    done: "Installed",
-    error: "Failed",
-  };
-
   const isActive = stage === "downloading" || stage === "extracting";
 
   return (
@@ -74,20 +68,17 @@ export function NvimDownloadPanel({ onClose }: PanelProps) {
     >
       <div className="kn-panel-header">
         <div>
-          <div className="kn-panel-title">Install Neovim</div>
-          <div className="kn-panel-subtitle">
-            Fetch a portable Neovim copy for the LazyVim workflow
-          </div>
+          <div className="kn-panel-title">{t.title}</div>
+          <div className="kn-panel-subtitle">{t.subtitle}</div>
         </div>
         <span className={`kn-chip ${isActive || stage === "done" ? "kn-chip-active" : ""}`}>
-          {stageLabel[stage]}
+          {t.stages[stage]}
         </span>
       </div>
 
       <div className="flex flex-1 flex-col gap-4 px-4 py-4">
         <div className="kn-muted-surface px-4 py-3 text-sm leading-6 text-[color:var(--kn-text-soft)]">
-          Neovim was not found on this machine. Keynova can download a portable copy of Neovim
-          v0.10.4 and wire it into the note workflow for you.
+          {t.body}
         </div>
 
         {stage === "idle" && (
@@ -96,14 +87,14 @@ export function NvimDownloadPanel({ onClose }: PanelProps) {
             onClick={startDownload}
             className="kn-button kn-button-primary self-start px-4 py-2"
           >
-            Download Neovim v0.10.4
+            {t.download}
           </button>
         )}
 
         {isActive && (
           <div className="kn-muted-surface space-y-3 px-4 py-3">
             <div className="flex items-center justify-between text-xs text-[color:var(--kn-text-muted)]">
-              <span>{stageLabel[stage]}</span>
+              <span>{t.stages[stage]}</span>
               <span className="font-mono text-[color:var(--kn-text-soft)]">{pct}%</span>
             </div>
             <div className="h-1.5 w-full overflow-hidden rounded-full bg-white/[0.05]">
@@ -118,7 +109,7 @@ export function NvimDownloadPanel({ onClose }: PanelProps) {
         {stage === "done" && (
           <div className="space-y-3">
             <div className="kn-muted-surface border-emerald-400/20 bg-[color:var(--kn-success-wash)] px-4 py-3 text-sm text-emerald-100">
-              Neovim installed successfully.
+              {t.installed}
             </div>
             {nvimPath && (
               <div className="kn-muted-surface break-all px-4 py-3 font-mono text-xs text-[color:var(--kn-text-muted)]">
@@ -130,7 +121,7 @@ export function NvimDownloadPanel({ onClose }: PanelProps) {
               onClick={onClose}
               className="kn-button kn-button-primary self-start px-4 py-2"
             >
-              Close and retry /lazyvim
+              {t.closeRetry}
             </button>
           </div>
         )}
@@ -138,26 +129,22 @@ export function NvimDownloadPanel({ onClose }: PanelProps) {
         {stage === "error" && (
           <div className="space-y-3">
             <div className="kn-muted-surface border-red-400/20 bg-[color:var(--kn-danger-wash)] px-4 py-3 text-sm text-red-100">
-              {error ?? "The download failed."}
+              {error ?? t.downloadFailed}
             </div>
             <button
               type="button"
               onClick={startDownload}
               className="kn-button self-start px-4 py-2"
             >
-              Retry
+              {t.retry}
             </button>
           </div>
         )}
       </div>
 
       <div className="kn-panel-footer">
-        <span>Esc closes</span>
-        <span>
-          {stage === "done"
-            ? "Neovim is ready to use"
-            : "Portable install, no manual setup required"}
-        </span>
+        <span>{t.escCloses}</span>
+        <span>{stage === "done" ? t.readyFooter : t.portableFooter}</span>
       </div>
     </div>
   );

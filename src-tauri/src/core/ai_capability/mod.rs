@@ -8,6 +8,8 @@
 
 mod capabilities;
 pub mod contract;
+pub(crate) mod memory;
+pub(crate) mod parse;
 pub mod prompt;
 pub mod registry;
 
@@ -29,6 +31,8 @@ pub fn call_capability(
         CapabilityId::FixError => capabilities::fix_error::call(request, deps),
         CapabilityId::GenCommand => capabilities::gen_command::call(request, deps),
         CapabilityId::SuggestNext => capabilities::suggest_next::call(request, deps),
+        CapabilityId::Remember => capabilities::remember::call(request, deps),
+        CapabilityId::Recall => capabilities::recall::call(request, deps),
     }
 }
 

@@ -3,6 +3,8 @@
 // /setting, or replay the onboarding tour.
 
 import { UiIcon } from "../../components/icons/UiIcon";
+import { fmt } from "../../i18n/format";
+import { useI18n } from "../../i18n/useI18n";
 
 interface Props {
   query: string;
@@ -19,28 +21,27 @@ export function EmptyStateCTA({
   onJumpSetting,
   onReplayOnboard,
 }: Props) {
+  const p = useI18n().palette;
   return (
     <div className="kn-panel-shell overflow-hidden rounded-t-none border-t-0 px-4 py-4">
       <div className="text-sm text-[color:var(--kn-text-soft)]">
-        <div className="mb-3">
-          No results for <span className="font-mono text-[color:var(--kn-text)]">{query}</span>.
-        </div>
+        <div className="mb-3">{fmt(p.emptyNoResults, { query })}</div>
         <div className="flex flex-wrap gap-2 text-xs">
           <button type="button" onClick={onCreateNote} className="kn-button kn-button-primary">
             <UiIcon name="note" className="h-3.5 w-3.5" />
-            Create note &quot;{query}&quot;
+            {fmt(p.createNote, { query })}
           </button>
           <button type="button" onClick={onJumpHelp} className="kn-button">
             <UiIcon name="command" className="h-3.5 w-3.5" />
-            Try /help
+            {p.tryHelp}
           </button>
           <button type="button" onClick={onJumpSetting} className="kn-button">
             <UiIcon name="settings" className="h-3.5 w-3.5" />
-            Open /setting
+            {p.openSetting}
           </button>
           <button type="button" onClick={onReplayOnboard} className="kn-button">
             <UiIcon name="arrow-right" className="h-3.5 w-3.5" />
-            Replay /onboard
+            {p.replayOnboard}
           </button>
         </div>
       </div>

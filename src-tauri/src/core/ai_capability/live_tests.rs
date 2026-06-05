@@ -58,6 +58,7 @@ fn deps_with_chat(chat: Arc<dyn ChatProvider>) -> CapabilityDeps {
         knowledge_store: None,
         cancel: Arc::new(AtomicBool::new(false)),
         stream_chunk: None,
+        allow_memory_grounding: false,
     }
 }
 
@@ -79,6 +80,7 @@ fn deps_with_chat_streaming(
         knowledge_store: None,
         cancel: Arc::new(AtomicBool::new(false)),
         stream_chunk: Some(stream_chunk),
+        allow_memory_grounding: false,
     }
 }
 

@@ -1,3 +1,4 @@
+import { useI18n } from "../../i18n/useI18n";
 import type { ScoreBreakdown } from "../../types/search";
 
 interface Props {
@@ -16,6 +17,7 @@ function fmtSigned(n: number): string {
  * left if it would overflow the viewport.
  */
 export function RankTooltip({ breakdown, anchorRect, visible }: Props) {
+  const t = useI18n().rank;
   if (!visible || !breakdown || !anchorRect) return null;
 
   const total = breakdown.base + breakdown.recency_boost + breakdown.frequency_boost;
@@ -34,15 +36,15 @@ export function RankTooltip({ breakdown, anchorRect, visible }: Props) {
       role="tooltip"
     >
       <div className="mb-1 flex items-baseline justify-between">
-        <span className="text-gray-500 uppercase tracking-wider text-[9px]">Why this rank</span>
+        <span className="text-gray-500 uppercase tracking-wider text-[9px]">{t.title}</span>
         <span className="font-mono font-semibold text-gray-100">{total}</span>
       </div>
       <div className="grid grid-cols-[max-content_1fr] gap-x-2 gap-y-0.5 font-mono text-[10px]">
-        <span className="text-gray-500">base</span>
+        <span className="text-gray-500">{t.base}</span>
         <span className="text-right text-gray-300">{breakdown.base}</span>
-        <span className="text-gray-500">recency</span>
+        <span className="text-gray-500">{t.recency}</span>
         <span className="text-right text-sky-300">{fmtSigned(breakdown.recency_boost)}</span>
-        <span className="text-gray-500">frequency</span>
+        <span className="text-gray-500">{t.frequency}</span>
         <span className="text-right text-emerald-300">{fmtSigned(breakdown.frequency_boost)}</span>
       </div>
     </div>

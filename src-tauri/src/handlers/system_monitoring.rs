@@ -6,6 +6,7 @@ use serde::Serialize;
 use serde_json::{json, Value};
 use sysinfo::{Disks, Networks, System};
 
+use crate::app::feature_registry::{AssemblyCtx, FeatureRegistrar, FeatureSpec};
 use crate::core::{AppEvent, CommandHandler, CommandResult, EventBus};
 
 #[derive(Serialize)]
@@ -135,6 +136,21 @@ impl SystemMonitoringHandler {
             }
         }
     }
+}
+
+/// DECOUP.3 (ADR-0044): self-register system monitoring. Uses the shared event
+/// bus from ctx.
+pub fn register(reg: &mut FeatureRegistrar, ctx: &AssemblyCtx) {
+    reg.handler(Arc::new(SystemMonitoringHandler::new(Arc::new(
+        ctx.event_bus.clone(),
+    ))));
+    // `flag_key = None`: the system_monitoring IPC namespace is intentionally not
+    // dispatch-gated (the monitoring stream must keep polling); the panel + its
+    // /system_monitoring command are gated by `features.system` elsewhere.
+    reg.spec(FeatureSpec {
+        namespace: "system_monitoring",
+        flag_key: None,
+    });
 }
 
 impl CommandHandler for SystemMonitoringHandler {

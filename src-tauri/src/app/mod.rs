@@ -2,6 +2,7 @@ pub(crate) mod autostart;
 pub(crate) mod bootstrap;
 pub(crate) mod control_server;
 pub(crate) mod dispatch;
+pub(crate) mod feature_registry;
 pub(crate) mod migration;
 pub(crate) mod shortcuts;
 pub(crate) mod state;

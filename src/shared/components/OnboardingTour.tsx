@@ -1,7 +1,9 @@
-﻿import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 import { UiIcon, type UiIconName } from "../../components/icons/UiIcon";
-// PERF.1 — Storage helpers moved to a sibling module so a lazy import of this
+import { fmt } from "../../i18n/format";
+import { useI18n } from "../../i18n/useI18n";
+// PERF.1 - Storage helpers moved to a sibling module so a lazy import of this
 // component does not drag the storage keys into the eager bundle. Re-exported
 // from here for callers that still reach for the old import path.
 import {
@@ -13,37 +15,14 @@ import {
 export { hasCompletedOnboarding, markOnboardingCompleted, resetOnboarding };
 
 interface Step {
-  title: string;
-  body: string;
-  hint?: string;
   icon: UiIconName;
 }
 
 const STEPS: Step[] = [
-  {
-    title: "Welcome to Keynova",
-    body: "A keyboard-first launcher for fast local actions. Press Ctrl+K, start typing, and stay in flow.",
-    hint: "1 / 4",
-    icon: "search",
-  },
-  {
-    title: "Search with almost no friction",
-    body: "Type naturally to search files, apps, notes, and history. Use Up or Down to move and Enter to open.",
-    hint: "2 / 4",
-    icon: "filter",
-  },
-  {
-    title: "Use slash commands when intent is clear",
-    body: "Type / to switch into command mode. Try /help, /setting, /cal, or /uuid when you want direct actions.",
-    hint: "3 / 4",
-    icon: "command",
-  },
-  {
-    title: "Tune the workspace around you",
-    body: "Open /setting to adjust hotkeys, indexing, and AI features. Press ? any time to review keybindings.",
-    hint: "4 / 4",
-    icon: "settings",
-  },
+  { icon: "search" },
+  { icon: "filter" },
+  { icon: "command" },
+  { icon: "settings" },
 ];
 
 interface Props {
@@ -51,6 +30,7 @@ interface Props {
 }
 
 export function OnboardingTour({ onClose }: Props) {
+  const t = useI18n().onboarding;
   const [stepIdx, setStepIdx] = useState(0);
 
   const close = useCallback(() => {
@@ -88,6 +68,8 @@ export function OnboardingTour({ onClose }: Props) {
   }, [advance, close]);
 
   const step = STEPS[stepIdx];
+  const stepText = t.steps[stepIdx] ?? t.steps[0];
+  const hint = fmt(t.stepHint, { current: stepIdx + 1, total: STEPS.length });
   const progress = `${((stepIdx + 1) / STEPS.length) * 100}%`;
 
   return (
@@ -105,18 +87,16 @@ export function OnboardingTour({ onClose }: Props) {
               </span>
               <div>
                 <span className="inline-flex rounded-full border border-cyan-400/20 bg-cyan-400/10 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-cyan-200">
-                  Getting Started
+                  {t.badge}
                 </span>
                 <h2 className="mt-3 text-[22px] font-semibold tracking-tight text-[color:var(--kn-text)]">
-                  {step.title}
+                  {stepText.title}
                 </h2>
               </div>
             </div>
-            {step.hint && (
-              <span className="pt-1 text-[11px] font-medium text-[color:var(--kn-text-muted)]">
-                {step.hint}
-              </span>
-            )}
+            <span className="pt-1 text-[11px] font-medium text-[color:var(--kn-text-muted)]">
+              {hint}
+            </span>
           </div>
 
           <div className="h-1 overflow-hidden rounded-full bg-white/[0.06]">
@@ -128,13 +108,13 @@ export function OnboardingTour({ onClose }: Props) {
         </div>
 
         <div className="px-5 py-5">
-          <p className="text-sm leading-7 text-[color:var(--kn-text-soft)]">{step.body}</p>
+          <p className="text-sm leading-7 text-[color:var(--kn-text-soft)]">{stepText.body}</p>
 
           <div className="mt-5 flex flex-wrap gap-2">
             <span className="kn-kbd">Esc</span>
             <span className="kn-kbd">Enter</span>
-            <span className="kn-kbd">Left</span>
-            <span className="kn-kbd">Right</span>
+            <span className="kn-kbd">{t.leftKey}</span>
+            <span className="kn-kbd">{t.rightKey}</span>
           </div>
         </div>
 
@@ -144,7 +124,7 @@ export function OnboardingTour({ onClose }: Props) {
             onClick={close}
             className="font-medium text-[color:var(--kn-text-muted)] transition-colors hover:text-[color:var(--kn-text-soft)]"
           >
-            Skip
+            {t.skip}
           </button>
 
           <div className="flex items-center gap-2">
@@ -154,14 +134,14 @@ export function OnboardingTour({ onClose }: Props) {
               disabled={stepIdx === 0}
               className="rounded-[12px] border border-[color:var(--kn-border)] bg-white/[0.03] px-3 py-2 font-medium text-[color:var(--kn-text-soft)] transition-colors hover:bg-white/[0.05] disabled:cursor-not-allowed disabled:opacity-35"
             >
-              Back
+              {t.back}
             </button>
             <button
               type="button"
               onClick={advance}
               className="inline-flex items-center gap-1.5 rounded-[12px] border border-cyan-400/20 bg-[linear-gradient(180deg,_rgba(127,212,255,0.22)_0%,_rgba(85,188,255,0.16)_100%)] px-3.5 py-2 font-semibold text-[color:var(--kn-text)] shadow-[inset_0_1px_0_rgba(255,255,255,0.16)] transition-all duration-150 hover:border-cyan-300/30 hover:bg-[linear-gradient(180deg,_rgba(127,212,255,0.28)_0%,_rgba(85,188,255,0.2)_100%)]"
             >
-              {stepIdx >= STEPS.length - 1 ? "Done" : "Next"}
+              {stepIdx >= STEPS.length - 1 ? t.done : t.next}
               {stepIdx < STEPS.length - 1 && <UiIcon name="arrow-right" className="h-4 w-4" />}
             </button>
           </div>

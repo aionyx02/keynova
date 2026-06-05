@@ -21,7 +21,7 @@ use crate::core::knowledge_store::KnowledgeStoreHandle;
 use crate::core::local_context::LocalContextSearcher;
 use crate::core::AppEvent;
 use crate::core::{CommandHandler, CommandResult};
-use crate::managers::ai_manager::{resolve_ai_runtime_config, AiManager};
+use crate::managers::ai_manager::{resolve_ai_runtime_config, AiManager, AiProvider};
 
 pub struct AiCapabilityHandler {
     ai: Arc<AiManager>,
@@ -109,9 +109,19 @@ impl AiCapabilityHandler {
             .and_then(Value::as_bool)
             .unwrap_or(false);
 
-        // Resolve provider config now so we fail fast before spawning.
+        // Resolve provider config now so we fail fast before spawning. The same
+        // lock also gates the whole inline-AI surface on `features.ai` (the new
+        // capability layer was previously ungated); mirrors `handlers/ai.rs`.
         let runtime = {
             let cfg = self.config.lock().map_err(|e| e.to_string())?;
+            let enabled = cfg
+                .get("features.ai")
+                .as_deref()
+                .map(|v| !v.eq_ignore_ascii_case("false"))
+                .unwrap_or(true);
+            if !enabled {
+                return Err("AI 功能已停用。請前往 /setting → Features 開啟。".into());
+            }
             resolve_ai_runtime_config(|key| cfg.get(key))?
         };
 
@@ -126,6 +136,11 @@ impl AiCapabilityHandler {
             payload: inner_payload,
             context_hash,
         };
+
+        // Privacy boundary (ADR-0043): personal memory is injected into prompts
+        // only for a local provider. Computed before `runtime` is moved into the
+        // chat provider below.
+        let allow_memory_grounding = matches!(runtime.provider, AiProvider::Ollama { .. });
 
         let chat: Arc<dyn ChatProvider> = Arc::new(AiManagerChatProvider {
             ai: Arc::clone(&self.ai),
@@ -157,6 +172,7 @@ impl AiCapabilityHandler {
                 knowledge_store: Some(knowledge_store),
                 cancel: Arc::clone(&cancel_flag),
                 stream_chunk,
+                allow_memory_grounding,
             };
 
             let event = match ai_capability::call_capability(request, &deps) {
@@ -220,15 +236,17 @@ mod tests {
     use crate::core::ai_capability::registry::CapabilityId;
 
     #[test]
-    fn list_returns_five_capability_metas() {
+    fn list_returns_all_capability_metas() {
         let metas = ai_capability::all();
-        assert_eq!(metas.len(), 5);
+        assert_eq!(metas.len(), 7);
         let ids: Vec<_> = metas.iter().map(|m| m.id).collect();
         assert!(ids.contains(&CapabilityId::Explain));
         assert!(ids.contains(&CapabilityId::Summarize));
         assert!(ids.contains(&CapabilityId::FixError));
         assert!(ids.contains(&CapabilityId::GenCommand));
         assert!(ids.contains(&CapabilityId::SuggestNext));
+        assert!(ids.contains(&CapabilityId::Remember));
+        assert!(ids.contains(&CapabilityId::Recall));
     }
 
     #[test]

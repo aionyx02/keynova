@@ -4,7 +4,8 @@
 // and `/ ...` as command). When `parseInputMode` returns `search`, this
 // parser runs against the raw query to detect a leading capability keyword.
 //
-// Wired prefixes: `explain`, `summarize`, `cmd`, `fix`, `next`.
+// Wired prefixes: `explain`, `summarize`, `cmd`, `fix`, `remember`, `recall`,
+// `next`.
 //
 // Rules:
 // - Match is case-insensitive on the keyword, body preserved as typed
@@ -17,7 +18,13 @@
 //   nothing).
 // - Leading whitespace on the query is allowed.
 
-export type CapabilityTextPrefixId = "explain" | "summarize" | "cmd" | "fix";
+export type CapabilityTextPrefixId =
+  | "explain"
+  | "summarize"
+  | "cmd"
+  | "fix"
+  | "remember"
+  | "recall";
 export type CapabilityPrefixId = CapabilityTextPrefixId | "next";
 
 export interface CapabilityTextArgs {
@@ -40,6 +47,8 @@ const PREFIXES: ReadonlyArray<PrefixSpec> = [
   { keyword: "summarize", id: "summarize" },
   { keyword: "cmd", id: "cmd" },
   { keyword: "fix", id: "fix" },
+  { keyword: "remember", id: "remember" },
+  { keyword: "recall", id: "recall" },
 ];
 
 export function parseCapabilityPrefix(query: string): CapabilityPrefixMatch | null {

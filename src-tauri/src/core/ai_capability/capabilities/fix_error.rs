@@ -14,11 +14,13 @@ use serde::Deserialize;
 use crate::core::ai_capability::contract::{
     CapabilityDeps, CapabilityError, CapabilityOutput, CapabilityRequest, CapabilityResponse,
 };
+use crate::core::ai_capability::memory::push_memory_sources;
 use crate::core::ai_capability::prompt::{build_prompt, maybe_audit};
 use crate::core::ai_capability::registry::{meta, CapabilityId};
 use crate::core::dev_runner::{
     extract_compiler_errors, run_bounded_dev_cmd, DEV_CARGO_TIMEOUT_SECS, DEV_NPM_TIMEOUT_SECS,
 };
+use crate::models::agent::GroundingSource;
 use crate::models::unified_result::RiskTag;
 
 /// Programs the read-only re-run path will accept. Anything else routes to
@@ -132,7 +134,15 @@ pub fn call(
         "Explain the following compiler/lint error and suggest a one-line fix.\n\n{}",
         errors_block
     );
-    let prompt = build_prompt(SYSTEM, &[], &task);
+
+    // Personal-memory grounding is gated to local providers (ADR-0043).
+    let mut sources: Vec<GroundingSource> = Vec::new();
+    if deps.allow_memory_grounding {
+        if let Some(store) = deps.knowledge_store.as_ref() {
+            push_memory_sources(store, &raw_output, &mut sources);
+        }
+    }
+    let prompt = build_prompt(SYSTEM, &sources, &task);
 
     let reply = match &deps.stream_chunk {
         Some(on_chunk) => deps
@@ -193,6 +203,7 @@ mod tests {
             knowledge_store: None,
             cancel: Arc::new(AtomicBool::new(false)),
             stream_chunk: None,
+            allow_memory_grounding: false,
         }
     }
     fn req(payload: serde_json::Value) -> CapabilityRequest {

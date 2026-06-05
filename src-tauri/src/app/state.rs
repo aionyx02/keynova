@@ -3,6 +3,7 @@ use std::time::Instant;
 
 use serde_json::json;
 
+use crate::app::feature_registry;
 use crate::core::agent_runtime::AgentArchiveSink;
 use crate::core::config_manager::ConfigManager;
 use crate::core::knowledge_store::AgentArchiveEntry;
@@ -22,43 +23,36 @@ use crate::handlers::{
         NoteCommand, OnboardCommand, RebuildSearchIndexCommand, ReloadCommand, SettingCommand,
         SysCtlCommand, SysMonitorCommand, TrCommand,
     },
-    calculator::CalculatorHandler,
     dev_utils_cmd::{
         B64decCmd, B64encCmd, ColorCmd, CronCmd, HashCmd, JsonCmd, JsonmCmd, JwtCmd, KillPortCmd,
         NanoidCmd, PwCmd, RegexCmd, UrldecCmd, UrlencCmd, UuidCmd,
     },
     feature::FeatureHandler,
     file::FileHandler,
-    history::HistoryHandler,
     hotkey::HotkeyHandler,
     launcher::LauncherHandler,
-    learning_material::LearningMaterialHandler,
     model::ModelHandler,
     mouse::MouseHandler,
-    note::NoteHandler,
-    nvim::NvimHandler,
     plugin::PluginHandler,
     search::{SearchHandler, SearchHandlerDeps},
     setting::SettingHandler,
-    system_control::SystemControlHandler,
-    system_monitoring::SystemMonitoringHandler,
     terminal::TerminalHandler,
-    translation::TranslationHandler,
     workflow_memory::{WorkflowMemoryHandler, WorkflowMemoryHandlerDeps},
     workspace::WorkspaceHandler,
 };
 use crate::managers::{
-    ai_manager::AiManager, app_manager::AppManager, calculator_manager::CalculatorManager,
-    history_manager::HistoryManager, hotkey_manager::HotkeyManager, model_manager::ModelManager,
-    mouse_manager::MouseManager, note_manager::NoteManager, search_manager::SearchManager,
-    search_service::SearchService, system_manager::SystemManager,
-    terminal_manager::TerminalManager, translation_manager::TranslationManager,
-    workspace_manager::WorkspaceManager,
+    ai_manager::AiManager, app_manager::AppManager, history_manager::HistoryManager,
+    hotkey_manager::HotkeyManager, model_manager::ModelManager, mouse_manager::MouseManager,
+    note_manager::NoteManager, search_manager::SearchManager, search_service::SearchService,
+    terminal_manager::TerminalManager, workspace_manager::WorkspaceManager,
 };
 use crate::models::agent::AgentRun;
 
 pub(crate) struct AppState {
     pub(crate) command_router: CommandRouter,
+    /// DECOUP.4: `(namespace, features.* flag)` pairs derived from feature specs;
+    /// the dispatch namespace guard reads this instead of a hand-kept const.
+    pub(crate) feature_namespace_guards: Vec<(&'static str, &'static str)>,
     pub(crate) action_arena: Arc<ActionArena>,
     pub(crate) event_bus: EventBus,
     pub(crate) knowledge_store: KnowledgeStoreHandle,
@@ -81,8 +75,6 @@ struct ManagerBundle {
     app_manager: Arc<Mutex<AppManager>>,
     hotkey_manager: Arc<Mutex<HotkeyManager>>,
     mouse_manager: Arc<Mutex<MouseManager>>,
-    system_manager: Arc<Mutex<SystemManager>>,
-    calculator_manager: Arc<Mutex<CalculatorManager>>,
     workspace_manager: Arc<Mutex<WorkspaceManager>>,
     model_manager: Arc<ModelManager>,
     note_manager: Arc<Mutex<NoteManager>>,
@@ -92,7 +84,6 @@ struct ManagerBundle {
     startup_preflight: Arc<StartupPreflight>,
     ai_manager: Arc<AiManager>,
     agent_runtime: Arc<AgentRuntime>,
-    translation_manager: Arc<TranslationManager>,
 }
 
 /// Adapter that forwards FIFO-evicted agent runs to the `agent_archive` SQLite table.
@@ -122,8 +113,6 @@ fn create_managers(event_bus: &EventBus, knowledge_store: &KnowledgeStoreHandle)
     let app_manager = Arc::new(Mutex::new(AppManager::new()));
     let hotkey_manager = Arc::new(Mutex::new(HotkeyManager::new()));
     let mouse_manager = Arc::new(Mutex::new(MouseManager::new()));
-    let system_manager = Arc::new(Mutex::new(SystemManager::new()));
-    let calculator_manager = Arc::new(Mutex::new(CalculatorManager::new()));
     let workspace_manager = Arc::new(Mutex::new(WorkspaceManager::new()));
     let model_manager = Arc::new(ModelManager::new());
 
@@ -196,18 +185,11 @@ fn create_managers(event_bus: &EventBus, knowledge_store: &KnowledgeStoreHandle)
         archive_sink,
     ));
 
-    let eb_for_tr = event_bus.clone();
-    let translation_manager = Arc::new(TranslationManager::new(Arc::new(move |event| {
-        let _ = eb_for_tr.publish(event);
-    })));
-
     ManagerBundle {
         config_manager,
         app_manager,
         hotkey_manager,
         mouse_manager,
-        system_manager,
-        calculator_manager,
         workspace_manager,
         model_manager,
         note_manager,
@@ -217,7 +199,6 @@ fn create_managers(event_bus: &EventBus, knowledge_store: &KnowledgeStoreHandle)
         startup_preflight,
         ai_manager,
         agent_runtime,
-        translation_manager,
     }
 }
 
@@ -279,7 +260,7 @@ fn build_command_router(
     action_arena: &Arc<ActionArena>,
     knowledge_store: &KnowledgeStoreHandle,
     mouse_active: &Arc<AtomicBool>,
-) -> CommandRouter {
+) -> (CommandRouter, Vec<(&'static str, &'static str)>) {
     let builtin_registry = build_builtin_registry(&bundle.config_manager, &bundle.note_manager);
 
     let agent_tantivy_dir = bundle
@@ -290,9 +271,6 @@ fn build_command_router(
         .unwrap_or_else(|| crate::managers::tantivy_index::resolve_index_dir(None));
 
     let mut router = CommandRouter::new();
-    router.register(Arc::new(SystemControlHandler::new(Arc::clone(
-        &bundle.system_manager,
-    ))));
     router.register(Arc::new(LauncherHandler::new(Arc::clone(
         &bundle.app_manager,
     ))));
@@ -316,6 +294,8 @@ fn build_command_router(
         history_manager: Arc::clone(&bundle.history_manager),
         workspace_manager: Arc::clone(&bundle.workspace_manager),
         model_manager: Arc::clone(&bundle.model_manager),
+        config: Arc::clone(&bundle.config_manager),
+        knowledge_store: knowledge_store.clone(),
         event_bus: event_bus.clone(),
         search_service: SearchService::new(),
     })));
@@ -336,29 +316,15 @@ fn build_command_router(
     router.register(Arc::new(SettingHandler::new(Arc::clone(
         &bundle.config_manager,
     ))));
-    router.register(Arc::new(CalculatorHandler::new(Arc::clone(
-        &bundle.calculator_manager,
-    ))));
     router.register(Arc::new(WorkspaceHandler::new(Arc::clone(
         &bundle.workspace_manager,
     ))));
-    router.register(Arc::new(NoteHandler::new(
-        Arc::clone(&bundle.note_manager),
-        Arc::clone(&bundle.workspace_manager),
-    )));
     router.register(Arc::new(FileHandler::new()));
-    router.register(Arc::new(HistoryHandler::new(Arc::clone(
-        &bundle.history_manager,
-    ))));
     router.register(Arc::new(AiHandler::new(
         Arc::clone(&bundle.ai_manager),
         Arc::clone(&bundle.config_manager),
         Arc::clone(&bundle.workspace_manager),
         Arc::clone(&bundle.model_manager),
-    )));
-    router.register(Arc::new(TranslationHandler::new(
-        Arc::clone(&bundle.translation_manager),
-        Arc::clone(&bundle.config_manager),
     )));
     router.register(Arc::new(AgentHandler::new(AgentHandlerDeps {
         runtime: Arc::clone(&bundle.agent_runtime),
@@ -386,17 +352,6 @@ fn build_command_router(
             event_bus: Arc::new(event_bus.clone()),
         },
     )));
-    router.register(Arc::new(SystemMonitoringHandler::new(Arc::new(
-        event_bus.clone(),
-    ))));
-    router.register(Arc::new(NvimHandler::new(
-        Arc::new(event_bus.clone()),
-        Arc::clone(&bundle.config_manager),
-    )));
-    router.register(Arc::new(LearningMaterialHandler::new(
-        Arc::clone(&bundle.config_manager),
-        Arc::clone(&bundle.note_manager),
-    )));
     router.register(Arc::new(AutomationHandler));
     router.register(Arc::new(PluginHandler));
     router.register(Arc::new(WorkflowMemoryHandler::new(
@@ -405,7 +360,19 @@ fn build_command_router(
             workspace_manager: Arc::clone(&bundle.workspace_manager),
         },
     )));
-    router
+
+    // DECOUP (ADR-0044): self-registering feature modules. Migrated features
+    // wire themselves here instead of being hand-listed above.
+    let assembly_ctx = feature_registry::AssemblyCtx {
+        config: Arc::clone(&bundle.config_manager),
+        event_bus: event_bus.clone(),
+        workspace_manager: Arc::clone(&bundle.workspace_manager),
+        note_manager: Arc::clone(&bundle.note_manager),
+        history_manager: Arc::clone(&bundle.history_manager),
+    };
+    let feature_namespace_guards = feature_registry::register_all(&mut router, &assembly_ctx);
+
+    (router, feature_namespace_guards)
 }
 
 impl AppState {
@@ -416,7 +383,7 @@ impl AppState {
         let mouse_active = Arc::new(AtomicBool::new(false));
 
         let bundle = create_managers(&event_bus, &knowledge_store);
-        let command_router = build_command_router(
+        let (command_router, feature_namespace_guards) = build_command_router(
             &bundle,
             &event_bus,
             &action_arena,
@@ -426,6 +393,7 @@ impl AppState {
 
         Self {
             command_router,
+            feature_namespace_guards,
             action_arena,
             event_bus,
             knowledge_store,

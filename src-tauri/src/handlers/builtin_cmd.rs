@@ -12,6 +12,20 @@ use crate::models::settings_schema::is_sensitive_key;
 mod note;
 pub use note::NoteCommand;
 
+/// Builtin slash-command name → `features.*` flag that gates it. Shared so the
+/// command **search provider** can hide a disabled feature's command (matching
+/// executability) and the handler can refuse to run it. Single source of truth
+/// for "which command belongs to a gateable feature".
+pub(crate) const COMMAND_FEATURE_GUARDS: &[(&str, &str)] = &[
+    ("ai", "features.ai"),
+    ("tr", "features.translation"),
+    ("note", "features.notes"),
+    ("history", "features.history"),
+    ("cal", "features.calculator"),
+    ("system", "features.system"),
+    ("system_monitoring", "features.system"),
+];
+
 pub struct HelpCommand;
 
 impl BuiltinCommand for HelpCommand {
@@ -313,14 +327,7 @@ impl CommandHandler for BuiltinCmdHandler {
                     .trim();
 
                 // Feature guard: disabled features return a friendly message instead of executing.
-                const FEATURE_GUARDS: &[(&str, &str)] = &[
-                    ("ai", "features.ai"),
-                    ("tr", "features.translation"),
-                    ("note", "features.notes"),
-                    ("history", "features.history"),
-                    ("cal", "features.calculator"),
-                ];
-                for &(cmd_name, feature_key) in FEATURE_GUARDS {
+                for &(cmd_name, feature_key) in COMMAND_FEATURE_GUARDS {
                     if name == cmd_name {
                         let cfg = self.config.lock().map_err(|e| e.to_string())?;
                         let enabled = cfg

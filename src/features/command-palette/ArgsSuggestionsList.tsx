@@ -1,3 +1,5 @@
+import { useI18n } from "../../i18n/useI18n";
+
 interface Props {
   cmdName: string;
   suggestions: string[];
@@ -7,6 +9,7 @@ interface Props {
 }
 
 export function ArgsSuggestionsList({ suggestions, selectedIndex, onSelect, onHover }: Props) {
+  const p = useI18n().palette;
   return (
     <div className="kn-panel-shell rounded-t-none border-t-0 overflow-hidden">
       <ul className="kn-scroll max-h-[220px] space-y-1 overflow-y-auto px-2 py-2">
@@ -30,15 +33,15 @@ export function ArgsSuggestionsList({ suggestions, selectedIndex, onSelect, onHo
       <div className="kn-panel-footer">
         <span className="flex items-center gap-1.5">
           <span className="kn-kbd">Up/Down</span>
-          <span>move</span>
+          <span>{p.move}</span>
         </span>
         <span className="flex items-center gap-1.5">
           <span className="kn-kbd">Tab</span>
-          <span>complete</span>
+          <span>{p.complete}</span>
         </span>
         <span className="flex items-center gap-1.5">
           <span className="kn-kbd">Enter</span>
-          <span>apply</span>
+          <span>{p.apply}</span>
         </span>
       </div>
     </div>

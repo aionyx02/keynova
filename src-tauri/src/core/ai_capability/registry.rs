@@ -12,6 +12,8 @@ pub enum CapabilityId {
     FixError,
     GenCommand,
     SuggestNext,
+    Remember,
+    Recall,
 }
 
 impl CapabilityId {
@@ -22,6 +24,8 @@ impl CapabilityId {
             "fix_error" => Some(Self::FixError),
             "gen_command" => Some(Self::GenCommand),
             "suggest_next" => Some(Self::SuggestNext),
+            "remember" => Some(Self::Remember),
+            "recall" => Some(Self::Recall),
             _ => None,
         }
     }
@@ -33,6 +37,8 @@ impl CapabilityId {
             Self::FixError => "fix_error",
             Self::GenCommand => "gen_command",
             Self::SuggestNext => "suggest_next",
+            Self::Remember => "remember",
+            Self::Recall => "recall",
         }
     }
 }
@@ -72,6 +78,16 @@ const META: &[CapabilityMeta] = &[
         audit: false,
         accepts_context_hash: true,
     },
+    CapabilityMeta {
+        id: CapabilityId::Remember,
+        audit: true,
+        accepts_context_hash: false,
+    },
+    CapabilityMeta {
+        id: CapabilityId::Recall,
+        audit: false,
+        accepts_context_hash: false,
+    },
 ];
 
 pub fn meta(id: CapabilityId) -> CapabilityMeta {
@@ -97,6 +113,8 @@ mod tests {
             CapabilityId::FixError,
             CapabilityId::GenCommand,
             CapabilityId::SuggestNext,
+            CapabilityId::Remember,
+            CapabilityId::Recall,
         ] {
             assert_eq!(CapabilityId::parse(id.as_str()), Some(id));
         }
@@ -111,6 +129,8 @@ mod tests {
         assert!(ids.contains(&CapabilityId::FixError));
         assert!(ids.contains(&CapabilityId::GenCommand));
         assert!(ids.contains(&CapabilityId::SuggestNext));
+        assert!(ids.contains(&CapabilityId::Remember));
+        assert!(ids.contains(&CapabilityId::Recall));
     }
 
     #[test]
@@ -120,5 +140,7 @@ mod tests {
         assert!(meta(CapabilityId::FixError).audit);
         assert!(meta(CapabilityId::GenCommand).audit);
         assert!(!meta(CapabilityId::SuggestNext).audit);
+        assert!(meta(CapabilityId::Remember).audit);
+        assert!(!meta(CapabilityId::Recall).audit);
     }
 }

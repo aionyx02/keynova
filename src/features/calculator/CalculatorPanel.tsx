@@ -1,4 +1,4 @@
-﻿import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { useI18n } from "../../i18n/useI18n";
 import type { PanelProps } from "../../types/panel";
@@ -67,7 +67,7 @@ export function CalculatorPanel({ onClose }: PanelProps) {
       <div className="kn-panel-header">
         <div>
           <div className="kn-panel-title">{t.calculator.title}</div>
-          <div className="kn-panel-subtitle">Quick calculations without leaving the launcher</div>
+          <div className="kn-panel-subtitle">{t.calculator.subtitle}</div>
         </div>
         <button
           type="button"
@@ -75,7 +75,7 @@ export function CalculatorPanel({ onClose }: PanelProps) {
           disabled={!result}
           className="kn-button py-1 text-[10px] disabled:opacity-40"
         >
-          {copied ? "Copied" : t.calculator.copy}
+          {copied ? t.calculator.copied : t.calculator.copy}
         </button>
       </div>
 
@@ -113,7 +113,9 @@ export function CalculatorPanel({ onClose }: PanelProps) {
                 <span className="font-mono text-2xl font-semibold text-[color:var(--kn-success)]">
                   {result}
                 </span>
-                <span className="text-xs text-[color:var(--kn-text-faint)]">Ready to copy</span>
+                <span className="text-xs text-[color:var(--kn-text-faint)]">
+                  {t.calculator.readyToCopy}
+                </span>
               </>
             )}
           </div>
@@ -124,7 +126,7 @@ export function CalculatorPanel({ onClose }: PanelProps) {
           <div className="kn-scroll flex-1 overflow-y-auto">
             {history.length === 0 ? (
               <div className="kn-muted-surface flex h-full min-h-[140px] items-center justify-center px-4 text-center text-xs text-[color:var(--kn-text-faint)]">
-                Recent expressions will show up here.
+                {t.calculator.emptyHistory}
               </div>
             ) : (
               <div className="space-y-1">
@@ -154,8 +156,8 @@ export function CalculatorPanel({ onClose }: PanelProps) {
       </div>
 
       <div className="kn-panel-footer">
-        <span>Enter to evaluate</span>
-        <span>Esc closes</span>
+        <span>{t.calculator.enterToEvaluate}</span>
+        <span>{t.calculator.escCloses}</span>
       </div>
     </div>
   );
