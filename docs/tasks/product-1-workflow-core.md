@@ -318,10 +318,11 @@ returns the real repo root. `state.rs` runs it once at startup and calls
 no project found ⇒ no-op = global search as before). 3 new tests. No ADR (local
 read + existing workspace field).
 
-**Behavior change:** launching from inside a project now scopes file search to it
-(`:global` escapes); 1.D command rows appear; `workspace_boost` is observable in
-`:global`. Known limit: detects the launch cwd once — does not follow the
-foreground window's project (deeper follow-up).
+**Behavior:** search stays **global** (apps, WSL/out-of-repo files all visible);
+`workspace_boost` ranks in-repo results higher; 1.D command rows appear. The hard
+workspace filter was removed — it hid apps (under Program Files) and every
+non-repo file (dogfood regression). Scope is ranking-only now. Known limit:
+detects the launch cwd once — does not follow the foreground window's project.
 
 ## PRODUCT.1.E–H — not yet scoped
 

@@ -52,9 +52,9 @@ Detailed batch definitions, done criteria, non-goals, file map, and validation g
   partial unfreeze; search-core is orthogonal to the REF.7 AI gates). Batches
   `A`–`H`. `A`–`D` **done**: A=`workspace_boost`+`config_boost`, B=contract
   audit, C=`noise_penalty` demote, D=project-command discovery (copy-only).
-  `PROJECT_ROOT.wire` **done**: startup cwd detection lights up A/filter/D
-  (search now workspace-scoped; `:global` escapes). Next `PRODUCT.1.E`
-  (terminal workflow). Detail: `docs/tasks/product-1-workflow-core.md`.
+  `PROJECT_ROOT.wire` **done**: startup VCS-root detection lights up A boost + D
+  commands (search stays global; hard workspace filter removed after it hid apps
+  + non-repo files). Next `PRODUCT.1.E`. Detail: `docs/tasks/product-1-workflow-core.md`.
 
 ### P2
 
