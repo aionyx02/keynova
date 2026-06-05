@@ -20,6 +20,7 @@ function anchor(): DOMRect {
 
 const zero: ScoreBreakdown = {
   base: 80,
+  kind_boost: 0,
   workspace_boost: 0,
   config_boost: 0,
   recency_boost: 0,
@@ -40,6 +41,13 @@ describe("RankTooltip (PRODUCT.1.A workspace term)", () => {
     expect(screen.queryByText("workspace")).toBeNull();
     expect(screen.queryByText("config")).toBeNull();
     expect(screen.queryByText("noise")).toBeNull();
+  });
+
+  it("renders the kind row and adds it to the total", () => {
+    render(<RankTooltip breakdown={{ ...zero, kind_boost: 20 }} anchorRect={anchor()} visible />);
+    expect(screen.getByText("kind")).toBeTruthy();
+    expect(screen.getByText("+20")).toBeTruthy();
+    expect(screen.getByText("100")).toBeTruthy(); // 80 base + 20 kind
   });
 
   it("renders the noise row negative and subtracts it from the total", () => {

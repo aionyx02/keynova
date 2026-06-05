@@ -545,6 +545,7 @@ export const zhTW = {
   rank: {
     title: "排名原因",
     base: "基礎",
+    kind: "類型",
     workspace: "工作區",
     config: "設定檔",
     recency: "近期",

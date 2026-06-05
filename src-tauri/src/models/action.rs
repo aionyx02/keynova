@@ -123,6 +123,8 @@ pub enum ActionResult {
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
 pub struct ScoreBreakdown {
     pub base: i64,
+    /// Structural boost for apps/folders over plain files (PRODUCT.1.A follow-up).
+    pub kind_boost: i64,
     pub workspace_boost: i64,
     pub config_boost: i64,
     pub recency_boost: i64,

@@ -6,6 +6,7 @@
 use std::collections::HashSet;
 
 use crate::models::action::UiSearchItem;
+use crate::models::search_result::ResultKind;
 
 use super::{APP_LIMIT, COMMAND_LIMIT, HISTORY_LIMIT, MODEL_LIMIT, NOTE_LIMIT};
 
@@ -26,6 +27,18 @@ pub(super) fn command_match_score(name: &str, description: &str, q: &str) -> Opt
         Some(40)
     } else {
         None
+    }
+}
+
+/// Structural target-type boost: a whole app or folder (project) is usually a
+/// bigger, more likely target than an individual document file, so it should rank
+/// above same-relevance plain files instead of being buried under them. Deliberate
+/// preference (not usage noise), so it is a fixed bump per kind.
+pub(super) fn kind_boost(kind: &ResultKind) -> i64 {
+    match kind {
+        ResultKind::App => 20,
+        ResultKind::Folder => 12,
+        _ => 0,
     }
 }
 
@@ -280,6 +293,19 @@ mod tests {
         assert_eq!(config_boost("file", "C:/x/notes.txt"), 0);
         assert_eq!(config_boost("file", "C:/x/data.json"), 0);
         assert_eq!(config_boost("app", "C:/x/Cargo.toml"), 0);
+    }
+
+    #[test]
+    fn kind_boost_lifts_apps_and_folders_over_files() {
+        use crate::models::search_result::ResultKind;
+        assert_eq!(super::kind_boost(&ResultKind::App), 20);
+        assert_eq!(super::kind_boost(&ResultKind::Folder), 12);
+        assert_eq!(super::kind_boost(&ResultKind::File), 0);
+        assert_eq!(super::kind_boost(&ResultKind::Note), 0);
+        // A folder beats a same-base file; an app beats it too.
+        let base = 95;
+        assert!(base + super::kind_boost(&ResultKind::Folder) > base);
+        assert!(base + super::kind_boost(&ResultKind::App) > base + super::kind_boost(&ResultKind::File));
     }
 
     #[test]

@@ -17,6 +17,7 @@ export interface ActionRef {
 /** Per-result score decomposition for the rank-explain tooltip. */
 export interface ScoreBreakdown {
   base: number;
+  kind_boost: number;
   workspace_boost: number;
   config_boost: number;
   recency_boost: number;
