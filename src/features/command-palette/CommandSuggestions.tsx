@@ -30,7 +30,7 @@ export function CommandSuggestions({ commands, selectedIndex, onSelect, onHover 
               data-selected={isSelected ? "true" : "false"}
               onMouseDown={() => onSelect(command.name)}
               onMouseEnter={() => onHover(index)}
-              className="kn-result-row flex cursor-pointer items-center gap-3 px-3 py-2.5"
+              className="kn-result-row flex min-h-16 cursor-pointer items-center gap-3 px-3 py-2.5"
             >
               <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[8px] border border-[color:rgba(138,168,255,0.22)] bg-[color:var(--kn-accent-wash)] text-[color:var(--kn-accent)]">
                 <UiIcon name="command" className="h-[18px] w-[18px]" />
