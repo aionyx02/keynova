@@ -599,18 +599,25 @@ impl SearchHandler {
 
     fn apply_rank_boost(&self, item: &mut UiSearchItem) {
         let base = item.score;
-        let Ok(manager) = self.manager.lock() else {
-            item.score_breakdown = ScoreBreakdown {
-                base,
-                recency_boost: 0,
-                frequency_boost: 0,
-            };
-            return;
+        // PRODUCT.1.A workspace_context + README/config terms. project_root is the
+        // active workspace root; for non-file sources / unset root both yield 0.
+        let project_root = self
+            .workspace_manager
+            .lock()
+            .ok()
+            .and_then(|ws| ws.current().project_root.clone())
+            .filter(|root| !root.trim().is_empty());
+        let workspace = ranking::workspace_boost(&item.source, &item.path, project_root.as_deref());
+        let config = ranking::config_boost(&item.source, &item.path);
+        let (recency, frequency) = match self.manager.lock() {
+            Ok(manager) => manager.rank_boost_breakdown(&item.source, &item.path),
+            Err(_) => (0, 0),
         };
-        let (recency, frequency) = manager.rank_boost_breakdown(&item.source, &item.path);
-        item.score = base + recency + frequency;
+        item.score = base + workspace + config + recency + frequency;
         item.score_breakdown = ScoreBreakdown {
             base,
+            workspace_boost: workspace,
+            config_boost: config,
             recency_boost: recency,
             frequency_boost: frequency,
         };

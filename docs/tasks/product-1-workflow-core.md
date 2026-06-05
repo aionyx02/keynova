@@ -41,7 +41,17 @@ action_success - risk_penalty - noise_penalty`. **Live today:** text_match,
 recency, frequency (+ workspace as a filter). **Missing:** workspace_context as a
 *score*, action_success, risk_penalty, noise_penalty.
 
-## PRODUCT.1.A — Ranking Baseline
+## PRODUCT.1.A — Ranking Baseline — DONE (2026-06-05, unit level)
+
+Shipped: `workspace_boost` (+20 for file/folder/app under the active
+`project_root`) and `config_boost` (+6 for README/manifests/config files) as two
+new additive `ScoreBreakdown` terms, surfaced in `RankTooltip` (rows shown when
+non-zero) with `rank.workspace` / `rank.config` localized. Pure scoring helpers
+live in `handlers/search/ranking.rs` (6 unit tests incl. the headline
+"in-workspace file outranks same-name outside" case); `apply_rank_boost` resolves
+`project_root` once and adds both terms. Validation: 482 cargo tests + clippy
+clean; frontend build/lint + 180 vitest (2 new RankTooltip cases). No ADR
+(additive term). Deferred terms (action_success/risk/noise) untouched.
 
 Goal: make the transparent ranking formula real and documented, and add the one
 missing term that directly serves the headline done-criterion ("same-name files
