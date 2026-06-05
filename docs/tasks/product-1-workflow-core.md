@@ -332,9 +332,21 @@ workspace filter was removed — it hid apps (under Program Files) and every
 non-repo file (dogfood regression). Scope is ranking-only now. Known limit:
 detects the launch cwd once — does not follow the foreground window's project.
 
-## PRODUCT.1.E–H — not yet scoped
+## PRODUCT.1.E — Terminal Workflow / Command Execution — DROPPED (2026-06-05)
 
-`E` terminal workflow (owns command execution + high-risk gating), `F` file
-actions/preview, `G` developer utilities, `H` keyboard/perf gate. Scope each here
-before coding. Risky sub-items (destructive file ops, kill-port, shell handoff)
-still pass their own approval/ADR gates.
+Developer decision: **do not build command execution / terminal handoff.** It
+crosses the approval/security boundary (running discovered commands, even staged
+via `terminal.send`) and is explicitly the risk the developer wants to avoid.
+Project commands stay **copy-only** (1.D) — the user pastes into their own
+terminal and runs it themselves. This keeps Keynova on the "suggest, never
+execute" side and needs no execution ADR. The `risky` flag on `ProjectCommand`
+becomes informational only (no gate consumes it); leave it — harmless and cheap.
+
+If revisited later it must start from a fresh proposed ADR (ref ADR-0027
+generic-shell-sandbox, ADR-0022 approval boundary).
+
+## PRODUCT.1.F–H — not yet scoped
+
+`F` file actions/preview, `G` developer utilities, `H` keyboard/perf gate. Scope
+each here before coding. Risky sub-items (destructive file ops, kill-port) still
+pass their own approval/ADR gates.
