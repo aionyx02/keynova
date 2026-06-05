@@ -2,7 +2,7 @@
 type: task_blockers
 status: active
 priority: p0
-updated: 2026-06-02
+updated: 2026-06-05
 context_policy: retrieve_when_planning
 owner: project
 tags: [security, approval, shell, blockers, refactor]
@@ -22,8 +22,17 @@ Reason:
 Do not:
 
 - Implement `AGENT.3` or `AI.1` as separate tracks; they are superseded by the ADR-0029 / AI capability refactor.
-- Add new product features before `REF.7` unless they are required by the refactor or fix a P0 regression.
+- Add new **AI-capability / agent-touching** product features before `REF.7.D`
+  lands and the observation window closes (this is what the REF.7 gates measure).
 - Change ADR-0029 / ADR-0030 status or scope without a new ADR (per governance §3).
+
+Allowed by conditional partial unfreeze (developer decision 2026-06-05):
+
+- `PRODUCT.1` search-core work (ranking, unified-result audit, workspace search,
+  command discovery, terminal workflow, file actions, dev utilities, keyboard/
+  perf gate) is unfrozen — it is orthogonal to the AI hot path. Individual risky
+  sub-items (destructive file ops, kill-port, shell handoff) still pass their own
+  approval/ADR gates.
 
 Allowed:
 

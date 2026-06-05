@@ -18,9 +18,13 @@ Product position: **Keynova is a keyboard-first local workflow entry for
 technical workers.** It is not a general launcher, not an AI chat app, and not a
 catch-all productivity suite.
 
-Execution gate: do not start these batches until the active `REF.7`/`REF.8`
-coordination gates are resolved or the developer explicitly lifts the freeze.
-Before implementation, reread `active.md`, `blocked.md`, and the relevant ADRs.
+Execution gate: **conditional partial unfreeze in force (developer decision
+2026-06-05).** `PRODUCT.0` (positioning) is done; `PRODUCT.1` search-core is
+unfrozen and active because it is orthogonal to the AI hot path the REF.7 gates
+measure. `PRODUCT.2` (AI capabilities) and any AI-capability/agent-touching work
+stay frozen until `REF.7.D` lands and the observation window closes. Before
+implementing any `PRODUCT.1` batch, reread `active.md`, `blocked.md`, and write
+the batch plan (primary vs simplification-only) here first.
 
 ## Product Principles
 
