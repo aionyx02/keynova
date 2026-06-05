@@ -25,6 +25,25 @@ Keynova 是一個 unified workflow entry：把搜尋、啟動、檔案操作、�
 
 它不會試圖取代 ChatGPT / Claude 的長對話場景，而是把 AI 放在你正在工作的地方：解釋錯誤、摘要內容、產生命令、補上下一步建議。
 
+## 定位與非目標
+
+> **Keyboard-first local workflow entry for technical workers.**
+> 鍵盤優先的本機工作流入口，為技術工作者而生——不是通用 launcher，不是 AI chat app，也不是 catch-all 生產力套件。
+
+為了讓產品方向保持聚焦，Keynova 明確**不做**這些事：
+
+- **不追求 general launcher 全功能對等**：Alfred / Raycast 的廣度不是目標；我們只把技術工作者每天會用的工作流做深做穩。
+- **不做 AI chat 中心**：沒有 chat-first 介面，AI 一律是搜尋框內單步、stateless 的 inline capability。
+- **不把 autonomous agent 當 mainline**：typed-tool + approval agent runtime 以休眠形式保留，不是產品主線、不會自主連續執行。
+- **不擴張成 catch-all 生產力套件**：選用面板（筆記、翻譯、監控等）維持在 feature gate 之後，不喧賓奪主。
+
+## 核心 vs 選用
+
+- **核心工作流（daily path）**：unified search、file actions、terminal、project command discovery、dev utilities、inline AI capability。這些是 v0.6 之前優先做穩的快路徑。
+- **選用 / parked（feature-gated）**：Model Manager、Translation、Notes、Automation、Nvim、Learning Panel、System Monitor、Plugin System、長期自主 agent memory。存在但不構成產品敘事，待核心工作流 KPI 達標後再逐一重估。
+
+完整 core-vs-parked 區分與 v0.6 → v1.0 路線見 [docs/tasks/product-roadmap.md](docs/tasks/product-roadmap.md)。
+
 ## 主要功能
 
 | 模組                       | 能力                                                                                           |
