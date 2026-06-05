@@ -3,8 +3,23 @@ use crate::managers::{terminal_manager::TerminalManager, workspace_manager::Work
 use crate::models::ipc_requests::{
     TerminalOpenRequest, TerminalResizeRequest, TerminalSendRequest, TerminalSessionRequest,
 };
+use crate::models::terminal::TerminalLaunchSpec;
 use serde_json::{json, Value};
 use std::sync::{Arc, Mutex};
+use uuid::Uuid;
+
+/// Default interactive shell program for a human-driven terminal (ADR-0045).
+/// Honors the user's configured shell where the OS exposes it.
+fn default_shell_program() -> String {
+    #[cfg(target_os = "windows")]
+    {
+        std::env::var("COMSPEC").unwrap_or_else(|_| "cmd.exe".to_string())
+    }
+    #[cfg(not(target_os = "windows"))]
+    {
+        std::env::var("SHELL").unwrap_or_else(|_| "/bin/sh".to_string())
+    }
+}
 
 pub struct TerminalHandler {
     manager: Arc<Mutex<TerminalManager>>,
@@ -49,6 +64,33 @@ impl CommandHandler for TerminalHandler {
                     workspace.record_terminal_session(id.clone());
                 }
                 Ok(json!({ "id": id, "initial_output": initial_output }))
+            }
+            "request_shell" => {
+                // ADR-0045: issue + register a backend default-shell launch spec for
+                // a human-driven interactive terminal. Reachable only via the user's
+                // `>` palette gesture; the automation allowlist still blocks
+                // `terminal.*`, so no non-human actor can call this. cwd = workspace
+                // project root when one is set.
+                let cwd = self
+                    .workspace_manager
+                    .lock()
+                    .ok()
+                    .and_then(|ws| ws.current().project_root.clone())
+                    .filter(|root| !root.trim().is_empty());
+                let spec = TerminalLaunchSpec {
+                    launch_id: Uuid::new_v4().to_string(),
+                    program: default_shell_program(),
+                    args: Vec::new(),
+                    cwd,
+                    title: None,
+                    env: Vec::new(),
+                    editor: false,
+                };
+                self.manager
+                    .lock()
+                    .map_err(|e| e.to_string())?
+                    .register_launch_spec(spec.clone())?;
+                serde_json::to_value(spec).map_err(|e| e.to_string())
             }
             "send" => {
                 let req: TerminalSendRequest = serde_json::from_value(payload)
@@ -96,5 +138,27 @@ mod tests {
             .expect_err("default shell open must be rejected");
 
         assert!(error.contains("backend-issued launch_spec"));
+    }
+
+    #[test]
+    fn request_shell_issues_a_registered_consumable_spec() {
+        // ADR-0045: request_shell must register the spec so the subsequent
+        // terminal.open (consume) path accepts it exactly once.
+        let mgr = Arc::new(Mutex::new(TerminalManager::new(Arc::new(|_, _| {}))));
+        let handler =
+            TerminalHandler::new(Arc::clone(&mgr), Arc::new(Mutex::new(WorkspaceManager::new())));
+
+        let value = handler
+            .execute("request_shell", json!({}))
+            .expect("request_shell should issue a spec");
+        let spec: TerminalLaunchSpec =
+            serde_json::from_value(value).expect("spec deserializes");
+        assert!(!spec.launch_id.is_empty());
+        assert!(!spec.editor, "human shell is not an editor session");
+        assert!(!spec.program.is_empty());
+
+        // Registered → consumable once, then rejected (one-shot).
+        assert!(mgr.lock().unwrap().consume_registered_launch_spec(&spec).is_ok());
+        assert!(mgr.lock().unwrap().consume_registered_launch_spec(&spec).is_err());
     }
 }
