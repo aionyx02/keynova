@@ -16,6 +16,7 @@ export const IPC = {
 
   // terminal
   TERMINAL_OPEN: "terminal.open",
+  TERMINAL_REQUEST_SHELL: "terminal.request_shell",
   TERMINAL_CLOSE: "terminal.close",
   TERMINAL_SEND: "terminal.send",
   TERMINAL_RESIZE: "terminal.resize",
