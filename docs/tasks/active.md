@@ -2,7 +2,7 @@
 type: task_index
 status: active
 priority: p0
-updated: 2026-06-04
+updated: 2026-06-05
 context_policy: always_retrievable
 owner: project
 tags: [refactor, ai-capability, search-first, p0]
@@ -45,6 +45,12 @@ Detailed batch definitions, done criteria, non-goals, file map, and validation g
   declarative. Removing a feature ≈ delete module/folder + manifest entries.
   Cross-cutting search/ai/agent stay central by ADR-0044 §2. Detail:
   `docs/tasks/feature-decoupling.md`.
+
+- [~] `UX.AUDIT` UI/UX consistency pass (developer-directed). Done: stale "AI
+  Chat" copy, first a11y live regions, i18n infra + 5 batches (model/settings/
+  capability cards/palette/search). Open: i18n for ~11 overlays/secondary panels,
+  UTF-8 BOM cleanup, garbled-text root cause (blocked on a repro). Detail:
+  `docs/tasks/ux-audit.md`.
 
 ### P2
 
