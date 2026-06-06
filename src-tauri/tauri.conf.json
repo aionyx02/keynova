@@ -47,6 +47,8 @@
       "icons/icon.ico"
     ],
     "windows": {
+      "digestAlgorithm": "sha256",
+      "timestampUrl": "http://timestamp.digicert.com",
       "nsis": {
         "headerImage": "installer/header.bmp",
         "sidebarImage": "installer/sidebar.bmp"
