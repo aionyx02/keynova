@@ -9,9 +9,10 @@ use serde::Deserialize;
 
 use crate::core::ai_capability::contract::{
     CapabilityDeps, CapabilityError, CapabilityOutput, CapabilityRequest, CapabilityResponse,
+    CapabilitySource,
 };
 use crate::core::ai_capability::memory::push_memory_sources;
-use crate::core::ai_capability::prompt::{build_prompt, maybe_audit};
+use crate::core::ai_capability::prompt::{build_prompt_with_sources, maybe_audit};
 use crate::core::ai_capability::registry::{meta, CapabilityId};
 use crate::models::agent::GroundingSource;
 use crate::models::unified_result::RiskTag;
@@ -68,21 +69,35 @@ pub fn call(
         ),
         _ => format!("Explain succinctly: {}", payload.text),
     };
-    let prompt = build_prompt(SYSTEM, &sources, &task);
+    let built_prompt = build_prompt_with_sources(SYSTEM, &sources, &task);
 
     if deps.cancel.load(Ordering::SeqCst) {
         return Err(CapabilityError::Cancelled);
     }
 
     let reply = match &deps.stream_chunk {
-        Some(on_chunk) => deps
-            .chat
-            .chat_stream(&prompt, on_chunk.as_ref(), &deps.cancel),
-        None => deps.chat.chat(&prompt, &deps.cancel),
+        Some(on_chunk) => {
+            deps.chat
+                .chat_stream(&built_prompt.text, on_chunk.as_ref(), &deps.cancel)
+        }
+        None => deps.chat.chat(&built_prompt.text, &deps.cancel),
     };
 
     let audit = meta(CapabilityId::Explain).audit;
     match reply {
+        Ok(text) if text.trim().is_empty() => {
+            maybe_audit(
+                deps.knowledge_store.as_ref(),
+                audit,
+                CapabilityId::Explain.as_str(),
+                "error",
+                "provider returned an empty response",
+                None,
+            );
+            Err(CapabilityError::ProviderError(
+                "provider returned an empty response".into(),
+            ))
+        }
         Ok(text) => {
             maybe_audit(
                 deps.knowledge_store.as_ref(),
@@ -96,6 +111,7 @@ pub fn call(
                 id: CapabilityId::Explain,
                 output: CapabilityOutput::Text { text },
                 risk_tag: RiskTag::none(),
+                sources: CapabilitySource::from_grounding_sources(&built_prompt.included_sources),
             })
         }
         Err(e) => {
@@ -116,6 +132,9 @@ pub fn call(
 mod tests {
     use super::*;
     use crate::core::ai_capability::contract::ChatProvider;
+    use crate::core::ai_capability::test_fixtures::{
+        assert_invalid_payload, assert_safe_primary_output, TYPESCRIPT_STACK_TRACE,
+    };
     use std::sync::atomic::AtomicBool;
     use std::sync::Arc;
 
@@ -132,6 +151,12 @@ mod tests {
     impl ChatProvider for ErrProvider {
         fn chat(&self, _prompt: &str, _c: &AtomicBool) -> Result<String, String> {
             Err("network down".into())
+        }
+    }
+    struct EmptyProvider;
+    impl ChatProvider for EmptyProvider {
+        fn chat(&self, _prompt: &str, _c: &AtomicBool) -> Result<String, String> {
+            Ok("   ".into())
         }
     }
 
@@ -160,18 +185,29 @@ mod tests {
             &deps(Arc::new(EchoProvider)),
         )
         .unwrap_err();
-        assert!(matches!(err, CapabilityError::InvalidPayload(_)));
+        assert_invalid_payload(err);
+    }
+
+    #[test]
+    fn rejects_malformed_payload_as_typed_error() {
+        let err = call(
+            req(serde_json::json!({ "text": 42 })),
+            &deps(Arc::new(EchoProvider)),
+        )
+        .unwrap_err();
+        assert_invalid_payload(err);
     }
 
     #[test]
     fn happy_path_returns_text_with_no_confirm() {
         let resp = call(
-            req(serde_json::json!({ "text": "what is rg?", "question": "why use it" })),
+            req(serde_json::json!({ "text": TYPESCRIPT_STACK_TRACE, "question": "root cause?" })),
             &deps(Arc::new(EchoProvider)),
         )
         .unwrap();
         assert!(!resp.risk_tag.requires_confirmation);
         assert_eq!(resp.id, CapabilityId::Explain);
+        assert_safe_primary_output(&resp);
     }
 
     #[test]
@@ -179,6 +215,16 @@ mod tests {
         let err = call(
             req(serde_json::json!({ "text": "x" })),
             &deps(Arc::new(ErrProvider)),
+        )
+        .unwrap_err();
+        assert!(matches!(err, CapabilityError::ProviderError(_)));
+    }
+
+    #[test]
+    fn empty_provider_reply_is_typed_error() {
+        let err = call(
+            req(serde_json::json!({ "text": "x" })),
+            &deps(Arc::new(EmptyProvider)),
         )
         .unwrap_err();
         assert!(matches!(err, CapabilityError::ProviderError(_)));
@@ -250,12 +296,14 @@ mod tests {
             let chat = Arc::new(CapturingProvider {
                 last_prompt: Arc::clone(&last_prompt),
             });
-            call(
+            let response = call(
                 req(serde_json::json!({ "text": "coffee" })),
                 &deps_with_memory(chat, store, true),
             )
             .unwrap();
             assert!(last_prompt.lock().unwrap().contains("Coffee order"));
+            assert_eq!(response.sources.len(), 1);
+            assert_eq!(response.sources[0].title, "Coffee order");
         }
         cleanup(&path);
     }

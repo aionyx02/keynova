@@ -15,10 +15,12 @@ import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import type { DispatchFn } from "../../../context/IPCContext";
 import { IPC } from "../../../ipc/routes";
 import { parseRiskTagFailSafe, type RiskTag } from "../../../types/unified-result";
+import { parseCapabilitySources } from "../types";
 import type {
   CapabilityId,
   CapabilityOutput,
   CapabilityResponseEvent,
+  CapabilitySource,
   CapabilityStreamChunkEvent,
 } from "../types";
 
@@ -41,6 +43,7 @@ export interface UseCapability {
   /** Streaming-only accumulated text. Empty unless stream=true was requested. */
   streamText: string;
   risk: RiskTag | null;
+  sources: CapabilitySource[];
   error: string | null;
   isLoading: boolean;
   /** Last dispatched request_id (or null if none has been started). */
@@ -62,6 +65,7 @@ export function useCapability({ dispatch, id }: UseCapabilityDeps): UseCapabilit
   const [data, setData] = useState<CapabilityOutput | null>(null);
   const [streamText, setStreamText] = useState<string>("");
   const [risk, setRisk] = useState<RiskTag | null>(null);
+  const [sources, setSources] = useState<CapabilitySource[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [requestId, setRequestId] = useState<string | null>(null);
@@ -101,6 +105,7 @@ export function useCapability({ dispatch, id }: UseCapabilityDeps): UseCapabilit
       setData(null);
       setStreamText("");
       setRisk(null);
+      setSources([]);
       setError(null);
       setIsLoading(true);
 
@@ -121,10 +126,12 @@ export function useCapability({ dispatch, id }: UseCapabilityDeps): UseCapabilit
                 setData(event.payload.output);
               }
               setRisk(parseRiskTagFailSafe(event.payload.risk_tag));
+              setSources(parseCapabilitySources(event.payload.sources));
               setError(null);
             } else {
               setError(event.payload.error ?? "unknown capability error");
               setRisk(parseRiskTagFailSafe(undefined)); // fail-safe to confirm
+              setSources([]);
             }
             setIsLoading(false);
             activeIdRef.current = null;
@@ -165,5 +172,5 @@ export function useCapability({ dispatch, id }: UseCapabilityDeps): UseCapabilit
     [dispatch, id, teardown],
   );
 
-  return { data, streamText, risk, error, isLoading, requestId, run, cancel };
+  return { data, streamText, risk, sources, error, isLoading, requestId, run, cancel };
 }

@@ -54,11 +54,17 @@ pub fn call(
         None => deps.chat.chat(&prompt, &deps.cancel),
     }
     .map_err(CapabilityError::ProviderError)?;
+    if reply.trim().is_empty() {
+        return Err(CapabilityError::ProviderError(
+            "provider returned an empty response".into(),
+        ));
+    }
 
     Ok(CapabilityResponse {
         id: CapabilityId::Summarize,
         output: CapabilityOutput::Text { text: reply },
         risk_tag: RiskTag::none(),
+        sources: Vec::new(),
     })
 }
 
@@ -66,6 +72,9 @@ pub fn call(
 mod tests {
     use super::*;
     use crate::core::ai_capability::contract::ChatProvider;
+    use crate::core::ai_capability::test_fixtures::{
+        assert_invalid_payload, assert_safe_primary_output, long_text, CONFIG_SNIPPET,
+    };
     use std::sync::atomic::AtomicBool;
     use std::sync::Arc;
 
@@ -73,6 +82,12 @@ mod tests {
     impl ChatProvider for EchoProvider {
         fn chat(&self, prompt: &str, _cancel: &AtomicBool) -> Result<String, String> {
             Ok(format!("summary: {}", prompt.lines().last().unwrap_or("")))
+        }
+    }
+    struct EmptyProvider;
+    impl ChatProvider for EmptyProvider {
+        fn chat(&self, _prompt: &str, _cancel: &AtomicBool) -> Result<String, String> {
+            Ok(String::new())
         }
     }
 
@@ -102,21 +117,52 @@ mod tests {
             &deps(Arc::new(EchoProvider)),
         )
         .unwrap_err();
-        assert!(matches!(err, CapabilityError::InvalidPayload(_)));
+        assert_invalid_payload(err);
+    }
+
+    #[test]
+    fn rejects_malformed_payload_as_typed_error() {
+        let err = call(
+            req(serde_json::json!({ "text": ["not", "text"] })),
+            &deps(Arc::new(EchoProvider)),
+        )
+        .unwrap_err();
+        assert_invalid_payload(err);
     }
 
     #[test]
     fn happy_path_returns_text_with_no_confirm() {
         let resp = call(
-            req(serde_json::json!({ "text": "hello world" })),
+            req(serde_json::json!({ "text": CONFIG_SNIPPET })),
             &deps(Arc::new(EchoProvider)),
         )
         .unwrap();
         assert!(!resp.risk_tag.requires_confirmation);
+        assert_safe_primary_output(&resp);
         match resp.output {
             CapabilityOutput::Text { text } => assert!(text.starts_with("summary:")),
             _ => panic!("expected text output"),
         }
+    }
+
+    #[test]
+    fn long_text_remains_a_bounded_safe_answer() {
+        let resp = call(
+            req(serde_json::json!({ "text": long_text(), "max_sentences": 3 })),
+            &deps(Arc::new(EchoProvider)),
+        )
+        .unwrap();
+        assert_safe_primary_output(&resp);
+    }
+
+    #[test]
+    fn empty_provider_reply_is_typed_error() {
+        let err = call(
+            req(serde_json::json!({ "text": "hello" })),
+            &deps(Arc::new(EmptyProvider)),
+        )
+        .unwrap_err();
+        assert!(matches!(err, CapabilityError::ProviderError(_)));
     }
 
     #[test]

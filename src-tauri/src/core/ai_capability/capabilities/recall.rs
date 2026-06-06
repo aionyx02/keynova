@@ -61,6 +61,7 @@ pub fn call(
         output: CapabilityOutput::Structured {
             value: serde_json::to_value(memories).unwrap_or_else(|_| Value::Array(Vec::new())),
         },
+        sources: Vec::new(),
     })
 }
 

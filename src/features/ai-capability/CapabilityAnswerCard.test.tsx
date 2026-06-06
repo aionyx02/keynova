@@ -10,6 +10,9 @@ const baseProps = {
   capabilityLabel: "explain" as const,
   status: "streaming" as const,
   text: "",
+  sources: [],
+  suggestedCommand: null,
+  riskRequiresConfirmation: false,
   error: null,
   startedAtMs: 1_000_000,
   firstChunkAtMs: null,
@@ -50,6 +53,50 @@ describe("CapabilityAnswerCard", () => {
       />,
     );
     expect(screen.getByText(/Fix/)).not.toBeNull();
+  });
+
+  it("renders a copy-only command suggestion for fix", () => {
+    render(
+      <CapabilityAnswerCard
+        {...baseProps}
+        capabilityLabel="fix"
+        status="complete"
+        text="Run a focused compiler check."
+        suggestedCommand={{
+          command: "cargo check",
+          confidence: 0.6,
+          rationale: "Confirm the remaining compiler errors.",
+        }}
+        completedAtMs={1800}
+      />,
+    );
+    expect(screen.getByText("cargo check")).not.toBeNull();
+    expect(screen.getByText(/Copy only/i)).not.toBeNull();
+    expect(screen.queryByRole("button", { name: /Run/i })).toBeNull();
+  });
+
+  it("renders source labels only when sources are present", () => {
+    const { rerender } = render(
+      <CapabilityAnswerCard {...baseProps} status="complete" text="answer" completedAtMs={1800} />,
+    );
+    expect(screen.queryByTestId("capability-sources")).toBeNull();
+    rerender(
+      <CapabilityAnswerCard
+        {...baseProps}
+        status="complete"
+        text="answer"
+        sources={[
+          {
+            source_id: "workspace:1",
+            source_type: "workspace",
+            title: "Keynova",
+            uri: null,
+          },
+        ]}
+        completedAtMs={1800}
+      />,
+    );
+    expect(screen.getByTestId("capability-sources").textContent).toContain("Keynova");
   });
 
   it("renders pending placeholder when no chunk has arrived", () => {

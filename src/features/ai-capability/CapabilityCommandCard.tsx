@@ -2,7 +2,9 @@ import { useEffect, useState, type ReactElement } from "react";
 
 import { UiIcon } from "../../components/icons/UiIcon";
 import { useI18n } from "../../i18n/useI18n";
-import type { GenCommandOutput } from "./types";
+import { CapabilityCommandDetails } from "./CapabilityCommandDetails";
+import { CapabilitySources } from "./CapabilitySources";
+import type { CapabilitySource, GenCommandOutput } from "./types";
 import type { CapabilityRunStatus } from "./hooks/useCapabilityRunState";
 
 interface Props {
@@ -14,11 +16,10 @@ interface Props {
   completedAtMs: number | null;
   intent: string;
   riskRequiresConfirmation: boolean;
+  sources: CapabilitySource[];
   onCancel: () => void;
   onClose: () => void;
   onSubmit: () => void;
-  onRun: (command: string) => void;
-  onEditBefore: (command: string) => void;
 }
 
 function formatLatencyMs(ms: number): string {
@@ -51,11 +52,10 @@ export function CapabilityCommandCard({
   completedAtMs,
   intent,
   riskRequiresConfirmation,
+  sources,
   onCancel,
   onClose,
   onSubmit,
-  onRun,
-  onEditBefore,
 }: Props): ReactElement {
   const now = useTickingClock(status === "pending" && completedAtMs === null);
   const latencyMs = (() => {
@@ -68,19 +68,6 @@ export function CapabilityCommandCard({
   const headerSuffix = confidence ? ` - confidence: ${confidence}` : "";
   const statusSuffix =
     status === "error" ? c.suffixError : status === "cancelled" ? c.suffixCancelled : "";
-
-  const [copyState, setCopyState] = useState<"idle" | "copied">("idle");
-
-  async function handleCopy() {
-    if (!data?.command) return;
-    try {
-      await navigator.clipboard.writeText(data.command);
-      setCopyState("copied");
-      window.setTimeout(() => setCopyState("idle"), 1200);
-    } catch {
-      // Clipboard failure on insecure context: no-op for now.
-    }
-  }
 
   const footerLabel =
     status === "pending"
@@ -124,28 +111,13 @@ export function CapabilityCommandCard({
         ) : status === "cancelled" ? (
           <div className="text-[color:var(--kn-text-muted)]">{c.cancelledBody}</div>
         ) : data?.command ? (
-          <div className="space-y-3">
-            <div
-              className={[
-                "rounded-[16px] border border-[color:var(--kn-border)] bg-black/20 px-3 py-3 font-mono text-[13px] leading-6 text-[color:var(--kn-text-soft)]",
-                confidence === "low" ? "opacity-70" : "",
-              ].join(" ")}
-            >
-              {data.command}
-            </div>
-            <div className="space-y-1">
-              <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[color:var(--kn-text-faint)]">
-                {c.rationale}
-              </div>
-              <div className="text-[13px] leading-6 text-[color:var(--kn-text)]">
-                {data.rationale || c.noRationale}
-              </div>
-            </div>
-            {riskRequiresConfirmation && (
-              <div className="rounded-[14px] border border-amber-300/25 bg-amber-300/8 px-3 py-2 text-[12px] leading-5 text-amber-100">
-                {c.riskWarning}
-              </div>
-            )}
+          <div className={confidence === "low" ? "space-y-3 opacity-70" : "space-y-3"}>
+            <CapabilityCommandDetails
+              data={data}
+              assumptions={data.assumptions}
+              riskRequiresConfirmation={riskRequiresConfirmation}
+            />
+            <CapabilitySources sources={sources} />
           </div>
         ) : status === "pending" ? (
           <div className="text-[color:var(--kn-text-muted)]">{c.cmdPendingBody}</div>
@@ -161,44 +133,6 @@ export function CapabilityCommandCard({
           </div>
         )}
       </div>
-
-      {status === "complete" && data?.command && (
-        <div className="flex flex-wrap gap-2 border-t border-[color:var(--kn-border)] bg-[rgba(7,11,17,0.42)] px-4 py-3 text-[11px]">
-          <button
-            type="button"
-            onMouseDown={(e) => {
-              e.preventDefault();
-              onRun(data.command);
-            }}
-            className="inline-flex items-center gap-1.5 rounded-[12px] border border-[color:var(--kn-border)] bg-white/[0.035] px-2.5 py-1.5 font-medium text-[color:var(--kn-text-soft)] transition-colors hover:bg-white/[0.06] hover:text-[color:var(--kn-text)]"
-          >
-            <UiIcon name="command" className="h-3.5 w-3.5" />
-            {c.run}
-          </button>
-          <button
-            type="button"
-            onMouseDown={(e) => {
-              e.preventDefault();
-              onEditBefore(data.command);
-            }}
-            className="inline-flex items-center gap-1.5 rounded-[12px] border border-[color:var(--kn-border)] bg-white/[0.035] px-2.5 py-1.5 font-medium text-[color:var(--kn-text-soft)] transition-colors hover:bg-white/[0.06] hover:text-[color:var(--kn-text)]"
-          >
-            <UiIcon name="command" className="h-3.5 w-3.5" />
-            {c.editBefore}
-          </button>
-          <button
-            type="button"
-            onMouseDown={(e) => {
-              e.preventDefault();
-              void handleCopy();
-            }}
-            className="inline-flex items-center gap-1.5 rounded-[12px] border border-[color:var(--kn-border)] bg-white/[0.035] px-2.5 py-1.5 font-medium text-[color:var(--kn-text-soft)] transition-colors hover:bg-white/[0.06] hover:text-[color:var(--kn-text)]"
-          >
-            <UiIcon name="file" className="h-3.5 w-3.5" />
-            {copyState === "copied" ? c.copied : c.copy}
-          </button>
-        </div>
-      )}
 
       {status !== "pending" && status !== "complete" && (
         <div className="border-t border-[color:var(--kn-border)] bg-[rgba(7,11,17,0.42)] px-4 py-3 text-[11px]">

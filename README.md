@@ -58,8 +58,8 @@ Keynova 是一個 unified workflow entry：把搜尋、啟動、檔案操作、�
 | Calculator / Dev Utilities | 計算、轉換與開發者小工具（hash / uuid / regex / jwt / killport 等）                            |
 | Translation                | 文字翻譯，採用 Google Cloud Translation v2                                                     |
 | Model Manager              | 單一分頁式 `/model` 面板：下載、列出、移除本機模型                                             |
-| AI Capability Layer        | `explain` / `summarize` / `fix_error` / `gen_command` / `suggest_next` 五個單步 capability     |
-| Inline / NL Flow           | prefix（`explain` / `summarize` / `fix` / `cmd`）+ 空白 `next` + 查無結果時的自然語言 fallback |
+| AI Capability Layer        | 五個單步 capability，提供 typed output、來源標籤與 copy-only 命令建議                           |
+| Inline / NL Flow           | `explain` / `summarize` / `fix` / `cmd` + 空白 `next` + 查無結果時的自然語言 fallback          |
 | Unified Result             | 所有來源共用 result / preview / rank signal / action chip schema                               |
 | Workflow Memory            | 記錄近期操作、context hash、suggestion ranking、可重播的 replay descriptor                     |
 | Onboarding                 | 首次使用引導、空狀態 CTA、cheatsheet                                                           |
@@ -131,8 +131,12 @@ cmd <用自然語言描述你想做的事>
 
 - capability 是**單步、stateless**：呼叫後串流回答到 result area，可一鍵 Copy 為 Markdown 或存進筆記，不保留 session memory、不自主連續執行工具。
 - 空白 palette 會直接顯示 `next` 工作流建議；查無結果的自然語言意圖會自動判斷成 `explain` / `summarize` / `fix` / `cmd`，不一定要打前綴。
-- `cmd` 會生成可複製、可編輯的命令卡；`next` 會顯示近期工作流建議並支援安全的 replay。
-- 高風險操作（刪除 / 重新命名 / 移動等）走 UI confirmation gate；命令是否執行始終由使用者決定。
+- `fix` 會回傳修復說明與可選的命令卡；`cmd` 會顯示命令、風險、理由，以及生成時假設的 cwd / shell / OS。
+- 使用本機脈絡時，回答卡會以精簡的「Based on」來源標籤說明依據；不傳送片段、分數或 secret-classified 來源到 UI。
+- AI 產生的命令一律 **copy-only**：只有 Copy，沒有 Edit、Run 或送進終端機的入口；風險標籤只供檢視，不是執行閘門。
+- `next` 會顯示近期工作流建議，並過濾重複、過期與無效目標；replay descriptor 仍需使用者明確選擇，不會自動執行。
+
+一般檔案操作中的刪除、重新命名與移動仍走 UI confirmation flow；這與 AI 命令卡分屬不同邊界，AI capability 本身不提供任何執行路徑。
 
 > inline AI 的延遲取決於本機模型與硬體：純 CPU 機器上單次回應約數秒，瓶頸是 token 生成吞吐而非模型大小。預設建議 `qwen2.5:1.5b`（速度與品質的平衡點，低階機的推薦預設）；有 GPU 或追求答案品質可改用 `qwen2.5:7b`。Model Manager 會依硬體給出建議清單。
 

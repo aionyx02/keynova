@@ -26,7 +26,7 @@ tags: [refactor, ai-capability, search-first, p0]
   (prefix dispatcher + all 5 capabilities + `CapabilityAnswerCard` family +
   `classifyNlIntent` NL fallback + ADR-0040). Only `REF.6.H` open:
   - [~] `REF.6.H` feature-first directory migration. 11 panels + 3 model panels relocated to `src/features/<feature>/`; 7 shared components moved to `src/shared/components/`. Model-manager tab consolidation deferred.
-- [~] `REF.7` quantitative gates, default `ai.legacy_agent = false`. .A/.B in v0.3.0; .C release notes shipped. REF.7.D **done** (2026-06-06): ADR-0029 §10 filled + §8 → **tiered** (CPU-host P50<5s/P95<8s) with **`qwen2.5:1.5b` reference default** (4266/6269 → **PASS** CPU tier). `PRODUCT.2` unfreeze gate **met**, awaiting flip. Detail: `sessions/2026-06-06.md`.
+- [~] `REF.7` quantitative gates, default `ai.legacy_agent = false`. .A/.B in v0.3.0; .C release notes shipped. REF.7.D **done** (2026-06-06): ADR-0029 §10 filled + §8 → **tiered** (CPU-host P50<5s/P95<8s) with **`qwen2.5:1.5b` reference default** (4266/6269 → **PASS** CPU tier). PRODUCT.2 subsequently completed. Detail: `sessions/2026-06-06.md`.
 - [~] `REF.8` physical removal. Done: `AiPanel.tsx` + `ai_legacy` route/builtin deleted (2026-06-01). Retained (developer): `agent_runtime.rs` + `handlers/agent/` + `ai.legacy_agent` flag (dormant). Not done: backend agent trim, flag removal, supersede ADRs 0011/0016/0022/0026.
 
 Detailed batch definitions, done criteria, non-goals, file map, and validation gates live in `docs/tasks/refactor-ai-capability.md`.
@@ -52,11 +52,10 @@ Detailed batch definitions, done criteria, non-goals, file map, and validation g
   + `PROJECT_ROOT.wire` + `1.F`/`1.G` + `1.H` done; `1.E` execution **dropped**
   (copy-only). (1.H Ctrl+K timing capture lands via `feature/product-1-h-ctrlk-timing`.)
   Detail: `docs/tasks/product-1-workflow-core.md`.
-- [~] `PRODUCT.2` v0.7 useful inline AI capabilities (**unfrozen 2026-06-06**).
-  Batch plan written (A–E). Audit: 5 capabilities exist; real gaps = source
-  display (2.D, biggest + ADR check), `fix` command card (2.B), `cmd` assumption
-  display (2.C), fixture/contract hardening (2.A), `next` staleness (2.E).
-  NON-GOAL: no execution path (copy-only stays). Detail:
+- [x] `PRODUCT.2` v0.7 useful inline AI capabilities **complete** (2026-06-06).
+  A–E landed: contract fixtures, exact source display (ADR-0046 proposed),
+  structured copy-only `fix` commands, `cmd` assumptions/risk labels, and
+  stale/invalid `next` suppression. No generated-command execution path. Detail:
   `docs/tasks/product-2-ai-capabilities.md`.
 
 ### P2
@@ -68,7 +67,7 @@ Detailed batch definitions, done criteria, non-goals, file map, and validation g
 Keynova's active priority is the search-first workflow refactor: AI is a stateless capability layer invoked inline from unified result rows and prefix-keyword palette flows; chat-first surfaces leave the hot path.
 
 Freeze status (2026-06-06, developer-directed): `PRODUCT.1` and `PRODUCT.2` are
-both **unfrozen**. REF.7.D done + latency direction finalized (tiered §8 +
+both **complete**. REF.7.D done + latency direction finalized (tiered §8 +
 `qwen2.5:1.5b` default) satisfied the PRODUCT.2 gate. `ai.legacy_agent`
 observation-window items remain separate, non-blocking tracking. Other parked
 tracks (`AGENT.*`, `CLIP.1`, etc.) stay frozen.
@@ -77,7 +76,6 @@ Keep `active.md` compact. Put batch-level task detail in `docs/tasks/refactor-ai
 
 ## Next Phase Candidates
 
-- `PRODUCT.2` (v0.7 useful inline AI capabilities) is now **unfrozen** and is the
-  next product track — see `docs/tasks/product-roadmap.md` §PRODUCT.2 (A–E).
+- `PRODUCT.3` trusted-release hardening is the next product track candidate.
 - `REF.7.C` final closer: user-side Bug A/B smoke.
 - After `REF.8`, refresh affected ADR statuses and architecture docs.

@@ -21,7 +21,12 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 import type { DispatchFn } from "../../../context/IPCContext";
 import { useCapability } from "./useCapability";
-import type { CapabilityId } from "../types";
+import {
+  parseFixErrorOutput,
+  type CapabilityId,
+  type CapabilitySource,
+  type CommandSuggestion,
+} from "../types";
 
 export type CapabilityStreamStatus =
   | "idle"
@@ -50,6 +55,9 @@ function buildPayload(id: CapabilityId, text: string): Record<string, unknown> {
 export interface UseCapabilityStream {
   status: CapabilityStreamStatus;
   text: string;
+  sources: CapabilitySource[];
+  suggestedCommand: CommandSuggestion | null;
+  riskRequiresConfirmation: boolean;
   error: string | null;
   startedAtMs: number | null;
   firstChunkAtMs: number | null;
@@ -66,7 +74,7 @@ export function useCapabilityStream({
   args,
 }: UseCapabilityStreamDeps): UseCapabilityStream {
   const inner = useCapability({ dispatch, id });
-  const { run, cancel: innerCancel, data, streamText, isLoading, error } = inner;
+  const { run, cancel: innerCancel, data, streamText, sources, risk, isLoading, error } = inner;
 
   const [startedAtMs, setStartedAtMs] = useState<number | null>(null);
   const [firstChunkAtMs, setFirstChunkAtMs] = useState<number | null>(null);
@@ -98,7 +106,9 @@ export function useCapabilityStream({
     }
   }, [argsKey, innerCancel]);
 
-  const resolvedText = streamText || (data?.kind === "text" ? data.text : "");
+  const fixOutput = id === "fix_error" ? parseFixErrorOutput(data) : null;
+  const resolvedText =
+    fixOutput?.explanation ?? (streamText || (data?.kind === "text" ? data.text : ""));
 
   // First-chunk timing: resolvedText goes from empty to non-empty after a run.
   // The final response text is a fallback for providers or event channels that
@@ -161,6 +171,9 @@ export function useCapabilityStream({
   return {
     status,
     text: resolvedText,
+    sources,
+    suggestedCommand: fixOutput?.suggested_command ?? null,
+    riskRequiresConfirmation: Boolean(risk?.requires_confirmation),
     error,
     startedAtMs,
     firstChunkAtMs,

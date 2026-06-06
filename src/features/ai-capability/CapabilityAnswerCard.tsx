@@ -12,6 +12,9 @@ import { Markdown } from "../../shared/components/Markdown";
 import { useI18n } from "../../i18n/useI18n";
 import type { DispatchFn } from "../../context/IPCContext";
 import type { CapabilityStreamStatus } from "./hooks/useCapabilityStream";
+import { CapabilityCommandDetails } from "./CapabilityCommandDetails";
+import { CapabilitySources } from "./CapabilitySources";
+import type { CapabilitySource, CommandSuggestion } from "./types";
 
 export type AnswerCardCapability = "explain" | "summarize" | "fix";
 
@@ -19,6 +22,9 @@ interface Props {
   capabilityLabel: AnswerCardCapability;
   status: CapabilityStreamStatus;
   text: string;
+  sources: CapabilitySource[];
+  suggestedCommand: CommandSuggestion | null;
+  riskRequiresConfirmation: boolean;
   error: string | null;
   startedAtMs: number | null;
   firstChunkAtMs: number | null;
@@ -49,6 +55,9 @@ export function CapabilityAnswerCard({
   capabilityLabel,
   status,
   text,
+  sources,
+  suggestedCommand,
+  riskRequiresConfirmation,
   error,
   startedAtMs,
   firstChunkAtMs,
@@ -150,7 +159,16 @@ export function CapabilityAnswerCard({
         ) : isBodyCancelled ? (
           <div className="text-[color:var(--kn-text-muted)]">{c.cancelledBody}</div>
         ) : text ? (
-          <Markdown content={text} />
+          <div className="space-y-4">
+            <Markdown content={text} />
+            {status === "complete" && suggestedCommand && (
+              <CapabilityCommandDetails
+                data={suggestedCommand}
+                riskRequiresConfirmation={riskRequiresConfirmation}
+              />
+            )}
+            {status === "complete" && <CapabilitySources sources={sources} />}
+          </div>
         ) : status === "pending" ? (
           <div className="text-[color:var(--kn-text-muted)]">
             {c.ansPendingBody}{" "}

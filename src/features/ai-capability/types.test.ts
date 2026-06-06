@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  parseCapabilitySources,
+  parseFixErrorOutput,
   parseGenCommandOutput,
   parseRecallOutput,
   parseRememberOutput,
@@ -16,13 +18,62 @@ describe("ai capability structured parsers", () => {
           command: "git status",
           confidence: 0.9,
           rationale: "Inspect changes first.",
+          assumptions: {
+            cwd: "C:/work/keynova",
+            shell: "powershell",
+            os: "windows",
+          },
         },
       }),
     ).toEqual({
       command: "git status",
       confidence: 0.9,
       rationale: "Inspect changes first.",
+      assumptions: {
+        cwd: "C:/work/keynova",
+        shell: "powershell",
+        os: "windows",
+      },
     });
+  });
+
+  it("parses fix_error structured replies", () => {
+    expect(
+      parseFixErrorOutput({
+        kind: "structured",
+        value: {
+          explanation: "The compiler found a type mismatch.",
+          suggested_command: {
+            command: "cargo check",
+            confidence: 0.6,
+            rationale: "Re-run the compiler.",
+          },
+        },
+      }),
+    ).toEqual({
+      explanation: "The compiler found a type mismatch.",
+      suggested_command: {
+        command: "cargo check",
+        confidence: 0.6,
+        rationale: "Re-run the compiler.",
+      },
+    });
+  });
+
+  it("drops malformed source rows", () => {
+    expect(
+      parseCapabilitySources([
+        { source_id: "workspace:1", source_type: "workspace", title: "Keynova" },
+        { source_id: "bad" },
+      ]),
+    ).toEqual([
+      {
+        source_id: "workspace:1",
+        source_type: "workspace",
+        title: "Keynova",
+        uri: null,
+      },
+    ]);
   });
 
   it("rejects malformed gen_command payloads", () => {
@@ -96,7 +147,13 @@ describe("ai capability structured parsers", () => {
     const parsed = parseRecallOutput({
       kind: "structured",
       value: [
-        { id: "1", title: "Coffee", snippet: "oat flat white", content: "oat flat white", score: 3 },
+        {
+          id: "1",
+          title: "Coffee",
+          snippet: "oat flat white",
+          content: "oat flat white",
+          score: 3,
+        },
         { id: "2", title: "bad" },
       ],
     });

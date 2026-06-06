@@ -281,11 +281,72 @@ describe("useCapabilityStream (submit-on-Enter)", () => {
           id: "explain",
           output: { kind: "text", text: "final-only reply" },
           risk_tag: { requires_confirmation: false, reason: "" },
+          sources: [
+            {
+              source_id: "workspace:1",
+              source_type: "workspace",
+              title: "Keynova",
+            },
+          ],
         });
       });
 
       expect(result.current.status).toBe("complete");
       expect(result.current.text).toBe("final-only reply");
+      expect(result.current.sources).toEqual([
+        {
+          source_id: "workspace:1",
+          source_type: "workspace",
+          title: "Keynova",
+          uri: null,
+        },
+      ]);
+    });
+  });
+
+  it("projects fix_error structured output into explanation and command fields", async () => {
+    await withTauriShim(async () => {
+      const dispatch = makeDispatch();
+      const { result } = renderHook(() =>
+        useCapabilityStream({
+          dispatch: dispatch as DispatchFn,
+          id: "fix_error",
+          args: { text: "error[E0308]: mismatched types" },
+        }),
+      );
+
+      await act(async () => {
+        result.current.submit();
+      });
+      const payload = dispatch.mock.calls.find(([route]) => route === IPC.CAPABILITY_CALL)?.[1] as
+        | { request_id: string }
+        | undefined;
+
+      act(() => {
+        emitMockEvent("capability-response", {
+          request_id: payload?.request_id,
+          ok: true,
+          id: "fix_error",
+          output: {
+            kind: "structured",
+            value: {
+              explanation: "The value has the wrong type.",
+              suggested_command: {
+                command: "cargo check",
+                confidence: 0.6,
+                rationale: "Re-run the compiler.",
+              },
+            },
+          },
+          risk_tag: { requires_confirmation: false, reason: "" },
+          sources: [],
+        });
+      });
+
+      expect(result.current.status).toBe("complete");
+      expect(result.current.text).toBe("The value has the wrong type.");
+      expect(result.current.suggestedCommand?.command).toBe("cargo check");
+      expect(result.current.riskRequiresConfirmation).toBe(false);
     });
   });
 });
