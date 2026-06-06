@@ -328,7 +328,6 @@ export const enUS: I18nKeys = {
     commandSubtitle: "Run actions without leaving the keyboard",
     searchFooterHint: "Type / for commands",
     commandFooterHint: "Slash to switch back to search",
-    inputHint: "Type",
     commandModeHint: "Type / for commands",
     terminalModeHint: "Type > for terminal",
     keyboardFirst: "Keyboard-first",
