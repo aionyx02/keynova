@@ -337,7 +337,7 @@ Scope:
 - [ ] Exercise config migration and rollback paths.
 - [ ] Keep `docs/security.md`, README, ADRs, and release notes synchronized for
   any security, IPC, secret, or network-policy change.
-- [ ] Make release workflow run verify before packaging. If full verify is too
+- [x] Make release workflow run verify before packaging. If full verify is too
   slow, minimum gate is lint, frontend build, frontend tests, Rust tests, and
   clippy.
 
