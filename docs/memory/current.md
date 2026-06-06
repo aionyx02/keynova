@@ -48,13 +48,12 @@ owner: project
   gate are done; `1.E` command execution / terminal handoff is intentionally
   dropped for now. Next is the `PRODUCT.1.H` manual dogfood pass with a real
   `Ctrl+K` input-ready timing sample.
-- REF.7.D **done** (2026-06-06): `qwen2.5:7b` runs=10 bench filled ADR-0029 §10.
-  inline P50 7598 ms / P95 11654 ms on CPU host — both **FAIL** vs `<800/<1500 ms`.
-  Decision-gated next step (smaller default model / relax target+amend ADR / slow
-  opt-in); `PRODUCT.2` stays frozen pending the ruling. Detail: `sessions/2026-06-06.md`.
-- REF.7.C: §10 data now filled; remaining closer is user-side Bug A/B smoke. Note
-  the failing gate means "close REF.7.C" records the reading, it does not by itself
-  pass the latency gate or auto-unfreeze `PRODUCT.2`.
+- REF.7.D **done** (2026-06-06): bench proved CPU throughput (not model size) is the
+  wall — even 1.5b ~5× over old 800 ms. Developer-approved: ADR-0029 §8 → **tiered**
+  (CPU-host P50<5s/P95<8s + GPU<800ms aspirational) + **`qwen2.5:1.5b` reference
+  default** (ai.rs/live_tests/bench/Cargo.toml); 1.5b P50 4266/P95 6269 **PASS** CPU
+  tier. ADR stays `accepted`. `PRODUCT.2` unfreeze gate now **met**, awaiting explicit
+  flip; REF.7.C closer = user Bug A/B smoke. Detail: `sessions/2026-06-06.md`.
 - `v0.6.0` release commit bumps app metadata and adds release notes for the
   PRODUCT.1 workflow-core pass. Pushing tag `v0.6.0` triggers GitHub release CI
   and creates a draft release. Still UNSIGNED. `v0.5.0` remains the previous

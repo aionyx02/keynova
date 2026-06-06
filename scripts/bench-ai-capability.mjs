@@ -9,18 +9,19 @@
 // table (default) or a JSON payload (`--json`) for CI ingest.
 //
 // Usage:
-//   node scripts/bench-ai-capability.mjs                          # 10 runs, model = $KEYNOVA_LIVE_AI_MODEL or qwen2.5:7b
-//   node scripts/bench-ai-capability.mjs --runs 3 --model qwen3:0.6b
+//   node scripts/bench-ai-capability.mjs                          # 10 runs, model = $KEYNOVA_LIVE_AI_MODEL or qwen2.5:1.5b
+//   node scripts/bench-ai-capability.mjs --runs 3 --model qwen2.5:7b
 //   node scripts/bench-ai-capability.mjs --runs 10 --json > bench.json
 //
-// REF.7.D records the formal qwen2.5:7b reading; REF.7.C copies it into
-// ADR-0029 §8.
+// REF.7.D records the formal reading; the §8 amendment (2026-06-06) sets
+// qwen2.5:1.5b as the reference default (best reliable CPU latency) and
+// qwen2.5:7b as a higher-quality option. Readings land in ADR-0029 §10.
 
 import { spawnSync } from "node:child_process";
 
 const args = parseArgs(process.argv.slice(2));
 const runs = args.runs ?? 10;
-const model = args.model ?? process.env.KEYNOVA_LIVE_AI_MODEL ?? "qwen2.5:7b";
+const model = args.model ?? process.env.KEYNOVA_LIVE_AI_MODEL ?? "qwen2.5:1.5b";
 const jsonOutput = Boolean(args.json);
 
 if (!Number.isInteger(runs) || runs <= 0) {
