@@ -134,6 +134,8 @@ cmd <用自然語言描述你想做的事>
 - `cmd` 會生成可複製、可編輯的命令卡；`next` 會顯示近期工作流建議並支援安全的 replay。
 - 高風險操作（刪除 / 重新命名 / 移動等）走 UI confirmation gate；命令是否執行始終由使用者決定。
 
+> inline AI 的延遲取決於本機模型與硬體：純 CPU 機器上單次回應約數秒，瓶頸是 token 生成吞吐而非模型大小。預設建議 `qwen2.5:1.5b`（速度與品質的平衡點，低階機的推薦預設）；有 GPU 或追求答案品質可改用 `qwen2.5:7b`。Model Manager 會依硬體給出建議清單。
+
 > 舊版 chat-first AI 介面（`AiPanel`）已移除。後端的 typed-tool + approval agent runtime 以休眠形式保留（`ai.legacy_agent` 為無 UI 入口的保留旗標），供日後 tool-using capability 重新接用。
 
 ## 從原始碼建置
@@ -183,7 +185,7 @@ npm run verify           # docs + frontend + Rust 一次驗證
 ```toml
 [ai]
 provider = "ollama"
-model = "qwen2.5:7b"
+model = "qwen2.5:1.5b"    # 建議本機 default（CPU 延遲較佳）；qwen2.5:7b 品質更高但更慢
 ollama_url = "http://localhost:11434"
 
 [translation]

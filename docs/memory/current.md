@@ -32,10 +32,10 @@ owner: project
 ## Important Constraints
 
 - AI agents can draft ADRs as `proposed`; ADR-0039 must remain `proposed` in docs even though the developer explicitly approved the bounded startup-preflight runtime implementation on 2026-05-29.
-- Conditional partial unfreeze (2026-06-05): `PRODUCT.1` search-core unfrozen
-  (orthogonal to the AI hot path REF.7 measures). `PRODUCT.2` + AI/agent-touching
-  work frozen until `REF.7.D` + observation window close; `REF.7.D`/observation
-  are non-blocking tracking items, not a queue gate.
+- Freeze lifted (2026-06-06, developer-directed): `PRODUCT.1` and `PRODUCT.2` are
+  **unfrozen** — REF.7.D done + latency direction finalized (tiered §8 + 1.5b
+  default) satisfied the PRODUCT.2 gate. `ai.legacy_agent` observation-window items
+  stay separate, non-blocking. Other parked tracks (`AGENT.*`, `CLIP.1`) stay frozen.
 - LLM-driven execution must stay approval-gated for risky or system-affecting actions; risk + `ConfirmRequirement` live on `UnifiedResult.ActionChip`.
 - Generic shell tool exposure stays blocked until the platform sandbox boundary is complete.
 - Background Core memory targets exclude active WebView, loaded local LLM model memory, PTY terminal sessions, monitoring streams, and index rebuild tasks.
