@@ -1,5 +1,5 @@
 use std::collections::{BTreeMap, HashMap, HashSet};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use serde::Serialize;
 
@@ -26,10 +26,7 @@ pub struct ConfigManager {
 impl ConfigManager {
     pub fn new() -> Self {
         let config_path = Self::user_config_path();
-        let data = Self::load_result(&config_path).unwrap_or_else(|e| {
-            eprintln!("[keynova] config load failed: {e}");
-            Self::load_default_result().unwrap_or_default()
-        });
+        let data = Self::load_or_recover(&config_path);
         let mut manager = Self { data, config_path };
         #[cfg(not(test))]
         if let Err(error) = manager.migrate_plaintext_secrets_to_keychain() {
@@ -51,6 +48,46 @@ impl ConfigManager {
             return Ok(flatten_table(&table, ""));
         }
         Self::load_default_result()
+    }
+
+    /// Load the user config, recovering safely from an unparseable file.
+    ///
+    /// `load_result` only errs when the file exists but cannot be read/parsed
+    /// (a missing file already falls back to defaults). In that corrupt case we
+    /// **quarantine** the original to `config.toml.corrupt-<unix_secs>` before
+    /// loading defaults, so a transient corruption never silently discards the
+    /// user's settings (the next `persist()` would otherwise overwrite them).
+    fn load_or_recover(config_path: &Path) -> HashMap<String, String> {
+        match Self::load_result(&config_path.to_path_buf()) {
+            Ok(data) => data,
+            Err(error) => {
+                eprintln!("[keynova] config load failed: {error}");
+                Self::backup_corrupt_config(config_path);
+                Self::load_default_result().unwrap_or_default()
+            }
+        }
+    }
+
+    /// Copy an unparseable config aside so the user can recover it. Best-effort:
+    /// failures are logged, not fatal. No-op when the source does not exist.
+    fn backup_corrupt_config(path: &Path) {
+        if !path.exists() {
+            return;
+        }
+        let secs = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_secs())
+            .unwrap_or(0);
+        let backup = path.with_file_name(format!("config.toml.corrupt-{secs}"));
+        match std::fs::copy(path, &backup) {
+            Ok(_) => eprintln!(
+                "[keynova] config: unparseable config quarantined to {}",
+                backup.display()
+            ),
+            Err(error) => {
+                eprintln!("[keynova] config: failed to quarantine corrupt config: {error}")
+            }
+        }
     }
 
     fn load_default_result() -> Result<HashMap<String, String>, String> {
@@ -333,6 +370,68 @@ mod tests {
         assert!(values
             .iter()
             .any(|(key, value)| { key == "translation.api_key" && value.is_empty() }));
+    }
+
+    fn unique_temp_dir(tag: &str) -> PathBuf {
+        let nanos = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_nanos())
+            .unwrap_or(0);
+        let dir = std::env::temp_dir().join(format!("keynova-cfg-{tag}-{nanos}"));
+        std::fs::create_dir_all(&dir).unwrap();
+        dir
+    }
+
+    #[test]
+    fn corrupt_config_is_quarantined_and_recovers_to_defaults() {
+        let dir = unique_temp_dir("corrupt");
+        let path = dir.join("config.toml");
+        // Unquoted spaced keys are invalid TOML → parse failure.
+        std::fs::write(&path, "= = = not valid toml = broken").unwrap();
+
+        let data = ConfigManager::load_or_recover(&path);
+
+        // Recovered to a usable default config rather than an empty map.
+        assert!(!data.is_empty(), "recovery should load defaults");
+
+        // The unparseable original was copied aside, not lost.
+        let quarantined: Vec<_> = std::fs::read_dir(&dir)
+            .unwrap()
+            .flatten()
+            .filter(|e| {
+                e.file_name()
+                    .to_string_lossy()
+                    .starts_with("config.toml.corrupt-")
+            })
+            .collect();
+        assert_eq!(quarantined.len(), 1, "exactly one quarantine backup");
+        assert_eq!(
+            std::fs::read_to_string(quarantined[0].path()).unwrap(),
+            "= = = not valid toml = broken"
+        );
+
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn missing_config_recovers_without_quarantine() {
+        let dir = unique_temp_dir("missing");
+        let path = dir.join("config.toml");
+
+        let data = ConfigManager::load_or_recover(&path);
+
+        assert!(!data.is_empty(), "missing file falls back to defaults");
+        let quarantined = std::fs::read_dir(&dir)
+            .unwrap()
+            .flatten()
+            .any(|e| {
+                e.file_name()
+                    .to_string_lossy()
+                    .starts_with("config.toml.corrupt-")
+            });
+        assert!(!quarantined, "a missing file must not create a backup");
+
+        std::fs::remove_dir_all(&dir).ok();
     }
 
     #[test]
