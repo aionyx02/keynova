@@ -340,6 +340,8 @@ Scope:
 - [x] Make release workflow run verify before packaging. If full verify is too
   slow, minimum gate is lint, frontend build, frontend tests, Rust tests, and
   clippy.
+- [x] Publish the matching `docs/release-notes/v<version>.md` as the GitHub
+  Release body, rejecting non-tag runs, missing notes, and tag/version mismatches.
 
 Done:
 

@@ -10,6 +10,9 @@ jobs:
   verify:
     runs-on: ubuntu-22.04
     timeout-minutes: 30
+    outputs:
+      release_body: ${{ steps.release_notes.outputs.release_body }}
+      release_tag: ${{ steps.release_notes.outputs.release_tag }}
     steps:
       - uses: actions/checkout@v4
 
@@ -46,6 +49,10 @@ jobs:
 
       - name: Verify release source
         run: npm run verify
+
+      - name: Load versioned release notes
+        id: release_notes
+        run: node scripts/release-notes.mjs --github-output
 
   build:
     needs: verify
@@ -105,18 +112,9 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          tagName: ${{ github.ref_name }}
-          releaseName: "Keynova ${{ github.ref_name }}"
-          releaseBody: |
-            See CHANGELOG / commit history for what changed in this release.
-
-            ## Downloads
-
-            - **Windows**: `Keynova_<version>_x64-setup.exe` (NSIS one-click install + uninstall via Apps & Features)
-            - **macOS**: `Keynova_<version>_universal.dmg`
-            - **Linux**: `keynova_<version>_amd64.deb` / `keynova_<version>_amd64.AppImage`
-
-            Unsigned builds — Windows SmartScreen and macOS Gatekeeper may warn on first run.
+          tagName: ${{ needs.verify.outputs.release_tag }}
+          releaseName: "Keynova ${{ needs.verify.outputs.release_tag }}"
+          releaseBody: ${{ needs.verify.outputs.release_body }}
           releaseDraft: true
           prerelease: false
           args: ${{ matrix.args }}
