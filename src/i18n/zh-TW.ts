@@ -364,6 +364,7 @@ export const zhTW = {
     replayOnboard: "重播 /onboard",
     copyCommandResult: "複製結果",
     copiedCommandResult: "已複製結果",
+    commandResult: "指令結果",
     copiedPath: "已複製路徑：{path}",
     timedOut: "逾時：{providers}",
     fileTimedOut: "檔案搜尋：provider 在 800ms 後逾時",
