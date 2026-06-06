@@ -325,7 +325,6 @@ export const zhTW = {
     commandSubtitle: "不用離開鍵盤即可執行動作",
     searchFooterHint: "輸入 / 開啟指令",
     commandFooterHint: "斜線可回到搜尋",
-    inputHint: "輸入",
     commandModeHint: "輸入 / 開啟指令",
     terminalModeHint: "輸入 > 開啟終端機",
     keyboardFirst: "鍵盤優先",
