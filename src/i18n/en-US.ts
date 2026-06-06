@@ -367,6 +367,7 @@ export const enUS: I18nKeys = {
     replayOnboard: "Replay /onboard",
     copyCommandResult: "Copy result",
     copiedCommandResult: "Copied result",
+    commandResult: "Command result",
     copiedPath: "Copied path: {path}",
     timedOut: "Timed out: {providers}",
     fileTimedOut: "File search: provider timed out after 800ms",
