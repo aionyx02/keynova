@@ -2,7 +2,7 @@
 type: working_memory
 status: active
 priority: p0
-updated: 2026-06-05
+updated: 2026-06-06
 context_policy: always_retrievable
 owner: project
 ---
@@ -48,8 +48,13 @@ owner: project
   gate are done; `1.E` command execution / terminal handoff is intentionally
   dropped for now. Next is the `PRODUCT.1.H` manual dogfood pass with a real
   `Ctrl+K` input-ready timing sample.
-- REF.7.D stays user-action but non-blocking: `ollama pull qwen2.5:7b && npm run bench:ai -- --runs 10 --model qwen2.5:7b`. Only `qwen3:0.6b` is local.
-- REF.7.C closes by filling ADR-0029 §10 from the REF.7.D output (one follow-up edit) + user-side Bug A/B smoke; that unfreezes `PRODUCT.2`.
+- REF.7.D **done** (2026-06-06): `qwen2.5:7b` runs=10 bench filled ADR-0029 §10.
+  inline P50 7598 ms / P95 11654 ms on CPU host — both **FAIL** vs `<800/<1500 ms`.
+  Decision-gated next step (smaller default model / relax target+amend ADR / slow
+  opt-in); `PRODUCT.2` stays frozen pending the ruling. Detail: `sessions/2026-06-06.md`.
+- REF.7.C: §10 data now filled; remaining closer is user-side Bug A/B smoke. Note
+  the failing gate means "close REF.7.C" records the reading, it does not by itself
+  pass the latency gate or auto-unfreeze `PRODUCT.2`.
 - `v0.6.0` release commit bumps app metadata and adds release notes for the
   PRODUCT.1 workflow-core pass. Pushing tag `v0.6.0` triggers GitHub release CI
   and creates a draft release. Still UNSIGNED. `v0.5.0` remains the previous
