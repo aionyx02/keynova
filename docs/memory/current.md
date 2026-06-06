@@ -43,9 +43,10 @@ owner: project
 
 ## Next Step
 
-- `PRODUCT.3` trusted-release hardening started with a full-verify gate before
-  release packaging and validated versioned GitHub Release notes;
-  updater/signing/diagnostics/migration work remains.
+- `PRODUCT.3` trusted-release hardening: full-verify gate before release
+  packaging, validated versioned GitHub Release notes, and the redacted
+  copy-only `/diag` diagnostics export (ADR-0047 proposed) all landed;
+  updater/signing/migration work remains.
 - REF.7.D **done** (2026-06-06): bench proved CPU throughput (not model size) is the
   wall — even 1.5b ~5× over old 800 ms. Developer-approved: ADR-0029 §8 → **tiered**
   (CPU-host P50<5s/P95<8s + GPU<800ms aspirational) + **`qwen2.5:1.5b` reference

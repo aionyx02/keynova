@@ -468,6 +468,13 @@ fn icon_cache_dir() -> PathBuf {
         .join("icons")
 }
 
+/// Read-only access to the persisted preflight snapshot for callers outside the
+/// preflight runtime (e.g. the `/diag` diagnostics bundle). Returns `None` when
+/// the snapshot is missing or unreadable; never triggers a refresh.
+pub fn read_snapshot_from_disk() -> Option<StartupPreflightSnapshot> {
+    load_snapshot_from_disk().ok().flatten()
+}
+
 fn load_snapshot_from_disk() -> Result<Option<StartupPreflightSnapshot>, String> {
     let path = snapshot_path();
     if !path.exists() {

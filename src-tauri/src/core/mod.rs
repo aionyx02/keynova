@@ -9,6 +9,7 @@ pub mod config_manager;
 pub mod control_plane;
 pub mod dev_runner;
 pub mod dev_utils;
+pub mod diagnostics;
 pub mod event_bus;
 pub mod grounding;
 pub mod ipc_error;

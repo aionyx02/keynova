@@ -2,7 +2,7 @@
 type: security_policy
 status: active
 priority: p0
-updated: 2026-06-02
+updated: 2026-06-06
 context_policy: retrieve_only
 owner: project
 ---
@@ -242,3 +242,23 @@ Agent 執行工具前，`safety.rs` 中的 `ToolPermissionGate` 必須評估：
 ### 10.3 file.preview IPC 邊界
 
 `file.preview` 為 read-only，路徑必須通過 `trim_path` + `ensure_path_exists` 驗證；text preview 走 `core/preview::read_text_preview` 套用 `AgentObservationPolicy { redact_secrets: true }` 遮蔽常見 secret pattern；max_bytes 上限 64 KiB、max_lines 上限 2000，避免 IPC payload 過大。Binary / image 不回傳檔案內容，僅 metadata。
+
+---
+
+## 11. Diagnostics Export Bundle（`/diag`, ADR-0047）
+
+### 11.1 範圍
+
+`/diag` builtin 指令產生一份可貼到 bug report 的純文字摘要：app 版本、OS/arch、feature flags（`features.*` + `ai.legacy_agent`）、redacted config、本機資料檔（`config.toml`、`knowledge.db`、`notes/`、Tantivy 索引、preflight snapshot）的存在與大小，以及 preflight 摘要（status / source_mode / ollama_reachable / 本機模型數 / generated_at）。
+
+### 11.2 遮蔽與邊界
+
+- **僅消費 `ConfigManager::list_all_redacted()`** 的列（從不呼叫 `get()` / `list_all()`）；`core::diagnostics::build_report` 對 sensitive 列再次強制遮成 `********`（defense-in-depth）。
+- 絕對路徑的使用者 home 前綴一律收斂為 `~` / `%USERPROFILE%`，不洩漏使用者名稱。
+- 本機資料檔**只讀 metadata（存在 + 大小），絕不讀檔案內容**。
+- **copy-only**：沿用既有 inline 結果的 Copy + 捲動區，無網路、無自動上傳、無寫檔、無 run/edit。
+- `/diag` 為核心信任指令，**不受 feature gate 限制**。
+
+### 11.3 擴充規則
+
+新增欄位必須通過同一套遮蔽保證，且不得引入檔案內容或網路行為。save-to-file 不在範圍內，若日後加入需另立 ADR（新增 write-IPC + 路徑邊界）。
