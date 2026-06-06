@@ -265,6 +265,28 @@ impl BuiltinCommand for DownCommand {
     }
 }
 
+pub struct DiagCommand;
+
+impl BuiltinCommand for DiagCommand {
+    fn name(&self) -> &'static str {
+        "diag"
+    }
+
+    fn description(&self) -> &'static str {
+        "Export a redacted diagnostics bundle"
+    }
+
+    fn execute(&self, _args: &str) -> BuiltinCommandResult {
+        // The real bundle needs config + local paths + preflight, so it is
+        // assembled by `BuiltinCmdHandler`. This inline fallback covers any direct
+        // registry call path.
+        BuiltinCommandResult {
+            text: String::new(),
+            ui_type: CommandUiType::Inline,
+        }
+    }
+}
+
 pub struct RebuildSearchIndexCommand;
 
 impl BuiltinCommand for RebuildSearchIndexCommand {
@@ -301,6 +323,67 @@ impl BuiltinCmdHandler {
             config,
             search_manager,
         }
+    }
+
+    /// Gather the redacted diagnostics inputs (config, local data paths, preflight
+    /// snapshot) and assemble the report. All path I/O is metadata-only; secrets
+    /// come pre-masked from `list_all_redacted()`.
+    fn build_diagnostics_report(&self) -> crate::core::diagnostics::DiagnosticsReport {
+        use crate::core::diagnostics::{
+            build_report, path_size, DiagnosticsInputs, PreflightFacts, ResolvedPath,
+        };
+        use crate::platform_dirs::{keynova_config_dir, keynova_data_dir};
+
+        let redacted_config = self
+            .config
+            .lock()
+            .map(|cfg| cfg.list_all_redacted())
+            .unwrap_or_default();
+
+        let config_dir = keynova_config_dir();
+        let data_dir = keynova_data_dir();
+        let candidates = [
+            ("config.toml", config_dir.join("config.toml")),
+            ("knowledge.db", data_dir.join("knowledge.db")),
+            ("notes/", data_dir.join("notes")),
+            ("search index", data_dir.join("search").join("tantivy")),
+            (
+                "preflight snapshot",
+                data_dir.join("bootstrap").join("preflight-v1.json"),
+            ),
+        ];
+        let paths = candidates
+            .into_iter()
+            .map(|(label, path)| {
+                let exists = path.exists();
+                let size_bytes = if exists { path_size(&path) } else { 0 };
+                ResolvedPath {
+                    label: label.to_string(),
+                    path,
+                    exists,
+                    size_bytes,
+                }
+            })
+            .collect();
+
+        let preflight =
+            crate::core::startup_preflight::read_snapshot_from_disk().map(|s| PreflightFacts {
+                status: s.status,
+                source_mode: s.source_mode,
+                ollama_reachable: s.model.ollama_reachable,
+                local_model_count: s.model.local_models.len(),
+                generated_at: s.generated_at,
+            });
+
+        build_report(DiagnosticsInputs {
+            version: env!("CARGO_PKG_VERSION").to_string(),
+            os: std::env::consts::OS.to_string(),
+            arch: std::env::consts::ARCH.to_string(),
+            home_dir: dirs::home_dir(),
+            redacted_config,
+            paths,
+            preflight,
+        })
     }
 }
 
@@ -382,6 +465,14 @@ impl CommandHandler for BuiltinCmdHandler {
                         .join("\n");
                     return Ok(json!(BuiltinCommandResult {
                         text,
+                        ui_type: CommandUiType::Inline,
+                    }));
+                }
+
+                if name == "diag" {
+                    let report = self.build_diagnostics_report();
+                    return Ok(json!(BuiltinCommandResult {
+                        text: crate::core::diagnostics::render_text(&report),
                         ui_type: CommandUiType::Inline,
                     }));
                 }

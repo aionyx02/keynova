@@ -76,6 +76,7 @@ owner: project
 | [0044](adr/0044-feature-self-registration.md)             | Feature Self-Registration Manifest                                      | 提議                             | 2026-06-04 |
 | [0045](adr/0045-human-interactive-terminal.md)            | Human-Driven Interactive Terminal                                       | 提議                             | 2026-06-05 |
 | [0046](adr/0046-capability-source-display-contract.md)    | Capability Source Display Contract                                      | 提議                             | 2026-06-06 |
+| [0047](adr/0047-diagnostics-export.md)                    | Diagnostics Export Bundle Contract                                      | 提議                             | 2026-06-06 |
 
 ---
 
