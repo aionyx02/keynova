@@ -7,14 +7,15 @@
 //! cargo test --features live-ai -- --ignored ai_capability_live --nocapture
 //! ```
 //!
-//! Model defaults to ADR-0029 §8's `qwen2.5:7b` target. Override via the
-//! `KEYNOVA_LIVE_AI_MODEL` env var when smoke-testing against a smaller
-//! local model (e.g. `qwen2.5:0.5b`); the recorded latency is then a
-//! lower bound, not the canonical P50 reading.
+//! Model defaults to ADR-0029 §8's `qwen2.5:1.5b` reference default (the
+//! 2026-06-06 amendment; `qwen2.5:7b` stays a higher-quality option). Override
+//! via the `KEYNOVA_LIVE_AI_MODEL` env var when smoke-testing against another
+//! local model; the recorded latency is then for that model, not the canonical
+//! reference reading.
 //!
-//! Tests print the observed latency in milliseconds; the 800 ms P50 target
-//! is recorded in the session log rather than asserted here — REF.7 owns
-//! the quantitative gate.
+//! Tests print the observed latency in milliseconds; the tiered §8 P50 targets
+//! (CPU-host < 5000 ms, GPU/ideal < 800 ms) are recorded in the session log /
+//! §10 rather than asserted here — REF.7 owns the quantitative gate.
 
 use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
@@ -27,7 +28,7 @@ use crate::core::ai_capability::{
 use crate::managers::ai_manager::{AiManager, AiProvider, AiRuntimeConfig};
 
 fn live_ai_model() -> String {
-    std::env::var("KEYNOVA_LIVE_AI_MODEL").unwrap_or_else(|_| "qwen2.5:7b".into())
+    std::env::var("KEYNOVA_LIVE_AI_MODEL").unwrap_or_else(|_| "qwen2.5:1.5b".into())
 }
 
 fn runtime_for_ollama() -> AiRuntimeConfig {

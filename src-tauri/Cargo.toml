@@ -18,8 +18,9 @@ crate-type = ["staticlib", "cdylib", "rlib"]
 
 [features]
 # Enables `#[ignore]`-gated integration tests that hit a live Ollama daemon
-# (qwen2.5:7b). Default-off so CI and unit-test runs do not depend on external
-# services. Run locally with:
+# (qwen2.5:1.5b reference default; override via KEYNOVA_LIVE_AI_MODEL).
+# Default-off so CI and unit-test runs do not depend on external services.
+# Run locally with:
 #   cargo test --features live-ai -- --ignored ai_capability_live
 live-ai = []
 
