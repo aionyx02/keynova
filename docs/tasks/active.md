@@ -48,15 +48,16 @@ Detailed batch definitions, done criteria, non-goals, file map, and validation g
   i18n conversion, UTF-8 BOM cleanup, and the garbled-text (`嚙`) fallback (raw
   path instead of "Path unavailable"). Open: `嚙` root cause still blocked on a
   repro (non-urgent). Detail: `docs/tasks/ux-audit.md`.
-- [~] `PRODUCT.1` v0.6 stable workflow core (UNFROZEN 2026-06-05; search-core,
-  orthogonal to REF.7). `A`–`D` **done**: workspace+config boost (A), contract
-  audit (B), noise demote (C), project-command discovery copy-only (D).
-  `PROJECT_ROOT.wire` done (startup VCS-root detection; search stays global +
-  workspace-ranked, hard filter removed). `1.E` (command execution/terminal)
-  **dropped** — no execution path, copy-only stays. `1.F`/`1.G` done
-  (preview-copy polish + slashless inline utilities). `1.H` unit/docs done;
-  manual `Ctrl+K` timing remains. Detail:
-  `docs/tasks/product-1-workflow-core.md`.
+- [x] `PRODUCT.1` v0.6 stable workflow core **complete** (search-core). `A`–`D`
+  + `PROJECT_ROOT.wire` + `1.F`/`1.G` + `1.H` done; `1.E` execution **dropped**
+  (copy-only). (1.H Ctrl+K timing capture lands via `feature/product-1-h-ctrlk-timing`.)
+  Detail: `docs/tasks/product-1-workflow-core.md`.
+- [~] `PRODUCT.2` v0.7 useful inline AI capabilities (**unfrozen 2026-06-06**).
+  Batch plan written (A–E). Audit: 5 capabilities exist; real gaps = source
+  display (2.D, biggest + ADR check), `fix` command card (2.B), `cmd` assumption
+  display (2.C), fixture/contract hardening (2.A), `next` staleness (2.E).
+  NON-GOAL: no execution path (copy-only stays). Detail:
+  `docs/tasks/product-2-ai-capabilities.md`.
 
 ### P2
 
