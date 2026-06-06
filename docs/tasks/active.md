@@ -77,6 +77,6 @@ Keep `active.md` compact. Put batch-level task detail in `docs/tasks/refactor-ai
 ## Next Phase Candidates
 
 - [~] `PRODUCT.3` trusted-release hardening started: release packaging now waits
-  for a dedicated full-verify CI job.
+  for a dedicated full-verify CI job and publishes validated versioned notes.
 - `REF.7.C` final closer: user-side Bug A/B smoke.
 - After `REF.8`, refresh affected ADR statuses and architecture docs.
