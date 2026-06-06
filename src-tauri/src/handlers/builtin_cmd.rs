@@ -265,6 +265,28 @@ impl BuiltinCommand for DownCommand {
     }
 }
 
+pub struct UpdateCommand;
+
+impl BuiltinCommand for UpdateCommand {
+    fn name(&self) -> &'static str {
+        "update"
+    }
+
+    fn description(&self) -> &'static str {
+        "Check for app updates"
+    }
+
+    fn execute(&self, _args: &str) -> BuiltinCommandResult {
+        // The updater check needs the Tauri AppHandle, which command handlers
+        // don't have, so the frontend intercepts `/update` (like `/onboard`) and
+        // drives the plugin. This inline fallback covers any non-UI path.
+        BuiltinCommandResult {
+            text: String::new(),
+            ui_type: CommandUiType::Inline,
+        }
+    }
+}
+
 pub struct DiagCommand;
 
 impl BuiltinCommand for DiagCommand {

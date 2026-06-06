@@ -37,6 +37,12 @@ export const zhTW = {
     run: "檢視",
     select: "選擇",
   },
+  updater: {
+    available: "有可用更新：{version}（目前 {current}）。",
+    current: "已是最新版本（{current}）。",
+    unconfigured: "此版本尚未設定自動更新。",
+    error: "檢查更新失敗：{message}",
+  },
   ai: {
     title: "AI 助理",
     placeholder: "輸入問題… Enter 送出",
@@ -319,6 +325,9 @@ export const zhTW = {
     commandSubtitle: "不用離開鍵盤即可執行動作",
     searchFooterHint: "輸入 / 開啟指令",
     commandFooterHint: "斜線可回到搜尋",
+    inputHint: "輸入",
+    commandModeHint: "輸入 / 開啟指令",
+    terminalModeHint: "輸入 > 開啟終端機",
     keyboardFirst: "鍵盤優先",
     navigate: "瀏覽",
     run: "執行",

@@ -39,6 +39,12 @@ export const enUS: I18nKeys = {
     run: "Review",
     select: "Select",
   },
+  updater: {
+    available: "Update available: {version} (current {current}).",
+    current: "You're on the latest version ({current}).",
+    unconfigured: "Updates are not configured for this build yet.",
+    error: "Update check failed: {message}",
+  },
   ai: {
     title: "AI Assistant",
     placeholder: "Ask a question… Enter to send",
@@ -322,6 +328,9 @@ export const enUS: I18nKeys = {
     commandSubtitle: "Run actions without leaving the keyboard",
     searchFooterHint: "Type / for commands",
     commandFooterHint: "Slash to switch back to search",
+    inputHint: "Type",
+    commandModeHint: "Type / for commands",
+    terminalModeHint: "Type > for terminal",
     keyboardFirst: "Keyboard-first",
     navigate: "navigate",
     run: "run",
