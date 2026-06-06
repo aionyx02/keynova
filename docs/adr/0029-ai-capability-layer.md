@@ -233,14 +233,27 @@ ollama pull qwen2.5:7b
 npm run bench:ai -- --runs 10 --model qwen2.5:7b
 ```
 
-將輸出貼回後填入下表（目標見 §8 與 `docs/tasks/refactor-ai-capability.md` Validation Matrix）。
+讀數於 2026-06-06 產生（本機 Windows，**CPU-only，無 GPU**）。inline P50/P95 為
+`explain`+`fix_error`+`gen_command` 三個非串流 inline capability 的合併樣本（n=30，
+每 capability 10 runs）。原始 JSON 與 per-capability 分佈見 `sessions/2026-06-06.md`。
 
-| 指標                   | 目標      | 讀數 (qwen2.5:7b, runs=10) | 狀態            |
-| ---------------------- | --------- | -------------------------- | --------------- |
-| inline P50             | < 800 ms  | —                          | pending REF.7.D |
-| inline P95             | < 1500 ms | —                          | pending REF.7.D |
-| palette cold open      | < 200 ms  | —                          | pending REF.7.D |
-| palette warm open      | < 50 ms   | —                          | pending REF.7.D |
-| search first chunk P50 | < 80 ms   | —                          | pending REF.7.D |
+| 指標                   | 目標      | 讀數 (qwen2.5:7b, runs=10)     | 狀態                       |
+| ---------------------- | --------- | ------------------------------ | -------------------------- |
+| inline P50             | < 800 ms  | **7598 ms**                    | **FAIL（≈9.5×）**          |
+| inline P95             | < 1500 ms | **11654 ms**                   | **FAIL（≈7.8×）**          |
+| palette cold open      | < 200 ms  | —（bench:ai 不產生）           | pending（需另立 harness）  |
+| palette warm open      | < 50 ms   | ~2.5 ms（webview-side, 1.H）   | PASS\*                     |
+| search first chunk P50 | < 80 ms   | —（bench:ai 不產生）           | pending（需另立 harness）  |
+
+\* palette warm open 讀數來自 PRODUCT.1.H 的 `PerfBadge` dogfood，量的是 webview 端
+（事件→input 對焦繪製），不含 OS 按鍵→webview 事件;為 lower bound。
+
+**Finding（decision-gated，未自行裁示）：** inline 延遲 gate 在本機 CPU 跑 7b 大幅
+未達標。§8 的 `< 800 ms P50` 目標讀起來是假設 GPU 或更小模型;CPU 跑 qwen2.5:7b 的
+~7.6s P50 是該組合的真實成本，非程式缺陷。本讀數**不變更 §4 Decision**（ADR 維持
+`accepted`）。後續方向需開發者裁示，候選：(a) 降 inline default 模型（如 qwen3:0.6b /
+其他小模型）並重量測;(b) 放寬 §8 target 並 amend ADR;(c) 接受 inline AI 為「慢速、
+明確 opt-in」並在 UX 標示預期等待。`PRODUCT.2` 解凍受此 gate gating，在裁示前維持
+frozen。
 
 觀察窗口項目（`ai.legacy_agent` 預設關閉一個 release cycle、idle RSS 10min < 150 MB / 1h < 200 MB）於 REF.8 開窗時記錄，維持 `pending observation`。

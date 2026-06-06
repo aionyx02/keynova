@@ -2,7 +2,7 @@
 type: task_index
 status: active
 priority: p0
-updated: 2026-06-05
+updated: 2026-06-06
 context_policy: always_retrievable
 owner: project
 tags: [refactor, ai-capability, search-first, p0]
@@ -26,7 +26,7 @@ tags: [refactor, ai-capability, search-first, p0]
   (prefix dispatcher + all 5 capabilities + `CapabilityAnswerCard` family +
   `classifyNlIntent` NL fallback + ADR-0040). Only `REF.6.H` open:
   - [~] `REF.6.H` feature-first directory migration. 11 panels + 3 model panels relocated to `src/features/<feature>/`; 7 shared components moved to `src/shared/components/`. Model-manager tab consolidation deferred.
-- [~] `REF.7` quantitative gates, default `ai.legacy_agent = false`. .A/.B shipped in v0.3.0. .C release notes shipped; ADR-0029 §10 scaffolded, `pending REF.7.D` (`qwen2.5:7b` bench, user-action). Observation items stay `pending observation`.
+- [~] `REF.7` quantitative gates, default `ai.legacy_agent = false`. .A/.B in v0.3.0; .C release notes shipped. REF.7.D bench **done** (2026-06-06): ADR-0029 §10 filled — `qwen2.5:7b` inline P50 7598 / P95 11654 ms on CPU host, both **FAIL** vs `<800/<1500`. Next direction **decision-gated**; `PRODUCT.2` stays frozen. Detail: `sessions/2026-06-06.md`.
 - [~] `REF.8` physical removal. Done: `AiPanel.tsx` + `ai_legacy` route/builtin deleted (2026-06-01). Retained (developer): `agent_runtime.rs` + `handlers/agent/` + `ai.legacy_agent` flag (dormant). Not done: backend agent trim, flag removal, supersede ADRs 0011/0016/0022/0026.
 
 Detailed batch definitions, done criteria, non-goals, file map, and validation gates live in `docs/tasks/refactor-ai-capability.md`.
