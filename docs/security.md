@@ -218,6 +218,7 @@ Agent 執行工具前，`safety.rs` 中的 `ToolPermissionGate` 必須評估：
 | Agent shell 命令執行      | 目前高風險工具需人工審查 | 計劃加入細粒度 allowlist |
 | 翻譯 API key 儲存         | 存在 config.toml（明文） | 計劃支援 OS keychain     |
 | CSP 設定                  | 尚未完整設定             | TD.5 安全強化計劃中      |
+| 程式碼簽署 / notarization | 管線已接好但尚未簽署：CI 有 secret-gated 簽章步驟，缺憑證時優雅產 unsigned build（SmartScreen/Gatekeeper 仍警告） | 開發者補上 ADR-0048 列出的 Windows/Apple 憑證 secrets 後自動啟用 |
 
 ---
 
