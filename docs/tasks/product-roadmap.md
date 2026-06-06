@@ -2,7 +2,7 @@
 type: task_plan
 status: backlog
 priority: p1
-updated: 2026-06-05
+updated: 2026-06-06
 context_policy: on_demand
 owner: project
 tags: [product-roadmap, workflow-dispatcher, technical-workers, roadmap]
@@ -19,11 +19,10 @@ technical workers.** It is not a general launcher, not an AI chat app, and not a
 catch-all productivity suite.
 
 Execution gate: **freeze lifted (developer decision 2026-06-06).** `PRODUCT.0`
-(positioning) is done; `PRODUCT.1` search-core is **complete**; `PRODUCT.2` (AI
-capabilities) is now **unfrozen** — REF.7.D landed and the latency direction is
-finalized (tiered §8 target + `qwen2.5:1.5b` reference default), satisfying the
-PRODUCT.2 gate. Before implementing any `PRODUCT.2` batch, reread `active.md`,
-`blocked.md`, and write the batch plan (primary vs simplification-only) here first.
+(positioning), `PRODUCT.1` search-core, and `PRODUCT.2` useful inline AI
+capabilities are **complete**. `PRODUCT.3` trusted release is the next product
+track. PRODUCT.2 keeps generated commands copy-only; risk tags are display
+metadata, not execution gates.
 
 ## Product Principles
 
@@ -255,12 +254,12 @@ and suggest. It does not become the product center.
 
 Scope:
 
-- [ ] Standardize output contracts for `fix`, `cmd`, `explain`, `summarize`,
+- [x] Standardize output contracts for `fix`, `cmd`, `explain`, `summarize`,
   and `next`.
-- [ ] Ensure each capability has copyable output and a predictable card shape.
-- [ ] Add fixtures for compiler errors, stack traces, config snippets, long
+- [x] Ensure each capability has copyable output and a predictable card shape.
+- [x] Add fixtures for compiler errors, stack traces, config snippets, long
   text, and command-generation requests.
-- [ ] Fail gracefully on invalid model JSON, provider errors, and empty input.
+- [x] Fail gracefully on invalid model JSON, provider errors, and empty input.
 
 Done:
 
@@ -272,38 +271,38 @@ Done:
 
 Scope:
 
-- [ ] Accept compiler output, stack traces, and command failures as `fix` input.
-- [ ] Return likely cause, repair steps, and suggested commands.
-- [ ] Keep suggested commands as command cards with risk and rationale.
-- [ ] Avoid auto-edit and auto-run behavior.
+- [x] Accept compiler output, stack traces, and command failures as `fix` input.
+- [x] Return likely cause, repair steps, and suggested commands.
+- [x] Keep suggested commands as command cards with risk and rationale.
+- [x] Avoid auto-edit and auto-run behavior.
 
 Done:
 
 - Rust, TypeScript, npm, and cargo error fixtures produce actionable next steps.
-- Suggested commands remain one confirmation boundary away from execution.
+- Suggested commands are explicitly copy-only; risk remains display metadata.
 
 ### PRODUCT.2.C - Command Generation Safety
 
 Scope:
 
-- [ ] `cmd` returns `command`, `risk`, `rationale`, and copy/run options.
-- [ ] High-risk commands require a second confirmation.
-- [ ] Generated commands show cwd/workspace assumptions.
-- [ ] LLM output is treated as untrusted input by the action layer.
+- [x] `cmd` returns `command`, `risk`, `rationale`, and copy-only output.
+- [x] Risk is shown clearly without creating an execution path.
+- [x] Generated commands show cwd/shell/OS assumptions.
+- [x] LLM output is treated as untrusted display data.
 
 Done:
 
-- Risk gates cannot be bypassed through generated command output.
-- Copy-only flow is fast; run flow is gated based on risk.
+- Generated command output has no run/edit affordance.
+- Copy-only flow is fast; risk remains visible and informational.
 
 ### PRODUCT.2.D - Local Context Source Display
 
 Scope:
 
-- [ ] Show sources when `explain`, `summarize`, or `fix` uses local context.
-- [ ] Avoid reading large private content unless explicitly selected or already
+- [x] Show sources when a capability uses local context.
+- [x] Avoid reading large private content unless explicitly selected or already
   in the active context bundle.
-- [ ] Keep cloud-provider memory/context injection disabled unless policy
+- [x] Keep cloud-provider memory/context injection disabled unless policy
   explicitly changes.
 
 Done:
@@ -315,10 +314,10 @@ Done:
 
 Scope:
 
-- [ ] Use recent workspace actions, command success, and context hash to suggest
+- [x] Use recent workspace actions, command success, and context hash to suggest
   next steps.
-- [ ] Keep suggestions as replay descriptors, not automatic execution.
-- [ ] De-duplicate obvious noise and stale suggestions.
+- [x] Keep suggestions as replay descriptors, not automatic execution.
+- [x] De-duplicate obvious noise and stale suggestions.
 
 Done:
 

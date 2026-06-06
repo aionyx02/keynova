@@ -25,6 +25,13 @@ export type CapabilityOutput =
   | { kind: "text"; text: string }
   | { kind: "structured"; value: unknown };
 
+export interface CapabilitySource {
+  source_id: string;
+  source_type: string;
+  title: string;
+  uri?: string | null;
+}
+
 /** Backend `capability.response` event payload. */
 export interface CapabilityResponseEvent {
   request_id: string;
@@ -33,6 +40,7 @@ export interface CapabilityResponseEvent {
   id?: CapabilityId;
   output?: CapabilityOutput;
   risk_tag?: RiskTag;
+  sources?: CapabilitySource[];
   /** Present when `ok === false`. */
   error?: string;
   cancelled?: boolean;
@@ -56,7 +64,7 @@ export interface SummarizePayload {
   max_sentences?: number;
 }
 
-/** Payload accepted by the `fix_error` capability. v1 is explanation-only. */
+/** Payload accepted by the copy-only `fix_error` capability. */
 export type FixErrorPayload =
   | { raw_output: string }
   | { program: string; args: string[]; cwd: string; timeout_secs?: number };
@@ -74,11 +82,21 @@ export interface GenCommandPayload {
   ctx?: GenCommandCtx;
 }
 
-/** Structured reply returned by `gen_command`. */
-export interface GenCommandOutput {
+export interface CommandSuggestion {
   command: string;
   confidence: number;
   rationale: string;
+}
+
+/** Structured reply returned by `fix_error`. */
+export interface FixErrorOutput {
+  explanation: string;
+  suggested_command?: CommandSuggestion | null;
+}
+
+/** Structured reply returned by `gen_command`. */
+export interface GenCommandOutput extends CommandSuggestion {
+  assumptions: GenCommandCtx;
 }
 
 /** Payload accepted by the `remember` capability. */
@@ -183,17 +201,12 @@ function parseSuggestedNextAction(value: unknown): SuggestedNextAction | null {
   };
 }
 
-export function parseGenCommandOutput(value: unknown): GenCommandOutput | null {
-  const structured =
-    value && typeof value === "object" && "kind" in value ? (value as CapabilityOutput) : null;
-  const candidate =
-    structured?.kind === "structured" && structured.value && typeof structured.value === "object"
-      ? (structured.value as Record<string, unknown>)
-      : value && typeof value === "object"
-        ? (value as Record<string, unknown>)
-        : null;
+function parseCommandSuggestion(value: unknown): CommandSuggestion | null {
+  if (!value || typeof value !== "object") {
+    return null;
+  }
+  const candidate = value as Record<string, unknown>;
   if (
-    !candidate ||
     typeof candidate.command !== "string" ||
     typeof candidate.confidence !== "number" ||
     typeof candidate.rationale !== "string"
@@ -204,6 +217,82 @@ export function parseGenCommandOutput(value: unknown): GenCommandOutput | null {
     command: candidate.command,
     confidence: candidate.confidence,
     rationale: candidate.rationale,
+  };
+}
+
+function parseGenCommandCtx(value: unknown): GenCommandCtx {
+  if (!value || typeof value !== "object") {
+    return {};
+  }
+  const candidate = value as Record<string, unknown>;
+  return {
+    cwd: typeof candidate.cwd === "string" ? candidate.cwd : undefined,
+    shell: typeof candidate.shell === "string" ? candidate.shell : undefined,
+    os: typeof candidate.os === "string" ? candidate.os : undefined,
+  };
+}
+
+export function parseCapabilitySources(value: unknown): CapabilitySource[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+  return value.flatMap((item) => {
+    if (!item || typeof item !== "object") {
+      return [];
+    }
+    const candidate = item as Record<string, unknown>;
+    if (
+      typeof candidate.source_id !== "string" ||
+      typeof candidate.source_type !== "string" ||
+      typeof candidate.title !== "string"
+    ) {
+      return [];
+    }
+    return [
+      {
+        source_id: candidate.source_id,
+        source_type: candidate.source_type,
+        title: candidate.title,
+        uri: typeof candidate.uri === "string" ? candidate.uri : null,
+      },
+    ];
+  });
+}
+
+export function parseFixErrorOutput(value: unknown): FixErrorOutput | null {
+  const structured =
+    value && typeof value === "object" && "kind" in value ? (value as CapabilityOutput) : null;
+  const candidate =
+    structured?.kind === "structured" && structured.value && typeof structured.value === "object"
+      ? (structured.value as Record<string, unknown>)
+      : value && typeof value === "object"
+        ? (value as Record<string, unknown>)
+        : null;
+  if (!candidate || typeof candidate.explanation !== "string") {
+    return null;
+  }
+  return {
+    explanation: candidate.explanation,
+    suggested_command: parseCommandSuggestion(candidate.suggested_command),
+  };
+}
+
+export function parseGenCommandOutput(value: unknown): GenCommandOutput | null {
+  const structured =
+    value && typeof value === "object" && "kind" in value ? (value as CapabilityOutput) : null;
+  const candidate =
+    structured?.kind === "structured" && structured.value && typeof structured.value === "object"
+      ? (structured.value as Record<string, unknown>)
+      : value && typeof value === "object"
+        ? (value as Record<string, unknown>)
+        : null;
+  const suggestion = parseCommandSuggestion(candidate);
+  if (!suggestion || !candidate) {
+    return null;
+  }
+  return {
+    ...suggestion,
+    assumptions: parseGenCommandCtx(candidate.assumptions),
   };
 }
 

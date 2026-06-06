@@ -191,6 +191,7 @@ impl AiCapabilityHandler {
                         "id": resp.id.as_str(),
                         "output": output,
                         "risk_tag": resp.risk_tag,
+                        "sources": resp.sources,
                     })
                 }
                 Err(err) => {

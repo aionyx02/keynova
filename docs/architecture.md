@@ -2,7 +2,7 @@
 type: architecture_spec
 status: active
 priority: p1
-updated: 2026-06-05
+updated: 2026-06-06
 context_policy: retrieve_only
 owner: project
 ---
@@ -154,16 +154,17 @@ src-tauri/src/
 │   ├── ai_capability/     # REF.4: stateless single-shot capability layer (ADR-0029). call_capability(req, deps) dispatched on a compile-time enum match.
 │   │   ├── mod.rs              # public entry + match on CapabilityId
 │   │   ├── registry.rs         # CapabilityId::{Explain,Summarize,FixError,GenCommand,SuggestNext,Remember,Recall} + static CapabilityMeta {audit, accepts_context_hash} per ADR-0030 §4
-│   │   ├── contract.rs         # CapabilityRequest/Response/Output/Error/Deps; ChatProvider trait (test-stubbable); AiManagerChatProvider production adapter
+│   │   ├── contract.rs         # CapabilityRequest/Response/Output/Error/Deps + UI-safe CapabilitySource labels (no snippets/scores; secret omitted)
+│   │   ├── command.rs          # PRODUCT.2 shared copy-only command suggestion shape + conservative display risk tagging
 │   │   ├── parse.rs            # shared extract_first_json_object for strict-JSON capabilities (gen_command, remember)
-│   │   ├── prompt.rs           # CAPABILITY_PROMPT_BUDGET_CHARS=1400; build_prompt trims lowest-priority sources from the tail to fit the budget (truncates only if system+task alone overrun); maybe_audit gated by CapabilityMeta.audit
+│   │   ├── prompt.rs           # build_prompt_with_sources returns the exact bounded source set included after prompt-budget tail trimming
 │   │   ├── memory.rs           # MEM.1.B (ADR-0043): push_memory_sources reads scope="personal" + term_score ranking → ≤3 redacted GroundingSources; gated by CapabilityDeps.allow_memory_grounding (local provider only). term_score reused by recall.rs
 │   │   ├── capabilities/       # one file per capability
 │   │   │   ├── explain.rs           # local_context-grounded explanation; audit=true; risk=none
 │   │   │   ├── summarize.rs         # pure text transform; audit=false; risk=none
-│   │   │   ├── fix_error.rs         # raw_output OR allowlisted dev re-run via dev_runner; "apply" variant rejected as UnsupportedAction in v1; audit=true; risk=none
-│   │   │   ├── gen_command.rs       # REF.6.C: typed {intent, ctx} → structured {command, confidence, rationale}; JSON-first parse with fallback; conservative RiskTag (read-only allowlist sets requires_confirmation=false); audit=true
-│   │   │   ├── suggest_next.rs      # REF.6.C: typed {ctx:{limit?}} → Vec<SuggestedNextAction>; reads workflow_memory::suggest, re-ranks, emits best-effort replay descriptors for cmd.run rows; audit=false; risk=none
+│   │   │   ├── fix_error.rs         # structured explanation + optional copy-only command suggestion; shared risk label; apply rejected
+│   │   │   ├── gen_command.rs       # structured command/rationale/assumptions; JSON fallback; runtime cwd/shell/os defaults; copy-only risk display
+│   │   │   ├── suggest_next.rs      # workflow suggestions with dedup, target validation, 30-day max age, and 7-day history-only age
 │   │   │   ├── remember.rs          # MEM.1 (ADR-0043): {text} → LLM-organized {title, content} stored in agent_memories scope="personal" (no migration); audit=true; risk=none
 │   │   │   └── recall.rs            # MEM.1 (ADR-0043): {query, limit?} → Vec<RecalledMemory>; no LLM, local agent_memories read + term ranking; audit=false; risk=none
 │   │   └── live_tests.rs       # cfg(feature="live-ai"), #[ignore]: live Ollama qwen2.5:7b smoke tests (P50/P95 print to stdout for REF.7)

@@ -4,6 +4,7 @@
 //! best-effort, and no UI surface is wired in this batch.
 
 use std::collections::HashSet;
+use std::time::{SystemTime, UNIX_EPOCH};
 
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
@@ -12,6 +13,7 @@ use crate::core::ai_capability::contract::{
     CapabilityDeps, CapabilityError, CapabilityOutput, CapabilityRequest, CapabilityResponse,
 };
 use crate::core::ai_capability::registry::CapabilityId;
+use crate::core::local_context::LocalContextSearcher;
 use crate::core::workflow_memory;
 use crate::models::unified_result::RiskTag;
 
@@ -47,6 +49,9 @@ pub struct SuggestedNextAction {
     pub replay: Option<ReplayActionDescriptor>,
 }
 
+const MAX_SUGGESTION_AGE_SECS: i64 = 30 * 24 * 60 * 60;
+const HISTORY_ONLY_MAX_AGE_SECS: i64 = 7 * 24 * 60 * 60;
+
 pub fn call(
     req: CapabilityRequest,
     deps: &CapabilityDeps,
@@ -61,25 +66,48 @@ pub fn call(
         None => Vec::new(),
     };
 
-    let suggestions = rank_rows(rows, req.context_hash.as_deref());
+    let suggestions = rank_rows(
+        rows,
+        req.context_hash.as_deref(),
+        deps.local_context.as_ref(),
+    );
     Ok(CapabilityResponse {
         id: CapabilityId::SuggestNext,
         output: CapabilityOutput::Structured {
             value: serde_json::to_value(suggestions).unwrap_or_else(|_| Value::Array(Vec::new())),
         },
         risk_tag: RiskTag::none(),
+        sources: Vec::new(),
     })
 }
 
 fn rank_rows(
     rows: Vec<workflow_memory::WorkflowHistoryRow>,
     active_context_hash: Option<&str>,
+    local_context: Option<&LocalContextSearcher>,
+) -> Vec<SuggestedNextAction> {
+    rank_rows_at(
+        rows,
+        active_context_hash,
+        local_context,
+        current_epoch_seconds(),
+    )
+}
+
+fn rank_rows_at(
+    rows: Vec<workflow_memory::WorkflowHistoryRow>,
+    active_context_hash: Option<&str>,
+    local_context: Option<&LocalContextSearcher>,
+    now: i64,
 ) -> Vec<SuggestedNextAction> {
     let mut seen = HashSet::new();
     let mut suggestions = Vec::new();
 
     for (idx, row) in rows.into_iter().enumerate() {
-        if is_suggest_next_self_row(&row) {
+        if is_suggest_next_self_row(&row)
+            || is_stale(&row, now)
+            || !target_resolves(&row, local_context)
+        {
             continue;
         }
         let dedupe_key = format!("{}::{}", row.route, row.action_label);
@@ -118,6 +146,48 @@ fn rank_rows(
     });
 
     suggestions
+}
+
+fn current_epoch_seconds() -> i64 {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map_or(0, |duration| duration.as_secs() as i64)
+}
+
+fn is_stale(row: &workflow_memory::WorkflowHistoryRow, now: i64) -> bool {
+    let age = now.saturating_sub(row.executed_at);
+    if age > MAX_SUGGESTION_AGE_SECS {
+        return true;
+    }
+    replay_for_row(&row.route, &row.action_label).is_none() && age > HISTORY_ONLY_MAX_AGE_SECS
+}
+
+fn target_resolves(
+    row: &workflow_memory::WorkflowHistoryRow,
+    local_context: Option<&LocalContextSearcher>,
+) -> bool {
+    match row.route.as_str() {
+        "cmd.run" => {
+            let Some(name) = command_name(&row.action_label) else {
+                return false;
+            };
+            let Some(local_context) = local_context else {
+                return true;
+            };
+            let Ok(registry) = local_context.builtin_registry.lock() else {
+                return false;
+            };
+            registry.list().iter().any(|meta| meta.name == name)
+        }
+        "capability.call" => row
+            .action_label
+            .split_whitespace()
+            .next()
+            .and_then(CapabilityId::parse)
+            .is_some(),
+        "action.run" => !row.action_label.trim().is_empty(),
+        _ => false,
+    }
 }
 
 fn is_suggest_next_self_row(row: &workflow_memory::WorkflowHistoryRow) -> bool {
@@ -170,12 +240,10 @@ fn replay_for_row(route: &str, title: &str) -> Option<ReplayActionDescriptor> {
         return None;
     }
 
+    let name = command_name(title)?;
     let trimmed = title.trim().strip_prefix('/')?;
     let mut parts = trimmed.splitn(2, ' ');
-    let name = parts.next()?.trim();
-    if name.is_empty() {
-        return None;
-    }
+    let _ = parts.next();
     let args = parts.next().unwrap_or("").trim();
     Some(ReplayActionDescriptor {
         route: route.to_string(),
@@ -186,10 +254,19 @@ fn replay_for_row(route: &str, title: &str) -> Option<ReplayActionDescriptor> {
     })
 }
 
+fn command_name(title: &str) -> Option<&str> {
+    let trimmed = title.trim().strip_prefix('/')?;
+    let name = trimmed.split_whitespace().next()?.trim();
+    (!name.is_empty()).then_some(name)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::core::ai_capability::contract::ChatProvider;
+    use crate::core::ai_capability::test_fixtures::{
+        assert_invalid_payload, assert_safe_primary_output,
+    };
     use crate::core::knowledge_store::{KnowledgeStoreHandle, WorkflowHistoryEntry};
     use std::path::{Path, PathBuf};
     use std::sync::atomic::AtomicBool;
@@ -219,6 +296,17 @@ mod tests {
             chat: Arc::new(UnusedProvider),
             local_context: None,
             knowledge_store: Some(store),
+            cancel: Arc::new(AtomicBool::new(false)),
+            stream_chunk: None,
+            allow_memory_grounding: false,
+        }
+    }
+
+    fn deps_without_store() -> CapabilityDeps {
+        CapabilityDeps {
+            chat: Arc::new(UnusedProvider),
+            local_context: None,
+            knowledge_store: None,
             cancel: Arc::new(AtomicBool::new(false)),
             stream_chunk: None,
             allow_memory_grounding: false,
@@ -260,6 +348,7 @@ mod tests {
             .unwrap();
             assert_eq!(resp.id, CapabilityId::SuggestNext);
             assert!(!resp.risk_tag.requires_confirmation);
+            assert_safe_primary_output(&resp);
             match resp.output {
                 CapabilityOutput::Structured { value } => {
                     let items: Vec<SuggestedNextAction> = serde_json::from_value(value).unwrap();
@@ -272,6 +361,16 @@ mod tests {
             }
         }
         cleanup(&path);
+    }
+
+    #[test]
+    fn rejects_malformed_payload_as_typed_error() {
+        let err = call(
+            req(serde_json::json!({ "ctx": { "limit": "many" } }), None),
+            &deps_without_store(),
+        )
+        .unwrap_err();
+        assert_invalid_payload(err);
     }
 
     #[test]
@@ -296,7 +395,7 @@ mod tests {
                 executed_at: 10,
             },
         ];
-        let items = rank_rows(rows, Some("ctx"));
+        let items = rank_rows_at(rows, Some("ctx"), None, 30);
         assert_eq!(items.len(), 1);
     }
 
@@ -322,9 +421,65 @@ mod tests {
                 executed_at: 10,
             },
         ];
-        let items = rank_rows(rows, Some("ctx"));
+        let items = rank_rows_at(rows, Some("ctx"), None, 30);
         assert_eq!(items.len(), 1);
         assert_eq!(items[0].title, "/help");
+    }
+
+    #[test]
+    fn drops_very_old_replayable_rows() {
+        let now = 4_000_000;
+        let rows = vec![workflow_memory::WorkflowHistoryRow {
+            id: 1,
+            context_hash: Some("ctx".into()),
+            route: "cmd.run".into(),
+            action_label: "/help".into(),
+            payload_digest: None,
+            workspace_id: Some(1),
+            executed_at: now - MAX_SUGGESTION_AGE_SECS - 1,
+        }];
+        assert!(rank_rows_at(rows, Some("ctx"), None, now).is_empty());
+    }
+
+    #[test]
+    fn ages_history_only_rows_out_sooner() {
+        let now = 4_000_000;
+        let rows = vec![workflow_memory::WorkflowHistoryRow {
+            id: 1,
+            context_hash: Some("ctx".into()),
+            route: "action.run".into(),
+            action_label: "Open main.rs".into(),
+            payload_digest: None,
+            workspace_id: Some(1),
+            executed_at: now - HISTORY_ONLY_MAX_AGE_SECS - 1,
+        }];
+        assert!(rank_rows_at(rows, Some("ctx"), None, now).is_empty());
+    }
+
+    #[test]
+    fn drops_rows_without_a_resolvable_route_target() {
+        let now = 100;
+        let rows = vec![
+            workflow_memory::WorkflowHistoryRow {
+                id: 1,
+                context_hash: Some("ctx".into()),
+                route: "cmd.run".into(),
+                action_label: "missing slash".into(),
+                payload_digest: None,
+                workspace_id: Some(1),
+                executed_at: now,
+            },
+            workflow_memory::WorkflowHistoryRow {
+                id: 2,
+                context_hash: Some("ctx".into()),
+                route: "capability.call".into(),
+                action_label: "removed_capability old input".into(),
+                payload_digest: None,
+                workspace_id: Some(1),
+                executed_at: now,
+            },
+        ];
+        assert!(rank_rows_at(rows, Some("ctx"), None, now).is_empty());
     }
 
     #[test]

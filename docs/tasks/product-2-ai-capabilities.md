@@ -1,6 +1,6 @@
 ---
 type: task_plan
-status: active
+status: completed
 priority: p1
 context_policy: on_demand
 owner: project
@@ -19,6 +19,25 @@ Goal: make the five existing inline capabilities (`explain`, `summarize`,
 for technical workflows — stable output, actionable error help, safe command
 suggestion, source transparency, useful next steps — **without** AI becoming the
 product center.
+
+## Completion (2026-06-06)
+
+All five batches landed:
+
+- **2.A:** shared compiler/stack/config/long-text/command fixtures, typed
+  empty/provider/malformed handling, and primary-output parser-leak invariants.
+- **2.D:** additive `CapabilityResponse.sources`, exact prompt-included source
+  tracking, compact UI labels, and proposed ADR-0046. Snippets/scores stay
+  backend-only; secret sources are omitted.
+- **2.B:** `fix_error` returns structured explanation + optional copy-only
+  command suggestion, with the shared risk label and no run/edit affordance.
+- **2.C:** `gen_command` echoes normalized cwd/shell/os assumptions and shows
+  low-risk vs review-required labels. Runtime defaults fill omitted context.
+- **2.E:** `suggest_next` suppresses duplicates, unknown targets, entries older
+  than 30 days, and history-only rows older than 7 days.
+
+The cross-cutting non-goal remains binding: PRODUCT.2 adds no generated-command
+execution path.
 
 ## Cross-cutting NON-GOAL (binds every batch)
 
@@ -234,7 +253,7 @@ with developer at 2.D start.
 No ADR — refines existing suggestion logic, no new contract/boundary.
 
 ## Suggested order
-
+-
 `A` (contract + fixtures, de-risks the rest) → `D` (sources; biggest surface, has
 the ADR check) → `B` → `C` → `E`. `D` is the highest-value gap; `A` is the safest
 warm-up; `B`/`C` are card/display polish; `E` is a focused refinement.
