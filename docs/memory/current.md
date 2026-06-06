@@ -44,9 +44,10 @@ owner: project
 ## Next Step
 
 - `PRODUCT.3` trusted-release hardening: full-verify gate, versioned GitHub
-  Release notes, redacted copy-only `/diag` export (ADR-0047), and a
-  secret-gated code-signing pipeline (ADR-0048; inert until certs are added)
-  all landed. Remaining: add signing certs/secrets, updater, config migration.
+  Release notes, redacted copy-only `/diag` export (ADR-0047), secret-gated
+  code-signing pipeline (ADR-0048; inert until certs are added), and
+  config-load rollback safety (ADR-0049, corrupt-config quarantine) all landed.
+  Remaining: add signing certs/secrets + auto-updater (needs keypair + endpoint).
 - REF.7.D **done** (2026-06-06): bench proved CPU throughput (not model size) is the
   wall — even 1.5b ~5× over old 800 ms. Developer-approved: ADR-0029 §8 → **tiered**
   (CPU-host P50<5s/P95<8s + GPU<800ms aspirational) + **`qwen2.5:1.5b` reference

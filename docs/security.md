@@ -139,6 +139,11 @@ Handling rules:
 - 測試 fixture
 - 搜尋索引（Tantivy）
 
+### 4.4 壞檔隔離（Corrupt-config quarantine, ADR-0049）
+
+`config.toml` 解析失敗時，`ConfigManager` 會把原檔複製到同目錄的
+`config.toml.corrupt-<unix_secs>` 後才回退至預設值（避免下次 `persist()` 用預設覆寫造成永久遺失）。隔離檔留在 app-owned config 目錄、與 `config.toml` 同一信任區，不擴大暴露面；不自動清理（交由使用者決定）。
+
 ---
 
 ## 5. 網路存取
