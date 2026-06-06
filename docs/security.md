@@ -222,27 +222,23 @@ Agent 執行工具前，`safety.rs` 中的 `ToolPermissionGate` 必須評估：
 
 ---
 
-## 10. Tauri Asset Protocol（LAUNCH.1.C）
+## 10. Inline Image Preview 與 Asset Protocol 移除（ADR-0042）
 
-### 10.1 設定
+### 10.1 設定（目前狀態）
 
-`src-tauri/tauri.conf.json` 啟用 `app.security.assetProtocol = { enable: true, scope: ["**"] }`，並在 `Cargo.toml` 開啟 `tauri` 的 `protocol-asset` feature。CSP `img-src` 已含 `asset: https://asset.localhost`。
+`src-tauri/tauri.conf.json` 的 `app.security.assetProtocol.enable = false`（不設 scope），且 `Cargo.toml` 已移除 `tauri` 的 `protocol-asset` feature。CSP `img-src` 為 `'self' data:`（不含 `asset:` / `https://asset.localhost`）。
 
-### 10.2 邊界說明
+> 歷史：早期曾啟用 `assetProtocol = { enable: true, scope: ["**"] }` 供 preview pane 以 `convertFileSrc(path)` 載入圖片。2026-06-02 安全審查將其列為最高風險（#1）：scope `["**"]` 下被攻陷的 renderer（XSS）可 `convertFileSrc(<任意路徑>)` 讀取任意本機檔案而完全不經後端命令。ADR-0042 因此全面停用 asset protocol、改為 inline 傳遞。
 
-`assetProtocol.scope: ["**"]` 允許 `convertFileSrc(path)` 對任意檔案系統路徑產生 `asset://` URL，給 LAUNCH.1.C preview pane 的 `<img>` 標籤使用。
+### 10.2 圖片預覽傳遞方式
 
-**讀取邊界與既有 IPC 對齊**：使用者本來就能透過 `file.reveal` / `file.open_with` / `file.open_as_text` / `file.preview` 觸發任意路徑讀取（這些 IPC 由前端按鈕或 secondary action menu 啟動，需使用者主動操作）。asset 協議只是用同一個讀取邊界提供圖片 `<img>` 來源，沒有擴大可讀取範圍。
-
-**禁止用途**：
-
-- 不得用 asset 協議自動傳送檔案內容到外部網路（CSP `connect-src` 不含 asset host，已硬性阻擋）。
-- 不得用 asset 協議當作 RPC channel（IPC 仍走 `cmd_dispatch`）。
-- 前端不得從遠端 origin 接受 path 參數傳入 `convertFileSrc`（WebView 載入本機靜態資源，原本就不接受外部 origin）。
+- `file.preview` 對 `PreviewKind::Image` 由後端讀檔（上限 `MAX_INLINE_IMAGE_BYTES = 8 MiB`），回傳 base64 `data:` URL（`data:<mime>;base64,...`）；超過上限只回 metadata 並標記 `oversized: true`（不含 bytes），讓 IPC 與 renderer 記憶體有界。
+- `PreviewPane.tsx` 直接把 `preview.data_url` 放進 `<img src>`，不再使用 `convertFileSrc`。
+- renderer 永遠拿不到可再次載入的路徑：圖片 bytes 僅針對單一、明確被預覽的路徑由後端產生，並以不透明 bytes 交付。
 
 ### 10.3 file.preview IPC 邊界
 
-`file.preview` 為 read-only，路徑必須通過 `trim_path` + `ensure_path_exists` 驗證；text preview 走 `core/preview::read_text_preview` 套用 `AgentObservationPolicy { redact_secrets: true }` 遮蔽常見 secret pattern；max_bytes 上限 64 KiB、max_lines 上限 2000，避免 IPC payload 過大。Binary / image 不回傳檔案內容，僅 metadata。
+`file.preview` 為 read-only，路徑必須通過 `trim_path` + `ensure_path_exists` 驗證；text preview 走 `core/preview::read_text_preview` 套用 `AgentObservationPolicy { redact_secrets: true }` 遮蔽常見 secret pattern；max_bytes 上限 64 KiB、max_lines 上限 2000，避免 IPC payload 過大。Image 於 8 MiB 內回傳 base64 `data:` URL，超過則僅 metadata；其他 binary 不回傳檔案內容，僅 metadata。
 
 ---
 
