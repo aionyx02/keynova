@@ -21,7 +21,7 @@ use crate::handlers::{
     builtin_cmd::{
         BuiltinCmdHandler, CalCommand, DiagCommand, DownCommand, HelpCommand, HistoryCommand,
         ModelCommand, NoteCommand, OnboardCommand, RebuildSearchIndexCommand, ReloadCommand,
-        SettingCommand, SysCtlCommand, SysMonitorCommand, TrCommand,
+        SettingCommand, SysCtlCommand, SysMonitorCommand, TrCommand, UpdateCommand,
     },
     dev_utils_cmd::{
         B64decCmd, B64encCmd, ColorCmd, CronCmd, HashCmd, JsonCmd, JsonmCmd, JwtCmd, KillPortCmd,
@@ -246,6 +246,7 @@ fn build_builtin_registry(
     reg.register(Box::new(SysMonitorCommand));
     reg.register(Box::new(RebuildSearchIndexCommand));
     reg.register(Box::new(DiagCommand));
+    reg.register(Box::new(UpdateCommand));
     // UTIL.2 dev utilities (Slice 1 — A through I)
     reg.register(Box::new(UuidCmd));
     reg.register(Box::new(NanoidCmd));

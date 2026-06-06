@@ -76,8 +76,8 @@ Keep `active.md` compact. Put batch-level task detail in `docs/tasks/refactor-ai
 
 ## Next Phase Candidates
 
-- [~] `PRODUCT.3` trusted-release: verify gate + versioned notes + `/diag`
-  (ADR-0047) + secret-gated signing pipeline (ADR-0048) + config-load rollback
-  safety (ADR-0049). Remaining: add certs/secrets, updater.
+- [~] `PRODUCT.3` trusted-release: verify gate, versioned notes, `/diag`
+  (ADR-0047), signing pipeline (ADR-0048), config rollback (ADR-0049), dormant
+  updater (ADR-0050). Remaining (developer secrets): certs + updater keypair.
 - `REF.7.C` final closer: user-side Bug A/B smoke.
 - After `REF.8`, refresh affected ADR statuses and architecture docs.

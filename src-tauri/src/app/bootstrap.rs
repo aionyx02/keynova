@@ -52,6 +52,13 @@ fn cmd_keep_launcher_open(
 }
 
 pub fn run() {
+    let context = tauri::generate_context!();
+    // In-app updater (PRODUCT.3 / ADR-0050). The plugin panics at init when
+    // `plugins.updater` is absent, so register it only once the developer adds
+    // that config (endpoints + pubkey). Until then the `/update` command reports
+    // "not configured" and `tauri dev`/release stay unaffected.
+    let updater_configured = context.config().plugins.0.contains_key("updater");
+
     let mut builder = tauri::Builder::default();
     #[cfg(any(target_os = "macos", target_os = "windows", target_os = "linux"))]
     {
@@ -63,6 +70,9 @@ pub fn run() {
                 tauri_plugin_autostart::MacosLauncher::LaunchAgent,
                 None::<Vec<&'static str>>,
             ));
+        if updater_configured {
+            builder = builder.plugin(tauri_plugin_updater::Builder::new().build());
+        }
     }
 
     builder
@@ -131,7 +141,7 @@ pub fn run() {
             cmd_show_launcher,
             cmd_keep_launcher_open,
         ])
-        .run(tauri::generate_context!())
+        .run(context)
         .expect("error while running tauri application");
 }
 

@@ -79,6 +79,7 @@ owner: project
 | [0047](adr/0047-diagnostics-export.md)                    | Diagnostics Export Bundle Contract                                      | 提議                             | 2026-06-06 |
 | [0048](adr/0048-release-code-signing-pipeline.md)         | Release Code-Signing Pipeline (Secret-Gated)                            | 提議                             | 2026-06-06 |
 | [0049](adr/0049-config-load-rollback-safety.md)           | Config Load Rollback Safety (Corrupt-Config Quarantine)                 | 提議                             | 2026-06-06 |
+| [0050](adr/0050-in-app-updater-github-releases.md)        | In-App Updater via GitHub Releases (Dormant Until Keyed)                | 提議                             | 2026-06-06 |
 
 ---
 

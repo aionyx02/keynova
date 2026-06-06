@@ -154,6 +154,7 @@ Handling rules:
 | ------------------------------------ | -------------------- | ---------------------------- |
 | Ollama（本機 HTTP, 預設 port 11434） | 本機 AI 推理         | 不需關閉，本機連線           |
 | GitHub releases（HTTPS）             | Neovim portable 下載 | 是（不設定 nvim_bin 則跳過） |
+| GitHub Releases `latest.json`（HTTPS）| 應用程式自動更新檢查（ADR-0050）| 是（未設定 `plugins.updater` 前不連線；MVP 僅檢查不自動安裝）|
 | 使用者設定的翻譯 API                 | 翻譯功能             | 是（不設定 API key 則停用）  |
 
 ### 5.2 網路安全規則
