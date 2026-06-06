@@ -248,12 +248,26 @@ npm run bench:ai -- --runs 10 --model qwen2.5:7b
 \* palette warm open 讀數來自 PRODUCT.1.H 的 `PerfBadge` dogfood，量的是 webview 端
 （事件→input 對焦繪製），不含 OS 按鍵→webview 事件;為 lower bound。
 
-**Finding（decision-gated，未自行裁示）：** inline 延遲 gate 在本機 CPU 跑 7b 大幅
-未達標。§8 的 `< 800 ms P50` 目標讀起來是假設 GPU 或更小模型;CPU 跑 qwen2.5:7b 的
-~7.6s P50 是該組合的真實成本，非程式缺陷。本讀數**不變更 §4 Decision**（ADR 維持
-`accepted`）。後續方向需開發者裁示，候選：(a) 降 inline default 模型（如 qwen3:0.6b /
-其他小模型）並重量測;(b) 放寬 §8 target 並 amend ADR;(c) 接受 inline AI 為「慢速、
-明確 opt-in」並在 UX 標示預期等待。`PRODUCT.2` 解凍受此 gate gating，在裁示前維持
-frozen。
+### 小模型重測（2026-06-06，回應「改小模型 default」方向）
+
+| 模型         | inline P50 | inline P95 | 可靠性          |
+| ------------ | ---------- | ---------- | --------------- |
+| qwen2.5:7b   | 7598 ms    | 11654 ms   | 穩定            |
+| qwen2.5:1.5b | 4266 ms    | 6269 ms    | 穩定（10/10）   |
+| qwen3:0.6b   | ~4–5 s     | —          | **不穩**（空回應，bench 中止） |
+
+關鍵結論：參數量降 4.6×（7b→1.5b）只把延遲砍半，**最佳可靠小模型 qwen2.5:1.5b 仍
+4.3s P50、超標約 5.3×**。瓶頸是 **CPU token 生成吞吐**，非模型大小;本機無任何合理
+模型能達 800ms。`qwen3:0.6b` 因 reasoning token 吃掉 512 token 預算而間歇空回應，不適
+合當 default。註：`model_manager.recommend_models` 已是 hardware-tiered，低階機本就推薦
+`qwen2.5:1.5b`;`handlers/ai.rs` 的 `qwen2.5:7b` 僅為 recommend 空清單時的 fallback。
+
+**Finding（decision-gated，未自行裁示）：** inline 延遲 gate 在本機 CPU 大幅未達標，
+且**換小模型無法單獨解決**（最佳可靠選項仍超標 5×）。§8 的 `< 800 ms P50` 讀起來是
+假設 GPU;CPU 上的 ~4–7.6s 是真實成本，非程式缺陷。本讀數**不變更 §4 Decision**（ADR
+維持 `accepted`）。剩餘候選收斂為：(b) 放寬 §8 target 為 CPU-realistic 並 amend ADR
+（候選方向，需開發者批准 ADR 變更）;(c) 接受 inline AI 為「慢速、明確 opt-in」並在
+UX 標示預期等待;可與「採 qwen2.5:1.5b 為建議/參考 default」併行（最佳可靠延遲）。
+方案 (a) 單獨換模型已驗證不足。`PRODUCT.2` 解凍受此 gate gating，在裁示前維持 frozen。
 
 觀察窗口項目（`ai.legacy_agent` 預設關閉一個 release cycle、idle RSS 10min < 150 MB / 1h < 200 MB）於 REF.8 開窗時記錄，維持 `pending observation`。
