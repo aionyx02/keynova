@@ -277,7 +277,7 @@ npm run bench:ai -- --runs 10 --model qwen2.5:1.5b
 CPU-host tier `P50<5000 / P95<8000ms`）並把參考 default 改為 `qwen2.5:1.5b`。據此重評：
 **`qwen2.5:1.5b` 的 inline P50 4266 / P95 6269 ms 通過 CPU-host tier**;`qwen2.5:7b`
 仍超 CPU tier（列為高品質選項）。此舉**不變更 §4 Decision**（ADR 維持 `accepted`，僅
-細化 §8 驗證目標）。`PRODUCT.2` 的解凍 gate 條件（REF.7.D + 方向定案）至此**已滿足**;
-實際解凍待開發者明示翻轉 freeze 旗標。
+細化 §8 驗證目標）。`PRODUCT.2` 的解凍 gate 條件（REF.7.D + 方向定案）至此已滿足;開發者已於
+2026-06-06 明示**解凍 `PRODUCT.2`**（見 `active.md` / `product-roadmap.md`）。
 
 觀察窗口項目（`ai.legacy_agent` 預設關閉一個 release cycle、idle RSS 10min < 150 MB / 1h < 200 MB）於 REF.8 開窗時記錄，維持 `pending observation`。

@@ -66,18 +66,17 @@ Detailed batch definitions, done criteria, non-goals, file map, and validation g
 
 Keynova's active priority is the search-first workflow refactor: AI is a stateless capability layer invoked inline from unified result rows and prefix-keyword palette flows; chat-first surfaces leave the hot path.
 
-Freeze status (conditional partial unfreeze, 2026-06-05): `PRODUCT.1` search-core
-is **unfrozen** (orthogonal to the AI hot path the REF.7 gates measure). Frozen
-until `REF.7.D` + observation window close: `PRODUCT.2` and any AI/agent-touching
-work. `REF.7.D` + observation items are now non-blocking tracking items, not a
-queue gate. Other parked tracks (`AGENT.*`, `CLIP.1`, etc.) stay frozen.
+Freeze status (2026-06-06, developer-directed): `PRODUCT.1` and `PRODUCT.2` are
+both **unfrozen**. REF.7.D done + latency direction finalized (tiered §8 +
+`qwen2.5:1.5b` default) satisfied the PRODUCT.2 gate. `ai.legacy_agent`
+observation-window items remain separate, non-blocking tracking. Other parked
+tracks (`AGENT.*`, `CLIP.1`, etc.) stay frozen.
 
 Keep `active.md` compact. Put batch-level task detail in `docs/tasks/refactor-ai-capability.md`, detailed implementation notes in `docs/memory/sessions/YYYY-MM-DD.md`, and future non-refactor ideas in `docs/tasks/backlog.md`.
 
 ## Next Phase Candidates
 
-- Run `PRODUCT.1.H` dogfood checklist and capture real `Ctrl+K` timing.
-- `REF.7.D` stays available as a non-blocking tracking item: `ollama pull
-  qwen2.5:7b && npm run bench:ai -- --runs 10 --model qwen2.5:7b`, then fill
-  ADR-0029 §10 to close `REF.7.C` and unfreeze `PRODUCT.2`.
+- `PRODUCT.2` (v0.7 useful inline AI capabilities) is now **unfrozen** and is the
+  next product track — see `docs/tasks/product-roadmap.md` §PRODUCT.2 (A–E).
+- `REF.7.C` final closer: user-side Bug A/B smoke.
 - After `REF.8`, refresh affected ADR statuses and architecture docs.
