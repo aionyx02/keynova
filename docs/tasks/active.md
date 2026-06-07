@@ -57,9 +57,9 @@ Detailed batch definitions, done criteria, non-goals, file map, and validation g
 - [x] `STAB` hardening **merged to `main`** (`8825cce`): crash-log panic hook
   (ADR-0051), `/diag` edge fixes. Detail: `tasks/stabilization.md`.
 - [~] `PRODUCT.4` ranking+replay on `feature/product-4-ranking`. **4.A done**:
-  `suggest_next` frequency + workspace-affinity signals (no schema; extends
-  ADR-0052; "used N×" surfaced). 4.B success-rate (ADR+schema) + 4.C replay
-  provenance deferred. Detail: `tasks/product-4-ranking.md`.
+  `suggest_next` frequency + workspace-affinity (ADR-0052). **4.B done**:
+  `succeeded` column (schema v6) + outcome recording + success-rate/broken-drop
+  (ADR-0053). 4.C deferred. Detail: `tasks/product-4-ranking.md`.
 
 ### P2
 

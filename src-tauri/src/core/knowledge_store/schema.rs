@@ -9,7 +9,7 @@ use rusqlite::{params, Connection};
 
 use crate::models::settings_schema::builtin_setting_schema;
 
-pub(super) const CURRENT_SCHEMA_VERSION: u32 = 5;
+pub(super) const CURRENT_SCHEMA_VERSION: u32 = 6;
 
 pub(super) fn open_connection(path: &Path) -> Result<Connection, String> {
     let existed_before_open = path.exists();
@@ -32,6 +32,9 @@ pub(super) fn open_connection(path: &Path) -> Result<Connection, String> {
     conn.pragma_update(None, "journal_mode", "WAL")
         .map_err(|e| e.to_string())?;
     init_schema(&conn)?;
+    // ADR-0053: additive `succeeded` column. `CREATE TABLE IF NOT EXISTS` above
+    // covers fresh DBs; existing DBs need an idempotent ALTER.
+    ensure_workflow_succeeded_column(&conn)?;
     if previous_version < CURRENT_SCHEMA_VERSION {
         sanitize_sensitive_workflow_history_labels(&mut conn)?;
     }
@@ -130,6 +133,7 @@ fn init_schema(conn: &Connection) -> Result<(), String> {
             action_label TEXT NOT NULL,
             payload_digest TEXT,
             workspace_id INTEGER,
+            succeeded INTEGER,
             executed_at INTEGER NOT NULL DEFAULT (strftime('%s','now'))
         );
         CREATE INDEX IF NOT EXISTS idx_workflow_history_context
@@ -145,6 +149,26 @@ fn init_schema(conn: &Connection) -> Result<(), String> {
         "#,
     )
     .map_err(|e| e.to_string())
+}
+
+/// ADR-0053: add the nullable `succeeded` column to `workflow_history` on
+/// upgrade. Idempotent — checks `PRAGMA table_info` first so re-runs and fresh
+/// DBs (which already have the column from `CREATE TABLE`) are no-ops.
+fn ensure_workflow_succeeded_column(conn: &Connection) -> Result<(), String> {
+    let has_column = conn
+        .prepare("PRAGMA table_info(workflow_history)")
+        .and_then(|mut stmt| {
+            let names = stmt
+                .query_map([], |row| row.get::<_, String>(1))?
+                .collect::<Result<Vec<_>, _>>()?;
+            Ok(names.iter().any(|name| name == "succeeded"))
+        })
+        .map_err(|e| e.to_string())?;
+    if !has_column {
+        conn.execute_batch("ALTER TABLE workflow_history ADD COLUMN succeeded INTEGER;")
+            .map_err(|e| e.to_string())?;
+    }
+    Ok(())
 }
 
 pub(super) fn read_user_version(conn: &Connection) -> Result<u32, String> {

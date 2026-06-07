@@ -95,6 +95,7 @@ mod tests {
             action_label: label.into(),
             payload_digest: None,
             workspace_id: Some(0),
+            succeeded: None,
         }
     }
 
