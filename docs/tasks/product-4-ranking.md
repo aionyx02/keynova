@@ -48,12 +48,15 @@ Done:
 - New pure unit tests for frequency and workspace-affinity ordering; existing
   `suggest_next` tests stay green.
 
-## PRODUCT.4.B - Success-rate signal (deferred, needs ADR + schema)
+## PRODUCT.4.B - Success-rate signal (done, ADR-0053)
 
-Add an outcome to `workflow_history` (e.g. `succeeded` column) recorded when a
-command/action completes, and fold a success-rate term into ranking. Data-format
-change → new ADR; two-phase record (insert at dispatch, update on completion).
-Out of scope for this branch.
+`workflow_history` gained a nullable `succeeded` column (schema v5→6; idempotent
+`ALTER TABLE` for existing DBs). `cmd_dispatch_impl` now records `cmd.run` /
+`capability.call` in **both** the Ok and Err branches, and `run_action_command`
+records every attempt (was success-only) with its outcome. `suggest_next` adds a
+`(success_rate − 1.0)·SUCCESS_WEIGHT` term (perfect record = neutral baseline so
+it can't saturate; failures penalize) and **drops** a candidate with ≥3 attempts
+and zero successes. Legacy `NULL` rows count as success. +2 pure unit tests.
 
 ## PRODUCT.4.C - Replay provenance (small follow-up)
 

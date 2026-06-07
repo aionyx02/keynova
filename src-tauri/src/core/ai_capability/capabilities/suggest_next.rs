@@ -68,6 +68,13 @@ const FREQUENCY_WEIGHT: f32 = 0.25;
 /// PRODUCT.4.A: boost for candidates in the same workspace as the anchor — "what
 /// I do in *this* project" — looser than the exact `same_context` hash match.
 const WORKSPACE_WEIGHT: f32 = 0.15;
+/// PRODUCT.4.B / ADR-0053: how strongly success rate reweights a candidate.
+/// Applied as `(rate - 1.0) * weight`: a perfect record is the neutral baseline
+/// (no bonus, so it can't saturate the score) and only failures penalize.
+const SUCCESS_WEIGHT: f32 = 0.3;
+/// A candidate with at least this many recorded attempts and zero successes is
+/// considered broken and dropped — don't suggest a reliably-failing action.
+const BROKEN_MIN_ATTEMPTS: u32 = 3;
 
 pub fn call(
     req: CapabilityRequest,
@@ -140,6 +147,8 @@ fn rank_rows_at(
     let frequencies = build_frequencies(&rows);
     let max_frequency = frequencies.values().copied().max().unwrap_or(1);
     let anchor_workspace = rows.first().and_then(|row| row.workspace_id);
+    // PRODUCT.4.B / ADR-0053: per-action (successes, attempts) from the window.
+    let success_stats = build_success_stats(&rows);
 
     let mut seen = HashSet::new();
     let mut suggestions = Vec::new();
@@ -188,10 +197,25 @@ fn rank_rows_at(
             anchor_workspace.is_some() && row.workspace_id == anchor_workspace;
         let workspace_bonus = if workspace_match { WORKSPACE_WEIGHT } else { 0.0 };
 
+        // PRODUCT.4.B / ADR-0053 success rate. Legacy rows (succeeded = None) were
+        // recorded only on success, so they count as successes here.
+        let stat = success_stats.get(&dedupe_key).copied().unwrap_or_default();
+        if stat.attempts >= BROKEN_MIN_ATTEMPTS && stat.successes == 0 {
+            // Reliably-failing action — don't suggest it.
+            continue;
+        }
+        let success_rate = if stat.attempts > 0 {
+            stat.successes as f32 / stat.attempts as f32
+        } else {
+            1.0
+        };
+        let success_bonus = (success_rate - 1.0) * SUCCESS_WEIGHT;
+
         let confidence = (score_row(&row.route, idx, same_context)
             + transition_p * TRANSITION_WEIGHT
             + frequency_norm * FREQUENCY_WEIGHT
             + workspace_bonus
+            + success_bonus
             - echo)
             .clamp(0.0, 0.99);
 
@@ -251,6 +275,31 @@ fn build_frequencies(rows: &[workflow_memory::WorkflowHistoryRow]) -> HashMap<St
     for row in rows {
         *map.entry(transition_key(&row.route, &row.action_label))
             .or_insert(0) += 1;
+    }
+    map
+}
+
+#[derive(Debug, Clone, Copy, Default)]
+struct SuccessStat {
+    successes: u32,
+    attempts: u32,
+}
+
+/// PRODUCT.4.B / ADR-0053: per-action (successes, attempts) over the window. A
+/// `None` outcome (legacy row) counts as a success, since pre-ADR recording only
+/// happened on success.
+fn build_success_stats(
+    rows: &[workflow_memory::WorkflowHistoryRow],
+) -> HashMap<String, SuccessStat> {
+    let mut map: HashMap<String, SuccessStat> = HashMap::new();
+    for row in rows {
+        let stat = map
+            .entry(transition_key(&row.route, &row.action_label))
+            .or_default();
+        stat.attempts += 1;
+        if row.succeeded != Some(false) {
+            stat.successes += 1;
+        }
     }
     map
 }
@@ -467,6 +516,7 @@ mod tests {
                 action_label: "/help".into(),
                 payload_digest: None,
                 workspace_id: Some(7),
+                succeeded: None,
             });
             store.try_log_workflow_history(WorkflowHistoryEntry {
                 context_hash: Some("ctx-a".into()),
@@ -474,6 +524,7 @@ mod tests {
                 action_label: "explain rust ownership".into(),
                 payload_digest: None,
                 workspace_id: Some(7),
+                succeeded: None,
             });
 
             let resp = call(
@@ -516,6 +567,7 @@ mod tests {
             action_label: label.into(),
             payload_digest: None,
             workspace_id: Some(1),
+            succeeded: None,
             executed_at,
         }
     }
@@ -563,6 +615,7 @@ mod tests {
             action_label: label.into(),
             payload_digest: None,
             workspace_id: Some(workspace_id),
+            succeeded: None,
             executed_at,
         }
     }
@@ -602,6 +655,58 @@ mod tests {
         assert!(same.confidence > other.confidence);
     }
 
+    fn outcome_row(
+        id: i64,
+        label: &str,
+        executed_at: i64,
+        succeeded: bool,
+    ) -> workflow_memory::WorkflowHistoryRow {
+        workflow_memory::WorkflowHistoryRow {
+            id,
+            context_hash: Some("ctx".into()),
+            route: "action.run".into(),
+            action_label: label.into(),
+            payload_digest: None,
+            workspace_id: Some(1),
+            succeeded: Some(succeeded),
+            executed_at,
+        }
+    }
+
+    #[test]
+    fn higher_success_rate_outranks_a_more_recent_flaky_action() {
+        // `/good` (2/2 success) should beat `/bad` (1/2) even though `/bad` is
+        // more recent and they share frequency/workspace. (ADR-0053)
+        let rows = vec![
+            outcome_row(5, "/anchor", 105, true),
+            outcome_row(4, "/bad", 104, true),
+            outcome_row(3, "/bad", 103, false),
+            outcome_row(2, "/good", 102, true),
+            outcome_row(1, "/good", 101, true),
+        ];
+        let items = rank_rows_at(rows, None, None, 200);
+        assert_eq!(items[0].title, "/good", "reliable action ranks first");
+        let good = items.iter().find(|i| i.title == "/good").unwrap();
+        let bad = items.iter().find(|i| i.title == "/bad").unwrap();
+        assert!(good.confidence > bad.confidence);
+    }
+
+    #[test]
+    fn drops_a_reliably_failing_action() {
+        // `/broken`: 3 attempts, 0 successes → never suggested.
+        let rows = vec![
+            outcome_row(4, "/anchor", 104, true),
+            outcome_row(3, "/broken", 103, false),
+            outcome_row(2, "/broken", 102, false),
+            outcome_row(1, "/broken", 101, false),
+        ];
+        let items = rank_rows_at(rows, None, None, 200);
+        assert!(
+            !items.iter().any(|i| i.title == "/broken"),
+            "reliably-failing action is dropped"
+        );
+    }
+
     #[test]
     fn dedupes_identical_route_and_title_pairs() {
         let rows = vec![
@@ -612,6 +717,7 @@ mod tests {
                 action_label: "/help".into(),
                 payload_digest: None,
                 workspace_id: Some(1),
+                succeeded: None,
                 executed_at: 20,
             },
             workflow_memory::WorkflowHistoryRow {
@@ -621,6 +727,7 @@ mod tests {
                 action_label: "/help".into(),
                 payload_digest: None,
                 workspace_id: Some(1),
+                succeeded: None,
                 executed_at: 10,
             },
         ];
@@ -638,6 +745,7 @@ mod tests {
                 action_label: "suggest_next".into(),
                 payload_digest: None,
                 workspace_id: Some(1),
+                succeeded: None,
                 executed_at: 20,
             },
             workflow_memory::WorkflowHistoryRow {
@@ -647,6 +755,7 @@ mod tests {
                 action_label: "/help".into(),
                 payload_digest: None,
                 workspace_id: Some(1),
+                succeeded: None,
                 executed_at: 10,
             },
         ];
@@ -665,6 +774,7 @@ mod tests {
             action_label: "/help".into(),
             payload_digest: None,
             workspace_id: Some(1),
+            succeeded: None,
             executed_at: now - MAX_SUGGESTION_AGE_SECS - 1,
         }];
         assert!(rank_rows_at(rows, Some("ctx"), None, now).is_empty());
@@ -680,6 +790,7 @@ mod tests {
             action_label: "Open main.rs".into(),
             payload_digest: None,
             workspace_id: Some(1),
+            succeeded: None,
             executed_at: now - HISTORY_ONLY_MAX_AGE_SECS - 1,
         }];
         assert!(rank_rows_at(rows, Some("ctx"), None, now).is_empty());
@@ -696,6 +807,7 @@ mod tests {
                 action_label: "missing slash".into(),
                 payload_digest: None,
                 workspace_id: Some(1),
+                succeeded: None,
                 executed_at: now,
             },
             workflow_memory::WorkflowHistoryRow {
@@ -705,6 +817,7 @@ mod tests {
                 action_label: "removed_capability old input".into(),
                 payload_digest: None,
                 workspace_id: Some(1),
+                succeeded: None,
                 executed_at: now,
             },
         ];
