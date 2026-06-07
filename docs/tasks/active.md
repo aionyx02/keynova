@@ -43,11 +43,10 @@ Detailed batch definitions, done criteria, non-goals, file map, and validation g
   landed: 8 backend features + 6 frontend panels self-register; removing a feature
   ≈ delete module/folder + manifest. Detail: `docs/tasks/archive/feature-decoupling.md`.
 
-- [~] `UX.AUDIT` UI/UX consistency pass (developer-directed). Done: stale "AI
-  Chat" copy, a11y live regions (incl. AI capability completion/error), full
-  i18n conversion, UTF-8 BOM cleanup, and the garbled-text (`嚙`) fallback (raw
-  path instead of "Path unavailable"). Open: `嚙` root cause still blocked on a
-  repro (non-urgent). Detail: `docs/tasks/ux-audit.md`.
+- [~] `UX.AUDIT` UI/UX consistency pass (developer-directed). Done: stale copy,
+  a11y live regions, full i18n, UTF-8 BOM cleanup, `嚙` garbled-path fallback.
+  Open: `嚙` root cause blocked on a repro (non-urgent; = STAB.4). Detail:
+  `docs/tasks/ux-audit.md`.
 - [x] `PRODUCT.1` v0.6 stable workflow core **complete** (search-core). `A`–`D`
   + `PROJECT_ROOT.wire` + `1.F`/`1.G` + `1.H` done; `1.E` execution **dropped**
   (copy-only). Detail: `docs/tasks/archive/product-1-workflow-core.md`.
@@ -57,6 +56,12 @@ Detailed batch definitions, done criteria, non-goals, file map, and validation g
   stale/invalid `next` suppression. No generated-command execution path. Detail:
   `docs/tasks/archive/product-2-ai-capabilities.md`.
 
+- [~] `STAB` hardening pass on `hardening/stabilize-features`. STAB.1
+  panic→crash.log net **done** (ADR-0051, in `/diag`); STAB.2
+  `/diag` edge fixes **done** (collapse_home boundary, path_size caps); STAB.3
+  **no-op** (IPC already panic-free, window hardened). Detail:
+  `docs/tasks/stabilization.md`.
+
 ### P2
 
 - Only safety fixes or regressions that directly block the P0 refactor track.
@@ -65,19 +70,16 @@ Detailed batch definitions, done criteria, non-goals, file map, and validation g
 
 Keynova's active priority is the search-first workflow refactor: AI is a stateless capability layer invoked inline from unified result rows and prefix-keyword palette flows; chat-first surfaces leave the hot path.
 
-Freeze status (2026-06-06, developer-directed): `PRODUCT.1` and `PRODUCT.2` are
-both **complete**. REF.7.D done + latency direction finalized (tiered §8 +
-`qwen2.5:1.5b` default) satisfied the PRODUCT.2 gate. `ai.legacy_agent`
-observation-window items remain separate, non-blocking tracking. Other parked
-tracks (`AGENT.*`, `CLIP.1`, etc.) stay frozen.
+Freeze status (developer-directed): `PRODUCT.1`/`.2`/`.3` complete; REF.7.D done.
+`ai.legacy_agent` observation items and parked tracks (`AGENT.*`, `CLIP.1`) stay
+frozen, non-blocking.
 
 Keep `active.md` compact. Put batch-level task detail in `docs/tasks/refactor-ai-capability.md`, detailed implementation notes in `docs/memory/sessions/YYYY-MM-DD.md`, and future non-refactor ideas in `docs/tasks/backlog.md`.
 
 ## Next Phase Candidates
 
-- [~] `PRODUCT.3` trusted-release (ADR-0047/0048/0049/0050): self-contained
-  items done + green; branch `feature/product-3-diagnostics-export`
-  **merge-ready into `main`**. Only open: secret-gated signing (**deferred per
-  dev**) + updater keypair. Detail: `sessions/2026-06-07.md`.
+- [x] `PRODUCT.3` trusted-release (ADR-0047/0048/0049/0050): **merged to `main`**
+  2026-06-07 (`8b26a4d`). Only open: secret-gated signing (**deferred per dev**)
+  + updater keypair. Detail: `sessions/2026-06-07.md`.
 - `REF.7.C` final closer: user-side Bug A/B smoke.
 - After `REF.8`, refresh affected ADR statuses and architecture docs.

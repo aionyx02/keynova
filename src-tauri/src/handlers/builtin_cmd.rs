@@ -397,6 +397,9 @@ impl BuiltinCmdHandler {
                 generated_at: s.generated_at,
             });
 
+        let last_crash =
+            crate::core::crash_log::read_last_crash(&data_dir.join("crash.log"));
+
         build_report(DiagnosticsInputs {
             version: env!("CARGO_PKG_VERSION").to_string(),
             os: std::env::consts::OS.to_string(),
@@ -405,6 +408,7 @@ impl BuiltinCmdHandler {
             redacted_config,
             paths,
             preflight,
+            last_crash,
         })
     }
 }
