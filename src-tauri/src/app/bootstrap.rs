@@ -70,6 +70,14 @@ pub fn run() {
     {
         builder = builder
             .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
+                // Drop a second-launch "show" that echoes a Ctrl+K toggle which
+                // just hid the window (the close-then-reopen race).
+                if app
+                    .state::<AppState>()
+                    .launcher_toggled_within(std::time::Duration::from_millis(400))
+                {
+                    return;
+                }
                 let _ = show_launcher(app);
             }))
             .plugin(tauri_plugin_autostart::init(
