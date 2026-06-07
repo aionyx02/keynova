@@ -2,7 +2,7 @@
 type: working_memory
 status: active
 priority: p0
-updated: 2026-06-06
+updated: 2026-06-07
 context_policy: always_retrievable
 owner: project
 ---
@@ -43,17 +43,16 @@ owner: project
 
 ## Next Step
 
-- `PRODUCT.3` trusted-release hardening: verify gate, versioned notes, `/diag`
-  export (ADR-0047), signing pipeline (ADR-0048), config rollback (ADR-0049),
-  and a dormant GitHub-Releases updater (ADR-0050; `/update` check-only, wired
-  but keyless) all landed. All self-contained PRODUCT.3 items done; remaining
-  needs developer secrets: signing certs + updater keypair/config.
-- REF.7.D **done** (2026-06-06): bench proved CPU throughput (not model size) is the
-  wall — even 1.5b ~5× over old 800 ms. Developer-approved: ADR-0029 §8 → **tiered**
-  (CPU-host P50<5s/P95<8s + GPU<800ms aspirational) + **`qwen2.5:1.5b` reference
-  default** (ai.rs/live_tests/bench/Cargo.toml); 1.5b P50 4266/P95 6269 **PASS** CPU
-  tier. ADR stays `accepted`; PRODUCT.2 subsequently completed. REF.7.C closer =
-  user Bug A/B smoke. Detail: `sessions/2026-06-06.md`.
+- `PRODUCT.3` trusted-release: verify gate, versioned notes, `/diag` (ADR-0047),
+  signing-pipeline scaffold (ADR-0048), config rollback (ADR-0049), dormant
+  keyless updater (ADR-0050) all landed. Self-contained items done and green
+  2026-06-07. Branch `feature/product-3-diagnostics-export` (from `main`@v0.6.0)
+  is **merge-ready into `main`** pending developer confirmation. Only open:
+  secret-gated signing certs (**deferred per dev**) + updater keypair.
+  Detail: `sessions/2026-06-07.md`.
+- REF.7.D **done** (2026-06-06): CPU throughput is the latency wall; ADR-0029 §8
+  → **tiered** (CPU P50<5s/P95<8s) + **`qwen2.5:1.5b`** default (PASS 4266/6269).
+  REF.7.C closer = user Bug A/B smoke. Detail: `sessions/2026-06-06.md`.
 - `v0.6.0` release commit bumps app metadata and adds release notes for the
   PRODUCT.1 workflow-core pass. Pushing tag `v0.6.0` triggers GitHub release CI
   and creates a draft release. Still UNSIGNED. `v0.5.0` remains the previous

@@ -330,12 +330,17 @@ Goal: make release trust part of the product, not a packaging afterthought.
 
 Scope:
 
-- [ ] Add or validate auto-updater behavior and rollback/failure messaging.
+- [~] Add or validate auto-updater behavior and rollback/failure messaging.
+  Dormant GitHub-Releases updater wired (`/update` check-only, ADR-0050); signed
+  artifact path needs the developer updater keypair (`TAURI_SIGNING_PRIVATE_KEY`).
 - [ ] Complete code signing and platform notarization/signature requirements.
-- [ ] Add diagnostics export for logs, config redaction, version, feature flags,
-  and indexing/search state.
-- [ ] Exercise config migration and rollback paths.
-- [ ] Keep `docs/security.md`, README, ADRs, and release notes synchronized for
+  **Developer-secret-gated, deferred:** pipeline scaffolded + inert without
+  secrets (ADR-0048); awaiting developer certs. Builds stay unsigned-but-green.
+- [x] Add diagnostics export for logs, config redaction, version, feature flags,
+  and indexing/search state. (`/diag` redacted copy-only bundle, ADR-0047.)
+- [x] Exercise config migration and rollback paths. (Corrupt config quarantined
+  instead of silent data loss, ADR-0049.)
+- [x] Keep `docs/security.md`, README, ADRs, and release notes synchronized for
   any security, IPC, secret, or network-policy change.
 - [x] Make release workflow run verify before packaging. If full verify is too
   slow, minimum gate is lint, frontend build, frontend tests, Rust tests, and
