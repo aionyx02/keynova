@@ -61,6 +61,13 @@ const TRANSITION_WEIGHT: f32 = 0.5;
 /// Penalty applied to the anchor's own action so `next` predicts a step forward
 /// rather than echoing what the user just did (without fully hiding it).
 const ECHO_PENALTY: f32 = 0.3;
+/// PRODUCT.4.A: how strongly a habitually-repeated action (high occurrence
+/// frequency in the window) ranks up. Log-normalized so one very frequent action
+/// cannot dominate.
+const FREQUENCY_WEIGHT: f32 = 0.25;
+/// PRODUCT.4.A: boost for candidates in the same workspace as the anchor — "what
+/// I do in *this* project" — looser than the exact `same_context` hash match.
+const WORKSPACE_WEIGHT: f32 = 0.15;
 
 pub fn call(
     req: CapabilityRequest,
@@ -128,6 +135,12 @@ fn rank_rows_at(
         .map(|next| next.values().sum())
         .unwrap_or(0);
 
+    // PRODUCT.4.A: occurrence frequency per action + the anchor's workspace, both
+    // derived from the existing window (no schema change).
+    let frequencies = build_frequencies(&rows);
+    let max_frequency = frequencies.values().copied().max().unwrap_or(1);
+    let anchor_workspace = rows.first().and_then(|row| row.workspace_id);
+
     let mut seen = HashSet::new();
     let mut suggestions = Vec::new();
 
@@ -163,13 +176,28 @@ fn rank_rows_at(
         let predicted = transition_p > 0.0;
         let is_anchor = anchor_key.as_deref() == Some(dedupe_key.as_str());
         let echo = if is_anchor { ECHO_PENALTY } else { 0.0 };
-        let confidence =
-            (score_row(&row.route, idx, same_context) + transition_p * TRANSITION_WEIGHT - echo)
-                .clamp(0.0, 0.99);
+
+        // PRODUCT.4.A signals.
+        let frequency = frequencies.get(&dedupe_key).copied().unwrap_or(1);
+        let frequency_norm = if max_frequency > 1 {
+            (frequency as f32).ln_1p() / (max_frequency as f32).ln_1p()
+        } else {
+            0.0
+        };
+        let workspace_match =
+            anchor_workspace.is_some() && row.workspace_id == anchor_workspace;
+        let workspace_bonus = if workspace_match { WORKSPACE_WEIGHT } else { 0.0 };
+
+        let confidence = (score_row(&row.route, idx, same_context)
+            + transition_p * TRANSITION_WEIGHT
+            + frequency_norm * FREQUENCY_WEIGHT
+            + workspace_bonus
+            - echo)
+            .clamp(0.0, 0.99);
 
         suggestions.push(SuggestedNextAction {
             title: row.action_label.clone(),
-            subtitle: build_subtitle(&row.route, idx, same_context, predicted),
+            subtitle: build_subtitle(&row.route, idx, same_context, predicted, frequency),
             route: row.route.clone(),
             confidence,
             rationale: build_rationale(&row.route, same_context, predicted),
@@ -212,6 +240,17 @@ fn build_transitions(
         let prev = transition_key(&pair[0].route, &pair[0].action_label);
         let next = transition_key(&pair[1].route, &pair[1].action_label);
         *map.entry(prev).or_default().entry(next).or_insert(0) += 1;
+    }
+    map
+}
+
+/// PRODUCT.4.A: occurrence count per `(route, action_label)` across the window —
+/// the "how habitual is this action" signal.
+fn build_frequencies(rows: &[workflow_memory::WorkflowHistoryRow]) -> HashMap<String, u32> {
+    let mut map: HashMap<String, u32> = HashMap::new();
+    for row in rows {
+        *map.entry(transition_key(&row.route, &row.action_label))
+            .or_insert(0) += 1;
     }
     map
 }
@@ -262,8 +301,12 @@ fn is_suggest_next_self_row(row: &workflow_memory::WorkflowHistoryRow) -> bool {
     row.route == "capability.call" && row.action_label.starts_with("suggest_next")
 }
 
+/// Recency + route + context base. PRODUCT.4.A rescales recency to ~half its old
+/// magnitude (and drops the early clamp) so the transition / frequency /
+/// workspace signals are not drowned out by recency saturating at the top; the
+/// final blend is clamped once by the caller.
 fn score_row(route: &str, recency_index: usize, same_context: bool) -> f32 {
-    let recency = (1.0 - (recency_index as f32 * 0.12)).max(0.2);
+    let recency = (0.5 - (recency_index as f32 * 0.06)).max(0.1);
     let route_bonus = match route {
         "cmd.run" => 0.18,
         "action.run" => 0.12,
@@ -271,10 +314,16 @@ fn score_row(route: &str, recency_index: usize, same_context: bool) -> f32 {
         _ => 0.04,
     };
     let context_bonus = if same_context { 0.1 } else { 0.0 };
-    (recency + route_bonus + context_bonus).clamp(0.0, 0.99)
+    recency + route_bonus + context_bonus
 }
 
-fn build_subtitle(route: &str, recency_index: usize, same_context: bool, predicted: bool) -> String {
+fn build_subtitle(
+    route: &str,
+    recency_index: usize,
+    same_context: bool,
+    predicted: bool,
+    frequency: u32,
+) -> String {
     let freshness = match recency_index {
         0 => "most recent",
         1 => "recent",
@@ -286,10 +335,16 @@ fn build_subtitle(route: &str, recency_index: usize, same_context: bool, predict
     } else {
         "global history"
     };
-    if predicted {
-        format!("likely next · {route} · {scope}")
+    // PRODUCT.4.A: surface habit strength so the ranking stays explainable.
+    let used = if frequency > 1 {
+        format!(" · used {frequency}×")
     } else {
-        format!("{route} · {freshness} · {scope}")
+        String::new()
+    };
+    if predicted {
+        format!("likely next · {route} · {scope}{used}")
+    } else {
+        format!("{route} · {freshness} · {scope}{used}")
     }
 }
 
@@ -493,6 +548,58 @@ mod tests {
         let items = rank_rows_at(rows, Some("ctx"), None, 200);
         assert_eq!(items.len(), 2);
         assert!(items.iter().all(|i| !i.subtitle.contains("likely next")));
+    }
+
+    fn action_row(
+        id: i64,
+        label: &str,
+        executed_at: i64,
+        workspace_id: i64,
+    ) -> workflow_memory::WorkflowHistoryRow {
+        workflow_memory::WorkflowHistoryRow {
+            id,
+            context_hash: Some("ctx".into()),
+            route: "action.run".into(),
+            action_label: label.into(),
+            payload_digest: None,
+            workspace_id: Some(workspace_id),
+            executed_at,
+        }
+    }
+
+    #[test]
+    fn frequency_lifts_a_habitual_action_above_a_more_recent_rare_one() {
+        // `/common` is older than `/rare` but used 3×; PRODUCT.4.A frequency
+        // should rank it first. (context filtered out via active=None so only
+        // recency + frequency + workspace decide.)
+        let rows = vec![
+            action_row(6, "/anchor", 106, 1),
+            action_row(5, "/rare", 105, 1),
+            action_row(4, "/common", 104, 1),
+            action_row(3, "/common", 103, 1),
+            action_row(2, "/common", 102, 1),
+        ];
+        let items = rank_rows_at(rows, None, None, 200);
+        assert_eq!(items[0].title, "/common", "habitual action ranks first");
+        assert!(items[0].subtitle.contains("used 3×"));
+        let rare = items.iter().find(|i| i.title == "/rare").expect("rare present");
+        assert!(items[0].confidence > rare.confidence);
+    }
+
+    #[test]
+    fn same_workspace_action_outranks_other_workspace() {
+        // Equal frequency/recency-class actions: the one in the anchor's
+        // workspace (9) should outrank the one in another workspace (5).
+        let rows = vec![
+            action_row(3, "/anchor", 103, 9),
+            action_row(2, "/same", 102, 9),
+            action_row(1, "/other", 101, 5),
+        ];
+        let items = rank_rows_at(rows, None, None, 200);
+        assert_eq!(items[0].title, "/same", "same-workspace action ranks first");
+        let same = items.iter().find(|i| i.title == "/same").unwrap();
+        let other = items.iter().find(|i| i.title == "/other").unwrap();
+        assert!(same.confidence > other.confidence);
     }
 
     #[test]
