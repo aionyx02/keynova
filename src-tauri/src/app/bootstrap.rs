@@ -52,6 +52,12 @@ fn cmd_keep_launcher_open(
 }
 
 pub fn run() {
+    // STAB.1 / ADR-0051: install the redacted crash-log panic hook before any
+    // other startup work so even a setup-time panic is captured to disk.
+    crate::core::crash_log::install_panic_hook(
+        crate::platform_dirs::keynova_data_dir().join("crash.log"),
+    );
+
     let context = tauri::generate_context!();
     // In-app updater (PRODUCT.3 / ADR-0050). The plugin panics at init when
     // `plugins.updater` is absent, so register it only once the developer adds

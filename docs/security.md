@@ -2,7 +2,7 @@
 type: security_policy
 status: active
 priority: p0
-updated: 2026-06-06
+updated: 2026-06-07
 context_policy: retrieve_only
 owner: project
 ---
@@ -104,6 +104,7 @@ Handling rules:
 | `%LOCALAPPDATA%\Keynova\notes\`          | 讀/寫      | 使用者筆記      |
 | `%LOCALAPPDATA%\Keynova\search\tantivy\` | 讀/寫      | 搜尋索引        |
 | `%LOCALAPPDATA%\Keynova\nvim\`           | 寫（下載） | Portable Neovim |
+| `%LOCALAPPDATA%\Keynova\crash.log`       | 讀/寫      | 後端 panic 紀錄（ADR-0051） |
 | Workspace root（使用者設定）             | 遞迴讀     | 搜尋索引掃描    |
 
 **禁止**：讀寫系統目錄（`C:\Windows\`）、其他使用者的 home 目錄、網路磁碟（未經 ADR 允許）。
@@ -265,3 +266,17 @@ Agent 執行工具前，`safety.rs` 中的 `ToolPermissionGate` 必須評估：
 ### 11.3 擴充規則
 
 新增欄位必須通過同一套遮蔽保證，且不得引入檔案內容或網路行為。save-to-file 不在範圍內，若日後加入需另立 ADR（新增 write-IPC + 路徑邊界）。
+
+## 12. 後端 Crash Log（panic hook, ADR-0051）
+
+### 12.1 範圍
+
+啟動時安裝 process 級 `std::panic::set_hook`，把每次 panic 以**單行、已遮蔽**格式 append 到 `%LOCALAPPDATA%\Keynova\crash.log`（與 `config.toml` 同信任區），再串接前一個 hook（console/stderr 行為不變）。`/diag` 會帶出最後一筆 crash（時間戳 + 截斷訊息）供 bug report。
+
+### 12.2 遮蔽與邊界
+
+- panic 訊息與位置中**所有**出現的使用者 home 路徑一律替換為 `~` / `%USERPROFILE%`（非僅前綴）。
+- 單筆訊息上限 500 字元；整檔上限 64 KB，超過時丟最舊的整行（rotation），不會無限成長。
+- 寫檔為 best-effort：失敗一律吞掉，hook 內絕不再 panic、不阻塞關閉。
+- **純本機診斷 sink，非遙測**：除非使用者自行複製 `/diag` 或該檔，內容不離開機器。無網路、無自動上傳。
+- 刪除 `crash.log` 任何時候皆安全。
