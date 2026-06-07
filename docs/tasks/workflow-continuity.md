@@ -82,6 +82,21 @@ Not blocking. If "flow" still feels off after CONT.1/.2: trim the 200ms
 - No execution path for generated commands; suggestions stay copy/replay-only.
 - Do not remove the `next` prefix.
 
+## Status (2026-06-07)
+
+- CONT.1 backend **done**: transition-aware ranking + anchor + fallback, ADR-0052
+  proposed, +2 tests (534 Rust pass). Predictions labeled "likely next".
+- CONT.1 proactive frontend surface **remaining**: idle-state predictions need
+  the palette keyboard-nav state machine extended + `tauri dev` verification;
+  deferred to a focused follow-up. The `next` prefix shows the new predictions
+  today.
+- CONT.2 **done** (logic): `useWindowResize` coalesces — grow-now / shrink-settle
+  / sub-threshold-skip. Needs `tauri dev` confirmation of feel. Window pre-show
+  reposition assessed, not changed (position persists across hide/show).
+- CONT.3 parked.
+
+Detail: `docs/memory/sessions/2026-06-07.md`.
+
 ## Validation
 
 ```bash

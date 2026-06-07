@@ -3,7 +3,7 @@
 //! REF.6.C keeps this backend-first: the output is structured, replay is
 //! best-effort, and no UI surface is wired in this batch.
 
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use serde::{Deserialize, Serialize};
@@ -52,6 +52,16 @@ pub struct SuggestedNextAction {
 const MAX_SUGGESTION_AGE_SECS: i64 = 30 * 24 * 60 * 60;
 const HISTORY_ONLY_MAX_AGE_SECS: i64 = 7 * 24 * 60 * 60;
 
+/// History window pulled for transition modeling. Wider than the display limit
+/// so the `(prev → next)` model has enough pairs; output is truncated to the
+/// caller's limit after ranking. (ADR-0052)
+const TRANSITION_WINDOW: usize = 200;
+/// How strongly `P(next | anchor)` reweights a candidate above plain recency.
+const TRANSITION_WEIGHT: f32 = 0.5;
+/// Penalty applied to the anchor's own action so `next` predicts a step forward
+/// rather than echoing what the user just did (without fully hiding it).
+const ECHO_PENALTY: f32 = 0.3;
+
 pub fn call(
     req: CapabilityRequest,
     deps: &CapabilityDeps,
@@ -60,17 +70,22 @@ pub fn call(
         .map_err(|e| CapabilityError::InvalidPayload(e.to_string()))?;
     let limit = workflow_memory::clamp_limit(payload.ctx.limit);
 
+    // Pull a wider window than the display limit so the transition model sees
+    // enough (prev -> next) pairs; the ranked output is truncated to `limit`.
     let rows = match deps.knowledge_store.as_ref() {
-        Some(store) => workflow_memory::suggest(store, req.context_hash.as_deref(), limit)
-            .map_err(CapabilityError::ProviderError)?,
+        Some(store) => {
+            workflow_memory::suggest(store, req.context_hash.as_deref(), TRANSITION_WINDOW)
+                .map_err(CapabilityError::ProviderError)?
+        }
         None => Vec::new(),
     };
 
-    let suggestions = rank_rows(
+    let mut suggestions = rank_rows(
         rows,
         req.context_hash.as_deref(),
         deps.local_context.as_ref(),
     );
+    suggestions.truncate(limit);
     Ok(CapabilityResponse {
         id: CapabilityId::SuggestNext,
         output: CapabilityOutput::Structured {
@@ -100,6 +115,19 @@ fn rank_rows_at(
     local_context: Option<&LocalContextSearcher>,
     now: i64,
 ) -> Vec<SuggestedNextAction> {
+    // ADR-0052: the most recent row is the "anchor" (what the user just did);
+    // rank candidates by how often they historically followed it, blended with
+    // recency. Built before `rows` is consumed below.
+    let anchor_key = rows
+        .first()
+        .map(|row| transition_key(&row.route, &row.action_label));
+    let transitions = build_transitions(&rows);
+    let anchor_out_total: u32 = anchor_key
+        .as_ref()
+        .and_then(|key| transitions.get(key))
+        .map(|next| next.values().sum())
+        .unwrap_or(0);
+
     let mut seen = HashSet::new();
     let mut suggestions = Vec::new();
 
@@ -110,21 +138,41 @@ fn rank_rows_at(
         {
             continue;
         }
-        let dedupe_key = format!("{}::{}", row.route, row.action_label);
-        if !seen.insert(dedupe_key) {
+        let dedupe_key = transition_key(&row.route, &row.action_label);
+        if !seen.insert(dedupe_key.clone()) {
             continue;
         }
 
         let same_context = active_context_hash
             .zip(row.context_hash.as_deref())
             .is_some_and(|(active, row_hash)| active == row_hash);
-        let confidence = score_row(&row.route, idx, same_context);
+
+        // P(this action | anchor) from the transition model, 0 when the anchor
+        // has no recorded follow-ups (cold start → pure recency fallback).
+        let transition_p = if anchor_out_total > 0 {
+            anchor_key
+                .as_ref()
+                .and_then(|key| transitions.get(key))
+                .and_then(|next| next.get(&dedupe_key))
+                .copied()
+                .unwrap_or(0) as f32
+                / anchor_out_total as f32
+        } else {
+            0.0
+        };
+        let predicted = transition_p > 0.0;
+        let is_anchor = anchor_key.as_deref() == Some(dedupe_key.as_str());
+        let echo = if is_anchor { ECHO_PENALTY } else { 0.0 };
+        let confidence =
+            (score_row(&row.route, idx, same_context) + transition_p * TRANSITION_WEIGHT - echo)
+                .clamp(0.0, 0.99);
+
         suggestions.push(SuggestedNextAction {
             title: row.action_label.clone(),
-            subtitle: build_subtitle(&row.route, idx, same_context),
+            subtitle: build_subtitle(&row.route, idx, same_context, predicted),
             route: row.route.clone(),
             confidence,
-            rationale: build_rationale(&row.route, same_context),
+            rationale: build_rationale(&row.route, same_context, predicted),
             last_executed_at: row.executed_at,
             workspace_id: row.workspace_id,
             replay: replay_for_row(&row.route, &row.action_label),
@@ -146,6 +194,26 @@ fn rank_rows_at(
     });
 
     suggestions
+}
+
+/// Stable per-action key shared by dedupe + the transition model.
+fn transition_key(route: &str, action_label: &str) -> String {
+    format!("{route}::{action_label}")
+}
+
+/// Count `(prev → next)` action pairs from history. `rows` arrive newest-first,
+/// so they are walked in reverse (chronological) order to form real successions.
+fn build_transitions(
+    rows: &[workflow_memory::WorkflowHistoryRow],
+) -> HashMap<String, HashMap<String, u32>> {
+    let mut map: HashMap<String, HashMap<String, u32>> = HashMap::new();
+    let chronological: Vec<&workflow_memory::WorkflowHistoryRow> = rows.iter().rev().collect();
+    for pair in chronological.windows(2) {
+        let prev = transition_key(&pair[0].route, &pair[0].action_label);
+        let next = transition_key(&pair[1].route, &pair[1].action_label);
+        *map.entry(prev).or_default().entry(next).or_insert(0) += 1;
+    }
+    map
 }
 
 fn current_epoch_seconds() -> i64 {
@@ -206,7 +274,7 @@ fn score_row(route: &str, recency_index: usize, same_context: bool) -> f32 {
     (recency + route_bonus + context_bonus).clamp(0.0, 0.99)
 }
 
-fn build_subtitle(route: &str, recency_index: usize, same_context: bool) -> String {
+fn build_subtitle(route: &str, recency_index: usize, same_context: bool, predicted: bool) -> String {
     let freshness = match recency_index {
         0 => "most recent",
         1 => "recent",
@@ -218,10 +286,22 @@ fn build_subtitle(route: &str, recency_index: usize, same_context: bool) -> Stri
     } else {
         "global history"
     };
-    format!("{route} · {freshness} · {scope}")
+    if predicted {
+        format!("likely next · {route} · {scope}")
+    } else {
+        format!("{route} · {freshness} · {scope}")
+    }
 }
 
-fn build_rationale(route: &str, same_context: bool) -> String {
+fn build_rationale(route: &str, same_context: bool, predicted: bool) -> String {
+    if predicted {
+        let base = "usually follows your last action";
+        return if same_context {
+            format!("{base} in this workspace")
+        } else {
+            base.to_string()
+        };
+    }
     let route_reason = match route {
         "cmd.run" => "recent command usage",
         "action.run" => "recent primary action",
@@ -371,6 +451,48 @@ mod tests {
         )
         .unwrap_err();
         assert_invalid_payload(err);
+    }
+
+    fn cmd_row(id: i64, label: &str, executed_at: i64) -> workflow_memory::WorkflowHistoryRow {
+        workflow_memory::WorkflowHistoryRow {
+            id,
+            context_hash: Some("ctx".into()),
+            route: "cmd.run".into(),
+            action_label: label.into(),
+            payload_digest: None,
+            workspace_id: Some(1),
+            executed_at,
+        }
+    }
+
+    #[test]
+    fn predicts_action_that_historically_followed_the_anchor() {
+        // History (newest-first): the anchor `/build` was repeatedly followed by
+        // `/test`. Even though `/build` is the most recent (highest recency),
+        // `/test` should rank first as the predicted next step. (ADR-0052)
+        let rows = vec![
+            cmd_row(5, "/build", 105),
+            cmd_row(4, "/test", 104),
+            cmd_row(3, "/build", 103),
+            cmd_row(2, "/test", 102),
+            cmd_row(1, "/build", 101),
+        ];
+        let items = rank_rows_at(rows, Some("ctx"), None, 200);
+        assert_eq!(items.len(), 2, "two distinct actions");
+        assert_eq!(items[0].title, "/test", "predicted next ranks above the echo");
+        assert!(items[0].subtitle.contains("likely next"));
+        assert!(items[0].confidence > items[1].confidence);
+    }
+
+    #[test]
+    fn falls_back_to_recency_when_anchor_has_no_followups() {
+        // Anchor `/build` (newest) never had a recorded successor, so ranking
+        // degrades to the existing recency/route ordering: the anchor stays on
+        // top, no "likely next" label.
+        let rows = vec![cmd_row(2, "/build", 102), cmd_row(1, "/deploy", 101)];
+        let items = rank_rows_at(rows, Some("ctx"), None, 200);
+        assert_eq!(items.len(), 2);
+        assert!(items.iter().all(|i| !i.subtitle.contains("likely next")));
     }
 
     #[test]

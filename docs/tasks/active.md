@@ -53,9 +53,10 @@ Detailed batch definitions, done criteria, non-goals, file map, and validation g
 - [x] `PRODUCT.2` v0.7 inline AI capabilities **complete** (2026-06-06; A–E,
   copy-only, ADR-0046). Detail: `archive/product-2-ai-capabilities.md`.
 
-- [~] `CONT` workflow continuity on `feature/workflow-continuity`: CONT.1
-  predictive+proactive `next` (transition ranking, ADR-0052) + CONT.2 stable
-  window (no per-mutation resize jitter). Detail: `tasks/workflow-continuity.md`.
+- [~] `CONT` workflow continuity on `feature/workflow-continuity`: CONT.1 backend
+  transition `next` (ADR-0052) **done** + CONT.2 resize coalescing **done**.
+  Remaining: CONT.1 proactive idle surface (+dev-run check). Detail:
+  `tasks/workflow-continuity.md`.
 
 ### P2
 
