@@ -7,6 +7,7 @@
 //! per-call return.
 
 mod capabilities;
+pub(crate) mod command;
 pub mod contract;
 pub(crate) mod memory;
 pub(crate) mod parse;
@@ -15,7 +16,7 @@ pub mod registry;
 
 pub use contract::{
     AiManagerChatProvider, CapabilityDeps, CapabilityError, CapabilityOutput, CapabilityRequest,
-    CapabilityResponse, ChatProvider,
+    CapabilityResponse, CapabilitySource, ChatProvider,
 };
 pub use registry::{all, meta, CapabilityId, CapabilityMeta};
 
@@ -38,3 +39,6 @@ pub fn call_capability(
 
 #[cfg(all(test, feature = "live-ai"))]
 mod live_tests;
+
+#[cfg(test)]
+pub(crate) mod test_fixtures;

@@ -78,7 +78,7 @@ impl AiHandler {
                 "target_model": "",
                 "ollama_reachable": false,
                 "model_available": false,
-                "recommended_model": "qwen2.5:7b",
+                "recommended_model": "qwen2.5:1.5b",
             });
         };
 
@@ -98,7 +98,7 @@ impl AiHandler {
             .into_iter()
             .next()
             .map(|c| c.name)
-            .unwrap_or_else(|| "qwen2.5:7b".into());
+            .unwrap_or_else(|| "qwen2.5:1.5b".into());
 
         let result = match &ai_config.provider {
             AiProvider::Ollama { base_url, model } => {

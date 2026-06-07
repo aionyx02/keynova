@@ -78,7 +78,12 @@ export function CommandResultArea({
               <UiIcon name="copy" className="h-3.5 w-3.5" />
             </button>
           </div>
-          <pre className="whitespace-pre-wrap text-sm leading-7 text-[color:var(--kn-text-soft)]">
+          <pre
+            role="region"
+            aria-label={p.commandResult}
+            tabIndex={0}
+            className="kn-scroll max-h-[300px] overflow-y-auto overscroll-contain whitespace-pre-wrap pr-2 text-sm leading-7 text-[color:var(--kn-text-soft)] focus:outline-none focus:ring-1 focus:ring-[color:var(--kn-accent)]"
+          >
             {cmdResult.text}
           </pre>
         </div>

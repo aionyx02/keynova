@@ -9,15 +9,16 @@ use std::sync::atomic::Ordering;
 
 use serde::{Deserialize, Serialize};
 
+use crate::core::ai_capability::command::risk_tag_for_command;
 use crate::core::ai_capability::contract::{
     CapabilityDeps, CapabilityError, CapabilityOutput, CapabilityRequest, CapabilityResponse,
+    CapabilitySource,
 };
 use crate::core::ai_capability::memory::push_memory_sources;
 use crate::core::ai_capability::parse::extract_first_json_object;
-use crate::core::ai_capability::prompt::{build_prompt, maybe_audit};
+use crate::core::ai_capability::prompt::{build_prompt_with_sources, maybe_audit};
 use crate::core::ai_capability::registry::{meta, CapabilityId};
 use crate::models::agent::GroundingSource;
-use crate::models::unified_result::RiskTag;
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
 pub struct GenCommandCtx {
@@ -41,6 +42,8 @@ pub struct GenCommandOutput {
     pub command: String,
     pub confidence: f32,
     pub rationale: String,
+    #[serde(default)]
+    pub assumptions: GenCommandCtx,
 }
 
 const SYSTEM: &str = "You are a command-generation assistant inside Keynova, a keyboard-first \
@@ -77,19 +80,15 @@ pub fn call(
         }
     }
 
+    let assumptions = resolve_ctx(payload.ctx, deps.local_context.as_ref());
     let mut task = format!("Intent: {intent}\nReturn the best single command for this intent.");
-    if let Some(cwd) = payload.ctx.cwd.as_deref().filter(|v| !v.trim().is_empty()) {
+    if let Some(cwd) = assumptions.cwd.as_deref() {
         task.push_str(&format!("\nCurrent working directory: {cwd}"));
     }
-    if let Some(shell) = payload
-        .ctx
-        .shell
-        .as_deref()
-        .filter(|v| !v.trim().is_empty())
-    {
+    if let Some(shell) = assumptions.shell.as_deref() {
         task.push_str(&format!("\nShell: {shell}"));
     }
-    if let Some(os) = payload.ctx.os.as_deref().filter(|v| !v.trim().is_empty()) {
+    if let Some(os) = assumptions.os.as_deref() {
         task.push_str(&format!("\nOperating system: {os}"));
     }
     task.push_str(
@@ -98,10 +97,11 @@ pub fn call(
     );
 
     let audit = meta(CapabilityId::GenCommand).audit;
-    let prompt = build_prompt(SYSTEM, &sources, &task);
-    match deps.chat.chat(&prompt, &deps.cancel) {
+    let built_prompt = build_prompt_with_sources(SYSTEM, &sources, &task);
+    match deps.chat.chat(&built_prompt.text, &deps.cancel) {
         Ok(reply) => {
-            let output = parse_output(&reply);
+            let mut output = parse_output(&reply);
+            output.assumptions = assumptions;
             maybe_audit(
                 deps.knowledge_store.as_ref(),
                 audit,
@@ -117,6 +117,7 @@ pub fn call(
                     value: serde_json::to_value(output)
                         .expect("GenCommandOutput must serialize to JSON"),
                 },
+                sources: CapabilitySource::from_grounding_sources(&built_prompt.included_sources),
             })
         }
         Err(error) => {
@@ -153,6 +154,7 @@ fn parse_output(reply: &str) -> GenCommandOutput {
         command,
         confidence: 0.25,
         rationale,
+        assumptions: GenCommandCtx::default(),
     })
 }
 
@@ -161,6 +163,49 @@ fn normalize_output(mut parsed: GenCommandOutput) -> GenCommandOutput {
     parsed.rationale = parsed.rationale.trim().to_string();
     parsed.confidence = parsed.confidence.clamp(0.0, 1.0);
     parsed
+}
+
+fn resolve_ctx(
+    ctx: GenCommandCtx,
+    local_context: Option<&crate::core::local_context::LocalContextSearcher>,
+) -> GenCommandCtx {
+    fn normalize(value: Option<String>) -> Option<String> {
+        value
+            .map(|item| item.trim().to_string())
+            .filter(|item| !item.is_empty())
+    }
+
+    let workspace_cwd = local_context.and_then(|local_context| {
+        local_context
+            .workspace_manager
+            .lock()
+            .ok()
+            .and_then(|workspace| workspace.current().project_root.clone())
+    });
+    let process_cwd = std::env::current_dir()
+        .ok()
+        .map(|path| path.to_string_lossy().into_owned());
+
+    GenCommandCtx {
+        cwd: normalize(ctx.cwd).or(workspace_cwd).or(process_cwd),
+        shell: normalize(ctx.shell).or_else(runtime_shell),
+        os: normalize(ctx.os).or_else(|| Some(std::env::consts::OS.to_string())),
+    }
+}
+
+fn runtime_shell() -> Option<String> {
+    #[cfg(target_os = "windows")]
+    {
+        std::env::var("COMSPEC")
+            .ok()
+            .or_else(|| Some("cmd.exe".into()))
+    }
+    #[cfg(not(target_os = "windows"))]
+    {
+        std::env::var("SHELL")
+            .ok()
+            .or_else(|| Some("/bin/sh".into()))
+    }
 }
 
 fn fallback_command(reply: &str) -> String {
@@ -180,45 +225,13 @@ fn fallback_command(reply: &str) -> String {
     String::new()
 }
 
-fn risk_tag_for_command(command: &str) -> RiskTag {
-    let normalized = command.trim().to_ascii_lowercase();
-    if normalized.is_empty() {
-        return RiskTag::confirm("generated command was empty");
-    }
-
-    const SAFE_PREFIXES: &[&str] = &[
-        "rg ",
-        "grep ",
-        "ls",
-        "dir",
-        "cat ",
-        "type ",
-        "git status",
-        "git diff",
-        "git log",
-        "cargo test",
-        "cargo check",
-        "cargo clippy",
-        "npm test",
-        "npm run lint",
-        "pnpm test",
-        "yarn test",
-    ];
-
-    if SAFE_PREFIXES
-        .iter()
-        .any(|prefix| normalized.starts_with(prefix))
-    {
-        RiskTag::none()
-    } else {
-        RiskTag::confirm("generated command may change local system state")
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::core::ai_capability::contract::ChatProvider;
+    use crate::core::ai_capability::test_fixtures::{
+        assert_invalid_payload, assert_safe_primary_output, COMMAND_REQUEST,
+    };
     use std::sync::atomic::AtomicBool;
     use std::sync::Arc;
 
@@ -265,23 +278,44 @@ mod tests {
             &deps(Arc::new(JsonProvider)),
         )
         .unwrap_err();
-        assert!(matches!(err, CapabilityError::InvalidPayload(_)));
+        assert_invalid_payload(err);
+    }
+
+    #[test]
+    fn rejects_malformed_payload_as_typed_error() {
+        let err = call(
+            req(serde_json::json!({ "intent": { "nested": true } })),
+            &deps(Arc::new(JsonProvider)),
+        )
+        .unwrap_err();
+        assert_invalid_payload(err);
     }
 
     #[test]
     fn happy_path_returns_structured_output() {
         let resp = call(
-            req(serde_json::json!({ "intent": "show git branch status", "ctx": {} })),
+            req(serde_json::json!({
+                "intent": COMMAND_REQUEST,
+                "ctx": {
+                    "cwd": " C:/work/keynova ",
+                    "shell": " powershell ",
+                    "os": " windows "
+                }
+            })),
             &deps(Arc::new(JsonProvider)),
         )
         .unwrap();
         assert_eq!(resp.id, CapabilityId::GenCommand);
         assert!(!resp.risk_tag.requires_confirmation);
+        assert_safe_primary_output(&resp);
         match resp.output {
-            CapabilityOutput::Structured { value } => {
-                let parsed: GenCommandOutput = serde_json::from_value(value).unwrap();
+            CapabilityOutput::Structured { ref value } => {
+                let parsed: GenCommandOutput = serde_json::from_value(value.clone()).unwrap();
                 assert_eq!(parsed.command, "git status");
                 assert_eq!(parsed.confidence, 0.9);
+                assert_eq!(parsed.assumptions.cwd.as_deref(), Some("C:/work/keynova"));
+                assert_eq!(parsed.assumptions.shell.as_deref(), Some("powershell"));
+                assert_eq!(parsed.assumptions.os.as_deref(), Some("windows"));
             }
             _ => panic!("expected structured output"),
         }
@@ -295,14 +329,41 @@ mod tests {
         )
         .unwrap();
         match resp.output {
-            CapabilityOutput::Structured { value } => {
-                let parsed: GenCommandOutput = serde_json::from_value(value).unwrap();
+            CapabilityOutput::Structured { ref value } => {
+                let parsed: GenCommandOutput = serde_json::from_value(value.clone()).unwrap();
                 assert_eq!(parsed.command, "cargo test -p keynova");
                 assert!(parsed.confidence <= 0.25);
             }
             _ => panic!("expected structured output"),
         }
         assert!(!resp.risk_tag.requires_confirmation);
+        assert_safe_primary_output(&resp);
+    }
+
+    #[test]
+    fn malformed_model_json_returns_safe_structured_fallback() {
+        let parsed = parse_output("{not valid json");
+        assert!(parsed.command.is_empty());
+        assert_eq!(parsed.confidence, 0.25);
+        assert!(parsed.rationale.contains("usable command"));
+    }
+
+    #[test]
+    fn fills_runtime_assumptions_when_context_is_omitted() {
+        let resp = call(
+            req(serde_json::json!({ "intent": COMMAND_REQUEST })),
+            &deps(Arc::new(JsonProvider)),
+        )
+        .unwrap();
+        match resp.output {
+            CapabilityOutput::Structured { value } => {
+                let parsed: GenCommandOutput = serde_json::from_value(value).unwrap();
+                assert!(parsed.assumptions.cwd.is_some());
+                assert!(parsed.assumptions.shell.is_some());
+                assert!(parsed.assumptions.os.is_some());
+            }
+            _ => panic!("expected structured output"),
+        }
     }
 
     #[test]

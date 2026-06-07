@@ -2,7 +2,12 @@
 //!
 //! Request, response, error, and dependency types handed to
 //! `core::ai_capability::call_capability`. Capability execution is single-
-//! shot — no session memory, no chaining.
+//! shot: no session memory, no chaining, and no command execution.
+//!
+//! Implementations return either [`CapabilityOutput::Text`] or
+//! [`CapabilityOutput::Structured`]. Payload/model parse failures stay typed
+//! as [`CapabilityError`] or become a safe structured fallback; raw parser
+//! diagnostics are never the primary answer.
 
 use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
@@ -13,6 +18,7 @@ use serde_json::Value;
 use crate::core::knowledge_store::KnowledgeStoreHandle;
 use crate::core::local_context::LocalContextSearcher;
 use crate::managers::ai_manager::{AiManager, AiRuntimeConfig};
+use crate::models::agent::{ContextVisibility, GroundingSource};
 use crate::models::unified_result::RiskTag;
 
 use super::registry::CapabilityId;
@@ -35,11 +41,40 @@ pub enum CapabilityOutput {
     Structured { value: Value },
 }
 
+/// UI-safe description of local material actually included in a prompt.
+///
+/// Snippets, scores, and visibility labels intentionally stay backend-only.
+/// Secret-classified sources are omitted entirely.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct CapabilitySource {
+    pub source_id: String,
+    pub source_type: String,
+    pub title: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub uri: Option<String>,
+}
+
+impl CapabilitySource {
+    pub fn from_grounding_sources(sources: &[GroundingSource]) -> Vec<Self> {
+        sources
+            .iter()
+            .filter(|source| source.visibility != ContextVisibility::Secret)
+            .map(|source| Self {
+                source_id: source.source_id.clone(),
+                source_type: source.source_type.clone(),
+                title: source.title.clone(),
+                uri: source.uri.clone(),
+            })
+            .collect()
+    }
+}
+
 #[derive(Debug, Clone, Serialize)]
 pub struct CapabilityResponse {
     pub id: CapabilityId,
     pub output: CapabilityOutput,
     pub risk_tag: RiskTag,
+    pub sources: Vec<CapabilitySource>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -138,4 +173,42 @@ pub struct CapabilityDeps {
     /// from `AiRuntimeConfig.provider`; cloud providers leave it `false` so
     /// personal memory never leaves the device via a cloud prompt.
     pub allow_memory_grounding: bool,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn source(visibility: ContextVisibility) -> GroundingSource {
+        GroundingSource {
+            source_id: "note:private".into(),
+            source_type: "note".into(),
+            title: "Private note".into(),
+            snippet: "content must never cross the display contract".into(),
+            uri: Some("note://private".into()),
+            score: 0.9,
+            visibility,
+            redacted_reason: None,
+        }
+    }
+
+    #[test]
+    fn capability_sources_omit_secret_classified_material() {
+        let sources = vec![
+            source(ContextVisibility::UserPrivate),
+            source(ContextVisibility::Secret),
+        ];
+        let display = CapabilitySource::from_grounding_sources(&sources);
+        assert_eq!(display.len(), 1);
+    }
+
+    #[test]
+    fn capability_source_wire_shape_does_not_include_snippets_or_scores() {
+        let display =
+            CapabilitySource::from_grounding_sources(&[source(ContextVisibility::UserPrivate)]);
+        let json = serde_json::to_value(&display[0]).unwrap();
+        assert!(json.get("snippet").is_none());
+        assert!(json.get("score").is_none());
+        assert_eq!(json["title"], "Private note");
+    }
 }

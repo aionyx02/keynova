@@ -22,8 +22,9 @@
     "rust:test": "cargo test --manifest-path src-tauri/Cargo.toml",
     "rust:clippy": "cargo clippy --manifest-path src-tauri/Cargo.toml -- -D warnings",
     "guard:size": "node scripts/code-guard-size.mjs",
+    "release:notes:check": "node scripts/release-notes.mjs",
     "bench:ai": "node scripts/bench-ai-capability.mjs",
-    "verify": "npm run docs:refresh && npm run check && npm run test && npm run rust:test && npm run rust:clippy && npm run guard:size",
+    "verify": "npm run docs:refresh && npm run release:notes:check && npm run check && npm run test && npm run rust:test && npm run rust:clippy && npm run guard:size",
     "docs:sync": "node scripts/docs-sync.mjs",
     "docs:guard": "node scripts/docs-guard.mjs",
     "docs:guard-size": "node scripts/docs-guard-size.mjs",
@@ -43,6 +44,7 @@
   "dependencies": {
     "@tauri-apps/api": "^2",
     "@tauri-apps/plugin-opener": "^2",
+    "@tauri-apps/plugin-updater": "^2.10.1",
     "@xterm/addon-fit": "^0.11.0",
     "@xterm/xterm": "^6.0.0",
     "react": "^19.1.0",

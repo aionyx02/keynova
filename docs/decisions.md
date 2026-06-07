@@ -2,7 +2,7 @@
 type: decision_index
 status: active
 priority: p1
-updated: 2026-06-05
+updated: 2026-06-06
 context_policy: retrieve_only
 owner: project
 ---
@@ -75,6 +75,11 @@ owner: project
 | [0043](adr/0043-personal-memory-capability.md)            | Personal Memory Capability + Local-Only Grounding                       | 提議                             | 2026-06-03 |
 | [0044](adr/0044-feature-self-registration.md)             | Feature Self-Registration Manifest                                      | 提議                             | 2026-06-04 |
 | [0045](adr/0045-human-interactive-terminal.md)            | Human-Driven Interactive Terminal                                       | 提議                             | 2026-06-05 |
+| [0046](adr/0046-capability-source-display-contract.md)    | Capability Source Display Contract                                      | 提議                             | 2026-06-06 |
+| [0047](adr/0047-diagnostics-export.md)                    | Diagnostics Export Bundle Contract                                      | 提議                             | 2026-06-06 |
+| [0048](adr/0048-release-code-signing-pipeline.md)         | Release Code-Signing Pipeline (Secret-Gated)                            | 提議                             | 2026-06-06 |
+| [0049](adr/0049-config-load-rollback-safety.md)           | Config Load Rollback Safety (Corrupt-Config Quarantine)                 | 提議                             | 2026-06-06 |
+| [0050](adr/0050-in-app-updater-github-releases.md)        | In-App Updater via GitHub Releases (Dormant Until Keyed)                | 提議                             | 2026-06-06 |
 
 ---
 

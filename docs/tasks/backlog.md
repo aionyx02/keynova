@@ -2,7 +2,7 @@
 type: task_index
 status: backlog
 priority: p1
-updated: 2026-06-05
+updated: 2026-06-06
 context_policy: on_demand
 owner: project
 tags: [roadmap, docs-governance, planning]
@@ -52,9 +52,10 @@ Backlog is on-demand planning context. During the P0 refactor track, it is not a
 
 ## Frozen
 
-- Conditional partial unfreeze (2026-06-05): `PRODUCT.1` search-core is unfrozen
-  and active. `PRODUCT.2` (AI capabilities) and any AI-capability/agent-touching
-  feature stay frozen until `REF.7.D` lands + the observation window closes.
+- Freeze lifted (2026-06-06): `PRODUCT.1` search-core (done) and `PRODUCT.2` (AI
+  capabilities) are both unfrozen — REF.7.D landed + latency direction finalized
+  (tiered §8 + `qwen2.5:1.5b` default). `ai.legacy_agent` observation-window items
+  remain separate, non-blocking tracking.
 - `AGENT.3` and `AI.1` are superseded by the ADR-0029 / AI capability refactor track and should not be implemented as separate tracks.
 - `AGENT.4`, `CLIP.1`, `SNIP.1`, `WIN.1`, `UTIL.3`, `DEV.1`, and `SYNC.1` remain parked until the refactor observation period is complete and their ADR gates are rechecked.
 - Product-plan optional surfaces stay parked until core workflow KPIs pass:
