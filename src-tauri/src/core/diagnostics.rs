@@ -59,6 +59,8 @@ pub struct DiagnosticsReport {
     pub config: Vec<RedactedSetting>,
     pub paths: Vec<PathEntry>,
     pub preflight: Option<PreflightFacts>,
+    /// Most recent backend panic entry (already redacted), or `None`. STAB.1.
+    pub last_crash: Option<String>,
 }
 
 /// A local path whose existence/size the caller already resolved. Kept separate
@@ -79,6 +81,8 @@ pub struct DiagnosticsInputs {
     pub redacted_config: Vec<(String, String, bool)>,
     pub paths: Vec<ResolvedPath>,
     pub preflight: Option<PreflightFacts>,
+    /// Last redacted backend crash line from `crash_log::read_last_crash`. STAB.1.
+    pub last_crash: Option<String>,
 }
 
 /// Platform token used to stand in for the user's home directory.
@@ -98,8 +102,13 @@ pub fn collapse_home(path: &str, home: &str, token: &str) -> String {
     }
     let normalized_home = home.trim_end_matches(['/', '\\']);
     match path.strip_prefix(normalized_home) {
-        Some(rest) => format!("{token}{rest}"),
-        None => path.to_string(),
+        // Only collapse on a real path-component boundary: the remainder must be
+        // empty or start with a separator. Without this, a home of `/home/al`
+        // would wrongly collapse `/home/alice/...` into `~ice/...`.
+        Some(rest) if rest.is_empty() || rest.starts_with(['/', '\\']) => {
+            format!("{token}{rest}")
+        }
+        _ => path.to_string(),
     }
 }
 
@@ -159,6 +168,7 @@ pub fn build_report(inputs: DiagnosticsInputs) -> DiagnosticsReport {
         config,
         paths,
         preflight: inputs.preflight,
+        last_crash: inputs.last_crash,
     }
 }
 
@@ -204,6 +214,13 @@ pub fn render_text(report: &DiagnosticsReport) -> String {
     }
     out.push('\n');
 
+    out.push_str("Last Crash\n");
+    match &report.last_crash {
+        Some(line) => out.push_str(&format!("  {line}\n")),
+        None => out.push_str("  (none)\n"),
+    }
+    out.push('\n');
+
     out.push_str("Config (redacted)\n");
     for c in &report.config {
         let value = if c.value.is_empty() {
@@ -217,21 +234,41 @@ pub fn render_text(report: &DiagnosticsReport) -> String {
     out
 }
 
+/// Max directory depth and total entries [`path_size`] will visit. Past either
+/// cap it returns a best-effort partial sum rather than stalling — this also
+/// bounds pathological inputs like a symlink cycle under the index dir.
+const PATH_SIZE_MAX_DEPTH: usize = 16;
+const PATH_SIZE_MAX_ENTRIES: usize = 50_000;
+
 /// Recursively sum file sizes under `path` (file → its size, dir → sum of
-/// contained files). Best-effort: unreadable entries contribute 0. Reads
-/// metadata only, never file contents.
+/// contained files). Best-effort: unreadable entries contribute 0, and traversal
+/// stops past depth/entry caps so `/diag` can never hang on a huge or cyclic
+/// tree. Reads metadata only, never file contents.
 pub fn path_size(path: &Path) -> u64 {
+    let mut budget = PATH_SIZE_MAX_ENTRIES;
+    path_size_bounded(path, 0, &mut budget)
+}
+
+fn path_size_bounded(path: &Path, depth: usize, budget: &mut usize) -> u64 {
+    if *budget == 0 {
+        return 0;
+    }
+    *budget -= 1;
     let Ok(meta) = std::fs::metadata(path) else {
         return 0;
     };
     if meta.is_file() {
         return meta.len();
     }
-    if !meta.is_dir() {
+    // Non-dir (special files) or at the depth cap: stop descending.
+    if !meta.is_dir() || depth >= PATH_SIZE_MAX_DEPTH {
         return 0;
     }
     match std::fs::read_dir(path) {
-        Ok(entries) => entries.flatten().map(|entry| path_size(&entry.path())).sum(),
+        Ok(entries) => entries
+            .flatten()
+            .map(|entry| path_size_bounded(&entry.path(), depth + 1, budget))
+            .sum(),
         Err(_) => 0,
     }
 }
@@ -252,6 +289,7 @@ mod tests {
                 .collect(),
             paths: Vec::new(),
             preflight: None,
+            last_crash: None,
         }
     }
 
@@ -270,6 +308,27 @@ mod tests {
         assert_eq!(collapse_home("/etc/hosts", "/home/alice", "~"), "/etc/hosts");
         // Empty home disables collapsing.
         assert_eq!(collapse_home("/home/alice/x", "", "~"), "/home/alice/x");
+    }
+
+    #[test]
+    fn collapse_home_requires_component_boundary() {
+        // A home that is a string-prefix of a *different* user must not collapse:
+        // `/home/al` is not a path-component prefix of `/home/alice`.
+        assert_eq!(
+            collapse_home("/home/alice/x", "/home/al", "~"),
+            "/home/alice/x"
+        );
+        // Exact match collapses to the bare token.
+        assert_eq!(collapse_home("/home/al", "/home/al", "~"), "~");
+        // Windows separators are honored too.
+        assert_eq!(
+            collapse_home(r"C:\Users\bob\Keynova", r"C:\Users\bob", "%USERPROFILE%"),
+            r"%USERPROFILE%\Keynova"
+        );
+        assert_eq!(
+            collapse_home(r"C:\Users\bobby\x", r"C:\Users\bob", "%USERPROFILE%"),
+            r"C:\Users\bobby\x"
+        );
     }
 
     #[test]
@@ -346,6 +405,25 @@ mod tests {
         assert_eq!(path_size(&base), 11);
         assert_eq!(path_size(&base.join("a.txt")), 5);
         assert_eq!(path_size(&base.join("missing")), 0);
+
+        std::fs::remove_dir_all(&base).ok();
+    }
+
+    #[test]
+    fn path_size_stops_at_depth_cap() {
+        // A chain deeper than the cap must terminate (best-effort partial) rather
+        // than recurse without bound. File past the cap is not counted.
+        let base = std::env::temp_dir()
+            .join(format!("keynova_diag_depth_{}", std::process::id()));
+        let mut deep = base.clone();
+        for i in 0..(PATH_SIZE_MAX_DEPTH + 5) {
+            deep = deep.join(format!("d{i}"));
+        }
+        std::fs::create_dir_all(&deep).expect("create deep dirs");
+        std::fs::write(deep.join("buried.txt"), b"xxxx").expect("write buried");
+
+        // Must return (no hang/stack blowup); the buried file sits past the cap.
+        assert_eq!(path_size(&base), 0);
 
         std::fs::remove_dir_all(&base).ok();
     }

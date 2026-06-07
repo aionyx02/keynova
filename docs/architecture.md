@@ -2,7 +2,7 @@
 type: architecture_spec
 status: active
 priority: p1
-updated: 2026-06-06
+updated: 2026-06-07
 context_policy: retrieve_only
 owner: project
 ---
@@ -133,6 +133,7 @@ src-tauri/src/
 │   ├── event_bus.rs       # AppEvent + broadcast channel
 │   ├── config_manager.rs  # TOML config 讀取 + diff
 │   ├── diagnostics.rs     # PRODUCT.3: redacted copy-only `/diag` bundle assembler (ADR-0047)
+│   ├── crash_log.rs       # STAB.1: redacted backend panic-hook -> crash.log, surfaced in `/diag` (ADR-0051)
 │   ├── network_policy.rs  # security network_allowlist enforcement for outbound URLs
 │   ├── secret_store.rs    # OS keychain-backed secret references for sensitive config
 │   ├── knowledge_store.rs # SQLite 非同步 actor (public types + KnowledgeStoreHandle)
