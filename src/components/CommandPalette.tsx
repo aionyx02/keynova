@@ -54,6 +54,7 @@ import { useGenCommand } from "../features/ai-capability/hooks/useGenCommand";
 import { useRecall } from "../features/ai-capability/hooks/useRecall";
 import { useRemember } from "../features/ai-capability/hooks/useRemember";
 import { useSuggestNext } from "../features/ai-capability/hooks/useSuggestNext";
+import { CapabilityListCard } from "../features/ai-capability/CapabilityListCard";
 import type { CapabilitySurfaceMode } from "../features/command-palette/CapabilityResultArea";
 import { CapabilityHintLine } from "../features/command-palette/CapabilityHintLine";
 import { classifyNlIntent } from "../features/command-palette/utils/classifyNlIntent";
@@ -360,6 +361,15 @@ export function CommandPalette() {
     capabilityMode?.id === "remember" ? { id: capabilityMode.id, args: capabilityMode.args } : null;
   const recallCapabilityMode: { id: "recall"; args: { text: string } } | null =
     capabilityMode?.id === "recall" ? { id: capabilityMode.id, args: capabilityMode.args } : null;
+  // CONT.1 (ADR-0052): an open palette with an empty query and no active
+  // capability/command surface is the moment to *proactively* predict the next
+  // step — surface `suggest_next` without requiring the `next` prefix.
+  const idleNext =
+    paletteMode.kind === "search" &&
+    mode === "search" &&
+    query === "" &&
+    cmdResult === null &&
+    capabilityMode === null;
   const capabilityStream = useCapabilityStream({
     dispatch,
     id: textCapabilityMode
@@ -384,14 +394,22 @@ export function CommandPalette() {
   });
   const suggestNext = useSuggestNext({ dispatch });
   const suggestNextState = useCapabilityRunState({
-    active: nextCapabilityMode !== null,
-    argsKey: nextCapabilityMode ? "next" : null,
+    active: nextCapabilityMode !== null || idleNext,
+    argsKey: nextCapabilityMode !== null || idleNext ? "next" : null,
     autoSubmit: true,
     isLoading: suggestNext.isLoading,
     error: suggestNext.error,
     run: () => suggestNext.run({ ctx: { limit: 5 } }),
     cancelInner: suggestNext.cancel,
   });
+  const [idleNextDismissed, setIdleNextDismissed] = React.useState(false);
+  // The proactive idle list shows only once predictions exist and the user has
+  // not dismissed it; dismissal resets the moment the palette leaves idle.
+  const idleNextActive = idleNext && !idleNextDismissed && suggestNext.data.length > 0;
+  React.useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- one-shot reset on leaving idle
+    if (!idleNext && idleNextDismissed) setIdleNextDismissed(false);
+  }, [idleNext, idleNextDismissed]);
   const remember = useRemember({ dispatch });
   const rememberState = useCapabilityRunState({
     active: rememberCapabilityMode !== null,
@@ -684,7 +702,7 @@ export function CommandPalette() {
   }, [results, visibleResults]);
 
   const safeCapabilitySuggestionSelected =
-    nextCapabilityMode === null
+    nextCapabilityMode === null && !idleNextActive
       ? 0
       : Math.min(capabilitySuggestionSelected, Math.max(suggestNext.data.length - 1, 0));
 
@@ -762,7 +780,7 @@ export function CommandPalette() {
     runPipeline,
     execCommand,
     capabilityMode: capabilityMode !== null,
-    capabilityListMode: nextCapabilityMode !== null,
+    capabilityListMode: nextCapabilityMode !== null || idleNextActive,
     capabilityListCount: suggestNext.data.length,
     capabilityListSelected: safeCapabilitySuggestionSelected,
     setCapabilityListSelected: setCapabilitySuggestionSelected,
@@ -936,7 +954,22 @@ export function CommandPalette() {
             </Suspense>
           )}
 
-          {showStarterActionsLine && (
+          {idleNextActive && (
+            <CapabilityListCard
+              status={suggestNextState.status}
+              items={suggestNext.data}
+              error={suggestNext.error}
+              startedAtMs={suggestNextState.startedAtMs}
+              completedAtMs={suggestNextState.completedAtMs}
+              selectedIndex={safeCapabilitySuggestionSelected}
+              onSelectIndex={setCapabilitySuggestionSelected}
+              onRunSelected={runSuggestedWorkflow}
+              onCancel={suggestNextState.cancel}
+              onClose={() => setIdleNextDismissed(true)}
+            />
+          )}
+
+          {showStarterActionsLine && !idleNextActive && (
             <StarterActionsLine
               visible={showStarterActionsLine}
               onPickQuery={startSuggestedQuery}
