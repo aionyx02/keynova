@@ -88,6 +88,22 @@ Done:
 - STAB.4 (`嚙` garbled-text root cause) stays deferred — blocked on a repro.
 - `feature/bugb-permanent-delete` (skip-trash delete) stays a separate track.
 
+## Status (2026-06-07)
+
+- STAB.1 **done**: `core/crash_log.rs` panic hook (redacted, bounded, chained)
+  installed at the top of `bootstrap::run`; last crash surfaced in `/diag`.
+  ADR-0051 proposed. Also captures async-task panics (global hook).
+- STAB.2 **done**: `collapse_home` component-boundary fix + `path_size`
+  depth/entry caps, with unit tests.
+- STAB.3 **assessed → no-op**: IPC command entry points are already panic-free
+  (all handler `unwrap`/`expect` live in `#[cfg(test)]`); `window.rs` is already
+  hardened (1500 ms + keep-open guard + focus recheck), and a second pre-hide
+  check would regress normal blur-to-hide latency, so it was deliberately not
+  added. The async-panic robustness STAB.3 might have chased is now covered by
+  STAB.1's global hook. No code change.
+
+Detail: `docs/memory/sessions/2026-06-07.md`.
+
 ## Validation
 
 ```bash

@@ -56,10 +56,10 @@ Detailed batch definitions, done criteria, non-goals, file map, and validation g
   stale/invalid `next` suppression. No generated-command execution path. Detail:
   `docs/tasks/archive/product-2-ai-capabilities.md`.
 
-- [~] `STAB` stabilization/hardening pass on `hardening/stabilize-features`
-  (developer-confirmed). STAB.1 global panic→crash.log safety net (ADR-0051
-  proposed) + STAB.2 `/diag` edge-case fixes (collapse_home prefix, path_size
-  bound) + STAB.3 window/hot-path tweaks. Detail:
+- [~] `STAB` hardening pass on `hardening/stabilize-features`. STAB.1
+  panic→crash.log net **done** (ADR-0051, in `/diag`); STAB.2
+  `/diag` edge fixes **done** (collapse_home boundary, path_size caps); STAB.3
+  **no-op** (IPC already panic-free, window hardened). Detail:
   `docs/tasks/stabilization.md`.
 
 ### P2
