@@ -59,13 +59,22 @@ fn handle_control_request(
     }
 
     match request.command {
-        ControlCommand::Start => match {
+        ControlCommand::Start => {
+            // Drop a CLI `Start` that echoes a Ctrl+K toggle which just hid the
+            // window (the close-then-reopen race).
+            if app
+                .state::<AppState>()
+                .launcher_toggled_within(Duration::from_millis(400))
+            {
+                eprintln!("[keynova] control_server: Start suppressed (Ctrl+K toggle echo)");
+                return ControlResponse::ok("Keynova toggle in progress", json!({ "visible": false }));
+            }
             eprintln!("[keynova] control_server: Start -> show");
-            show_launcher(app)
-        } {
-            Ok(()) => ControlResponse::ok("Keynova is focused", json!({ "visible": true })),
-            Err(e) => ControlResponse::error(e.message),
-        },
+            match show_launcher(app) {
+                Ok(()) => ControlResponse::ok("Keynova is focused", json!({ "visible": true })),
+                Err(e) => ControlResponse::error(e.message),
+            }
+        }
         ControlCommand::Down => {
             schedule_shutdown(app);
             ControlResponse::ok("Keynova is shutting down", json!(null))

@@ -64,6 +64,15 @@ pub fn run() {
     {
         builder = builder
             .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
+                // Drop a second-launch "show" that echoes a Ctrl+K toggle which
+                // just hid the window (the close-then-reopen race).
+                if app
+                    .state::<AppState>()
+                    .launcher_toggled_within(std::time::Duration::from_millis(400))
+                {
+                    eprintln!("[keynova] single_instance: suppressed (Ctrl+K toggle echo)");
+                    return;
+                }
                 eprintln!("[keynova] single_instance: second launch -> show");
                 let _ = show_launcher(app);
             }))
