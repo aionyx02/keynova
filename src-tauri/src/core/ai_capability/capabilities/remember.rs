@@ -126,6 +126,7 @@ pub fn call(
         output: CapabilityOutput::Structured {
             value: serde_json::to_value(output).expect("RememberOutput must serialize to JSON"),
         },
+        sources: Vec::new(),
     })
 }
 
@@ -268,8 +269,10 @@ mod tests {
 
     #[test]
     fn falls_back_to_original_when_model_returns_no_json() {
-        let (title, content) =
-            parse_model_output("I could not produce JSON, sorry.", "remember my dog is Mochi");
+        let (title, content) = parse_model_output(
+            "I could not produce JSON, sorry.",
+            "remember my dog is Mochi",
+        );
         assert_eq!(title, "remember my dog is Mochi");
         assert_eq!(content, "remember my dog is Mochi");
     }

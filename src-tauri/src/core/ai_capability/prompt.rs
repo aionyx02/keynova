@@ -12,6 +12,12 @@ pub const CAPABILITY_PROMPT_BUDGET_CHARS: usize = 1400;
 pub const CAPABILITY_PROMPT_SOURCE_LIMIT: usize = 6;
 pub const CAPABILITY_SNIPPET_MAX_CHARS: usize = 160;
 
+#[derive(Debug)]
+pub struct BuiltPrompt {
+    pub text: String,
+    pub included_sources: Vec<GroundingSource>,
+}
+
 /// Build a single user-turn prompt for a stateless capability call.
 ///
 /// Layout:
@@ -32,21 +38,38 @@ pub const CAPABILITY_SNIPPET_MAX_CHARS: usize = 160;
 /// until it fits; only when even system + task alone overruns is the result
 /// truncated at the char boundary by [`crate::core::grounding::truncate`].
 pub fn build_prompt(system_preamble: &str, sources: &[GroundingSource], user_text: &str) -> String {
-    let capped: Vec<&GroundingSource> =
-        sources.iter().take(CAPABILITY_PROMPT_SOURCE_LIMIT).collect();
+    build_prompt_with_sources(system_preamble, sources, user_text).text
+}
+
+/// Build a prompt and retain the exact bounded source set that reached it.
+pub fn build_prompt_with_sources(
+    system_preamble: &str,
+    sources: &[GroundingSource],
+    user_text: &str,
+) -> BuiltPrompt {
+    let capped: Vec<&GroundingSource> = sources
+        .iter()
+        .take(CAPABILITY_PROMPT_SOURCE_LIMIT)
+        .collect();
 
     // Try all capped sources, then progressively fewer (dropping from the tail,
     // which is lowest priority), keeping the earliest/highest-priority sources.
     for n in (0..=capped.len()).rev() {
         let candidate = render(system_preamble, &capped[..n], user_text);
         if candidate.chars().count() <= CAPABILITY_PROMPT_BUDGET_CHARS {
-            return candidate;
+            return BuiltPrompt {
+                text: candidate,
+                included_sources: capped[..n].iter().map(|source| (*source).clone()).collect(),
+            };
         }
     }
 
     // Even system + task without any context overran: truncate.
     let bare = render(system_preamble, &[], user_text);
-    truncate(&bare, CAPABILITY_PROMPT_BUDGET_CHARS)
+    BuiltPrompt {
+        text: truncate(&bare, CAPABILITY_PROMPT_BUDGET_CHARS),
+        included_sources: Vec::new(),
+    }
 }
 
 fn render(system_preamble: &str, sources: &[&GroundingSource], user_text: &str) -> String {
@@ -145,7 +168,10 @@ mod tests {
         let big = "y".repeat(CAPABILITY_SNIPPET_MAX_CHARS);
         let sources: Vec<_> = (0..6).map(|i| src(&format!("s{i}"), &big)).collect();
         let p = build_prompt("sys", &sources, &long_task);
-        assert!(p.contains("### Context"), "context should be retained, not dropped");
+        assert!(
+            p.contains("### Context"),
+            "context should be retained, not dropped"
+        );
         let kept = p.matches("- s").count();
         assert!((1..6).contains(&kept), "expected partial trim, kept {kept}");
         assert!(p.chars().count() <= CAPABILITY_PROMPT_BUDGET_CHARS);
@@ -158,6 +184,19 @@ mod tests {
         let p = build_prompt("sys", &sources, "task");
         let count = p.matches("- s").count();
         assert!(count <= CAPABILITY_PROMPT_SOURCE_LIMIT);
+    }
+
+    #[test]
+    fn build_prompt_reports_only_sources_that_fit() {
+        let long_task = "x".repeat(1000);
+        let big = "y".repeat(CAPABILITY_SNIPPET_MAX_CHARS);
+        let sources: Vec<_> = (0..6).map(|i| src(&format!("s{i}"), &big)).collect();
+        let built = build_prompt_with_sources("sys", &sources, &long_task);
+        assert_eq!(
+            built.included_sources.len(),
+            built.text.matches("- s").count()
+        );
+        assert!(built.included_sources.len() < sources.len());
     }
 
     #[test]

@@ -198,12 +198,18 @@ Rollback 需求：見 §7。
 
 本 ADR 本身為文件草擬，主要驗證為 docs guard。詳細實作驗證引用 `docs/tasks/refactor-ai-capability.md` 的 Validation Matrix：
 
+> **Amendment 2026-06-06（developer-approved，in-conversation）：** inline latency
+> target 改為 **tiered**，並把參考/建議 default 模型由 `qwen2.5:7b` 改為
+> `qwen2.5:1.5b`。理由：REF.7.D 量測證實瓶頸是 CPU token 吞吐，換模型無法單獨達原
+> `<800ms` 目標（見 §10）。ADR 狀態維持 `accepted`（僅細化驗證目標，未變更 §4 Decision）。
+
 | 測試類型    | 覆蓋目標                                                         | 指令 / 步驟                       |
 | ----------- | ---------------------------------------------------------------- | --------------------------------- |
 | Docs guard  | frontmatter / size / narrative                                   | `npm run docs:refresh`            |
 | Unit        | 各 capability 純函式                                             | `cargo test ai_capability`        |
-| Integration | Ollama `qwen2.5:7b` 端到端                                       | 本機 Ollama + integration test    |
-| Performance | inline P50 < 800ms、P95 < 1500ms                                 | REF.7 bench scripts               |
+| Integration | Ollama `qwen2.5:1.5b` 端到端（參考 default;`qwen2.5:7b` 為高品質選項） | 本機 Ollama + integration test |
+| Performance | inline **GPU/ideal tier** P50 < 800ms、P95 < 1500ms（aspirational） | REF.7 bench scripts            |
+| Performance | inline **CPU-host tier** P50 < 5000ms、P95 < 8000ms（`qwen2.5:1.5b` realistic） | REF.7 bench scripts |
 | Performance | palette cold < 200ms、warm < 50ms、search first chunk P50 < 80ms | REF.7 bench scripts               |
 | Memory      | idle RSS 10min < 150MB、1h < 200MB                               | 手動量測 Task Manager             |
 | Regression  | Bug A launcher focus/IME、Bug B delete verification              | REF.2 後、REF.7 前各一次手動      |
@@ -226,21 +232,52 @@ Rollback 需求：見 §7。
 
 REF.7.C 的資料填充區。本節僅記錄量測讀數，不變更 §4 Decision；ADR 狀態維持 `accepted`。
 
-正式讀數由 REF.7.D（user-action）產生：
+正式讀數由 REF.7.D（user-action）產生（default 參考模型已改為 `qwen2.5:1.5b`）：
 
 ```
-ollama pull qwen2.5:7b
-npm run bench:ai -- --runs 10 --model qwen2.5:7b
+ollama pull qwen2.5:1.5b
+npm run bench:ai -- --runs 10 --model qwen2.5:1.5b
 ```
 
-將輸出貼回後填入下表（目標見 §8 與 `docs/tasks/refactor-ai-capability.md` Validation Matrix）。
+讀數於 2026-06-06 產生（本機 Windows，**CPU-only，無 GPU**）。inline P50/P95 為
+`explain`+`fix_error`+`gen_command` 三個非串流 inline capability 的合併樣本（n=30，
+每 capability 10 runs）。原始 JSON 與 per-capability 分佈見 `sessions/2026-06-06.md`。
 
-| 指標                   | 目標      | 讀數 (qwen2.5:7b, runs=10) | 狀態            |
-| ---------------------- | --------- | -------------------------- | --------------- |
-| inline P50             | < 800 ms  | —                          | pending REF.7.D |
-| inline P95             | < 1500 ms | —                          | pending REF.7.D |
-| palette cold open      | < 200 ms  | —                          | pending REF.7.D |
-| palette warm open      | < 50 ms   | —                          | pending REF.7.D |
-| search first chunk P50 | < 80 ms   | —                          | pending REF.7.D |
+評估依 §8 Amendment 2026-06-06 的 **tiered** target;default 參考模型已改為
+`qwen2.5:1.5b`，故以其為主讀數，`qwen2.5:7b` 列為高品質選項對照。
+
+| 指標                   | CPU-host tier | GPU/ideal tier | 讀數 `qwen2.5:1.5b` (default) | 讀數 `qwen2.5:7b` | 狀態（CPU tier）           |
+| ---------------------- | ------------- | -------------- | ----------------------------- | ----------------- | -------------------------- |
+| inline P50             | < 5000 ms     | < 800 ms       | **4266 ms**                   | 7598 ms           | **PASS**（1.5b）/ 7b FAIL  |
+| inline P95             | < 8000 ms     | < 1500 ms      | **6269 ms**                   | 11654 ms          | **PASS**（1.5b）/ 7b FAIL  |
+| palette cold open      | < 200 ms      | < 200 ms       | —（bench:ai 不產生）          | —                 | pending（需另立 harness）  |
+| palette warm open      | < 50 ms       | < 50 ms        | ~2.5 ms（webview-side, 1.H）  | —                 | PASS\*                     |
+| search first chunk P50 | < 80 ms       | < 80 ms        | —（bench:ai 不產生）          | —                 | pending（需另立 harness）  |
+
+\* palette warm open 讀數來自 PRODUCT.1.H 的 `PerfBadge` dogfood，量的是 webview 端
+（事件→input 對焦繪製），不含 OS 按鍵→webview 事件;為 lower bound。
+
+### 小模型重測（2026-06-06，回應「改小模型 default」方向）
+
+| 模型         | inline P50 | inline P95 | 可靠性          |
+| ------------ | ---------- | ---------- | --------------- |
+| qwen2.5:7b   | 7598 ms    | 11654 ms   | 穩定            |
+| qwen2.5:1.5b | 4266 ms    | 6269 ms    | 穩定（10/10）   |
+| qwen3:0.6b   | ~4–5 s     | —          | **不穩**（空回應，bench 中止） |
+
+關鍵結論：參數量降 4.6×（7b→1.5b）只把延遲砍半，**最佳可靠小模型 qwen2.5:1.5b 仍
+4.3s P50、超標約 5.3×**。瓶頸是 **CPU token 生成吞吐**，非模型大小;本機無任何合理
+模型能達 800ms。`qwen3:0.6b` 因 reasoning token 吃掉 512 token 預算而間歇空回應，不適
+合當 default。註：`model_manager.recommend_models` 已是 hardware-tiered，低階機本就推薦
+`qwen2.5:1.5b`;`handlers/ai.rs` 的 `qwen2.5:7b` 僅為 recommend 空清單時的 fallback。
+
+**Resolution（developer-approved 2026-06-06）：** inline 延遲 gate 在本機 CPU 大幅
+未達原 `< 800 ms` 目標，且**換小模型無法單獨解決**（瓶頸為 CPU token 吞吐）。開發者
+裁定採 **tiered target**（§8 Amendment：保留 GPU/ideal `<800ms` 為 aspirational，新增
+CPU-host tier `P50<5000 / P95<8000ms`）並把參考 default 改為 `qwen2.5:1.5b`。據此重評：
+**`qwen2.5:1.5b` 的 inline P50 4266 / P95 6269 ms 通過 CPU-host tier**;`qwen2.5:7b`
+仍超 CPU tier（列為高品質選項）。此舉**不變更 §4 Decision**（ADR 維持 `accepted`，僅
+細化 §8 驗證目標）。`PRODUCT.2` 的解凍 gate 條件（REF.7.D + 方向定案）至此已滿足;開發者已於
+2026-06-06 明示**解凍 `PRODUCT.2`**（見 `active.md` / `product-roadmap.md`）。
 
 觀察窗口項目（`ai.legacy_agent` 預設關閉一個 release cycle、idle RSS 10min < 150 MB / 1h < 200 MB）於 REF.8 開窗時記錄，維持 `pending observation`。

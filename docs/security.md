@@ -2,7 +2,7 @@
 type: security_policy
 status: active
 priority: p0
-updated: 2026-06-02
+updated: 2026-06-06
 context_policy: retrieve_only
 owner: project
 ---
@@ -139,6 +139,11 @@ Handling rules:
 - 測試 fixture
 - 搜尋索引（Tantivy）
 
+### 4.4 壞檔隔離（Corrupt-config quarantine, ADR-0049）
+
+`config.toml` 解析失敗時，`ConfigManager` 會把原檔複製到同目錄的
+`config.toml.corrupt-<unix_secs>` 後才回退至預設值（避免下次 `persist()` 用預設覆寫造成永久遺失）。隔離檔留在 app-owned config 目錄、與 `config.toml` 同一信任區，不擴大暴露面；不自動清理（交由使用者決定）。
+
 ---
 
 ## 5. 網路存取
@@ -149,6 +154,7 @@ Handling rules:
 | ------------------------------------ | -------------------- | ---------------------------- |
 | Ollama（本機 HTTP, 預設 port 11434） | 本機 AI 推理         | 不需關閉，本機連線           |
 | GitHub releases（HTTPS）             | Neovim portable 下載 | 是（不設定 nvim_bin 則跳過） |
+| GitHub Releases `latest.json`（HTTPS）| 應用程式自動更新檢查（ADR-0050）| 是（未設定 `plugins.updater` 前不連線；MVP 僅檢查不自動安裝）|
 | 使用者設定的翻譯 API                 | 翻譯功能             | 是（不設定 API key 則停用）  |
 
 ### 5.2 網路安全規則
@@ -218,27 +224,44 @@ Agent 執行工具前，`safety.rs` 中的 `ToolPermissionGate` 必須評估：
 | Agent shell 命令執行      | 目前高風險工具需人工審查 | 計劃加入細粒度 allowlist |
 | 翻譯 API key 儲存         | 存在 config.toml（明文） | 計劃支援 OS keychain     |
 | CSP 設定                  | 尚未完整設定             | TD.5 安全強化計劃中      |
+| 程式碼簽署 / notarization | 管線已接好但尚未簽署：CI 有 secret-gated 簽章步驟，缺憑證時優雅產 unsigned build（SmartScreen/Gatekeeper 仍警告） | 開發者補上 ADR-0048 列出的 Windows/Apple 憑證 secrets 後自動啟用 |
 
 ---
 
-## 10. Tauri Asset Protocol（LAUNCH.1.C）
+## 10. Inline Image Preview 與 Asset Protocol 移除（ADR-0042）
 
-### 10.1 設定
+### 10.1 設定（目前狀態）
 
-`src-tauri/tauri.conf.json` 啟用 `app.security.assetProtocol = { enable: true, scope: ["**"] }`，並在 `Cargo.toml` 開啟 `tauri` 的 `protocol-asset` feature。CSP `img-src` 已含 `asset: https://asset.localhost`。
+`src-tauri/tauri.conf.json` 的 `app.security.assetProtocol.enable = false`（不設 scope），且 `Cargo.toml` 已移除 `tauri` 的 `protocol-asset` feature。CSP `img-src` 為 `'self' data:`（不含 `asset:` / `https://asset.localhost`）。
 
-### 10.2 邊界說明
+> 歷史：早期曾啟用 `assetProtocol = { enable: true, scope: ["**"] }` 供 preview pane 以 `convertFileSrc(path)` 載入圖片。2026-06-02 安全審查將其列為最高風險（#1）：scope `["**"]` 下被攻陷的 renderer（XSS）可 `convertFileSrc(<任意路徑>)` 讀取任意本機檔案而完全不經後端命令。ADR-0042 因此全面停用 asset protocol、改為 inline 傳遞。
 
-`assetProtocol.scope: ["**"]` 允許 `convertFileSrc(path)` 對任意檔案系統路徑產生 `asset://` URL，給 LAUNCH.1.C preview pane 的 `<img>` 標籤使用。
+### 10.2 圖片預覽傳遞方式
 
-**讀取邊界與既有 IPC 對齊**：使用者本來就能透過 `file.reveal` / `file.open_with` / `file.open_as_text` / `file.preview` 觸發任意路徑讀取（這些 IPC 由前端按鈕或 secondary action menu 啟動，需使用者主動操作）。asset 協議只是用同一個讀取邊界提供圖片 `<img>` 來源，沒有擴大可讀取範圍。
-
-**禁止用途**：
-
-- 不得用 asset 協議自動傳送檔案內容到外部網路（CSP `connect-src` 不含 asset host，已硬性阻擋）。
-- 不得用 asset 協議當作 RPC channel（IPC 仍走 `cmd_dispatch`）。
-- 前端不得從遠端 origin 接受 path 參數傳入 `convertFileSrc`（WebView 載入本機靜態資源，原本就不接受外部 origin）。
+- `file.preview` 對 `PreviewKind::Image` 由後端讀檔（上限 `MAX_INLINE_IMAGE_BYTES = 8 MiB`），回傳 base64 `data:` URL（`data:<mime>;base64,...`）；超過上限只回 metadata 並標記 `oversized: true`（不含 bytes），讓 IPC 與 renderer 記憶體有界。
+- `PreviewPane.tsx` 直接把 `preview.data_url` 放進 `<img src>`，不再使用 `convertFileSrc`。
+- renderer 永遠拿不到可再次載入的路徑：圖片 bytes 僅針對單一、明確被預覽的路徑由後端產生，並以不透明 bytes 交付。
 
 ### 10.3 file.preview IPC 邊界
 
-`file.preview` 為 read-only，路徑必須通過 `trim_path` + `ensure_path_exists` 驗證；text preview 走 `core/preview::read_text_preview` 套用 `AgentObservationPolicy { redact_secrets: true }` 遮蔽常見 secret pattern；max_bytes 上限 64 KiB、max_lines 上限 2000，避免 IPC payload 過大。Binary / image 不回傳檔案內容，僅 metadata。
+`file.preview` 為 read-only，路徑必須通過 `trim_path` + `ensure_path_exists` 驗證；text preview 走 `core/preview::read_text_preview` 套用 `AgentObservationPolicy { redact_secrets: true }` 遮蔽常見 secret pattern；max_bytes 上限 64 KiB、max_lines 上限 2000，避免 IPC payload 過大。Image 於 8 MiB 內回傳 base64 `data:` URL，超過則僅 metadata；其他 binary 不回傳檔案內容，僅 metadata。
+
+---
+
+## 11. Diagnostics Export Bundle（`/diag`, ADR-0047）
+
+### 11.1 範圍
+
+`/diag` builtin 指令產生一份可貼到 bug report 的純文字摘要：app 版本、OS/arch、feature flags（`features.*` + `ai.legacy_agent`）、redacted config、本機資料檔（`config.toml`、`knowledge.db`、`notes/`、Tantivy 索引、preflight snapshot）的存在與大小，以及 preflight 摘要（status / source_mode / ollama_reachable / 本機模型數 / generated_at）。
+
+### 11.2 遮蔽與邊界
+
+- **僅消費 `ConfigManager::list_all_redacted()`** 的列（從不呼叫 `get()` / `list_all()`）；`core::diagnostics::build_report` 對 sensitive 列再次強制遮成 `********`（defense-in-depth）。
+- 絕對路徑的使用者 home 前綴一律收斂為 `~` / `%USERPROFILE%`，不洩漏使用者名稱。
+- 本機資料檔**只讀 metadata（存在 + 大小），絕不讀檔案內容**。
+- **copy-only**：沿用既有 inline 結果的 Copy + 捲動區，無網路、無自動上傳、無寫檔、無 run/edit。
+- `/diag` 為核心信任指令，**不受 feature gate 限制**。
+
+### 11.3 擴充規則
+
+新增欄位必須通過同一套遮蔽保證，且不得引入檔案內容或網路行為。save-to-file 不在範圍內，若日後加入需另立 ADR（新增 write-IPC + 路徑邊界）。

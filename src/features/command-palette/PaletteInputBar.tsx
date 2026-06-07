@@ -39,7 +39,7 @@ export function PaletteInputBar({
       </div>
 
       <div className="min-w-0 flex-1">
-        <div className="kn-input-shell px-3 py-2.5">
+        <div className="kn-input-shell flex items-center gap-3 px-3 py-2.5">
           <input
             ref={inputRef}
             value={query}
@@ -48,10 +48,35 @@ export function PaletteInputBar({
             onFocus={onFocus}
             aria-label={modeLabel}
             placeholder={mode === "command" ? t.command.placeholder : t.search.placeholder}
-            className="w-full bg-transparent text-[16px] font-semibold leading-6 text-[color:var(--kn-text)] placeholder:text-[color:var(--kn-text-muted)] outline-none focus-visible:shadow-none"
+            className="min-w-0 flex-1 bg-transparent text-[16px] font-semibold leading-6 text-[color:var(--kn-text)] placeholder:text-[color:var(--kn-text-muted)] outline-none focus-visible:shadow-none"
             spellCheck={false}
             autoComplete="off"
           />
+
+          {mode === "search" && query === "" && (
+            <div className="flex shrink-0 items-center gap-1">
+              <button
+                type="button"
+                aria-label={p.commandModeHint}
+                onMouseDown={(event) => event.preventDefault()}
+                onClick={() => onQueryChange("/")}
+                className="inline-flex items-center gap-1 rounded-[6px] px-1.5 py-1 text-[10px] font-semibold text-[color:var(--kn-text-muted)] transition hover:bg-white/[0.05] hover:text-[color:var(--kn-text-soft)]"
+              >
+                <span className="kn-kbd">/</span>
+                <span>{p.modeCommands}</span>
+              </button>
+              <button
+                type="button"
+                aria-label={p.terminalModeHint}
+                onMouseDown={(event) => event.preventDefault()}
+                onClick={() => onQueryChange(">")}
+                className="inline-flex items-center gap-1 rounded-[6px] px-1.5 py-1 text-[10px] font-semibold text-[color:var(--kn-text-muted)] transition hover:bg-white/[0.05] hover:text-[color:var(--kn-text-soft)]"
+              >
+                <span className="kn-kbd">&gt;</span>
+                <span>{t.terminal.terminal}</span>
+              </button>
+            </div>
+          )}
         </div>
       </div>
 

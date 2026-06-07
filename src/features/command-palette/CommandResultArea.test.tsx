@@ -21,6 +21,16 @@ function renderInlineResult(text: string) {
 }
 
 describe("CommandResultArea", () => {
+  it("renders long inline results in a keyboard-scrollable region", () => {
+    renderInlineResult(Array.from({ length: 40 }, (_, index) => `/${index}`).join("\n"));
+
+    const result = screen.getByRole("region", { name: "Command result" });
+    expect(result.getAttribute("tabindex")).toBe("0");
+    expect(result.classList.contains("max-h-[300px]")).toBe(true);
+    expect(result.classList.contains("overflow-y-auto")).toBe(true);
+    expect(result.classList.contains("overscroll-contain")).toBe(true);
+  });
+
   it("copies inline command result text", async () => {
     const writeText = vi.fn().mockResolvedValue(undefined);
     Object.defineProperty(navigator, "clipboard", {

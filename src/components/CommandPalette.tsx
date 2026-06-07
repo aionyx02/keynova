@@ -603,27 +603,6 @@ export function CommandPalette() {
     handleQueryChange("");
   }, [handleQueryChange]);
 
-  const editGeneratedCommand = React.useCallback(
-    (command: string) => {
-      setCmdResult(null);
-      setSmartCommandDismissedKey(command.trim());
-      handleQueryChange(command);
-      requestAnimationFrame(() => inputRef.current?.select());
-    },
-    [handleQueryChange, setSmartCommandDismissedKey],
-  );
-
-  const runGeneratedCommand = React.useCallback(
-    (command: string) => {
-      editGeneratedCommand(command);
-      setCmdResult({
-        text: t.palette.generatedCommandReviewOnly,
-        ui_type: { type: "Inline" },
-      });
-    },
-    [editGeneratedCommand, t.palette.generatedCommandReviewOnly],
-  );
-
   const runSuggestedWorkflow = React.useCallback(
     (index: number) => {
       const item = suggestNext.data[index];
@@ -917,10 +896,9 @@ export function CommandPalette() {
                   startedAtMs: genCommandState.startedAtMs,
                   completedAtMs: genCommandState.completedAtMs,
                   riskRequiresConfirmation: Boolean(genCommand.risk?.requires_confirmation),
+                  sources: genCommand.sources,
                   onSubmit: genCommandState.submit,
                   onCancel: genCommandState.cancel,
-                  onEditBefore: editGeneratedCommand,
-                  onRun: runGeneratedCommand,
                 }}
                 listCard={{
                   status: suggestNextState.status,

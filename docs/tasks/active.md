@@ -2,7 +2,7 @@
 type: task_index
 status: active
 priority: p0
-updated: 2026-06-05
+updated: 2026-06-07
 context_policy: always_retrievable
 owner: project
 tags: [refactor, ai-capability, search-first, p0]
@@ -26,7 +26,7 @@ tags: [refactor, ai-capability, search-first, p0]
   (prefix dispatcher + all 5 capabilities + `CapabilityAnswerCard` family +
   `classifyNlIntent` NL fallback + ADR-0040). Only `REF.6.H` open:
   - [~] `REF.6.H` feature-first directory migration. 11 panels + 3 model panels relocated to `src/features/<feature>/`; 7 shared components moved to `src/shared/components/`. Model-manager tab consolidation deferred.
-- [~] `REF.7` quantitative gates, default `ai.legacy_agent = false`. .A/.B shipped in v0.3.0. .C release notes shipped; ADR-0029 §10 scaffolded, `pending REF.7.D` (`qwen2.5:7b` bench, user-action). Observation items stay `pending observation`.
+- [~] `REF.7` quantitative gates, default `ai.legacy_agent = false`. .A/.B in v0.3.0; .C release notes shipped. REF.7.D **done** (2026-06-06): ADR-0029 §10 filled + §8 → **tiered** (CPU-host P50<5s/P95<8s) with **`qwen2.5:1.5b` reference default** (PASS). PRODUCT.2 done. Detail: `sessions/2026-06-06.md`.
 - [~] `REF.8` physical removal. Done: `AiPanel.tsx` + `ai_legacy` route/builtin deleted (2026-06-01). Retained (developer): `agent_runtime.rs` + `handlers/agent/` + `ai.legacy_agent` flag (dormant). Not done: backend agent trim, flag removal, supersede ADRs 0011/0016/0022/0026.
 
 Detailed batch definitions, done criteria, non-goals, file map, and validation gates live in `docs/tasks/refactor-ai-capability.md`.
@@ -34,29 +34,28 @@ Detailed batch definitions, done criteria, non-goals, file map, and validation g
 ### P1
 
 - [x] `MEM.1` personal-memory layer (ADR-0043 proposed). .A/.B/.C all landed at
-  unit level. Detail: `docs/tasks/personal-memory.md`.
+  unit level. Detail: `docs/tasks/archive/personal-memory.md`.
 - [x] `FEAT.GATE` feature-visibility gating (developer-directed; overrides REF.7
   freeze). `features.*` gate UI + IPC end-to-end (capability.call, dispatch
   namespace guard, search providers, frontend `FeatureFlagsContext`); model
   manager exempt. Detail: `docs/memory/sessions/2026-06-04.md`.
 - [x] `DECOUP` feature self-registration decoupling (ADR-0044 proposed). `.1`–`.6`
   landed: 8 backend features + 6 frontend panels self-register; removing a feature
-  ≈ delete module/folder + manifest. Detail: `docs/tasks/feature-decoupling.md`.
+  ≈ delete module/folder + manifest. Detail: `docs/tasks/archive/feature-decoupling.md`.
 
 - [~] `UX.AUDIT` UI/UX consistency pass (developer-directed). Done: stale "AI
   Chat" copy, a11y live regions (incl. AI capability completion/error), full
   i18n conversion, UTF-8 BOM cleanup, and the garbled-text (`嚙`) fallback (raw
   path instead of "Path unavailable"). Open: `嚙` root cause still blocked on a
   repro (non-urgent). Detail: `docs/tasks/ux-audit.md`.
-- [~] `PRODUCT.1` v0.6 stable workflow core (UNFROZEN 2026-06-05; search-core,
-  orthogonal to REF.7). `A`–`D` **done**: workspace+config boost (A), contract
-  audit (B), noise demote (C), project-command discovery copy-only (D).
-  `PROJECT_ROOT.wire` done (startup VCS-root detection; search stays global +
-  workspace-ranked, hard filter removed). `1.E` (command execution/terminal)
-  **dropped** — no execution path, copy-only stays. `1.F`/`1.G` done
-  (preview-copy polish + slashless inline utilities). `1.H` unit/docs done;
-  manual `Ctrl+K` timing remains. Detail:
-  `docs/tasks/product-1-workflow-core.md`.
+- [x] `PRODUCT.1` v0.6 stable workflow core **complete** (search-core). `A`–`D`
+  + `PROJECT_ROOT.wire` + `1.F`/`1.G` + `1.H` done; `1.E` execution **dropped**
+  (copy-only). Detail: `docs/tasks/archive/product-1-workflow-core.md`.
+- [x] `PRODUCT.2` v0.7 useful inline AI capabilities **complete** (2026-06-06).
+  A–E landed: contract fixtures, exact source display (ADR-0046 proposed),
+  structured copy-only `fix` commands, `cmd` assumptions/risk labels, and
+  stale/invalid `next` suppression. No generated-command execution path. Detail:
+  `docs/tasks/archive/product-2-ai-capabilities.md`.
 
 ### P2
 
@@ -66,18 +65,19 @@ Detailed batch definitions, done criteria, non-goals, file map, and validation g
 
 Keynova's active priority is the search-first workflow refactor: AI is a stateless capability layer invoked inline from unified result rows and prefix-keyword palette flows; chat-first surfaces leave the hot path.
 
-Freeze status (conditional partial unfreeze, 2026-06-05): `PRODUCT.1` search-core
-is **unfrozen** (orthogonal to the AI hot path the REF.7 gates measure). Frozen
-until `REF.7.D` + observation window close: `PRODUCT.2` and any AI/agent-touching
-work. `REF.7.D` + observation items are now non-blocking tracking items, not a
-queue gate. Other parked tracks (`AGENT.*`, `CLIP.1`, etc.) stay frozen.
+Freeze status (2026-06-06, developer-directed): `PRODUCT.1` and `PRODUCT.2` are
+both **complete**. REF.7.D done + latency direction finalized (tiered §8 +
+`qwen2.5:1.5b` default) satisfied the PRODUCT.2 gate. `ai.legacy_agent`
+observation-window items remain separate, non-blocking tracking. Other parked
+tracks (`AGENT.*`, `CLIP.1`, etc.) stay frozen.
 
 Keep `active.md` compact. Put batch-level task detail in `docs/tasks/refactor-ai-capability.md`, detailed implementation notes in `docs/memory/sessions/YYYY-MM-DD.md`, and future non-refactor ideas in `docs/tasks/backlog.md`.
 
 ## Next Phase Candidates
 
-- Run `PRODUCT.1.H` dogfood checklist and capture real `Ctrl+K` timing.
-- `REF.7.D` stays available as a non-blocking tracking item: `ollama pull
-  qwen2.5:7b && npm run bench:ai -- --runs 10 --model qwen2.5:7b`, then fill
-  ADR-0029 §10 to close `REF.7.C` and unfreeze `PRODUCT.2`.
+- [~] `PRODUCT.3` trusted-release (ADR-0047/0048/0049/0050): self-contained
+  items done + green; branch `feature/product-3-diagnostics-export`
+  **merge-ready into `main`**. Only open: secret-gated signing (**deferred per
+  dev**) + updater keypair. Detail: `sessions/2026-06-07.md`.
+- `REF.7.C` final closer: user-side Bug A/B smoke.
 - After `REF.8`, refresh affected ADR statuses and architecture docs.

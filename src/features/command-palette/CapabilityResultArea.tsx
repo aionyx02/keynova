@@ -42,10 +42,9 @@ interface Props {
     startedAtMs: number | null;
     completedAtMs: number | null;
     riskRequiresConfirmation: boolean;
+    sources: UseCapabilityStream["sources"];
     onSubmit: () => void;
     onCancel: () => void;
-    onEditBefore: (command: string) => void;
-    onRun: (command: string) => void;
   };
   listCard: {
     status: CapabilityRunStatus;
@@ -102,6 +101,9 @@ export function CapabilityResultArea({
           capabilityLabel={mode.id}
           status={answerStream.status}
           text={answerStream.text}
+          sources={answerStream.sources}
+          suggestedCommand={answerStream.suggestedCommand}
+          riskRequiresConfirmation={answerStream.riskRequiresConfirmation}
           error={answerStream.error}
           startedAtMs={answerStream.startedAtMs}
           firstChunkAtMs={answerStream.firstChunkAtMs}
@@ -123,11 +125,10 @@ export function CapabilityResultArea({
           completedAtMs={commandCard.completedAtMs}
           intent={mode.args.text}
           riskRequiresConfirmation={commandCard.riskRequiresConfirmation}
+          sources={commandCard.sources}
           onCancel={commandCard.onCancel}
           onClose={onClose}
           onSubmit={commandCard.onSubmit}
-          onRun={commandCard.onRun}
-          onEditBefore={commandCard.onEditBefore}
         />
       );
     case "remember":

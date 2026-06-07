@@ -7,9 +7,63 @@ on:
   workflow_dispatch:
 
 jobs:
+  verify:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 30
+    outputs:
+      release_body: ${{ steps.release_notes.outputs.release_body }}
+      release_tag: ${{ steps.release_notes.outputs.release_tag }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Linux test dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev \
+            librsvg2-dev \
+            patchelf \
+            build-essential \
+            libxdo-dev \
+            libssl-dev \
+            libayatana-appindicator3-dev
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+
+      - name: Setup Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+
+      - name: Rust cache
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: "./src-tauri -> target"
+
+      - name: Install npm dependencies
+        run: npm ci
+
+      - name: Verify release source
+        run: npm run verify
+
+      - name: Load versioned release notes
+        id: release_notes
+        run: node scripts/release-notes.mjs --github-output
+
   build:
+    needs: verify
     permissions:
       contents: write
+    # Signing secrets resolve to empty strings until the developer adds them, so
+    # the signing steps below stay inert (unsigned build) without any code change.
+    # See docs/adr/0048-release-code-signing-pipeline.md for the required secrets.
+    env:
+      WINDOWS_CERTIFICATE: ${{ secrets.WINDOWS_CERTIFICATE }}
+      WINDOWS_CERTIFICATE_PASSWORD: ${{ secrets.WINDOWS_CERTIFICATE_PASSWORD }}
     strategy:
       fail-fast: false
       matrix:
@@ -59,23 +113,42 @@ jobs:
       - name: Install npm dependencies
         run: npm ci
 
+      # Gated: only runs on Windows when a signing cert secret is present.
+      # Imports the PFX and injects its thumbprint into tauri.conf.json so the
+      # bundle is Authenticode-signed. Skipped entirely (unsigned) when absent.
+      - name: Prepare Windows code signing
+        if: matrix.platform == 'windows-latest' && env.WINDOWS_CERTIFICATE != ''
+        shell: pwsh
+        run: |
+          $pfxBytes = [Convert]::FromBase64String($env:WINDOWS_CERTIFICATE)
+          $pfxPath = Join-Path $env:RUNNER_TEMP 'keynova-signing.pfx'
+          [IO.File]::WriteAllBytes($pfxPath, $pfxBytes)
+          $password = ConvertTo-SecureString -String $env:WINDOWS_CERTIFICATE_PASSWORD -AsPlainText -Force
+          $cert = Import-PfxCertificate -FilePath $pfxPath -CertStoreLocation Cert:\CurrentUser\My -Password $password
+          Remove-Item $pfxPath -Force
+          $confPath = 'src-tauri/tauri.conf.json'
+          $conf = Get-Content $confPath -Raw | ConvertFrom-Json
+          $conf.bundle.windows | Add-Member -NotePropertyName certificateThumbprint -NotePropertyValue $cert.Thumbprint -Force
+          $conf | ConvertTo-Json -Depth 32 | Set-Content $confPath -Encoding utf8
+          Write-Host "Configured Windows signing with thumbprint $($cert.Thumbprint)"
+
       - name: Build and publish Tauri bundle
         uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # macOS signing + notarization. tauri-action imports the cert and
+          # notarizes only when these are non-empty; otherwise it builds unsigned.
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD }}
         with:
-          tagName: ${{ github.ref_name }}
-          releaseName: "Keynova ${{ github.ref_name }}"
-          releaseBody: |
-            See CHANGELOG / commit history for what changed in this release.
-
-            ## Downloads
-
-            - **Windows**: `Keynova_<version>_x64-setup.exe` (NSIS one-click install + uninstall via Apps & Features)
-            - **macOS**: `Keynova_<version>_universal.dmg`
-            - **Linux**: `keynova_<version>_amd64.deb` / `keynova_<version>_amd64.AppImage`
-
-            Unsigned builds — Windows SmartScreen and macOS Gatekeeper may warn on first run.
+          tagName: ${{ needs.verify.outputs.release_tag }}
+          releaseName: "Keynova ${{ needs.verify.outputs.release_tag }}"
+          releaseBody: ${{ needs.verify.outputs.release_body }}
           releaseDraft: true
           prerelease: false
           args: ${{ matrix.args }}
