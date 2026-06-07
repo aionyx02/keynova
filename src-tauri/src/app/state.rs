@@ -58,6 +58,9 @@ pub(crate) struct AppState {
     pub(crate) knowledge_store: KnowledgeStoreHandle,
     pub(crate) mouse_active: Arc<AtomicBool>,
     pub(crate) launcher_focus_guard: Arc<Mutex<Option<Instant>>>,
+    /// Timestamp of the last Ctrl+K launcher toggle, used to debounce a
+    /// double-fired global shortcut so a single press cannot hide-then-show.
+    pub(crate) last_launcher_toggle: Arc<Mutex<Option<Instant>>>,
     pub(crate) _config_manager: Arc<Mutex<ConfigManager>>,
     pub(crate) _app_manager: Arc<Mutex<AppManager>>,
     pub(crate) _config_watcher: Arc<Mutex<Option<notify::RecommendedWatcher>>>,
@@ -412,6 +415,7 @@ impl AppState {
             knowledge_store,
             mouse_active,
             launcher_focus_guard: Arc::new(Mutex::new(None)),
+            last_launcher_toggle: Arc::new(Mutex::new(None)),
             _config_manager: bundle.config_manager,
             _app_manager: bundle.app_manager,
             _config_watcher: Arc::new(Mutex::new(None)),
