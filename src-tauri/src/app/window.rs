@@ -28,6 +28,7 @@ pub(crate) fn show_launcher(app: &tauri::AppHandle) -> Result<(), IpcError> {
 }
 
 pub(crate) fn show_launcher_window(window: &tauri::WebviewWindow) -> Result<(), IpcError> {
+    eprintln!("[keynova] show_launcher_window");
     let _ = window.unminimize();
     set_launcher_memory_level(window, LauncherMemoryLevel::Normal);
     window
@@ -39,6 +40,7 @@ pub(crate) fn show_launcher_window(window: &tauri::WebviewWindow) -> Result<(), 
 }
 
 pub(crate) fn hide_launcher_window(window: &tauri::WebviewWindow) -> Result<(), IpcError> {
+    eprintln!("[keynova] hide_launcher_window");
     window
         .hide()
         .map_err(|e| IpcError::tauri_api("window.hide", e.to_string()))?;
@@ -110,6 +112,7 @@ pub(crate) fn setup_main_window(app: &tauri::App) -> Result<(), Box<dyn std::err
                     })
                     .unwrap_or(false);
                 if should_keep_open {
+                    eprintln!("[keynova] blur-guard: keep-open -> re-show");
                     let _ = show_launcher_window(&window_blur);
                     return;
                 }

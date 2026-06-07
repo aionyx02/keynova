@@ -56,18 +56,21 @@ pub(crate) fn setup_global_shortcuts(app: &tauri::AppHandle, reset_existing: boo
             if let Ok(mut last) = handle_k.state::<AppState>().last_launcher_toggle.lock() {
                 let now = Instant::now();
                 if last.is_some_and(|prev| now.duration_since(prev) < TOGGLE_DEBOUNCE) {
+                    eprintln!("[keynova] ctrl+k: debounced (ignored repeat fire)");
                     return;
                 }
                 *last = Some(now);
             }
             if let Some(win) = handle_k.get_webview_window("main") {
-                // Dismiss only when the launcher is the active window. When it is
-                // visible but unfocused (e.g. mid blur-to-hide, or the user
-                // clicked away), raise + focus it instead of hiding — pressing
-                // Ctrl+K should summon, not toggle it away.
+                // `is_visible` is the reliable signal on Windows/WebView2 (where
+                // `is_focused` blips); a plain visible→hide / hidden→show toggle
+                // plus the debounce above is the robust in-app behavior.
                 let visible = win.is_visible().unwrap_or(false);
-                let focused = win.is_focused().unwrap_or(false);
-                if visible && focused {
+                eprintln!(
+                    "[keynova] ctrl+k toggle: visible={visible} -> {}",
+                    if visible { "hide" } else { "show" }
+                );
+                if visible {
                     let _ = hide_launcher_window(&win);
                 } else {
                     let _ = show_launcher_window(&win);
