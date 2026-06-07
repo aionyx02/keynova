@@ -70,10 +70,8 @@ pub fn run() {
                     .state::<AppState>()
                     .launcher_toggled_within(std::time::Duration::from_millis(400))
                 {
-                    eprintln!("[keynova] single_instance: suppressed (Ctrl+K toggle echo)");
                     return;
                 }
-                eprintln!("[keynova] single_instance: second launch -> show");
                 let _ = show_launcher(app);
             }))
             .plugin(tauri_plugin_autostart::init(

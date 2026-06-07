@@ -66,10 +66,8 @@ fn handle_control_request(
                 .state::<AppState>()
                 .launcher_toggled_within(Duration::from_millis(400))
             {
-                eprintln!("[keynova] control_server: Start suppressed (Ctrl+K toggle echo)");
                 return ControlResponse::ok("Keynova toggle in progress", json!({ "visible": false }));
             }
-            eprintln!("[keynova] control_server: Start -> show");
             match show_launcher(app) {
                 Ok(()) => ControlResponse::ok("Keynova is focused", json!({ "visible": true })),
                 Err(e) => ControlResponse::error(e.message),

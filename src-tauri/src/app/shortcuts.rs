@@ -56,7 +56,6 @@ pub(crate) fn setup_global_shortcuts(app: &tauri::AppHandle, reset_existing: boo
             if let Ok(mut last) = handle_k.state::<AppState>().last_launcher_toggle.lock() {
                 let now = Instant::now();
                 if last.is_some_and(|prev| now.duration_since(prev) < TOGGLE_DEBOUNCE) {
-                    eprintln!("[keynova] ctrl+k: debounced (ignored repeat fire)");
                     return;
                 }
                 *last = Some(now);
@@ -66,10 +65,6 @@ pub(crate) fn setup_global_shortcuts(app: &tauri::AppHandle, reset_existing: boo
                 // `is_focused` blips); a plain visible→hide / hidden→show toggle
                 // plus the debounce above is the robust in-app behavior.
                 let visible = win.is_visible().unwrap_or(false);
-                eprintln!(
-                    "[keynova] ctrl+k toggle: visible={visible} -> {}",
-                    if visible { "hide" } else { "show" }
-                );
                 if visible {
                     let _ = hide_launcher_window(&win);
                 } else {
