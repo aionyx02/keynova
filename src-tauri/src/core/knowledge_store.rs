@@ -73,6 +73,8 @@ pub struct WorkflowHistoryEntry {
     pub action_label: String,
     pub payload_digest: Option<String>,
     pub workspace_id: Option<i64>,
+    /// ADR-0053: `Some(true/false)` outcome; `None` only for legacy callers.
+    pub succeeded: Option<bool>,
 }
 
 /// REF.5 — read side of `workflow_history`. Carries the server-assigned
@@ -85,6 +87,8 @@ pub struct WorkflowHistoryRow {
     pub action_label: String,
     pub payload_digest: Option<String>,
     pub workspace_id: Option<i64>,
+    /// ADR-0053: recorded outcome; `None` for legacy rows (treated as success).
+    pub succeeded: Option<bool>,
     pub executed_at: i64,
 }
 
