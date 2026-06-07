@@ -86,10 +86,11 @@ Not blocking. If "flow" still feels off after CONT.1/.2: trim the 200ms
 
 - CONT.1 backend **done**: transition-aware ranking + anchor + fallback, ADR-0052
   proposed, +2 tests (534 Rust pass). Predictions labeled "likely next".
-- CONT.1 proactive frontend surface **remaining**: idle-state predictions need
-  the palette keyboard-nav state machine extended + `tauri dev` verification;
-  deferred to a focused follow-up. The `next` prefix shows the new predictions
-  today.
+- CONT.1 proactive frontend surface **done**: `idleNext` flag surfaces
+  `suggest_next` predictions in the empty/idle palette (no `next` prefix needed),
+  reusing `CapabilityListCard` + the existing list keyboard-nav + replay. Card
+  shows only when predictions exist; `StarterActionsLine` suppressed while shown.
+  Needs `tauri dev` feel check (palette not unit-tested per project norms).
 - CONT.2 **done** (logic): `useWindowResize` coalesces — grow-now / shrink-settle
   / sub-threshold-skip. Needs `tauri dev` confirmation of feel. Window pre-show
   reposition assessed, not changed (position persists across hide/show).
