@@ -1,5 +1,5 @@
 use std::sync::{atomic::AtomicBool, Arc, Mutex};
-use std::time::Instant;
+use std::time::{Duration, Instant};
 
 use serde_json::json;
 
@@ -392,6 +392,18 @@ fn build_command_router(
 }
 
 impl AppState {
+    /// True when an in-app Ctrl+K launcher toggle ran within `window`. Used by
+    /// the external show paths (single-instance, control-server `Start`) to drop
+    /// the "show" that echoes the same physical key press and would otherwise
+    /// reopen a window the toggle just closed.
+    pub(crate) fn launcher_toggled_within(&self, window: Duration) -> bool {
+        self.last_launcher_toggle
+            .lock()
+            .ok()
+            .and_then(|guard| *guard)
+            .is_some_and(|at| at.elapsed() < window)
+    }
+
     pub(crate) fn new() -> Self {
         let event_bus = EventBus::default();
         let action_arena = Arc::new(ActionArena::default());
