@@ -52,16 +52,14 @@ Detailed batch definitions, done criteria, non-goals, file map, and validation g
 - [x] `PRODUCT.2` v0.7 inline AI capabilities **complete** (2026-06-06; A–E,
   copy-only, ADR-0046). Detail: `archive/product-2-ai-capabilities.md`.
 
-- [~] `CONT` workflow continuity on `feature/workflow-continuity`: CONT.1
-  predictive + **proactive idle** `next` (ADR-0052) + CONT.2 resize coalescing +
-  Ctrl+K race fix — all **done** (dev-run feel check pending). Detail:
-  `tasks/workflow-continuity.md`.
-
-- [~] `STAB` hardening pass on `hardening/stabilize-features`. STAB.1
-  panic→crash.log net **done** (ADR-0051, in `/diag`); STAB.2
-  `/diag` edge fixes **done** (collapse_home boundary, path_size caps); STAB.3
-  **no-op** (IPC already panic-free, window hardened). Detail:
-  `docs/tasks/stabilization.md`.
+- [x] `CONT` continuity **merged to `main`** (`8fc68c7`): CONT.1 predictive+
+  proactive idle `next` (ADR-0052), CONT.2 resize coalescing, Ctrl+K race fix.
+- [x] `STAB` hardening **merged to `main`** (`8825cce`): crash-log panic hook
+  (ADR-0051), `/diag` edge fixes. Detail: `tasks/stabilization.md`.
+- [~] `PRODUCT.4` ranking+replay on `feature/product-4-ranking`. **4.A done**:
+  `suggest_next` frequency + workspace-affinity (ADR-0052). **4.B done**:
+  `succeeded` column (schema v6) + outcome recording + success-rate/broken-drop
+  (ADR-0053). 4.C deferred. Detail: `tasks/product-4-ranking.md`.
 
 ### P2
 

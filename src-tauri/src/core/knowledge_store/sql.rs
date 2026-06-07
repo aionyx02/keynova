@@ -116,14 +116,15 @@ pub(super) fn insert_workflow_history(
     entry: &WorkflowHistoryEntry,
 ) -> Result<(), String> {
     conn.execute(
-        "INSERT INTO workflow_history (context_hash, route, action_label, payload_digest, workspace_id)
-         VALUES (?1, ?2, ?3, ?4, ?5)",
+        "INSERT INTO workflow_history (context_hash, route, action_label, payload_digest, workspace_id, succeeded)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
         params![
             entry.context_hash,
             entry.route,
             entry.action_label,
             entry.payload_digest,
             entry.workspace_id,
+            entry.succeeded,
         ],
     )
     .map_err(|e| e.to_string())?;
@@ -137,7 +138,7 @@ pub(super) fn read_recent_workflows(
 ) -> Result<Vec<WorkflowHistoryRow>, String> {
     let mut stmt = conn
         .prepare(
-            "SELECT id, context_hash, route, action_label, payload_digest, workspace_id, executed_at
+            "SELECT id, context_hash, route, action_label, payload_digest, workspace_id, succeeded, executed_at
              FROM workflow_history
              WHERE (?1 IS NULL OR context_hash = ?1)
              ORDER BY executed_at DESC, id DESC
@@ -153,7 +154,8 @@ pub(super) fn read_recent_workflows(
                 action_label: row.get(3)?,
                 payload_digest: row.get(4)?,
                 workspace_id: row.get(5)?,
-                executed_at: row.get(6)?,
+                succeeded: row.get(6)?,
+                executed_at: row.get(7)?,
             })
         })
         .map_err(|e| e.to_string())?;

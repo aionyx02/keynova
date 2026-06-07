@@ -58,7 +58,7 @@ pub(crate) fn cmd_dispatch_impl(
             // action.run is recorded inside `run_action_command` next to the
             // existing `try_log_action` site so the resolved label is at hand.
             if let Some(p) = request_payload_for_workflow.as_ref() {
-                maybe_record_central_workflow(&route, p, state.inner());
+                maybe_record_central_workflow(&route, p, state.inner(), true);
             }
         }
         Err(error) => {
@@ -72,6 +72,10 @@ pub(crate) fn cmd_dispatch_impl(
             );
             if let Some(name) = action_name.as_deref() {
                 observability::log_action_execution(name, false, elapsed);
+            }
+            // ADR-0053: record failures too so ranking can compute a success rate.
+            if let Some(p) = request_payload_for_workflow.as_ref() {
+                maybe_record_central_workflow(&route, p, state.inner(), false);
             }
         }
     }
@@ -282,13 +286,17 @@ fn run_action_command(
                 duration_ms: elapsed.as_millis(),
                 error: result.as_ref().err().map(ToString::to_string),
             });
-            // REF.5 — workflow_history record (only on success). Captures the
-            // resolved human-readable label that the central hook in
-            // `cmd_dispatch_impl` cannot see for action.run.
-            if result.is_ok() {
-                let workflow_label = workflow_label_for_action(&action);
-                record_workflow_event(state.inner(), "action.run", &workflow_label, Some(&payload));
-            }
+            // REF.5 / ADR-0053 — record every action.run attempt with its
+            // outcome (was success-only). Captures the resolved human-readable
+            // label the central hook in `cmd_dispatch_impl` cannot see.
+            let workflow_label = workflow_label_for_action(&action);
+            record_workflow_event(
+                state.inner(),
+                "action.run",
+                &workflow_label,
+                Some(&payload),
+                result.is_ok(),
+            );
             if let Ok(mut workspace) = state._workspace_manager.lock() {
                 workspace.record_action(action.id);
             }
@@ -563,6 +571,7 @@ fn record_workflow_event(
     route: &str,
     action_label: &str,
     payload: Option<&Value>,
+    succeeded: bool,
 ) {
     let (context_hash, workspace_id) = match state._workspace_manager.lock() {
         Ok(workspace) => {
@@ -585,6 +594,8 @@ fn record_workflow_event(
             action_label: action_label.to_string(),
             payload_digest,
             workspace_id,
+            // ADR-0053: record the outcome so ranking can use success rate.
+            succeeded: Some(succeeded),
         },
     );
 }
@@ -592,7 +603,7 @@ fn record_workflow_event(
 // REF.5 — central record hook for cmd.run + capability.call. action.run is
 // handled by its own call site in `run_action_command` so the resolved
 // human-readable label is available.
-fn maybe_record_central_workflow(route: &str, payload: &Value, state: &AppState) {
+fn maybe_record_central_workflow(route: &str, payload: &Value, state: &AppState, succeeded: bool) {
     if route == "capability.call"
         && payload
             .get("id")
@@ -606,7 +617,7 @@ fn maybe_record_central_workflow(route: &str, payload: &Value, state: &AppState)
         "capability.call" => workflow_label_for_capability_payload(payload),
         _ => return,
     };
-    record_workflow_event(state, route, &label, Some(payload));
+    record_workflow_event(state, route, &label, Some(payload), succeeded);
 }
 
 fn workflow_label_for_cmd_payload(payload: &Value) -> String {
