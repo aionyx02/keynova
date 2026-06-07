@@ -64,6 +64,7 @@ pub fn run() {
     {
         builder = builder
             .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
+                eprintln!("[keynova] single_instance: second launch -> show");
                 let _ = show_launcher(app);
             }))
             .plugin(tauri_plugin_autostart::init(

@@ -59,7 +59,10 @@ fn handle_control_request(
     }
 
     match request.command {
-        ControlCommand::Start => match show_launcher(app) {
+        ControlCommand::Start => match {
+            eprintln!("[keynova] control_server: Start -> show");
+            show_launcher(app)
+        } {
             Ok(()) => ControlResponse::ok("Keynova is focused", json!({ "visible": true })),
             Err(e) => ControlResponse::error(e.message),
         },
