@@ -48,14 +48,14 @@ Detailed batch definitions, done criteria, non-goals, file map, and validation g
   i18n conversion, UTF-8 BOM cleanup, and the garbled-text (`嚙`) fallback (raw
   path instead of "Path unavailable"). Open: `嚙` root cause still blocked on a
   repro (non-urgent). Detail: `docs/tasks/ux-audit.md`.
-- [x] `PRODUCT.1` v0.6 stable workflow core **complete** (search-core). `A`–`D`
-  + `PROJECT_ROOT.wire` + `1.F`/`1.G` + `1.H` done; `1.E` execution **dropped**
-  (copy-only). Detail: `docs/tasks/archive/product-1-workflow-core.md`.
-- [x] `PRODUCT.2` v0.7 useful inline AI capabilities **complete** (2026-06-06).
-  A–E landed: contract fixtures, exact source display (ADR-0046 proposed),
-  structured copy-only `fix` commands, `cmd` assumptions/risk labels, and
-  stale/invalid `next` suppression. No generated-command execution path. Detail:
-  `docs/tasks/archive/product-2-ai-capabilities.md`.
+- [x] `PRODUCT.1` v0.6 stable workflow core **complete** (search-core; `1.E`
+  execution dropped, copy-only). Detail: `archive/product-1-workflow-core.md`.
+- [x] `PRODUCT.2` v0.7 inline AI capabilities **complete** (2026-06-06; A–E,
+  copy-only, ADR-0046). Detail: `archive/product-2-ai-capabilities.md`.
+
+- [~] `CONT` workflow continuity on `feature/workflow-continuity`: CONT.1
+  predictive+proactive `next` (transition ranking, ADR-0052) + CONT.2 stable
+  window (no per-mutation resize jitter). Detail: `tasks/workflow-continuity.md`.
 
 ### P2
 
