@@ -47,12 +47,14 @@ commands as a new copy/replay-only capability.
   `project_root` matches the active workspace — reusing the existing
   `build_frequencies` / `build_success_stats` helpers. It deliberately omits the
   transition/anchor model (that is `next`/ADR-0052); a profile is "your toolkit
-  here", not "your next step". Rows with `NULL` project_root (recorded before this
-  ADR) are out of project scope; when the active workspace has no `project_root`,
-  the capability degrades to the existing global recency tail.
+  here", not "your next step". **Cold-start fallback:** scope by `project_root`
+  when it has rows, else by `workspace_id` (the active slot), else the global
+  recency tail — so an existing user with `NULL`-project history still gets a
+  useful profile while project-tagged rows accrue.
 - **Surface.** Reuse the `CapabilityListCard` + `runSuggestedWorkflow` replay
-  (copy/replay-only, `cmd.run` only — no new execution surface). Entry via a
-  `profile` prefix and/or the `WorkspaceIndicator`.
+  (copy/replay-only, `cmd.run` only — no new execution surface). Entry is
+  **on-demand** via a `profile` prefix — deliberately *not* auto-shown in the
+  idle state, so it stays distinct from the automatic idle `next` surface.
 
 Keying by `project_root` (not slot) is the decision: it makes the profile follow
 the project across slot reuse, at the cost of one additive column.

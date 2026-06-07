@@ -34,6 +34,7 @@ pub fn call_capability(
         CapabilityId::SuggestNext => capabilities::suggest_next::call(request, deps),
         CapabilityId::Remember => capabilities::remember::call(request, deps),
         CapabilityId::Recall => capabilities::recall::call(request, deps),
+        CapabilityId::WorkspaceProfile => capabilities::workspace_profile::call(request, deps),
     }
 }
 
