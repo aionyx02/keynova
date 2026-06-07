@@ -36,14 +36,18 @@ project. Distinct from `next` (transition: "what comes after my last action").
   `project_root`.
 - **Backend**: a `workspace_profile` capability returning the current project's
   top commands ranked by **frequency × success-rate** (reuse the 4.A/4.B ranker
-  helpers — `build_frequencies`, `build_success_stats`), scoped to rows whose
-  `project_root` matches the active workspace. Copy/replay-only, `cmd.run` only.
-  Distinct ranking from `next`: no transition/anchor; pure project habit +
-  reliability. Legacy `NULL` project_root rows are excluded from project scope
-  (they predate the column) but a no-project fallback keeps the global tail.
-- **Surface**: reuse `CapabilityListCard` + `runSuggestedWorkflow`. Entry via a
-  `profile` prefix (new `CapabilityId::WorkspaceProfile` + registry/contract
-  wiring) and/or the existing `WorkspaceIndicator`. Pure ranker stays unit-tested.
+  helpers — `build_frequencies`, `build_success_stats`). Copy/replay-only,
+  `cmd.run` only. Distinct ranking from `next`: no transition/anchor; pure project
+  habit + reliability.
+  - **Cold-start fallback (refinement):** scope by `project_root` when it has
+    rows, else by `workspace_id` (the active slot), else the global recency tail.
+    So the profile is useful from day one while project-tagged history accrues.
+- **Surface (refinement):** **on-demand only** — a `profile` prefix (new
+  `CapabilityId::WorkspaceProfile` + registry/contract wiring) that reuses
+  `CapabilityListCard` + `runSuggestedWorkflow`. **Not** auto-shown in the idle
+  state, so it stays distinct from the idle `next` surface; `next` remains the
+  automatic one, `profile` is "show my toolkit here" when asked. Pure ranker
+  stays unit-tested.
 
 Done:
 

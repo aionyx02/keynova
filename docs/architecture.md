@@ -166,9 +166,10 @@ src-tauri/src/
 │   │   │   ├── summarize.rs         # pure text transform; audit=false; risk=none
 │   │   │   ├── fix_error.rs         # structured explanation + optional copy-only command suggestion; shared risk label; apply rejected
 │   │   │   ├── gen_command.rs       # structured command/rationale/assumptions; JSON fallback; runtime cwd/shell/os defaults; copy-only risk display
-│   │   │   ├── suggest_next.rs      # workflow suggestions with dedup, target validation, 30-day max age, and 7-day history-only age
+│   │   │   ├── suggest_next.rs      # `next` (ADR-0052/0053): transition + frequency + workspace + success-rate ranking; shared rank helpers + rank_profile; dedup, target validation, max-age
 │   │   │   ├── remember.rs          # MEM.1 (ADR-0043): {text} → LLM-organized {title, content} stored in agent_memories scope="personal" (no migration); audit=true; risk=none
-│   │   │   └── recall.rs            # MEM.1 (ADR-0043): {query, limit?} → Vec<RecalledMemory>; no LLM, local agent_memories read + term ranking; audit=false; risk=none
+│   │   │   ├── recall.rs            # MEM.1 (ADR-0043): {query, limit?} → Vec<RecalledMemory>; no LLM, local agent_memories read + term ranking; audit=false; risk=none
+│   │   │   └── workspace_profile.rs # PROFILE.1 (ADR-0054): project-keyed command profile (freq × success); delegates to suggest_next::rank_profile; copy/replay-only
 │   │   └── live_tests.rs       # cfg(feature="live-ai"), #[ignore]: live Ollama qwen2.5:7b smoke tests (P50/P95 print to stdout for REF.7)
 │   ├── workflow_memory.rs # REF.5: workflow_history (schema v4) record + suggest + compute_context_hash + digest_payload. Heuristic recency-only ranking; coarse hash(workspace_id, mode, panel).
 │   └── ipc_error.rs

@@ -573,7 +573,7 @@ fn record_workflow_event(
     payload: Option<&Value>,
     succeeded: bool,
 ) {
-    let (context_hash, workspace_id) = match state._workspace_manager.lock() {
+    let (context_hash, workspace_id, project_root) = match state._workspace_manager.lock() {
         Ok(workspace) => {
             let current = workspace.current();
             let hash = workflow_memory::compute_context_hash(
@@ -581,9 +581,13 @@ fn record_workflow_event(
                 &current.mode,
                 current.panel.as_deref(),
             );
-            (Some(hash), Some(current.id as i64))
+            (
+                Some(hash),
+                Some(current.id as i64),
+                current.project_root.clone(),
+            )
         }
-        Err(_) => (None, None),
+        Err(_) => (None, None, None),
     };
     let payload_digest = payload.map(workflow_memory::digest_payload);
     workflow_memory::record(
@@ -596,6 +600,8 @@ fn record_workflow_event(
             workspace_id,
             // ADR-0053: record the outcome so ranking can use success rate.
             succeeded: Some(succeeded),
+            // ADR-0054: tag with the project root for project-keyed profiles.
+            project_root,
         },
     );
 }

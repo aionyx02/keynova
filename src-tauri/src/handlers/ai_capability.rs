@@ -239,7 +239,7 @@ mod tests {
     #[test]
     fn list_returns_all_capability_metas() {
         let metas = ai_capability::all();
-        assert_eq!(metas.len(), 7);
+        assert_eq!(metas.len(), 8);
         let ids: Vec<_> = metas.iter().map(|m| m.id).collect();
         assert!(ids.contains(&CapabilityId::Explain));
         assert!(ids.contains(&CapabilityId::Summarize));
@@ -248,6 +248,7 @@ mod tests {
         assert!(ids.contains(&CapabilityId::SuggestNext));
         assert!(ids.contains(&CapabilityId::Remember));
         assert!(ids.contains(&CapabilityId::Recall));
+        assert!(ids.contains(&CapabilityId::WorkspaceProfile));
     }
 
     #[test]

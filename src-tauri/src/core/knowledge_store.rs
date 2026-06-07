@@ -75,6 +75,8 @@ pub struct WorkflowHistoryEntry {
     pub workspace_id: Option<i64>,
     /// ADR-0053: `Some(true/false)` outcome; `None` only for legacy callers.
     pub succeeded: Option<bool>,
+    /// ADR-0054: the active workspace's project root, for project-keyed profiles.
+    pub project_root: Option<String>,
 }
 
 /// REF.5 — read side of `workflow_history`. Carries the server-assigned
@@ -89,6 +91,8 @@ pub struct WorkflowHistoryRow {
     pub workspace_id: Option<i64>,
     /// ADR-0053: recorded outcome; `None` for legacy rows (treated as success).
     pub succeeded: Option<bool>,
+    /// ADR-0054: project root the action ran in; `None` for legacy rows.
+    pub project_root: Option<String>,
     pub executed_at: i64,
 }
 

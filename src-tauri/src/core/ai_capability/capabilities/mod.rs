@@ -5,3 +5,4 @@ pub mod recall;
 pub mod remember;
 pub mod suggest_next;
 pub mod summarize;
+pub mod workspace_profile;
