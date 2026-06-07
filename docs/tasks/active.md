@@ -47,14 +47,15 @@ Detailed batch definitions, done criteria, non-goals, file map, and validation g
   a11y live regions, full i18n, UTF-8 BOM cleanup, `嚙` garbled-path fallback.
   Open: `嚙` root cause blocked on a repro (non-urgent; = STAB.4). Detail:
   `docs/tasks/ux-audit.md`.
-- [x] `PRODUCT.1` v0.6 stable workflow core **complete** (search-core). `A`–`D`
-  + `PROJECT_ROOT.wire` + `1.F`/`1.G` + `1.H` done; `1.E` execution **dropped**
-  (copy-only). Detail: `docs/tasks/archive/product-1-workflow-core.md`.
-- [x] `PRODUCT.2` v0.7 useful inline AI capabilities **complete** (2026-06-06).
-  A–E landed: contract fixtures, exact source display (ADR-0046 proposed),
-  structured copy-only `fix` commands, `cmd` assumptions/risk labels, and
-  stale/invalid `next` suppression. No generated-command execution path. Detail:
-  `docs/tasks/archive/product-2-ai-capabilities.md`.
+- [x] `PRODUCT.1` v0.6 stable workflow core **complete** (search-core; `1.E`
+  execution dropped, copy-only). Detail: `archive/product-1-workflow-core.md`.
+- [x] `PRODUCT.2` v0.7 inline AI capabilities **complete** (2026-06-06; A–E,
+  copy-only, ADR-0046). Detail: `archive/product-2-ai-capabilities.md`.
+
+- [~] `CONT` workflow continuity on `feature/workflow-continuity`: CONT.1
+  predictive + **proactive idle** `next` (ADR-0052) + CONT.2 resize coalescing +
+  Ctrl+K race fix — all **done** (dev-run feel check pending). Detail:
+  `tasks/workflow-continuity.md`.
 
 - [~] `STAB` hardening pass on `hardening/stabilize-features`. STAB.1
   panic→crash.log net **done** (ADR-0051, in `/diag`); STAB.2

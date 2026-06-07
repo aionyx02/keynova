@@ -1,5 +1,5 @@
 use std::sync::{atomic::AtomicBool, Arc, Mutex};
-use std::time::Instant;
+use std::time::{Duration, Instant};
 
 use serde_json::json;
 
@@ -58,6 +58,9 @@ pub(crate) struct AppState {
     pub(crate) knowledge_store: KnowledgeStoreHandle,
     pub(crate) mouse_active: Arc<AtomicBool>,
     pub(crate) launcher_focus_guard: Arc<Mutex<Option<Instant>>>,
+    /// Timestamp of the last Ctrl+K launcher toggle, used to debounce a
+    /// double-fired global shortcut so a single press cannot hide-then-show.
+    pub(crate) last_launcher_toggle: Arc<Mutex<Option<Instant>>>,
     pub(crate) _config_manager: Arc<Mutex<ConfigManager>>,
     pub(crate) _app_manager: Arc<Mutex<AppManager>>,
     pub(crate) _config_watcher: Arc<Mutex<Option<notify::RecommendedWatcher>>>,
@@ -389,6 +392,18 @@ fn build_command_router(
 }
 
 impl AppState {
+    /// True when an in-app Ctrl+K launcher toggle ran within `window`. Used by
+    /// the external show paths (single-instance, control-server `Start`) to drop
+    /// the "show" that echoes the same physical key press and would otherwise
+    /// reopen a window the toggle just closed.
+    pub(crate) fn launcher_toggled_within(&self, window: Duration) -> bool {
+        self.last_launcher_toggle
+            .lock()
+            .ok()
+            .and_then(|guard| *guard)
+            .is_some_and(|at| at.elapsed() < window)
+    }
+
     pub(crate) fn new() -> Self {
         let event_bus = EventBus::default();
         let action_arena = Arc::new(ActionArena::default());
@@ -412,6 +427,7 @@ impl AppState {
             knowledge_store,
             mouse_active,
             launcher_focus_guard: Arc::new(Mutex::new(None)),
+            last_launcher_toggle: Arc::new(Mutex::new(None)),
             _config_manager: bundle.config_manager,
             _app_manager: bundle.app_manager,
             _config_watcher: Arc::new(Mutex::new(None)),
