@@ -2,7 +2,7 @@
 type: task_index
 status: active
 priority: p0
-updated: 2026-06-06
+updated: 2026-06-07
 context_policy: always_retrievable
 owner: project
 tags: [refactor, ai-capability, search-first, p0]
@@ -26,7 +26,7 @@ tags: [refactor, ai-capability, search-first, p0]
   (prefix dispatcher + all 5 capabilities + `CapabilityAnswerCard` family +
   `classifyNlIntent` NL fallback + ADR-0040). Only `REF.6.H` open:
   - [~] `REF.6.H` feature-first directory migration. 11 panels + 3 model panels relocated to `src/features/<feature>/`; 7 shared components moved to `src/shared/components/`. Model-manager tab consolidation deferred.
-- [~] `REF.7` quantitative gates, default `ai.legacy_agent = false`. .A/.B in v0.3.0; .C release notes shipped. REF.7.D **done** (2026-06-06): ADR-0029 §10 filled + §8 → **tiered** (CPU-host P50<5s/P95<8s) with **`qwen2.5:1.5b` reference default** (4266/6269 → **PASS** CPU tier). PRODUCT.2 subsequently completed. Detail: `sessions/2026-06-06.md`.
+- [~] `REF.7` quantitative gates, default `ai.legacy_agent = false`. .A/.B in v0.3.0; .C release notes shipped. REF.7.D **done** (2026-06-06): ADR-0029 §10 filled + §8 → **tiered** (CPU-host P50<5s/P95<8s) with **`qwen2.5:1.5b` reference default** (PASS). PRODUCT.2 done. Detail: `sessions/2026-06-06.md`.
 - [~] `REF.8` physical removal. Done: `AiPanel.tsx` + `ai_legacy` route/builtin deleted (2026-06-01). Retained (developer): `agent_runtime.rs` + `handlers/agent/` + `ai.legacy_agent` flag (dormant). Not done: backend agent trim, flag removal, supersede ADRs 0011/0016/0022/0026.
 
 Detailed batch definitions, done criteria, non-goals, file map, and validation gates live in `docs/tasks/refactor-ai-capability.md`.
@@ -76,8 +76,9 @@ Keep `active.md` compact. Put batch-level task detail in `docs/tasks/refactor-ai
 
 ## Next Phase Candidates
 
-- [~] `PRODUCT.3` trusted-release: verify gate, versioned notes, `/diag`
-  (ADR-0047), signing pipeline (ADR-0048), config rollback (ADR-0049), dormant
-  updater (ADR-0050). Remaining (developer secrets): certs + updater keypair.
+- [~] `PRODUCT.3` trusted-release (ADR-0047/0048/0049/0050): self-contained
+  items done + green; branch `feature/product-3-diagnostics-export`
+  **merge-ready into `main`**. Only open: secret-gated signing (**deferred per
+  dev**) + updater keypair. Detail: `sessions/2026-06-07.md`.
 - `REF.7.C` final closer: user-side Bug A/B smoke.
 - After `REF.8`, refresh affected ADR statuses and architecture docs.
