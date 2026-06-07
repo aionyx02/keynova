@@ -17,7 +17,7 @@ owner: project
 - `docs/adr/0029-ai-capability-layer.md`
 - `docs/adr/0030-backend-risk-tag-contract.md`
 - `docs/adr/0043-personal-memory-capability.md`
-- `docs/tasks/product-2-ai-capabilities.md`
+- `docs/tasks/archive/product-2-ai-capabilities.md`
 
 ---
 

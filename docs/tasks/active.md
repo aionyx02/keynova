@@ -34,14 +34,14 @@ Detailed batch definitions, done criteria, non-goals, file map, and validation g
 ### P1
 
 - [x] `MEM.1` personal-memory layer (ADR-0043 proposed). .A/.B/.C all landed at
-  unit level. Detail: `docs/tasks/personal-memory.md`.
+  unit level. Detail: `docs/tasks/archive/personal-memory.md`.
 - [x] `FEAT.GATE` feature-visibility gating (developer-directed; overrides REF.7
   freeze). `features.*` gate UI + IPC end-to-end (capability.call, dispatch
   namespace guard, search providers, frontend `FeatureFlagsContext`); model
   manager exempt. Detail: `docs/memory/sessions/2026-06-04.md`.
 - [x] `DECOUP` feature self-registration decoupling (ADR-0044 proposed). `.1`–`.6`
   landed: 8 backend features + 6 frontend panels self-register; removing a feature
-  ≈ delete module/folder + manifest. Detail: `docs/tasks/feature-decoupling.md`.
+  ≈ delete module/folder + manifest. Detail: `docs/tasks/archive/feature-decoupling.md`.
 
 - [~] `UX.AUDIT` UI/UX consistency pass (developer-directed). Done: stale "AI
   Chat" copy, a11y live regions (incl. AI capability completion/error), full
@@ -50,13 +50,12 @@ Detailed batch definitions, done criteria, non-goals, file map, and validation g
   repro (non-urgent). Detail: `docs/tasks/ux-audit.md`.
 - [x] `PRODUCT.1` v0.6 stable workflow core **complete** (search-core). `A`–`D`
   + `PROJECT_ROOT.wire` + `1.F`/`1.G` + `1.H` done; `1.E` execution **dropped**
-  (copy-only). (1.H Ctrl+K timing capture lands via `feature/product-1-h-ctrlk-timing`.)
-  Detail: `docs/tasks/product-1-workflow-core.md`.
+  (copy-only). Detail: `docs/tasks/archive/product-1-workflow-core.md`.
 - [x] `PRODUCT.2` v0.7 useful inline AI capabilities **complete** (2026-06-06).
   A–E landed: contract fixtures, exact source display (ADR-0046 proposed),
   structured copy-only `fix` commands, `cmd` assumptions/risk labels, and
   stale/invalid `next` suppression. No generated-command execution path. Detail:
-  `docs/tasks/product-2-ai-capabilities.md`.
+  `docs/tasks/archive/product-2-ai-capabilities.md`.
 
 ### P2
 

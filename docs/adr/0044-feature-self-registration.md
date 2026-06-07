@@ -17,7 +17,7 @@ owner: project
 - `docs/adr/0009-builtin-command-registry.md`
 - `docs/adr/0018-app-module-split.md`
 - `docs/architecture.md`
-- `docs/tasks/feature-decoupling.md`
+- `docs/tasks/archive/feature-decoupling.md`
 - `docs/CLAUDE.md`
 
 ---

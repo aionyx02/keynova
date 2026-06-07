@@ -14,7 +14,7 @@ owner: project
 **Decision makers:** AI agent draft; developer acceptance required  
 **Related documents:**
 
-- `docs/tasks/startup-preflight-cache.md`
+- `docs/tasks/archive/startup-preflight-cache.md`
 - `docs/architecture.md`
 - `docs/security.md`
 
