@@ -28,7 +28,8 @@ export type CapabilitySurfaceMode =
   | { id: "cmd"; args: { text: string }; source: "prefix" | "smart" }
   | { id: "remember"; args: { text: string }; source: "prefix" | "smart" }
   | { id: "recall"; args: { text: string }; source: "prefix" | "smart" }
-  | { id: "next"; args: Record<string, never>; source: "prefix" | "smart" };
+  | { id: "next"; args: Record<string, never>; source: "prefix" | "smart" }
+  | { id: "profile"; args: Record<string, never>; source: "prefix" };
 
 interface Props {
   /** Active capability surface (explicit prefix or smart auto-surface). */
@@ -161,9 +162,10 @@ export function CapabilityResultArea({
         />
       );
     case "next":
+    case "profile":
       return (
         <CapabilityListCard
-          label={mode.source === "smart" ? "next step" : "next"}
+          label={mode.id === "profile" ? "profile" : mode.source === "smart" ? "next step" : "next"}
           status={listCard.status}
           items={listCard.items}
           error={listCard.error}

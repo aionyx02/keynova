@@ -248,6 +248,113 @@ fn rank_rows_at(
     suggestions
 }
 
+/// PROFILE.1 / ADR-0054: base score so a project's commands get sensible
+/// confidences; frequency is the dominant signal for a "toolkit" view.
+const PROFILE_BASE: f32 = 0.4;
+const PROFILE_FREQUENCY_WEIGHT: f32 = 0.5;
+
+/// PROFILE.1 / ADR-0054: scope the window to the *active project*. The active
+/// project is the most recent row's `project_root` (the user's current project,
+/// mirroring the `next` anchor heuristic); fall back to its `workspace_id` slot,
+/// else the whole window. Pure.
+pub(super) fn scope_to_active_project(
+    rows: Vec<workflow_memory::WorkflowHistoryRow>,
+) -> Vec<workflow_memory::WorkflowHistoryRow> {
+    let Some(head) = rows.first() else {
+        return rows;
+    };
+    if let Some(root) = head.project_root.clone() {
+        return rows
+            .into_iter()
+            .filter(|r| r.project_root.as_deref() == Some(root.as_str()))
+            .collect();
+    }
+    if let Some(slot) = head.workspace_id {
+        return rows
+            .into_iter()
+            .filter(|r| r.workspace_id == Some(slot))
+            .collect();
+    }
+    rows
+}
+
+/// PROFILE.1 / ADR-0054: rank a project's signature commands by frequency ×
+/// success rate (no transition/anchor/echo — this is "your toolkit here", not
+/// "your next step"). Reuses the shared frequency/success helpers. Pure.
+pub(super) fn rank_profile(
+    rows: Vec<workflow_memory::WorkflowHistoryRow>,
+    local_context: Option<&LocalContextSearcher>,
+    now: i64,
+) -> Vec<SuggestedNextAction> {
+    let scoped = scope_to_active_project(rows);
+    let frequencies = build_frequencies(&scoped);
+    let max_frequency = frequencies.values().copied().max().unwrap_or(1);
+    let success_stats = build_success_stats(&scoped);
+
+    let mut seen = HashSet::new();
+    let mut out = Vec::new();
+    for row in scoped {
+        if is_suggest_next_self_row(&row)
+            || is_stale(&row, now)
+            || !target_resolves(&row, local_context)
+        {
+            continue;
+        }
+        let key = transition_key(&row.route, &row.action_label);
+        if !seen.insert(key.clone()) {
+            continue;
+        }
+        let stat = success_stats.get(&key).copied().unwrap_or_default();
+        if stat.attempts >= BROKEN_MIN_ATTEMPTS && stat.successes == 0 {
+            continue;
+        }
+        let success_rate = if stat.attempts > 0 {
+            stat.successes as f32 / stat.attempts as f32
+        } else {
+            1.0
+        };
+        let frequency = frequencies.get(&key).copied().unwrap_or(1);
+        let frequency_norm = if max_frequency > 1 {
+            (frequency as f32).ln_1p() / (max_frequency as f32).ln_1p()
+        } else {
+            1.0
+        };
+        let confidence = (PROFILE_BASE
+            + frequency_norm * PROFILE_FREQUENCY_WEIGHT
+            + (success_rate - 1.0) * SUCCESS_WEIGHT)
+            .clamp(0.0, 0.99);
+        out.push(SuggestedNextAction {
+            title: row.action_label.clone(),
+            subtitle: profile_subtitle(&row.route, frequency, success_rate),
+            route: row.route.clone(),
+            confidence,
+            rationale: "frequent in this project".to_string(),
+            last_executed_at: row.executed_at,
+            workspace_id: row.workspace_id,
+            replay: replay_for_row(&row.route, &row.action_label),
+        });
+    }
+    out.sort_by(|left, right| {
+        right
+            .replay
+            .is_some()
+            .cmp(&left.replay.is_some())
+            .then_with(|| {
+                right
+                    .confidence
+                    .partial_cmp(&left.confidence)
+                    .unwrap_or(std::cmp::Ordering::Equal)
+            })
+            .then_with(|| right.last_executed_at.cmp(&left.last_executed_at))
+    });
+    out
+}
+
+fn profile_subtitle(route: &str, frequency: u32, success_rate: f32) -> String {
+    let pct = (success_rate * 100.0).round() as u32;
+    format!("{route} · used {frequency}× · {pct}% ok")
+}
+
 /// Stable per-action key shared by dedupe + the transition model.
 fn transition_key(route: &str, action_label: &str) -> String {
     format!("{route}::{action_label}")
@@ -517,6 +624,7 @@ mod tests {
                 payload_digest: None,
                 workspace_id: Some(7),
                 succeeded: None,
+                project_root: None,
             });
             store.try_log_workflow_history(WorkflowHistoryEntry {
                 context_hash: Some("ctx-a".into()),
@@ -525,6 +633,7 @@ mod tests {
                 payload_digest: None,
                 workspace_id: Some(7),
                 succeeded: None,
+                project_root: None,
             });
 
             let resp = call(
@@ -568,6 +677,7 @@ mod tests {
             payload_digest: None,
             workspace_id: Some(1),
             succeeded: None,
+            project_root: None,
             executed_at,
         }
     }
@@ -616,6 +726,7 @@ mod tests {
             payload_digest: None,
             workspace_id: Some(workspace_id),
             succeeded: None,
+            project_root: None,
             executed_at,
         }
     }
@@ -637,6 +748,57 @@ mod tests {
         assert!(items[0].subtitle.contains("used 3×"));
         let rare = items.iter().find(|i| i.title == "/rare").expect("rare present");
         assert!(items[0].confidence > rare.confidence);
+    }
+
+    fn proj_row(
+        id: i64,
+        label: &str,
+        executed_at: i64,
+        project: &str,
+    ) -> workflow_memory::WorkflowHistoryRow {
+        workflow_memory::WorkflowHistoryRow {
+            id,
+            context_hash: Some("ctx".into()),
+            route: "cmd.run".into(),
+            action_label: label.into(),
+            payload_digest: None,
+            workspace_id: Some(1),
+            succeeded: None,
+            project_root: Some(project.into()),
+            executed_at,
+        }
+    }
+
+    #[test]
+    fn profile_scopes_to_active_project_and_ranks_by_frequency() {
+        // Head row is in /projA; the profile must only contain /projA commands
+        // (excluding /projB) and rank the more frequent one first. (ADR-0054)
+        let rows = vec![
+            proj_row(6, "/a", 106, "/projA"),
+            proj_row(5, "/b", 105, "/projA"),
+            proj_row(4, "/a", 104, "/projA"),
+            proj_row(3, "/a", 103, "/projA"),
+            proj_row(2, "/c", 102, "/projB"),
+        ];
+        let items = rank_profile(rows, None, 200);
+        assert_eq!(items.len(), 2, "only /projA commands");
+        assert!(!items.iter().any(|i| i.title == "/c"), "other project excluded");
+        assert_eq!(items[0].title, "/a", "most-frequent command first");
+        assert!(items[0].subtitle.contains("used 3×"));
+    }
+
+    #[test]
+    fn profile_falls_back_to_slot_when_no_project_root() {
+        // No project_root → scope by the head row's workspace_id (slot 1),
+        // excluding slot 2.
+        let rows = vec![
+            action_row(3, "/a", 103, 1),
+            action_row(2, "/a", 102, 1),
+            action_row(1, "/other", 101, 2),
+        ];
+        let items = rank_profile(rows, None, 200);
+        assert!(items.iter().any(|i| i.title == "/a"));
+        assert!(!items.iter().any(|i| i.title == "/other"), "other slot excluded");
     }
 
     #[test]
@@ -669,6 +831,7 @@ mod tests {
             payload_digest: None,
             workspace_id: Some(1),
             succeeded: Some(succeeded),
+            project_root: None,
             executed_at,
         }
     }
@@ -718,6 +881,7 @@ mod tests {
                 payload_digest: None,
                 workspace_id: Some(1),
                 succeeded: None,
+                project_root: None,
                 executed_at: 20,
             },
             workflow_memory::WorkflowHistoryRow {
@@ -728,6 +892,7 @@ mod tests {
                 payload_digest: None,
                 workspace_id: Some(1),
                 succeeded: None,
+                project_root: None,
                 executed_at: 10,
             },
         ];
@@ -746,6 +911,7 @@ mod tests {
                 payload_digest: None,
                 workspace_id: Some(1),
                 succeeded: None,
+                project_root: None,
                 executed_at: 20,
             },
             workflow_memory::WorkflowHistoryRow {
@@ -756,6 +922,7 @@ mod tests {
                 payload_digest: None,
                 workspace_id: Some(1),
                 succeeded: None,
+                project_root: None,
                 executed_at: 10,
             },
         ];
@@ -775,6 +942,7 @@ mod tests {
             payload_digest: None,
             workspace_id: Some(1),
             succeeded: None,
+            project_root: None,
             executed_at: now - MAX_SUGGESTION_AGE_SECS - 1,
         }];
         assert!(rank_rows_at(rows, Some("ctx"), None, now).is_empty());
@@ -791,6 +959,7 @@ mod tests {
             payload_digest: None,
             workspace_id: Some(1),
             succeeded: None,
+            project_root: None,
             executed_at: now - HISTORY_ONLY_MAX_AGE_SECS - 1,
         }];
         assert!(rank_rows_at(rows, Some("ctx"), None, now).is_empty());
@@ -808,6 +977,7 @@ mod tests {
                 payload_digest: None,
                 workspace_id: Some(1),
                 succeeded: None,
+                project_root: None,
                 executed_at: now,
             },
             workflow_memory::WorkflowHistoryRow {
@@ -818,6 +988,7 @@ mod tests {
                 payload_digest: None,
                 workspace_id: Some(1),
                 succeeded: None,
+                project_root: None,
                 executed_at: now,
             },
         ];

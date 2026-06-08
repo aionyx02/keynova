@@ -96,6 +96,7 @@ mod tests {
             payload_digest: None,
             workspace_id: Some(0),
             succeeded: None,
+            project_root: None,
         }
     }
 

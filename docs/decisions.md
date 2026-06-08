@@ -83,6 +83,7 @@ owner: project
 | [0051](adr/0051-crash-log-panic-hook.md)                  | Backend Crash-Log Panic Hook (Local, Redacted)                         | 提議                             | 2026-06-07 |
 | [0052](adr/0052-transition-aware-workflow-suggestion.md)  | Transition-Aware Workflow Suggestion (`next`)                           | 提議                             | 2026-06-07 |
 | [0053](adr/0053-workflow-outcome-success-rate.md)         | Workflow Outcome + Success-Rate Ranking                                | 提議                             | 2026-06-07 |
+| [0054](adr/0054-workspace-command-profile.md)             | Workspace Command Profile (Project-Keyed)                              | 提議                             | 2026-06-07 |
 
 ---
 
