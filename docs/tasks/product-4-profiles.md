@@ -69,9 +69,10 @@ off the frequency-ranked list.
 - **Surface**: pins merged atop the `profile` list client-side
   (`workspacePins.ts` — pure `pinToSuggestion` / `mergeProfileWithPins` /
   `commandKeyOf`, dedupes the computed twin). `useWorkspacePins` hook loads/toggles.
-  Pin/unpin is **Ctrl+P** on the selected profile row (only `cmd.run` rows are
-  pinnable); pinned rows show a 📌 marker + footer hint. `workspace_profile`
-  capability untouched (no ranker change). Copy/replay-only.
+  Pin/unpin via a clickable 📌 on each pinnable (`cmd.run`) row **or** Ctrl+P on
+  the selected row; a first-run onboarding banner shows until the workspace has a
+  pin, plus a footer hint. `workspace_profile` capability untouched (no ranker
+  change). Copy/replay-only.
 
 Done: pin a profile command, it sticks atop the list with 📌; toggle removes it;
 pins are per slot and survive the command leaving the computed profile. Unit

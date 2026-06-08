@@ -307,6 +307,9 @@ export const enUS: I18nKeys = {
     pinnedRationale: "Pinned to this workspace",
     pinnedSubtitle: "pinned command",
     pinHint: "Ctrl+P to pin/unpin",
+    pinOnboarding: "Select a command and press Ctrl+P (or click the 📌) to pin it to this workspace.",
+    pinAdd: "Pin to this workspace",
+    pinRemove: "Unpin from this workspace",
     // answer
     explain: "Explain",
     summarize: "Summarize",

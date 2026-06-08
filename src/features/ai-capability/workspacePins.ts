@@ -5,9 +5,6 @@
 
 import type { SuggestedNextAction } from "./types";
 
-/** Visual marker prefixed to a pinned row's title. */
-export const PIN_MARKER = "📌 ";
-
 /** Pinned rows always sort to the top with full confidence. */
 const PINNED_CONFIDENCE = 1;
 
@@ -45,7 +42,7 @@ export function pinToSuggestion(pin: string, labels: PinLabels): SuggestedNextAc
   if (!name) return null;
   const args = space === -1 ? "" : body.slice(space + 1).trim();
   return {
-    title: `${PIN_MARKER}${trimmed}`,
+    title: trimmed,
     subtitle: labels.subtitle,
     route: "cmd.run",
     confidence: PINNED_CONFIDENCE,
