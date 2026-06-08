@@ -300,6 +300,13 @@ export const zhTW = {
     listNoRecentBody: "尚無近期工作流。",
     replay: "重播",
     historyOnly: "僅歷史",
+    // pinned commands (PROFILE.2 / ADR-0055)
+    pinnedRationale: "已釘選到此工作區",
+    pinnedSubtitle: "釘選指令",
+    pinHint: "Ctrl+P 釘選/取消",
+    pinOnboarding: "選一個指令後按 Ctrl+P（或點 📌）即可釘選到這個工作區。",
+    pinAdd: "釘選到此工作區",
+    pinRemove: "從此工作區取消釘選",
     // answer
     explain: "解釋",
     summarize: "摘要",
@@ -578,6 +585,7 @@ export const zhTW = {
       remember: "記住",
       recall: "回想",
       next: "下一步",
+      profile: "工作區",
     } as Record<string, string>,
     descriptions: {
       explain: "解釋片段或概念。",
@@ -587,6 +595,7 @@ export const zhTW = {
       remember: "保存有用脈絡。",
       recall: "找回保存脈絡。",
       next: "建議下一個工作流。",
+      profile: "這個工作區的釘選＋常用指令。",
     } as Record<string, string>,
     args: {
       explain: "<問題>",
@@ -596,6 +605,7 @@ export const zhTW = {
       remember: "<資訊>",
       recall: "<查詢>",
       next: "",
+      profile: "",
     } as Record<string, string>,
   },
   mouseControl: {

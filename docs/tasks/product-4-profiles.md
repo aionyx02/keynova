@@ -55,11 +55,29 @@ Done:
   reliability-weighted; switching project changes the profile; replay works from
   the keyboard. New unit tests for project-scoped ranking + legacy handling.
 
-## PROFILE.2 - Per-workspace preferences (deferred)
+## PROFILE.2 - Per-workspace pinned commands (done, ADR-0055)
 
-Let a workspace carry user-set preferences (pinned commands, default mode /
-search backend). `WorkspaceState` already has `name`; add a small curated
-`pinned_commands` set surfaced atop the profile. Config-shaped; its own slice.
+Let a workspace carry a curated `pinned_commands` set surfaced atop the computed
+profile, so a command you rely on is always one keystroke away even if it drifts
+off the frequency-ranked list.
+
+- **Storage** (`workspaces.json` v2→v3): `WorkspaceState.pinned_commands:
+  Vec<String>` (`#[serde(default)]`, additive), capped at `MAX_PINS = 8`,
+  per-slot. `WorkspaceManager::toggle_pin` adds/removes (most-recent first).
+- **IPC**: additive `workspace.pin { command }` toggles + returns the new set;
+  `workspace.get_current` already exposes `pinned_commands`.
+- **Surface**: pins merged atop the `profile` list client-side
+  (`workspacePins.ts` — pure `pinToSuggestion` / `mergeProfileWithPins` /
+  `commandKeyOf`, dedupes the computed twin). `useWorkspacePins` hook loads/toggles.
+  Pin/unpin via a clickable 📌 on each pinnable (`cmd.run`) row **or** Ctrl+P on
+  the selected row; a first-run onboarding banner shows until the workspace has a
+  pin, plus a footer hint. `workspace_profile` capability untouched (no ranker
+  change). Copy/replay-only.
+
+Done: pin a profile command, it sticks atop the list with 📌; toggle removes it;
+pins are per slot and survive the command leaving the computed profile. Unit
+tests: `workspace_manager` toggle/cap, `workspacePins` round-trip/merge,
+`useKeyboardNav` Ctrl+P gating.
 
 ## PROFILE.3 - Auto-activate on project change (deferred)
 

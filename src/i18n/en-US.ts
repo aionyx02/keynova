@@ -303,6 +303,13 @@ export const enUS: I18nKeys = {
     listNoRecentBody: "No recent workflows yet.",
     replay: "Replay",
     historyOnly: "History only",
+    // pinned commands (PROFILE.2 / ADR-0055)
+    pinnedRationale: "Pinned to this workspace",
+    pinnedSubtitle: "pinned command",
+    pinHint: "Ctrl+P to pin/unpin",
+    pinOnboarding: "Select a command and press Ctrl+P (or click the 📌) to pin it to this workspace.",
+    pinAdd: "Pin to this workspace",
+    pinRemove: "Unpin from this workspace",
     // answer
     explain: "Explain",
     summarize: "Summarize",
@@ -581,6 +588,7 @@ export const enUS: I18nKeys = {
       remember: "Remember",
       recall: "Recall",
       next: "Next",
+      profile: "Profile",
     } as Record<string, string>,
     descriptions: {
       explain: "Explain a snippet or concept.",
@@ -590,6 +598,7 @@ export const enUS: I18nKeys = {
       remember: "Save useful context.",
       recall: "Find saved context.",
       next: "Suggest the next workflow.",
+      profile: "This workspace's pinned + frequent commands.",
     } as Record<string, string>,
     args: {
       explain: "<question>",
@@ -599,6 +608,7 @@ export const enUS: I18nKeys = {
       remember: "<info>",
       recall: "<query>",
       next: "",
+      profile: "",
     } as Record<string, string>,
   },
   mouseControl: {
