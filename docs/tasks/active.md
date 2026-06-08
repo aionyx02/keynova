@@ -2,7 +2,7 @@
 type: task_index
 status: active
 priority: p0
-updated: 2026-06-07
+updated: 2026-06-08
 context_policy: always_retrievable
 owner: project
 tags: [refactor, ai-capability, search-first, p0]
@@ -26,7 +26,7 @@ tags: [refactor, ai-capability, search-first, p0]
   (prefix dispatcher + all 5 capabilities + `CapabilityAnswerCard` family +
   `classifyNlIntent` NL fallback + ADR-0040). Only `REF.6.H` open:
   - [~] `REF.6.H` feature-first directory migration. 11 panels + 3 model panels relocated to `src/features/<feature>/`; 7 shared components moved to `src/shared/components/`. Model-manager tab consolidation deferred.
-- [~] `REF.7` quantitative gates, default `ai.legacy_agent = false`. .A/.B in v0.3.0; .C release notes shipped. REF.7.D **done** (2026-06-06): ADR-0029 §10 filled + §8 → **tiered** (CPU-host P50<5s/P95<8s) with **`qwen2.5:1.5b` reference default** (PASS). PRODUCT.2 done. Detail: `sessions/2026-06-06.md`.
+- [~] `REF.7` quantitative gates, default `ai.legacy_agent = false`. .A/.B in v0.3.0; .C release notes shipped. REF.7.D **done** (2026-06-06): ADR-0029 §10 filled + §8 → **tiered** (CPU-host P50<5s/P95<8s) with **`qwen2.5:1.5b` reference default** (PASS). Detail: `sessions/2026-06-06.md`.
 - [~] `REF.8` physical removal. Done: `AiPanel.tsx` + `ai_legacy` route/builtin deleted (2026-06-01). Retained (developer): `agent_runtime.rs` + `handlers/agent/` + `ai.legacy_agent` flag (dormant). Not done: backend agent trim, flag removal, supersede ADRs 0011/0016/0022/0026.
 
 Detailed batch definitions, done criteria, non-goals, file map, and validation gates live in `docs/tasks/refactor-ai-capability.md`.
@@ -57,10 +57,10 @@ Detailed batch definitions, done criteria, non-goals, file map, and validation g
   (ADR-0051), `/diag` edge fixes.
 - [x] `PRODUCT.4` ranking **merged** (`b0a8b5c`): 4.A freq+workspace (ADR-0052),
   4.B success-rate (ADR-0053). Detail: `tasks/product-4-ranking.md`.
-- [ ] `PROFILE` workspace profiles on `feature/product-4-profiles` (**planned**):
-  PROFILE.1 project-keyed command profile — `project_root` column (v7) +
-  `workspace_profile` capability (freq×success), ADR-0054. Detail:
-  `tasks/product-4-profiles.md`.
+- [~] `PROFILE` workspace profiles (`feature/product-4-profiles`). **PROFILE.1
+  done**: `project_root` col (v7) + `workspace_profile` capability (freq×success,
+  project→slot→global) + `profile` prefix reusing the `next` card (ADR-0054).
+  .2/.3 deferred. Detail: `tasks/product-4-profiles.md`.
 
 ### P2
 
