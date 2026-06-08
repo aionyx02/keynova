@@ -300,6 +300,10 @@ export const zhTW = {
     listNoRecentBody: "尚無近期工作流。",
     replay: "重播",
     historyOnly: "僅歷史",
+    // pinned commands (PROFILE.2 / ADR-0055)
+    pinnedRationale: "已釘選到此工作區",
+    pinnedSubtitle: "釘選指令",
+    pinHint: "Ctrl+P 釘選/取消",
     // answer
     explain: "解釋",
     summarize: "摘要",

@@ -81,6 +81,10 @@ export interface UseKeyboardNavDeps {
   onCapabilitySubmit: () => void;
   /** Invoke the selected list-row replay action. */
   onCapabilityRunSelected: () => void;
+  /** True when the list is the `profile` surface, where rows can be pinned. */
+  capabilityPinMode: boolean;
+  /** Toggle the pin on the selected profile row (PROFILE.2 / ADR-0055). */
+  onCapabilityTogglePin: () => void;
   // Bug A focus-guard renewal (must be invoked on every keydown, throttled).
   keepLauncherOpen: () => Promise<void> | void;
 }
@@ -116,6 +120,15 @@ export function useKeyboardNav(deps: UseKeyboardNavDeps) {
     // subsequent Enter (post-commit) reaches us with isComposing === false.
     if (deps.capabilityMode && !e.shiftKey && !e.nativeEvent.isComposing) {
       if (deps.capabilityListMode) {
+        if (
+          deps.capabilityPinMode &&
+          (e.ctrlKey || e.metaKey) &&
+          (e.key === "p" || e.key === "P")
+        ) {
+          e.preventDefault();
+          deps.onCapabilityTogglePin();
+          return;
+        }
         if (e.key === "ArrowDown") {
           e.preventDefault();
           deps.setCapabilityListSelected((i) =>

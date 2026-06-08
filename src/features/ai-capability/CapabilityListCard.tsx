@@ -10,6 +10,8 @@ interface Props {
   status: CapabilityRunStatus;
   items: SuggestedNextAction[];
   error: string | null;
+  /** Optional discoverability hint appended to the footer (e.g. pin shortcut). */
+  hint?: string;
   startedAtMs: number | null;
   completedAtMs: number | null;
   selectedIndex: number;
@@ -43,6 +45,7 @@ export function CapabilityListCard({
   status,
   items,
   error,
+  hint,
   startedAtMs,
   completedAtMs,
   selectedIndex,
@@ -169,6 +172,7 @@ export function CapabilityListCard({
 
       <div className="border-t border-[color:var(--kn-border)] bg-[rgba(7,11,17,0.48)] px-4 py-2 text-[10px] text-[color:var(--kn-text-muted)]">
         {footerLabel}
+        {hint ? ` · ${hint}` : ""}
       </div>
     </div>
   );

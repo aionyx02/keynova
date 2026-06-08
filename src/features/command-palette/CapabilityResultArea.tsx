@@ -57,6 +57,7 @@ interface Props {
     onSelectIndex: (index: number) => void;
     onRunSelected: (index: number) => void;
     onCancel: () => void;
+    hint?: string;
   };
   memoryCard: {
     status: CapabilityRunStatus;
@@ -169,6 +170,7 @@ export function CapabilityResultArea({
           status={listCard.status}
           items={listCard.items}
           error={listCard.error}
+          hint={listCard.hint}
           startedAtMs={listCard.startedAtMs}
           completedAtMs={listCard.completedAtMs}
           selectedIndex={listCard.selectedIndex}
