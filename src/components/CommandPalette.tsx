@@ -55,6 +55,9 @@ import { useRecall } from "../features/ai-capability/hooks/useRecall";
 import { useRemember } from "../features/ai-capability/hooks/useRemember";
 import { useSuggestNext } from "../features/ai-capability/hooks/useSuggestNext";
 import { useWorkspaceProfile } from "../features/ai-capability/hooks/useWorkspaceProfile";
+import { useWorkspacePins } from "../features/ai-capability/hooks/useWorkspacePins";
+import { commandKeyOf, mergeProfileWithPins } from "../features/ai-capability/workspacePins";
+import type { SuggestedNextAction } from "../features/ai-capability/types";
 import { CapabilityListCard } from "../features/ai-capability/CapabilityListCard";
 import type { CapabilitySurfaceMode } from "../features/command-palette/CapabilityResultArea";
 import { CapabilityHintLine } from "../features/command-palette/CapabilityHintLine";
@@ -416,6 +419,9 @@ export function CommandPalette() {
   // Reuses the same list card + replay as `next`; the two modes are mutually
   // exclusive, so the list surface switches its data source between them.
   const workspaceProfile = useWorkspaceProfile({ dispatch });
+  // PROFILE.2 (ADR-0055): per-workspace pinned commands, merged atop the computed
+  // profile so a curated command is always one keystroke away in this workspace.
+  const workspacePins = useWorkspacePins({ dispatch });
   const profileState = useCapabilityRunState({
     active: profileCapabilityMode !== null,
     argsKey: profileCapabilityMode !== null ? "profile" : null,
@@ -426,8 +432,18 @@ export function CommandPalette() {
     cancelInner: workspaceProfile.cancel,
   });
   // Active list capability (prefix `next`/idle or prefix `profile`) drives the
-  // shared `CapabilityListCard` + keyboard nav + replay.
-  const listData = profileCapabilityMode !== null ? workspaceProfile.data : suggestNext.data;
+  // shared `CapabilityListCard` + keyboard nav + replay. In `profile` mode the
+  // pinned commands are merged atop the computed list (PROFILE.2).
+  const pinLabels = React.useMemo(
+    () => ({ rationale: t.capability.pinnedRationale, subtitle: t.capability.pinnedSubtitle }),
+    [t.capability.pinnedRationale, t.capability.pinnedSubtitle],
+  );
+  const profileListData = React.useMemo(
+    () => mergeProfileWithPins(workspacePins.pins, workspaceProfile.data, pinLabels),
+    [workspacePins.pins, workspaceProfile.data, pinLabels],
+  );
+  const pinKeySet = React.useMemo(() => new Set(workspacePins.pins), [workspacePins.pins]);
+  const listData = profileCapabilityMode !== null ? profileListData : suggestNext.data;
   const listState = profileCapabilityMode !== null ? profileState : suggestNextState;
   const listError = profileCapabilityMode !== null ? workspaceProfile.error : suggestNext.error;
   const [idleNextDismissed, setIdleNextDismissed] = React.useState(false);
@@ -743,6 +759,38 @@ export function CommandPalette() {
     ? 0
     : Math.min(capabilitySuggestionSelected, Math.max(listData.length - 1, 0));
 
+  // PROFILE.2 (ADR-0055): pin/unpin a profile row by index. Only `cmd.run`
+  // (replayable) rows have a stable command key, so only those are pinnable.
+  const profilePinActive = profileCapabilityMode !== null;
+  const togglePinAt = React.useCallback(
+    (index: number) => {
+      const item = listData[index];
+      const key = item ? commandKeyOf(item) : null;
+      if (!key) return;
+      void workspacePins.toggle(key);
+    },
+    [listData, workspacePins],
+  );
+  const togglePinSelected = React.useCallback(() => {
+    if (!profilePinActive) return;
+    togglePinAt(safeCapabilitySuggestionSelected);
+  }, [profilePinActive, togglePinAt, safeCapabilitySuggestionSelected]);
+  const profilePinControl = React.useMemo(
+    () =>
+      profilePinActive
+        ? {
+            pinnable: (item: SuggestedNextAction) => commandKeyOf(item) !== null,
+            isPinned: (item: SuggestedNextAction) => {
+              const key = commandKeyOf(item);
+              return key !== null && pinKeySet.has(key);
+            },
+            onToggle: togglePinAt,
+            anyPinned: workspacePins.pins.length > 0,
+          }
+        : undefined,
+    [profilePinActive, pinKeySet, togglePinAt, workspacePins.pins.length],
+  );
+
   const { liveTranslationPanel, PanelComponent, panelInitialArgs, terminalLaunchSpec, panelKey } =
     usePalettePanels({ mode, cmdName, cmdArgs, spaceIdx, cmdResult });
 
@@ -830,6 +878,8 @@ export function CommandPalette() {
             ? recallState.submit
             : capabilityStream.submit,
     onCapabilityRunSelected: () => runSuggestedWorkflow(safeCapabilitySuggestionSelected),
+    capabilityPinMode: profileCapabilityMode !== null,
+    onCapabilityTogglePin: togglePinSelected,
     keepLauncherOpen,
   });
 
@@ -965,6 +1015,8 @@ export function CommandPalette() {
                   onSelectIndex: setCapabilitySuggestionSelected,
                   onRunSelected: runSuggestedWorkflow,
                   onCancel: listState.cancel,
+                  hint: profileCapabilityMode !== null ? t.capability.pinHint : undefined,
+                  pinControl: profilePinControl,
                 }}
                 memoryCard={{
                   status: rememberState.status,

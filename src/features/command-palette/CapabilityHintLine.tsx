@@ -25,6 +25,7 @@ interface PrefixHint {
 // drive the local personal-memory loop.
 const HINTS: ReadonlyArray<PrefixHint> = [
   { prefix: "next", icon: "arrow-right", query: "next" },
+  { prefix: "profile", icon: "workspace", query: "profile" },
   { prefix: "cmd", icon: "command", query: "cmd " },
   { prefix: "remember", icon: "database", query: "remember " },
   { prefix: "recall", icon: "search", query: "recall " },
