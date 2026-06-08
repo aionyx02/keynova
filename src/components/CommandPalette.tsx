@@ -54,6 +54,7 @@ import { useGenCommand } from "../features/ai-capability/hooks/useGenCommand";
 import { useRecall } from "../features/ai-capability/hooks/useRecall";
 import { useRemember } from "../features/ai-capability/hooks/useRemember";
 import { useSuggestNext } from "../features/ai-capability/hooks/useSuggestNext";
+import { useWorkspaceProfile } from "../features/ai-capability/hooks/useWorkspaceProfile";
 import { CapabilityListCard } from "../features/ai-capability/CapabilityListCard";
 import type { CapabilitySurfaceMode } from "../features/command-palette/CapabilityResultArea";
 import { CapabilityHintLine } from "../features/command-palette/CapabilityHintLine";
@@ -321,6 +322,13 @@ export function CommandPalette() {
         source: "prefix",
       };
     }
+    if (explicitCapabilityMode?.id === "profile") {
+      return {
+        id: "profile",
+        args: EMPTY_CAPABILITY_ARGS,
+        source: "prefix",
+      };
+    }
     if (showSmartNext) {
       return {
         id: "next",
@@ -357,6 +365,8 @@ export function CommandPalette() {
     capabilityMode?.id === "cmd" ? { id: capabilityMode.id, args: capabilityMode.args } : null;
   const nextCapabilityMode: { id: "next"; args: Record<string, never> } | null =
     capabilityMode?.id === "next" ? { id: capabilityMode.id, args: capabilityMode.args } : null;
+  const profileCapabilityMode: { id: "profile"; args: Record<string, never> } | null =
+    capabilityMode?.id === "profile" ? { id: capabilityMode.id, args: capabilityMode.args } : null;
   const rememberCapabilityMode: { id: "remember"; args: { text: string } } | null =
     capabilityMode?.id === "remember" ? { id: capabilityMode.id, args: capabilityMode.args } : null;
   const recallCapabilityMode: { id: "recall"; args: { text: string } } | null =
@@ -402,6 +412,24 @@ export function CommandPalette() {
     run: () => suggestNext.run({ ctx: { limit: 5 } }),
     cancelInner: suggestNext.cancel,
   });
+  // PROFILE.1 (ADR-0054): on-demand `profile` prefix → project command profile.
+  // Reuses the same list card + replay as `next`; the two modes are mutually
+  // exclusive, so the list surface switches its data source between them.
+  const workspaceProfile = useWorkspaceProfile({ dispatch });
+  const profileState = useCapabilityRunState({
+    active: profileCapabilityMode !== null,
+    argsKey: profileCapabilityMode !== null ? "profile" : null,
+    autoSubmit: true,
+    isLoading: workspaceProfile.isLoading,
+    error: workspaceProfile.error,
+    run: () => workspaceProfile.run({ ctx: { limit: 7 } }),
+    cancelInner: workspaceProfile.cancel,
+  });
+  // Active list capability (prefix `next`/idle or prefix `profile`) drives the
+  // shared `CapabilityListCard` + keyboard nav + replay.
+  const listData = profileCapabilityMode !== null ? workspaceProfile.data : suggestNext.data;
+  const listState = profileCapabilityMode !== null ? profileState : suggestNextState;
+  const listError = profileCapabilityMode !== null ? workspaceProfile.error : suggestNext.error;
   const [idleNextDismissed, setIdleNextDismissed] = React.useState(false);
   // The proactive idle list shows only once predictions exist and the user has
   // not dismissed it; dismissal resets the moment the palette leaves idle.
@@ -433,6 +461,7 @@ export function CommandPalette() {
       (capabilityStream.status === "pending" || capabilityStream.status === "streaming")) ||
     (commandCapabilityMode !== null && genCommand.isLoading) ||
     (nextCapabilityMode !== null && suggestNext.isLoading) ||
+    (profileCapabilityMode !== null && workspaceProfile.isLoading) ||
     (rememberCapabilityMode !== null && remember.isLoading) ||
     (recallCapabilityMode !== null && recall.isLoading);
 
@@ -456,6 +485,11 @@ export function CommandPalette() {
           on: nextCapabilityMode !== null,
           status: suggestNextState.status,
           error: suggestNext.error,
+        },
+        {
+          on: profileCapabilityMode !== null,
+          status: profileState.status,
+          error: workspaceProfile.error,
         },
         {
           on: rememberCapabilityMode !== null,
@@ -532,7 +566,9 @@ export function CommandPalette() {
         ? capabilityStream.cancel
         : commandCapabilityMode !== null
           ? genCommandState.cancel
-          : suggestNextState.cancel,
+          : profileCapabilityMode !== null
+            ? profileState.cancel
+            : suggestNextState.cancel,
     inputRef,
     containerRef,
     closeSecondaryMenu,
@@ -623,7 +659,7 @@ export function CommandPalette() {
 
   const runSuggestedWorkflow = React.useCallback(
     (index: number) => {
-      const item = suggestNext.data[index];
+      const item = listData[index];
       if (!item?.replay) return;
       if (item.replay.route !== "cmd.run") return;
       const name = typeof item.replay.payload.name === "string" ? item.replay.payload.name : "";
@@ -632,7 +668,7 @@ export function CommandPalette() {
       clearCapabilityQuery();
       void execCommand(name, args);
     },
-    [clearCapabilityQuery, execCommand, suggestNext.data],
+    [clearCapabilityQuery, execCommand, listData],
   );
 
   const closeCapabilitySurface = React.useCallback(() => {
@@ -701,10 +737,11 @@ export function CommandPalette() {
     return results.filter((u) => keep.has(u.id));
   }, [results, visibleResults]);
 
-  const safeCapabilitySuggestionSelected =
-    nextCapabilityMode === null && !idleNextActive
-      ? 0
-      : Math.min(capabilitySuggestionSelected, Math.max(suggestNext.data.length - 1, 0));
+  const capabilityListActive =
+    nextCapabilityMode !== null || profileCapabilityMode !== null || idleNextActive;
+  const safeCapabilitySuggestionSelected = !capabilityListActive
+    ? 0
+    : Math.min(capabilitySuggestionSelected, Math.max(listData.length - 1, 0));
 
   const { liveTranslationPanel, PanelComponent, panelInitialArgs, terminalLaunchSpec, panelKey } =
     usePalettePanels({ mode, cmdName, cmdArgs, spaceIdx, cmdResult });
@@ -780,8 +817,8 @@ export function CommandPalette() {
     runPipeline,
     execCommand,
     capabilityMode: capabilityMode !== null,
-    capabilityListMode: nextCapabilityMode !== null || idleNextActive,
-    capabilityListCount: suggestNext.data.length,
+    capabilityListMode: capabilityListActive,
+    capabilityListCount: listData.length,
     capabilityListSelected: safeCapabilitySuggestionSelected,
     setCapabilityListSelected: setCapabilitySuggestionSelected,
     onCapabilitySubmit:
@@ -919,15 +956,15 @@ export function CommandPalette() {
                   onCancel: genCommandState.cancel,
                 }}
                 listCard={{
-                  status: suggestNextState.status,
-                  items: suggestNext.data,
-                  error: suggestNext.error,
-                  startedAtMs: suggestNextState.startedAtMs,
-                  completedAtMs: suggestNextState.completedAtMs,
+                  status: listState.status,
+                  items: listData,
+                  error: listError,
+                  startedAtMs: listState.startedAtMs,
+                  completedAtMs: listState.completedAtMs,
                   selectedIndex: safeCapabilitySuggestionSelected,
                   onSelectIndex: setCapabilitySuggestionSelected,
                   onRunSelected: runSuggestedWorkflow,
-                  onCancel: suggestNextState.cancel,
+                  onCancel: listState.cancel,
                 }}
                 memoryCard={{
                   status: rememberState.status,
