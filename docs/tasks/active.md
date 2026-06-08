@@ -52,15 +52,15 @@ Detailed batch definitions, done criteria, non-goals, file map, and validation g
 - [x] `PRODUCT.2` v0.7 inline AI capabilities **complete** (2026-06-06; A–E,
   copy-only, ADR-0046). Detail: `archive/product-2-ai-capabilities.md`.
 
-- [x] `CONT` **merged** (`8fc68c7`): proactive idle `next` (ADR-0052), resize
-  coalescing, Ctrl+K race fix. `STAB` **merged** (`8825cce`): crash-log hook
-  (ADR-0051), `/diag` edge fixes.
-- [x] `PRODUCT.4` ranking **merged** (`b0a8b5c`): 4.A freq+workspace (ADR-0052),
-  4.B success-rate (ADR-0053). Detail: `tasks/product-4-ranking.md`.
-- [~] `PROFILE` workspace profiles (`feature/product-4-profiles`). **PROFILE.1
-  done**: `project_root` col (v7) + `workspace_profile` capability (freq×success,
-  project→slot→global) + `profile` prefix reusing the `next` card (ADR-0054).
-  .2/.3 deferred. Detail: `tasks/product-4-profiles.md`.
+- [x] `CONT` (`8fc68c7`): idle `next` (ADR-0052), resize coalescing, Ctrl+K fix.
+  `STAB` (`8825cce`): crash-log hook (ADR-0051), `/diag` fixes.
+- [x] `PRODUCT.4` ranking (`b0a8b5c`): 4.A freq+workspace (ADR-0052), 4.B
+  success-rate (ADR-0053). Detail: `tasks/product-4-ranking.md`.
+- [~] `PROFILE` workspace profiles. **.1 done** (`b616bdd`/`6964d90`):
+  `project_root` col (v7) + `workspace_profile` capability + `profile` prefix
+  (ADR-0054). **.2 done**: per-slot `pinned_commands` (v3) + `workspace.pin` +
+  Ctrl+P pin atop the profile list (ADR-0055). .3 deferred. Detail:
+  `tasks/product-4-profiles.md`.
 
 ### P2
 

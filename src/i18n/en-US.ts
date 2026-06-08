@@ -303,6 +303,10 @@ export const enUS: I18nKeys = {
     listNoRecentBody: "No recent workflows yet.",
     replay: "Replay",
     historyOnly: "History only",
+    // pinned commands (PROFILE.2 / ADR-0055)
+    pinnedRationale: "Pinned to this workspace",
+    pinnedSubtitle: "pinned command",
+    pinHint: "Ctrl+P to pin/unpin",
     // answer
     explain: "Explain",
     summarize: "Summarize",

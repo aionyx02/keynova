@@ -3,7 +3,10 @@ use std::path::PathBuf;
 use serde::{Deserialize, Serialize};
 
 const SLOT_COUNT: usize = 3;
-const CURRENT_WORKSPACE_VERSION: u32 = 2;
+const CURRENT_WORKSPACE_VERSION: u32 = 3;
+/// PROFILE.2 (ADR-0055): a curated set, not a log — keep the pinned list small so
+/// it stays readable atop the computed profile.
+const MAX_PINS: usize = 8;
 
 /// 單一工作區的狀態快照。
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -29,6 +32,10 @@ pub struct WorkspaceState {
     pub note_ids: Vec<String>,
     #[serde(default)]
     pub ai_conversation_ids: Vec<String>,
+    /// PROFILE.2 (ADR-0055): user-curated commands pinned to this slot, shown atop
+    /// the computed `profile`. Replayable `/name args` titles, capped at `MAX_PINS`.
+    #[serde(default)]
+    pub pinned_commands: Vec<String>,
 }
 
 impl WorkspaceState {
@@ -46,6 +53,7 @@ impl WorkspaceState {
             terminal_sessions: Vec::new(),
             note_ids: Vec::new(),
             ai_conversation_ids: Vec::new(),
+            pinned_commands: Vec::new(),
         }
     }
 }
@@ -219,6 +227,28 @@ impl WorkspaceManager {
         self.persist();
     }
 
+    /// PROFILE.2 (ADR-0055): toggle a command pin on the current slot. Adds it
+    /// (most-recent first, capped at `MAX_PINS`) when absent, removes it when
+    /// present. Returns the new pinned state (`true` = now pinned). Blank input is
+    /// a no-op returning `false`.
+    pub fn toggle_pin(&mut self, command: String) -> bool {
+        let command = command.trim().to_string();
+        if command.is_empty() {
+            return false;
+        }
+        let pins = &mut self.slots[self.current].pinned_commands;
+        if let Some(pos) = pins.iter().position(|c| c == &command) {
+            pins.remove(pos);
+            self.persist();
+            false
+        } else {
+            pins.insert(0, command);
+            pins.truncate(MAX_PINS);
+            self.persist();
+            true
+        }
+    }
+
     pub fn current(&self) -> &WorkspaceState {
         &self.slots[self.current]
     }
@@ -286,6 +316,34 @@ mod tests {
         let mut fresh = make_mgr();
         fresh.set_project_root_if_unset("   ".into());
         assert!(fresh.current().project_root.is_none());
+    }
+
+    #[test]
+    fn toggle_pin_adds_then_removes_per_slot() {
+        let mut mgr = make_mgr();
+        assert!(mgr.toggle_pin("/build".into()));
+        assert_eq!(mgr.current().pinned_commands, vec!["/build"]);
+        // Toggling the same command removes it.
+        assert!(!mgr.toggle_pin("/build".into()));
+        assert!(mgr.current().pinned_commands.is_empty());
+        // Blank is a no-op.
+        assert!(!mgr.toggle_pin("   ".into()));
+        // Pins are per slot.
+        mgr.toggle_pin("/deploy".into());
+        mgr.switch_to(1).unwrap();
+        assert!(mgr.current().pinned_commands.is_empty());
+    }
+
+    #[test]
+    fn toggle_pin_caps_at_max_and_keeps_recent_first() {
+        let mut mgr = make_mgr();
+        for i in 0..(MAX_PINS + 3) {
+            mgr.toggle_pin(format!("/cmd{i}"));
+        }
+        let pins = &mgr.current().pinned_commands;
+        assert_eq!(pins.len(), MAX_PINS);
+        // Most-recent insert is first; the oldest were dropped.
+        assert_eq!(pins[0], format!("/cmd{}", MAX_PINS + 2));
     }
 
     #[test]

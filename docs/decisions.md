@@ -2,7 +2,7 @@
 type: decision_index
 status: active
 priority: p1
-updated: 2026-06-07
+updated: 2026-06-08
 context_policy: retrieve_only
 owner: project
 ---
@@ -84,6 +84,7 @@ owner: project
 | [0052](adr/0052-transition-aware-workflow-suggestion.md)  | Transition-Aware Workflow Suggestion (`next`)                           | 提議                             | 2026-06-07 |
 | [0053](adr/0053-workflow-outcome-success-rate.md)         | Workflow Outcome + Success-Rate Ranking                                | 提議                             | 2026-06-07 |
 | [0054](adr/0054-workspace-command-profile.md)             | Workspace Command Profile (Project-Keyed)                              | 提議                             | 2026-06-07 |
+| [0055](adr/0055-workspace-pinned-commands.md)             | Per-Workspace Pinned Commands                                          | 提議                             | 2026-06-08 |
 
 ---
 
