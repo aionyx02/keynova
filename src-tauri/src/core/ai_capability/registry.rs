@@ -14,6 +14,7 @@ pub enum CapabilityId {
     SuggestNext,
     Remember,
     Recall,
+    WorkspaceProfile,
 }
 
 impl CapabilityId {
@@ -26,6 +27,7 @@ impl CapabilityId {
             "suggest_next" => Some(Self::SuggestNext),
             "remember" => Some(Self::Remember),
             "recall" => Some(Self::Recall),
+            "workspace_profile" => Some(Self::WorkspaceProfile),
             _ => None,
         }
     }
@@ -39,6 +41,7 @@ impl CapabilityId {
             Self::SuggestNext => "suggest_next",
             Self::Remember => "remember",
             Self::Recall => "recall",
+            Self::WorkspaceProfile => "workspace_profile",
         }
     }
 }
@@ -88,6 +91,11 @@ const META: &[CapabilityMeta] = &[
         audit: false,
         accepts_context_hash: false,
     },
+    CapabilityMeta {
+        id: CapabilityId::WorkspaceProfile,
+        audit: false,
+        accepts_context_hash: false,
+    },
 ];
 
 pub fn meta(id: CapabilityId) -> CapabilityMeta {
@@ -115,6 +123,7 @@ mod tests {
             CapabilityId::SuggestNext,
             CapabilityId::Remember,
             CapabilityId::Recall,
+            CapabilityId::WorkspaceProfile,
         ] {
             assert_eq!(CapabilityId::parse(id.as_str()), Some(id));
         }
@@ -131,6 +140,7 @@ mod tests {
         assert!(ids.contains(&CapabilityId::SuggestNext));
         assert!(ids.contains(&CapabilityId::Remember));
         assert!(ids.contains(&CapabilityId::Recall));
+        assert!(ids.contains(&CapabilityId::WorkspaceProfile));
     }
 
     #[test]

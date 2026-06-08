@@ -13,7 +13,8 @@ export type CapabilityId =
   | "gen_command"
   | "suggest_next"
   | "remember"
-  | "recall";
+  | "recall"
+  | "workspace_profile";
 
 export interface CapabilityMeta {
   id: CapabilityId;

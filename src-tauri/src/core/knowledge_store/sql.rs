@@ -116,8 +116,8 @@ pub(super) fn insert_workflow_history(
     entry: &WorkflowHistoryEntry,
 ) -> Result<(), String> {
     conn.execute(
-        "INSERT INTO workflow_history (context_hash, route, action_label, payload_digest, workspace_id, succeeded)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+        "INSERT INTO workflow_history (context_hash, route, action_label, payload_digest, workspace_id, succeeded, project_root)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
         params![
             entry.context_hash,
             entry.route,
@@ -125,6 +125,7 @@ pub(super) fn insert_workflow_history(
             entry.payload_digest,
             entry.workspace_id,
             entry.succeeded,
+            entry.project_root,
         ],
     )
     .map_err(|e| e.to_string())?;
@@ -138,7 +139,7 @@ pub(super) fn read_recent_workflows(
 ) -> Result<Vec<WorkflowHistoryRow>, String> {
     let mut stmt = conn
         .prepare(
-            "SELECT id, context_hash, route, action_label, payload_digest, workspace_id, succeeded, executed_at
+            "SELECT id, context_hash, route, action_label, payload_digest, workspace_id, succeeded, project_root, executed_at
              FROM workflow_history
              WHERE (?1 IS NULL OR context_hash = ?1)
              ORDER BY executed_at DESC, id DESC
@@ -155,7 +156,8 @@ pub(super) fn read_recent_workflows(
                 payload_digest: row.get(4)?,
                 workspace_id: row.get(5)?,
                 succeeded: row.get(6)?,
-                executed_at: row.get(7)?,
+                project_root: row.get(7)?,
+                executed_at: row.get(8)?,
             })
         })
         .map_err(|e| e.to_string())?;

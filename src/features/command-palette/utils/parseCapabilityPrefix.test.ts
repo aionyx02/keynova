@@ -69,6 +69,13 @@ describe("parseCapabilityPrefix", () => {
     });
   });
 
+  it("matches profile as a zero-arg capability (ADR-0054)", () => {
+    expect(parseCapabilityPrefix("profile")).toEqual({ id: "profile", args: {} });
+    expect(parseCapabilityPrefix("  profile  ")).toEqual({ id: "profile", args: {} });
+    // Body text after the keyword is not a profile match.
+    expect(parseCapabilityPrefix("profile foo")).toBeNull();
+  });
+
   it("is case-insensitive on the keyword", () => {
     expect(parseCapabilityPrefix("EXPLAIN test")).toEqual({
       id: "explain",

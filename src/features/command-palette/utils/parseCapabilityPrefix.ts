@@ -25,7 +25,7 @@ export type CapabilityTextPrefixId =
   | "fix"
   | "remember"
   | "recall";
-export type CapabilityPrefixId = CapabilityTextPrefixId | "next";
+export type CapabilityPrefixId = CapabilityTextPrefixId | "next" | "profile";
 
 export interface CapabilityTextArgs {
   text: string;
@@ -33,7 +33,11 @@ export interface CapabilityTextArgs {
 
 export type CapabilityPrefixMatch =
   | { id: CapabilityTextPrefixId; args: CapabilityTextArgs }
-  | { id: "next"; args: Record<string, never> };
+  | { id: "next"; args: Record<string, never> }
+  | { id: "profile"; args: Record<string, never> };
+
+/** Zero-arg capability keywords: `kw` and `kw   ` both match, nothing else. */
+const ZERO_ARG: ReadonlyArray<"next" | "profile"> = ["next", "profile"];
 
 interface PrefixSpec {
   keyword: string;
@@ -55,13 +59,14 @@ export function parseCapabilityPrefix(query: string): CapabilityPrefixMatch | nu
   if (!query) return null;
   // Strip leading whitespace once; we test the rest against each prefix.
   const lstripped = query.replace(/^\s+/, "");
-  const nextRest = lstripped.slice("next".length);
-  if (
-    lstripped.length >= "next".length &&
-    lstripped.slice(0, "next".length).toLowerCase() === "next" &&
-    /^\s*$/.test(nextRest)
-  ) {
-    return { id: "next", args: {} };
+  for (const keyword of ZERO_ARG) {
+    if (
+      lstripped.length >= keyword.length &&
+      lstripped.slice(0, keyword.length).toLowerCase() === keyword &&
+      /^\s*$/.test(lstripped.slice(keyword.length))
+    ) {
+      return { id: keyword, args: {} };
+    }
   }
   for (const { keyword, id } of PREFIXES) {
     if (lstripped.length < keyword.length + 1) continue;
