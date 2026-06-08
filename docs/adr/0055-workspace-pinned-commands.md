@@ -53,8 +53,10 @@ capability list.
   carry a 📌 marker, confidence 1.0, and the same `cmd.run` replay descriptor
   (reconstructed from the title, mirroring `replay_for_row`). Computed rows that
   duplicate a pin are dropped so a pin appears once, atop. **Copy/replay-only** —
-  no new execution path. Pinning is a keyboard toggle on the selected profile row
-  (only `cmd.run`/replayable rows are pinnable); the idle `next` surface is
+  no new execution path. Pinning has two affordances for discoverability: a
+  clickable 📌 toggle on each pinnable (`cmd.run`) row and the **Ctrl+P** keyboard
+  toggle on the selected row, plus a first-run onboarding banner shown until the
+  workspace has any pin. The idle `next` surface passes no pin control and is
   untouched.
 
 Keying pins by **slot** (not `project_root`) is the decision: pins are an

@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import type { SuggestedNextAction } from "./types";
-import { commandKeyOf, mergeProfileWithPins, PIN_MARKER, pinToSuggestion } from "./workspacePins";
+import { commandKeyOf, mergeProfileWithPins, pinToSuggestion } from "./workspacePins";
 
 const labels = { rationale: "Pinned", subtitle: "pinned command" };
 
@@ -35,7 +35,7 @@ describe("workspacePins", () => {
   it("pinToSuggestion round-trips back to the same key", () => {
     const sug = pinToSuggestion("/deploy prod", labels);
     expect(sug).not.toBeNull();
-    expect(sug?.title).toBe(`${PIN_MARKER}/deploy prod`);
+    expect(sug?.title).toBe("/deploy prod");
     expect(sug?.confidence).toBe(1);
     expect(sug?.rationale).toBe("Pinned");
     expect(commandKeyOf(sug!)).toBe("/deploy prod");
@@ -55,9 +55,9 @@ describe("workspacePins", () => {
       }),
     ];
     const merged = mergeProfileWithPins(["/build"], profile, labels);
-    // pinned /build first (marked), then only /test remains from the computed tail.
+    // pinned /build first, then only /test remains from the computed tail.
     expect(merged).toHaveLength(2);
-    expect(merged[0].title).toBe(`${PIN_MARKER}/build`);
+    expect(merged[0].title).toBe("/build");
     expect(merged[0].confidence).toBe(1);
     expect(merged[1].title).toBe("/test");
   });
