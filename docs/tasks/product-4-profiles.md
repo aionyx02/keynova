@@ -79,10 +79,27 @@ pins are per slot and survive the command leaving the computed profile. Unit
 tests: `workspace_manager` toggle/cap, `workspacePins` round-trip/merge,
 `useKeyboardNav` Ctrl+P gating.
 
-## PROFILE.3 - Auto-activate on project change (deferred)
+## PROFILE.3 - Auto-activate on project change (dropped, low ROI)
 
-When the detected `project_root` changes, surface "you're in <project>" and load
-the matching profile automatically. Larger UX; after PROFILE.1/.2.
+Idea: when the detected `project_root` changes, surface "you're in <project>" and
+load the matching profile automatically.
+
+**Dropped 2026-06-09** after a prototype (branch `feature/profile-3-auto-activate`,
+deleted). Reasons:
+
+- The "you're in <project>" greeting is low-signal — the user already knows the
+  project; it adds no information.
+- The on-demand `profile` prefix (PROFILE.1) already covers "show my toolkit
+  here"; auto-surfacing competes with idle `next` (ADR-0052) for the idle slot and
+  with the user's actual intent (the palette is usually opened to *do* a thing).
+- Cold start: per-project history must accrue before the list is useful, so the
+  proactive surface is empty/weak exactly when it first appears.
+- The "workspace slot = project" premise is shaky — slots are general-purpose
+  contexts, and only the launch slot ever carries a `project_root`, so the
+  trigger barely fires without extra machinery that wasn't worth the value.
+
+No code shipped to `main`; ADR-0056 was a proposed draft on the deleted branch
+and is not part of the roadmap.
 
 ## Non-goals
 
