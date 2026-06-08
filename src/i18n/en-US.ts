@@ -588,6 +588,7 @@ export const enUS: I18nKeys = {
       remember: "Remember",
       recall: "Recall",
       next: "Next",
+      profile: "Profile",
     } as Record<string, string>,
     descriptions: {
       explain: "Explain a snippet or concept.",
@@ -597,6 +598,7 @@ export const enUS: I18nKeys = {
       remember: "Save useful context.",
       recall: "Find saved context.",
       next: "Suggest the next workflow.",
+      profile: "This workspace's pinned + frequent commands.",
     } as Record<string, string>,
     args: {
       explain: "<question>",
@@ -606,6 +608,7 @@ export const enUS: I18nKeys = {
       remember: "<info>",
       recall: "<query>",
       next: "",
+      profile: "",
     } as Record<string, string>,
   },
   mouseControl: {
