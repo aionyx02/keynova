@@ -585,6 +585,7 @@ export const zhTW = {
       remember: "記住",
       recall: "回想",
       next: "下一步",
+      profile: "工作區",
     } as Record<string, string>,
     descriptions: {
       explain: "解釋片段或概念。",
@@ -594,6 +595,7 @@ export const zhTW = {
       remember: "保存有用脈絡。",
       recall: "找回保存脈絡。",
       next: "建議下一個工作流。",
+      profile: "這個工作區的釘選＋常用指令。",
     } as Record<string, string>,
     args: {
       explain: "<問題>",
@@ -603,6 +605,7 @@ export const zhTW = {
       remember: "<資訊>",
       recall: "<查詢>",
       next: "",
+      profile: "",
     } as Record<string, string>,
   },
   mouseControl: {

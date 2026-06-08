@@ -13,9 +13,10 @@ describe("CapabilityHintLine", () => {
     render(<CapabilityHintLine visible={true} />);
     expect(screen.getByText("Quick starts")).not.toBeNull();
     expect(screen.getByText("Next")).not.toBeNull();
+    expect(screen.getByText("Profile")).not.toBeNull();
     expect(screen.getByText("Command")).not.toBeNull();
     expect(screen.getByText("Remember")).not.toBeNull();
-    expect(screen.getAllByRole("button")).toHaveLength(7);
+    expect(screen.getAllByRole("button")).toHaveLength(8);
   });
 
   it("renders args placeholder for prefixes with args", () => {
@@ -27,7 +28,10 @@ describe("CapabilityHintLine", () => {
   it("fills the selected prefix when clicked", () => {
     const onPickPrefix = vi.fn();
     render(<CapabilityHintLine visible={true} onPickPrefix={onPickPrefix} />);
+    // [0] next, [1] profile (zero-arg), [2] cmd.
     fireEvent.click(screen.getAllByRole("button")[1]);
+    expect(onPickPrefix).toHaveBeenCalledWith("profile");
+    fireEvent.click(screen.getAllByRole("button")[2]);
     expect(onPickPrefix).toHaveBeenCalledWith("cmd ");
   });
 });
