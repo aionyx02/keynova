@@ -212,7 +212,6 @@ export const enUS: I18nKeys = {
     featureDescriptions: {
       "features.ai":
         "Inline AI (explain / summarize / cmd / memory search); needs Ollama or an API key",
-      "features.agent": "Needs Ollama or a tool-calling model",
       "features.translation": "Google Cloud Translation API (needs an API key)",
       "features.notes": "Built-in notes with LazyVim integration",
       "features.history": "Clipboard history",

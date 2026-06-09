@@ -5,7 +5,7 @@
 use rusqlite::{params, Connection};
 
 use super::{
-    ActionLogEntry, ActionStats, AgentArchiveEntry, AgentAuditEntry, AgentMemoryEntry,
+    ActionLogEntry, ActionStats, AgentAuditEntry, AgentMemoryEntry,
     ClipboardMetadataEntry, WorkflowHistoryEntry, WorkflowHistoryRow,
 };
 
@@ -74,18 +74,6 @@ pub(super) fn insert_agent_audit(conn: &Connection, entry: &AgentAuditEntry) -> 
             entry.summary,
             entry.payload_json
         ],
-    )
-    .map_err(|e| e.to_string())?;
-    Ok(())
-}
-
-pub(super) fn insert_agent_archive(
-    conn: &Connection,
-    entry: &AgentArchiveEntry,
-) -> Result<(), String> {
-    conn.execute(
-        "INSERT OR REPLACE INTO agent_archive (run_id, prompt, status, payload_json) VALUES (?1, ?2, ?3, ?4)",
-        params![entry.run_id, entry.prompt, entry.status, entry.payload_json],
     )
     .map_err(|e| e.to_string())?;
     Ok(())

@@ -1,4 +1,3 @@
-pub mod agent;
 pub mod ai;
 pub mod ai_capability;
 pub mod automation;

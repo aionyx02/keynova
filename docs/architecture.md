@@ -2,7 +2,7 @@
 type: architecture_spec
 status: active
 priority: p1
-updated: 2026-06-07
+updated: 2026-06-09
 context_policy: retrieve_only
 owner: project
 ---
@@ -34,11 +34,11 @@ Keynova 是以鍵盤為核心的生產力啟動器，採用 **Tauri 2.x + React 
 │  Layer 3: Core Framework                            │
 │  CommandRouter / EventBus / ConfigManager /         │
 │  BuiltinCommandRegistry / ActionArena /             │
-│  KnowledgeStoreHandle / AgentRuntime                │
+│  KnowledgeStoreHandle                               │
 ├─────────────────────────────────────────────────────┤
 │  Layer 4: Business Logic (Handlers → Managers)      │
 │  launcher, hotkey, terminal, mouse, search,         │
-│  ai, agent, note, workspace, translation,           │
+│  ai, note, workspace, translation,                  │
 │  model, system_control, nvim, automation, plugin,   │
 │  feature (lazy-activation gate)                     │
 ├─────────────────────────────────────────────────────┤
@@ -77,7 +77,6 @@ src/
 ├── components/                  # REF.6.H 後僅保留 app shell + legacy fallback
 │   ├── AppContainer.tsx         # IPCProvider + FeatureFlagsProvider + FeatureProvider + ErrorBoundary 組裝（FeatureFlagsProvider = context/FeatureFlagsContext.tsx, FEAT.GATE persisted features.* single source of truth → useFeatureFlags().isEnabled(key); distinct from FeatureContext session lazy-activation）
 │   ├── CommandPalette.tsx       # 核心 UI：搜尋框 + 結果列表（feature 拆分後的主進入點）
-│   ├── AiPanel.tsx              # REF.6.G / REF.7.A / REF.8: ai.legacy_agent=true 時透過 PanelRegistry["ai_legacy"] + /ai_legacy_chat 進入
 │   ├── FloatingWindow.tsx       # 浮動視窗容器
 │   ├── icons/                   # UiIcon + 圖示資產
 │   └── panel/
@@ -138,7 +137,6 @@ src-tauri/src/
 │   ├── secret_store.rs    # OS keychain-backed secret references for sensitive config
 │   ├── knowledge_store.rs # SQLite 非同步 actor (public types + KnowledgeStoreHandle)
 │   │   └── knowledge_store/{schema,sql,worker}.rs  # REF.9.D: connection+migration / row ops / worker thread
-│   ├── agent_runtime.rs   # ReAct agent 迴圈
 │   ├── action_registry.rs # ActionArena（短生命周期 action ref）
 │   ├── builtin_command_registry.rs
 │   ├── automation_engine.rs
@@ -150,7 +148,7 @@ src-tauri/src/
 │   ├── dev_utils.rs       # UTIL.2: uuid/nanoid/pw/hash/b64/url/json/regex/jwt/color/cron pure-fn computations
 │   ├── process_lookup.rs  # UTIL.2.J: find_process_by_port + kill_pid (Windows netstat+tasklist / Unix lsof)
 │   ├── project_commands.rs # PRODUCT.1.D: discover(root) — package.json/Cargo.toml/Makefile/justfile → copy-only command rows (normalize_intent + risky); execution deferred to 1.E
-│   ├── grounding.rs       # REF.3: GroundingSource construction helpers (source/visibility_filtered_source/truncate/contains_any/parse_visibility); shared by agent path and ai_capability layer
+│   ├── grounding.rs       # REF.3: GroundingSource construction helpers (source/visibility_filtered_source/truncate/contains_any/parse_visibility); consumed by the ai_capability layer
 │   ├── local_context.rs   # REF.3: LocalContextSearcher — workspace/command/note/history/model source aggregation; consumed by ai_capability (REF.4)
 │   ├── dev_runner.rs      # REF.3: bounded read-only dev command runner (run_bounded_dev_cmd / extract_compiler_errors / bound_output_n); consumed by fix_error capability (REF.4)
 │   ├── ai_capability/     # REF.4: stateless single-shot capability layer (ADR-0029). call_capability(req, deps) dispatched on a compile-time enum match.
@@ -174,18 +172,7 @@ src-tauri/src/
 │   ├── workflow_memory.rs # REF.5: workflow_history (schema v4) record + suggest + compute_context_hash + digest_payload. Heuristic recency-only ranking; coarse hash(workspace_id, mode, panel).
 │   └── ipc_error.rs
 ├── handlers/              # CommandHandler 實作（每個 namespace 一個）
-│   ├── agent/             # Agent handler 子模組
-│   │   ├── mod.rs              # AgentHandler struct + CommandHandler dispatch + remaining helpers (REF.3 in progress)
-│   │   ├── lifecycle.rs        # REF.3: start_run / start_react_run / start_heuristic_run / approve_run / reject_run / memory_refs
-│   │   ├── planning.rs         # REF.3 (deprecated, ADR-0029): plan_approvals / detect_planned_action / plan_* draft detectors / execute_planned_action — removed in REF.8
-│   │   ├── answers.rs          # REF.3 (deprecated, ADR-0029): direct_local_answer + answer_filesystem_search / answer_file_read / answer_project_type_summary / answer_github_trending / answer_web_search — removed in REF.8
-│   │   ├── sources.rs          # REF.3: sources_for_prompt / run_tool / filesystem_search_roots_for_prompt / filesystem_search_sources / filesystem_read_source / local_searcher / keynova_search / push_setting_schema_sources / web_search / log_audit / build_context_bundle
-│   │   ├── tools.rs            # REF.3: ReactDispatchState + all dispatch_* (keynova/filesystem/web/git.status/dev.cargo_test/check/npm.build/lint/explain_compiler_error/learning_material_review) + AgentHandler::build_react_dispatch
-│   │   ├── filesystem.rs       # filesystem-search + read helpers
-│   │   ├── formatting.rs       # prompt audit / plan / describe / suggested_note_name / re-export of core/grounding helpers
-│   │   ├── intent.rs           # should_run_local_search + capability/time direct-answer
-│   │   ├── safety.rs           # sanitize_external_query / long_term_memory_opt_in / looks_sensitive_path / resolve_readable_path
-│   │   └── web.rs              # web-search provider abstraction (duckduckgo + tavily + searxng + github trending)
+│   # REF.8: handlers/agent/（legacy ReAct agent dispatch）已整段移除（ADR-0029）。
 │   ├── ai.rs / model.rs / translation.rs
 │   ├── ai_capability.rs       # REF.4: capability.* IPC (list/call/cancel). Async worker via thread::spawn; per-request cancel flag; emits capability.response + (when stream=true) capability.stream.chunk events. FEAT.GATE: capability.call refuses when features.ai=false (covers remember/recall); list/cancel ungated.
 │   ├── workflow_memory.rs     # REF.5: workflow.* IPC (recent/suggest). Synchronous read via KnowledgeStoreHandle::recent_workflows_blocking; suggest resolves context_hash server-side.
@@ -257,7 +244,7 @@ Result<Value, String>  ←── 回傳給前端
 ### 3.2 事件推送路徑（Event Push）
 
 ```
-Manager / AgentRuntime / TerminalManager
+Manager / TerminalManager
     │  event_bus.publish(AppEvent { topic, payload })
     ▼
 EventBus (tokio broadcast channel, capacity=256)
@@ -358,9 +345,6 @@ KnowledgeStore::try_log_action()  (非同步 SQLite 寫入)
 | `ai.stream.chunk`            | AI 串流回覆片段      | `{ session_id, chunk }`             |
 | `ai.stream.done`             | AI 串流完成          | `{ session_id }`                    |
 | `ai.stream.error`            | AI 串流失敗          | `{ session_id, error }`             |
-| `agent.step`                 | ReAct agent 執行步驟 | `{ run_id, step, thought, action }` |
-| `agent.done`                 | ReAct agent 完成     | `{ run_id, answer }`                |
-| `agent.error`                | ReAct agent 失敗     | `{ run_id, error }`                 |
 | `model.download.progress`    | 模型下載進度         | `{ name, pct, stage }`              |
 | `model.download.done`        | 模型下載完成         | `{ name, path }`                    |
 | `model.download.error`       | 模型下載失敗         | `{ name, error }`                   |
@@ -421,8 +405,8 @@ nvim_bin = ""         # 空白則 detect → portable 下載
 | -------------------- | --------------------------------------------------- | ----------------- |
 | `schema_version`     | version INTEGER                                     | schema 版本管理   |
 | `action_log`         | action_id, label, status, duration_ms, error        | action 執行記錄   |
-| `agent_audit`        | run_id, event_type, status, summary, payload_json   | ReAct audit trail |
-| `agent_memory`       | id, scope, workspace_id, title, content, visibility | Agent 長期記憶    |
+| `agent_audit_logs`   | run_id, event_type, status, summary, payload_json   | capability prompt 稽核 |
+| `agent_memories`     | id, scope, workspace_id, title, content, visibility | 個人記憶（MEM.1） |
 | `clipboard_metadata` | item_id, content_type, workspace_id                 | 剪貼簿 metadata   |
 
 ---
@@ -464,42 +448,19 @@ SearchManager
 
 ---
 
-## 8. Agent 架構（ReAct）
+## 8. AI Capability 層（ADR-0029）
 
-```
-AgentHandler::execute("run", payload)
-    │
-    ▼
-AgentRuntime::run(query, deps)
-    │
-    ▼
-ReAct 迴圈（最多 N 步）：
-    ├── Thought: LLM 產生推理
-    ├── Action: 呼叫工具（filesystem, web, note, search…）
-    │     handlers/agent/
-    │       ├── intent.rs    → 解析 LLM 意圖
-    │       ├── filesystem.rs → 檔案操作工具
-    │       ├── web.rs       → Web 搜尋工具
-    │       ├── formatting.rs → 輸出格式化
-    │       └── safety.rs    → 工具權限 gate
-    └── Observation: 工具結果 → 加入上下文
-    │
-    ▼
-EventBus: agent.step / agent.done / agent.error
-    │
-    ▼
-KnowledgeStore: agent_audit 寫入 SQLite
-```
+> **REF.8（2026-06-09）：** 舊版 ReAct agent（`agent_runtime.rs`、`handlers/agent/`、
+> `AgentHandler`、approval/ReAct loop、web-search/tool-call provider 抽象、`agent_archive`
+> FIFO 表與 `ai.legacy_agent` flag）已整段移除。ADR-0029 以**無狀態、single-shot 的
+> inline capability** 取代 agent；詳見 ADR-0029 與 §10 capability 層說明。保留的共用資產：
+> `agent_audit_logs`（capability prompt 稽核）、`agent_memories`（個人記憶 MEM.1）、
+> `GroundingSource`/`ContextVisibility` 共用型別。
 
-**AgentObservationPolicy** 控制哪些工具輸出可以被加入觀察（防止資訊洩漏）。
-
-**AgentArchiveSink** (Phase 7a, 2026-05-16)：`AgentRuntime::insert_run` 以 FIFO cap（預設 `agent.run_history_cap = 20`）限制 in-memory `runs`，溢出時透過 `AgentArchiveSink::archive(&AgentRun)` 寫入 `agent_archive` SQLite 表，並 emit `agent.run.archived` 事件。生產線（`app/state.rs`）注入 `KnowledgeStoreArchiveSink`；測試以 `NoopArchiveSink` 或 mock 替代。設計保持 runtime 不直接耦合 KnowledgeStore。
-
-**Approval streaming + cancel** (Phase 7a, 2026-05-16)：
+**Approval streaming + cancel**（AI chat / capability 共用基礎設施）：
 
 - `AiManager::chat_async` 接受 `cancel_flag: Option<Arc<AtomicBool>>` 與 `cancel_registry: Option<CancelRegistry>`；handler 註冊 per-request flag，`ai.cancel` 設旗並從 registry 移除；spawned thread 在 thread 起點與 `do_chat` 後 check flag，cancelled 時 rollback user message 並 emit `ai.response { cancelled:true }`。
 - `ai.stream_enabled` (default `true`) 切換到 streaming：三家 provider chunked HTTP，逐 chunk emit `ai.stream.chunk { request_id, delta }`，完成時照舊 emit `ai.response` 收尾。前端 `useAi` 維持單一 `pendingIdRef` guard，stray chunk 自動被丟棄。
-- `wait_for_react_approval` 達到 `agent.approval_timeout_secs`（default 300）時 mutate approval `status = "approval_timeout"` 並 emit `agent.approval.timeout`；approve(remember=true) 在 ReAct 下一個同 `tool_name` 的 gate 被短路為 `Approved`。
 
 ---
 

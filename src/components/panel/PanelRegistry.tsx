@@ -4,10 +4,10 @@ import { manifestPanels } from "../../features/featureManifest";
 
 export type { PanelProps };
 
-// REF.8 — `AiPanel` (legacy chat-first UI) deleted along with the `ai_legacy`
-// panel route and the `ai_legacy_chat` builtin command. The backend agent
-// (agent_runtime + handlers/agent) is retained as a dormant capability asset
-// behind the reserved `ai.legacy_agent` flag, but has no UI entry point.
+// REF.8 — the legacy ReAct agent was fully removed: `AiPanel` (chat-first UI),
+// the `ai_legacy` panel route, the `ai_legacy_chat` builtin, the backend
+// `agent_runtime` + `handlers/agent`, and the `ai.legacy_agent` flag are gone.
+// ADR-0029 supersedes the agent; inline AI is the stateless capability layer.
 //
 // DECOUP.5 (ADR-0044): feature panels now self-register via their
 // `features/<x>/manifest.ts`; only the non-feature `setting` and the
