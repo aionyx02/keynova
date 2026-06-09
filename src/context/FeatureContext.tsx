@@ -3,7 +3,7 @@ import type { ReactNode } from "react";
 import { useIPC } from "../hooks/useIPC";
 import { IPC } from "../ipc/routes";
 
-export type FeatureKey = "terminal" | "ai" | "notes" | "nvim" | "system_monitor";
+export type FeatureKey = "terminal" | "ai" | "notes" | "system_monitor";
 
 interface FeatureContextValue {
   isActive: (key: FeatureKey) => boolean;

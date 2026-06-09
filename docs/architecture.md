@@ -37,9 +37,9 @@ Keynova 是以鍵盤為核心的生產力啟動器，採用 **Tauri 2.x + React 
 │  KnowledgeStoreHandle                               │
 ├─────────────────────────────────────────────────────┤
 │  Layer 4: Business Logic (Handlers → Managers)      │
-│  launcher, hotkey, terminal, mouse, search,         │
+│  launcher, hotkey, terminal, search,                │
 │  ai, note, workspace, translation,                  │
-│  model, system_control, nvim, automation, plugin,   │
+│  model, system_control, automation, plugin,         │
 │  feature (lazy-activation gate)                     │
 ├─────────────────────────────────────────────────────┤
 │  Layer 5: Indexer / Storage                         │
@@ -62,7 +62,6 @@ Keynova 是以鍵盤為核心的生產力啟動器，採用 **Tauri 2.x + React 
 | Local AI           | Ollama (via HTTP), llama.cpp (計劃中) |
 | Search index       | Tantivy (Rust 原生全文索引)           |
 | Persistent store   | SQLite (rusqlite), TOML config        |
-| Editor integration | Neovim (portable, on-demand download) |
 
 ---
 
@@ -88,9 +87,7 @@ src/
 │   ├── history/                 # HistoryPanel
 │   ├── learning/                # LearningMaterialPanel
 │   ├── model-manager/           # 3 model panels（tab 合併保留為 REF.6.H follow-up）
-│   ├── mouse-control/           # MouseControlOverlay
 │   ├── notes/                   # NoteEditor
-│   ├── nvim/                    # NvimDownloadPanel
 │   ├── settings/                # SettingPanel
 │   ├── system/                  # SystemPanel
 │   ├── system-monitor/          # SystemMonitoringPanel
@@ -179,13 +176,13 @@ src-tauri/src/
 │   ├── search.rs              # REF.6.A: search.query IPC now emits UnifiedResult[] (via to_unified_results helper). UiSearchItem stays internal; conversion happens at sync return, stream-init batch, and emit_search_chunk boundaries. MEM.1.C: holds config + knowledge_store; providers.rs append_memory_results surfaces scope=personal memories as ResultKind::Memory rows (gated by features.ai); note/history providers gated by their flags.
 │   │   └── search/{icon,ranking,providers}.rs  # REF.9.E: icon/svg render (pub(crate) icon_key_for_item) / scoring+sort / non-file result providers split out
 │   ├── launcher.rs / search.rs / history.rs
-│   ├── hotkey.rs / mouse.rs
+│   ├── hotkey.rs
 │   ├── terminal.rs / note.rs / workspace.rs
 │   ├── system_control.rs / system_monitoring.rs
 │   ├── builtin_cmd.rs / calculator.rs / setting.rs
-│   │   └── builtin_cmd/note.rs   # REF.9.A: NoteCommand + LazyVim launch (split out of builtin_cmd.rs)
+│   │   └── builtin_cmd/note.rs   # REF.9.A: NoteCommand (opens note panel; REF.8 dropped LazyVim launch)
 │   ├── dev_utils_cmd.rs        # UTIL.2.A–J: 15 inline BuiltinCommand wrappers incl. killport two-phase confirm
-│   ├── nvim.rs / automation.rs / plugin.rs
+│   ├── automation.rs / plugin.rs
 │   ├── learning_material.rs  # FEAT.11: scan/preview/export_note/export_markdown
 │   ├── file.rs               # LAUNCH.1.A/B/C: file.* secondary actions (reveal/open_with/open_as_text/rename/move/delete/hash/preview); destructive ops gated by two-phase confirm; preview returns bounded text 4 KB / image metadata / binary metadata
 │   └── mod.rs
@@ -193,11 +190,11 @@ src-tauri/src/
 │   ├── ai_manager.rs / model_manager.rs
 │   ├── app_manager.rs / system_manager.rs / system_indexer.rs
 │   ├── history_manager.rs / search_manager.rs / tantivy_index.rs
-│   ├── hotkey_manager.rs / mouse_manager.rs
+│   ├── hotkey_manager.rs
 │   ├── terminal_manager.rs / note_manager.rs / workspace_manager.rs
 │   ├── calculator_manager.rs / translation_manager.rs
 │   │   └── calculator_manager/{parser,datemath,units}.rs  # REF.9.B: expr eval / date math / unit+currency split out
-│   ├── portable_nvim_manager.rs / sandbox_manager.rs
+│   ├── sandbox_manager.rs
 │   ├── learning_material_manager.rs  # FEAT.11: metadata scanner, classifier, preview
 │   └── mod.rs
 ├── models/                # 共用資料結構（serde）
@@ -305,7 +302,6 @@ KnowledgeStore::try_log_action()  (非同步 SQLite 寫入)
 | `launcher`          | launcher.rs          | list, launch, search apps |
 | `hotkey`            | hotkey.rs            | register, unregister      |
 | `terminal`          | terminal.rs          | spawn, write, kill        |
-| `mouse`             | mouse.rs             | move, click, scroll       |
 | `search`            | search.rs            | query, index, rebuild     |
 | `model`             | model.rs             | list, download, remove    |
 | `cmd`               | builtin_cmd.rs       | run built-in commands     |
@@ -316,9 +312,7 @@ KnowledgeStore::try_log_action()  (非同步 SQLite 寫入)
 | `history`           | history.rs           | list, clear               |
 | `ai`                | ai.rs                | chat, stream              |
 | `translation`       | translation.rs       | translate                 |
-| `agent`             | agent/mod.rs         | run, cancel, status       |
 | `system_monitoring` | system_monitoring.rs | start, stop, snapshot     |
-| `nvim`              | nvim.rs              | detect, download          |
 | `automation`        | automation.rs        | execute                   |
 | `plugin`            | plugin.rs            | list, load                |
 
@@ -348,7 +342,6 @@ KnowledgeStore::try_log_action()  (非同步 SQLite 寫入)
 | `model.download.progress`    | 模型下載進度         | `{ name, pct, stage }`              |
 | `model.download.done`        | 模型下載完成         | `{ name, path }`                    |
 | `model.download.error`       | 模型下載失敗         | `{ name, error }`                   |
-| `nvim-download-progress`     | Neovim 下載進度      | `{ stage, pct, error? }`            |
 | `system_monitoring.snapshot` | 系統資源快照         | `{ cpu_pct, mem_mb, … }`            |
 | `translation.done`           | 翻譯完成             | `{ text, target_lang }`             |
 
@@ -366,7 +359,6 @@ KnowledgeStore::try_log_action()  (非同步 SQLite 寫入)
 | `%LOCALAPPDATA%\Keynova\knowledge.db`    | SQLite（action log, agent memory, clipboard metadata） |
 | `%LOCALAPPDATA%\Keynova\notes\`          | Markdown 筆記檔案                                      |
 | `%LOCALAPPDATA%\Keynova\search\tantivy\` | Tantivy 全文索引                                       |
-| `%LOCALAPPDATA%\Keynova\nvim\`           | Portable Neovim 執行檔                                 |
 
 Linux/macOS 對應：`~/.config/keynova/` 與 `~/.local/share/keynova/`。
 
@@ -375,7 +367,6 @@ Linux/macOS 對應：`~/.config/keynova/` 與 `~/.local/share/keynova/`。
 ```toml
 [hotkeys]
 app_launcher = "Ctrl+K"
-mouse_control = "Ctrl+Alt+M"
 
 [terminal]
 font_size = 13
@@ -383,9 +374,6 @@ scrollback_lines = 1000
 
 [launcher]
 max_results = 10
-
-[mouse_control]
-step_size = 15
 
 [search]
 backend = "tantivy"   # 或 "everything"（Windows）
@@ -396,7 +384,6 @@ max_items = 200
 
 [notes]
 storage_dir = ""      # 空白使用預設路徑
-nvim_bin = ""         # 空白則 detect → portable 下載
 ```
 
 ### 6.3 knowledge.db Schema（版本 3）
@@ -486,8 +473,6 @@ SearchManager
 | 全域快捷鍵       | WinAPI                | X11/Wayland         | Accessibility API |
 | 系統應用程式列表 | Registry + Start Menu | .desktop files      | LaunchServices    |
 | 全文搜尋         | tantivy 或 Everything | tantivy             | tantivy           |
-| 滑鼠控制         | WinAPI SendInput      | xdotool             | CGEvent           |
-| Neovim portable  | nvim-win64.zip        | nvim-linux64.tar.gz | nvim-macos.tar.gz |
 
 ---
 

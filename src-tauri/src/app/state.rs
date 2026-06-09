@@ -1,4 +1,4 @@
-use std::sync::{atomic::AtomicBool, Arc, Mutex};
+use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
 use serde_json::json;
@@ -28,7 +28,6 @@ use crate::handlers::{
     hotkey::HotkeyHandler,
     launcher::LauncherHandler,
     model::ModelHandler,
-    mouse::MouseHandler,
     plugin::PluginHandler,
     search::{SearchHandler, SearchHandlerDeps},
     setting::SettingHandler,
@@ -38,7 +37,7 @@ use crate::handlers::{
 };
 use crate::managers::{
     ai_manager::AiManager, app_manager::AppManager, history_manager::HistoryManager,
-    hotkey_manager::HotkeyManager, model_manager::ModelManager, mouse_manager::MouseManager,
+    hotkey_manager::HotkeyManager, model_manager::ModelManager,
     note_manager::NoteManager, search_manager::SearchManager, search_service::SearchService,
     terminal_manager::TerminalManager, workspace_manager::WorkspaceManager,
 };
@@ -51,7 +50,6 @@ pub(crate) struct AppState {
     pub(crate) action_arena: Arc<ActionArena>,
     pub(crate) event_bus: EventBus,
     pub(crate) knowledge_store: KnowledgeStoreHandle,
-    pub(crate) mouse_active: Arc<AtomicBool>,
     pub(crate) launcher_focus_guard: Arc<Mutex<Option<Instant>>>,
     /// Timestamp of the last Ctrl+K launcher toggle, used to debounce a
     /// double-fired global shortcut so a single press cannot hide-then-show.
@@ -72,7 +70,6 @@ struct ManagerBundle {
     config_manager: Arc<Mutex<ConfigManager>>,
     app_manager: Arc<Mutex<AppManager>>,
     hotkey_manager: Arc<Mutex<HotkeyManager>>,
-    mouse_manager: Arc<Mutex<MouseManager>>,
     workspace_manager: Arc<Mutex<WorkspaceManager>>,
     model_manager: Arc<ModelManager>,
     note_manager: Arc<Mutex<NoteManager>>,
@@ -86,7 +83,6 @@ struct ManagerBundle {
 fn create_managers(event_bus: &EventBus) -> ManagerBundle {
     let app_manager = Arc::new(Mutex::new(AppManager::new()));
     let hotkey_manager = Arc::new(Mutex::new(HotkeyManager::new()));
-    let mouse_manager = Arc::new(Mutex::new(MouseManager::new()));
     let workspace_manager = Arc::new(Mutex::new(WorkspaceManager::new()));
     // PROJECT_ROOT.wire — detect the launch directory's project root once at
     // startup so workspace-aware search + project command discovery (1.A/1.C/1.D)
@@ -155,7 +151,6 @@ fn create_managers(event_bus: &EventBus) -> ManagerBundle {
         config_manager,
         app_manager,
         hotkey_manager,
-        mouse_manager,
         workspace_manager,
         model_manager,
         note_manager,
@@ -167,10 +162,7 @@ fn create_managers(event_bus: &EventBus) -> ManagerBundle {
     }
 }
 
-fn build_builtin_registry(
-    config_manager: &Arc<Mutex<ConfigManager>>,
-    note_manager: &Arc<Mutex<NoteManager>>,
-) -> Arc<Mutex<BuiltinCommandRegistry>> {
+fn build_builtin_registry() -> Arc<Mutex<BuiltinCommandRegistry>> {
     let registry = Arc::new(Mutex::new(BuiltinCommandRegistry::new()));
     let mut reg = registry.lock().expect("registry init");
     reg.register(Box::new(HelpCommand));
@@ -189,10 +181,7 @@ fn build_builtin_registry(
     // `agent_runtime`, `handlers/agent`, the `ai.legacy_agent` flag) was fully
     // removed; ADR-0029 supersedes it. Inline AI is the capability layer only.
     reg.register(Box::new(ModelCommand));
-    reg.register(Box::new(NoteCommand::new(
-        Arc::clone(note_manager),
-        Arc::clone(config_manager),
-    )));
+    reg.register(Box::new(NoteCommand::new()));
     reg.register(Box::new(CalCommand));
     reg.register(Box::new(HistoryCommand));
     reg.register(Box::new(SysCtlCommand));
@@ -225,9 +214,8 @@ fn build_command_router(
     event_bus: &EventBus,
     action_arena: &Arc<ActionArena>,
     knowledge_store: &KnowledgeStoreHandle,
-    mouse_active: &Arc<AtomicBool>,
 ) -> (CommandRouter, Vec<(&'static str, &'static str)>) {
-    let builtin_registry = build_builtin_registry(&bundle.config_manager, &bundle.note_manager);
+    let builtin_registry = build_builtin_registry();
 
     let mut router = CommandRouter::new();
     router.register(Arc::new(LauncherHandler::new(Arc::clone(
@@ -241,10 +229,6 @@ fn build_command_router(
         Arc::clone(&bundle.workspace_manager),
     )));
     router.register(Arc::new(FeatureHandler::new()));
-    router.register(Arc::new(MouseHandler::new(
-        Arc::clone(&bundle.mouse_manager),
-        Arc::clone(mouse_active),
-    )));
     router.register(Arc::new(SearchHandler::new(SearchHandlerDeps {
         manager: Arc::clone(&bundle.search_manager),
         action_arena: Arc::clone(action_arena),
@@ -340,7 +324,6 @@ impl AppState {
         let event_bus = EventBus::default();
         let action_arena = Arc::new(ActionArena::default());
         let knowledge_store = KnowledgeStoreHandle::new_default();
-        let mouse_active = Arc::new(AtomicBool::new(false));
 
         let bundle = create_managers(&event_bus);
         let (command_router, feature_namespace_guards) = build_command_router(
@@ -348,7 +331,6 @@ impl AppState {
             &event_bus,
             &action_arena,
             &knowledge_store,
-            &mouse_active,
         );
 
         Self {
@@ -357,7 +339,6 @@ impl AppState {
             action_arena,
             event_bus,
             knowledge_store,
-            mouse_active,
             launcher_focus_guard: Arc::new(Mutex::new(None)),
             last_launcher_toggle: Arc::new(Mutex::new(None)),
             _config_manager: bundle.config_manager,

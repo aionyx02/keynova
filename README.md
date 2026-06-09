@@ -203,7 +203,7 @@ Keynova 不追求 Raycast 或 Alfred 的全功能廣度。它把產品範圍收�
 - **Translation**：Google Cloud Translation v2 文字翻譯。
 - **Model Manager**：透過 `/model` 下載、列出、啟用與移除本機模型，並依硬體顯示建議清單。
 - **History**：本機 clipboard history、搜尋、釘選與貼上。
-- **System / Learning / Nvim**：保留為選用或 feature-gated surface，不構成產品主敘事。
+- **System / Learning**：保留為選用或 feature-gated surface，不構成產品主敘事。
 
 ## AI 的角色
 
@@ -311,7 +311,7 @@ Keynova 不是通用 launcher、AI chat app 或 catch-all 生產力套件。產�
 ### 核心與選用功能
 
 - **核心 daily path**：unified search、file actions、terminal、project command discovery、dev utilities、inline AI capability。
-- **選用 / parked**：Model Manager、Translation、Notes、Automation、Nvim、Learning Panel、System Monitor、Plugin System、長期自主 agent memory。這些功能可存在於 feature gate 後，但不主導 v0.6 / v0.7 的產品敘事。
+- **選用 / parked**：Model Manager、Translation、Notes、Automation、Learning Panel、System Monitor、Plugin System、長期自主 agent memory。這些功能可存在於 feature gate 後，但不主導 v0.6 / v0.7 的產品敘事。REF.8 已移除 nvim/LazyVim 整合與 mouse-control。
 
 ### 明確非目標
 
