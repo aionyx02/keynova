@@ -22,11 +22,11 @@
   "workflow": {
     "name": "P0 Refactor: AI Capability Layer And Unified Search",
     "zh_name": "P0 重構：AI 能力層與統一搜尋主線",
-    "current_task": "REF.6",
+    "current_task": null,
     "progress": {
-      "done": 6,
+      "done": 9,
       "total": 9,
-      "percent": 67
+      "percent": 100
     },
     "rules": [
       "Markdown remains the authority.",
@@ -38,48 +38,16 @@
     "reminder_required": true,
     "source": "docs/state/decision-summary.json"
   },
-  "open_tasks": [
-    {
-      "id": "REF.6",
-      "title": "Search Box As Pure Dispatcher (in progress)",
-      "priority": "P0",
-      "status": "planned",
-      "summary": "Search Box As Pure Dispatcher (in progress)",
-      "depends_on": [
-        "REF.4",
-        "REF.5"
-      ],
-      "parallel_with": []
-    },
-    {
-      "id": "REF.7",
-      "title": "Quantitative Gates And Legacy Default Off",
-      "priority": "P0",
-      "status": "planned",
-      "summary": "Quantitative Gates And Legacy Default Off",
-      "depends_on": [
-        "REF.6"
-      ],
-      "parallel_with": []
-    },
-    {
-      "id": "REF.8",
-      "title": "Physical Removal — PARTIAL (2026-06-01)",
-      "priority": "P0 after observation",
-      "status": "planned",
-      "summary": "Physical Removal — PARTIAL (2026-06-01)",
-      "depends_on": [
-        "REF.7"
-      ],
-      "parallel_with": []
-    }
-  ],
+  "open_tasks": [],
   "completed_task_ids": [
     "REF.0",
     "REF.1",
     "REF.2",
     "REF.3",
     "REF.4",
-    "REF.5"
+    "REF.5",
+    "REF.6",
+    "REF.7",
+    "REF.8"
   ]
 }

@@ -1,6 +1,6 @@
 ---
 type: task_plan
-status: active
+status: completed
 priority: p1
 context_policy: on_demand
 owner: project
@@ -8,6 +8,12 @@ tags: [ref-8, cut, converge, legacy-agent, scope]
 ---
 
 # REF.8 finish + scope cut + convergence
+
+**Status: completed 2026-06-09** (commits `6f871cf` A, `2d35f53` B, + C convergence;
+not yet merged — awaiting developer review). Scope change during execution:
+**`notes` was kept** (developer reversed the cut — NoteManager is load-bearing for
+learning_material/local_context/search); only **nvim** and **mouse_control** were
+cut in batch B. Outcome detail: `docs/memory/sessions/2026-06-09.md`.
 
 Branch: `feature/ref8-cut-parked-converge` (from `main`). Developer-directed
 2026-06-09 after dropping PROFILE.3: spend the "converge" energy on deleting dead
