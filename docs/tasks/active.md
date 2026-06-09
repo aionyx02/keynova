@@ -30,10 +30,9 @@ tags: [refactor, ai-capability, search-first, p0]
   .D **done** (2026-06-06): ADR-0029 §10 + §8 tiered gates (`qwen2.5:1.5b` ref
   default, PASS). The `ai.legacy_agent` default/observation items are moot —
   the flag and the whole legacy agent were removed in REF.8.
-- [x] `REF.8` legacy-agent removal + parked-feature cut (2026-06-09). **A**:
-  deleted `agent_runtime.rs` + `handlers/agent/` + tool-call provider + flag;
-  ADRs 0016/0022/0023/0026 superseded by 0029. **B**: cut nvim + mouse_control
-  (notes kept). Detail: `sessions/2026-06-09.md`.
+- [x] `REF.8` legacy-agent removal + parked-feature cut (2026-06-09): deleted
+  `agent_runtime`/`handlers/agent` + flag (ADRs 0016/0022/0023/0026 superseded by
+  0029), cut nvim + mouse_control (notes kept). Detail: `sessions/2026-06-09.md`.
 
 Detailed batch definitions, done criteria, non-goals, file map, and validation gates live in `docs/tasks/refactor-ai-capability.md`.
 
@@ -58,6 +57,8 @@ Detailed batch definitions, done criteria, non-goals, file map, and validation g
 - [x] `PRODUCT.2` v0.7 inline AI capabilities **complete** (2026-06-06; A–E,
   copy-only, ADR-0046). Detail: `archive/product-2-ai-capabilities.md`.
 
+- [x] `CI.HARDEN` Dependabot + CodeQL + branch-protection (`/status` triage;
+  `feature/ci-supply-chain-hardening`). Detail: `sessions/2026-06-09.md`.
 - [x] `CONT` (`8fc68c7`): idle `next` (ADR-0052), resize coalescing, Ctrl+K fix.
   `STAB` (`8825cce`): crash-log hook (ADR-0051), `/diag` fixes.
 - [x] `PRODUCT.4` ranking (`b0a8b5c`): 4.A freq+workspace (ADR-0052), 4.B
