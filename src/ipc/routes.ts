@@ -56,13 +56,6 @@ export const IPC = {
   AI_CHECK_SETUP: "ai.check_setup",
   AI_UNLOAD: "ai.unload",
 
-  // agent (Phase 7a)
-  AGENT_START: "agent.start",
-  AGENT_CANCEL: "agent.cancel",
-  AGENT_APPROVE: "agent.approve",
-  AGENT_REJECT: "agent.reject",
-  AGENT_CLEAR_RUNS: "agent.clear_runs",
-
   // Stateless AI capability IPC.
   CAPABILITY_LIST: "capability.list",
   CAPABILITY_CALL: "capability.call",

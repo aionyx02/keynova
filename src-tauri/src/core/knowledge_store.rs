@@ -396,7 +396,7 @@ mod tests {
                 content: "Approved note draft".into(),
                 visibility: "user_private".into(),
             });
-            let _ = tokio::runtime::Runtime::new()
+            tokio::runtime::Runtime::new()
                 .unwrap()
                 .block_on(store.flush())
                 .unwrap();

@@ -434,7 +434,7 @@ mod tests {
         let preview = read_text_preview(&path, 4096, 500, true).unwrap();
         assert!(preview.content.contains("line1"));
         assert!(preview.content.contains("line3"));
-        assert_eq!(preview.truncated, false);
+        assert!(!preview.truncated);
     }
 
     #[test]

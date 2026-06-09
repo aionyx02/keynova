@@ -718,6 +718,16 @@ fn truncate_workflow_label(value: String, max_chars: usize) -> String {
     }
 }
 
+pub(crate) fn schedule_shutdown(app: &tauri::AppHandle) {
+    let handle = app.clone();
+    let knowledge_store = app.state::<AppState>().knowledge_store.clone();
+    tauri::async_runtime::spawn(async move {
+        let _ = knowledge_store.flush().await;
+        tokio::time::sleep(Duration::from_millis(75)).await;
+        handle.exit(0);
+    });
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -815,14 +825,4 @@ mod tests {
         );
         assert_eq!(workflow_label_for_action(&action), "Copy npm run test");
     }
-}
-
-pub(crate) fn schedule_shutdown(app: &tauri::AppHandle) {
-    let handle = app.clone();
-    let knowledge_store = app.state::<AppState>().knowledge_store.clone();
-    tauri::async_runtime::spawn(async move {
-        let _ = knowledge_store.flush().await;
-        tokio::time::sleep(Duration::from_millis(75)).await;
-        handle.exit(0);
-    });
 }
