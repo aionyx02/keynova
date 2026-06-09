@@ -1,6 +1,6 @@
 # Agent Approval Boundary And Prompt Audit
 
-**狀態：** 接受  
+**狀態：** 部分被 ADR-0029 取代（REF.8：approval ownership 移至 UI、ReAct approval 流程移除；prompt audit 範疇 `agent_audit_logs` 仍適用於 capability 層）  
 **日期：** 2026-05-07  
 **決策者：** 開發者  
 **相關文件：**

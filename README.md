@@ -254,7 +254,7 @@ Inline AI 的延遲主要取決於硬體與 token 生成吞吐：
 - `qwen2.5:1.5b`：預設建議，適合純 CPU 或低階機器，速度與品質較平衡。
 - `qwen2.5:7b`：適合有 GPU 或優先追求回答品質的環境。
 
-舊版 chat-first `AiPanel` 已移除。後端 typed-tool + approval agent runtime 以休眠形式保留；`ai.legacy_agent` 沒有 UI 入口，只供未來 tool-using capability 重新接用。
+舊版 chat-first `AiPanel` 與後端 ReAct agent runtime（typed-tool + approval）已於 REF.8 整段移除（ADR-0029）。AI 現以無狀態的 inline capability 形式提供（`explain` / `summarize` / `cmd` / 記憶搜尋等），不再有自主 agent 迴圈或 `ai.legacy_agent` flag。
 
 ## 下載與安裝
 

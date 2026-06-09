@@ -41,7 +41,7 @@ Add a core `diagnostics` assembler and a `/diag` builtin command that returns an
 **`Inline`** bundle rendered as deterministic plain text. The bundle contains:
 
 - app facts: version (`CARGO_PKG_VERSION`), `std::env::consts::{OS,ARCH}`;
-- feature flags: the `features.*` and `ai.legacy_agent` rows;
+- feature flags: the `features.*` rows;
 - redacted config: every key from `ConfigManager::list_all_redacted()`;
 - local data: presence + on-disk size (metadata only, **never contents**) of
   `config.toml`, `knowledge.db`, `notes/`, the Tantivy index, and the preflight
