@@ -12,7 +12,8 @@ use crate::core::observability;
 use crate::core::AppEvent;
 use crate::managers::model_manager::{HardwareInfo, LocalModel, ModelCandidate, ModelManager};
 
-const SNAPSHOT_SCHEMA_VERSION: u32 = 1;
+// v2 (REF.8): dropped the `nvim_dir` path field with the nvim feature removal.
+const SNAPSHOT_SCHEMA_VERSION: u32 = 2;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct StartupPreflightPaths {
@@ -20,7 +21,6 @@ pub struct StartupPreflightPaths {
     pub data_dir: String,
     pub notes_dir: String,
     pub search_index_dir: String,
-    pub nvim_dir: String,
     pub icon_cache_dir: String,
 }
 
@@ -312,7 +312,6 @@ fn collect_paths(
     };
     let config_dir = crate::platform_dirs::keynova_config_dir();
     let data_dir = crate::platform_dirs::keynova_data_dir();
-    let nvim_dir = data_dir.join("nvim");
     let icon_cache_dir = icon_cache_dir();
     let bootstrap_dir = snapshot_dir();
 
@@ -321,7 +320,6 @@ fn collect_paths(
         data_dir.as_path(),
         notes_dir.as_path(),
         search_index_dir.as_path(),
-        nvim_dir.as_path(),
         icon_cache_dir.as_path(),
         bootstrap_dir.as_path(),
     ] {
@@ -340,7 +338,6 @@ fn collect_paths(
         data_dir: data_dir.display().to_string(),
         notes_dir: notes_dir.display().to_string(),
         search_index_dir: search_index_dir.display().to_string(),
-        nvim_dir: nvim_dir.display().to_string(),
         icon_cache_dir: icon_cache_dir.display().to_string(),
     }
 }
@@ -543,7 +540,6 @@ mod tests {
                 data_dir: "b".into(),
                 notes_dir: "c".into(),
                 search_index_dir: "d".into(),
-                nvim_dir: "e".into(),
                 icon_cache_dir: "f".into(),
             },
             hardware: StartupPreflightHardware {
@@ -606,7 +602,6 @@ mod tests {
                 data_dir: "data".into(),
                 notes_dir: "notes".into(),
                 search_index_dir: "search".into(),
-                nvim_dir: "nvim".into(),
                 icon_cache_dir: "icons".into(),
             },
             hardware: StartupPreflightHardware {

@@ -1,6 +1,5 @@
 [hotkeys]
 app_launcher    = "Ctrl+K"
-mouse_control   = "Ctrl+Alt+M"
 workspace_1     = "Ctrl+Alt+1"
 workspace_2     = "Ctrl+Alt+2"
 workspace_3     = "Ctrl+Alt+3"
@@ -24,10 +23,6 @@ show_rank_breakdown = true    # Show rank details on result hover
 default_shell = ""       # Empty means use the platform default shell
 font_size = 14
 scrollback_lines = 1000
-
-[mouse_control]
-step_size = 10           # Cursor movement step in pixels
-fast_step_size = 50      # Cursor movement step while Shift is held
 
 [features]
 ai = false
@@ -65,8 +60,6 @@ network_allowlist = "api.anthropic.com,api.openai.com,translation.googleapis.com
 [notes]
 storage_dir = ""         # Empty means AppData/Keynova/notes
 default_extension = "md"
-lazyvim_command = ""     # Empty means find nvim on PATH
-lazyvim_config_dir = ""  # Empty means project-local .keynova/lazyvim/config/keynova-lazyvim
 
 [history]
 max_items = 200

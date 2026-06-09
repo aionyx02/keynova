@@ -29,7 +29,7 @@ impl CommandHandler for FeatureHandler {
                     .unwrap_or("")
                     .to_string();
                 match key.as_str() {
-                    "terminal" | "ai" | "agent" | "notes" | "nvim" | "system_monitor" => {}
+                    "terminal" | "ai" | "notes" | "system_monitor" => {}
                     other => return Err(format!("unknown feature key '{other}'")),
                 }
                 Ok(json!({ "ok": true, "key": key }))

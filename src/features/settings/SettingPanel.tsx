@@ -31,7 +31,6 @@ const DEFAULT_SECTIONS = [
   "launcher",
   "search",
   "terminal",
-  "mouse_control",
   "features",
   "ai",
   "agent",

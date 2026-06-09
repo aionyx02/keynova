@@ -60,15 +60,6 @@ pub fn builtin_setting_schema() -> Vec<SettingSchema> {
             &[],
         ),
         SettingSchema::new(
-            "hotkeys.mouse_control",
-            "hotkeys",
-            "Mouse control",
-            Hotkey,
-            "Ctrl+Alt+M",
-            false,
-            &[],
-        ),
-        SettingSchema::new(
             "hotkeys.workspace_1",
             "hotkeys",
             "Workspace 1",
@@ -209,24 +200,6 @@ pub fn builtin_setting_schema() -> Vec<SettingSchema> {
             "Scrollback lines",
             Integer,
             "1000",
-            false,
-            &[],
-        ),
-        SettingSchema::new(
-            "mouse_control.step_size",
-            "mouse_control",
-            "Step size",
-            Integer,
-            "10",
-            false,
-            &[],
-        ),
-        SettingSchema::new(
-            "mouse_control.fast_step_size",
-            "mouse_control",
-            "Fast step size",
-            Integer,
-            "50",
             false,
             &[],
         ),
@@ -448,24 +421,6 @@ pub fn builtin_setting_schema() -> Vec<SettingSchema> {
             &[],
         ),
         SettingSchema::new(
-            "notes.lazyvim_command",
-            "notes",
-            "LazyVim command",
-            String,
-            "",
-            false,
-            &[],
-        ),
-        SettingSchema::new(
-            "notes.lazyvim_config_dir",
-            "notes",
-            "LazyVim config directory",
-            String,
-            "",
-            false,
-            &[],
-        ),
-        SettingSchema::new(
             "history.max_items",
             "history",
             "Max items",
@@ -646,9 +601,9 @@ pub fn validate_user_setting_value(key: &str, value: &str) -> Result<(), String>
         ));
     }
 
-    // Command-path settings (`terminal.default_shell`,
-    // `notes.lazyvim_command`) feed the program field of a backend-issued
-    // TerminalLaunchSpec. Terminal launch is already gated to backend-issued
+    // Command-path settings (`terminal.default_shell`) feed the program field of
+    // a backend-issued TerminalLaunchSpec. Terminal launch is already gated to
+    // backend-issued
     // specs, but reject shell metacharacters / control chars here as
     // defense-in-depth so a stored setting can't smuggle extra commands into any
     // current or future launch path. Spaces and quotes (paths) remain allowed.
@@ -662,7 +617,7 @@ pub fn validate_user_setting_value(key: &str, value: &str) -> Result<(), String>
 }
 
 fn is_command_setting_key(key: &str) -> bool {
-    matches!(key, "terminal.default_shell" | "notes.lazyvim_command")
+    matches!(key, "terminal.default_shell")
 }
 
 fn contains_unsafe_command_chars(value: &str) -> bool {
