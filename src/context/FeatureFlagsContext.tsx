@@ -13,13 +13,12 @@ import { useIPC } from "../hooks/useIPC";
 import { IPC } from "../ipc/routes";
 import type { SettingEntry } from "../ipc/types";
 
-export type GateKey = "ai" | "agent" | "translation" | "notes" | "history" | "calculator" | "system";
+export type GateKey = "ai" | "translation" | "notes" | "history" | "calculator" | "system";
 
 // Defaults match `default_config.toml`: AI surfaces are opt-in, the rest opt-out.
 // Seeding them avoids a flash of feature UI before the first fetch resolves.
 const DEFAULT_FLAGS: Record<GateKey, boolean> = {
   ai: false,
-  agent: false,
   translation: true,
   notes: true,
   history: true,

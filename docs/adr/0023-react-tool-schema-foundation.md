@@ -1,6 +1,6 @@
 # ReAct Tool Schema And Observation Safety Foundation
 
-**狀態：** 接受  
+**狀態：** 已被 ADR-0029 取代（REF.8，2026-06-09 capability 不走 ReAct schema；tool-call provider 抽象已移除）  
 **日期：** 2026-05-08  
 **決策者：** 開發者  
 **相關文件：**

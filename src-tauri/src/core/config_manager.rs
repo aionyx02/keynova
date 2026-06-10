@@ -27,6 +27,9 @@ impl ConfigManager {
     pub fn new() -> Self {
         let config_path = Self::user_config_path();
         let data = Self::load_or_recover(&config_path);
+        // `mut` + the migration method are only exercised in non-test builds
+        // (the call below is `#[cfg(not(test))]`); silence the test-build lints.
+        #[cfg_attr(test, allow(unused_mut))]
         let mut manager = Self { data, config_path };
         #[cfg(not(test))]
         if let Err(error) = manager.migrate_plaintext_secrets_to_keychain() {
@@ -231,6 +234,7 @@ impl ConfigManager {
         }
     }
 
+    #[cfg_attr(test, allow(dead_code))]
     fn migrate_plaintext_secrets_to_keychain(&mut self) -> Result<(), String> {
         let mut changed = false;
         let keys: Vec<String> = self.data.keys().cloned().collect();

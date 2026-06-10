@@ -1,8 +1,7 @@
 //! Shared prompt assembly + audit emitter for the capability layer.
 //!
-//! Budget is intentionally smaller than the legacy agent path's
-//! `PROMPT_BUDGET_CHARS` because capability calls are single-shot, latency
-//! sensitive (ADR-0029 §8 target: P50 < 800 ms with `qwen2.5:7b`).
+//! Budget is intentionally small because capability calls are single-shot,
+//! latency sensitive (ADR-0029 §8 target: P50 < 800 ms with `qwen2.5:7b`).
 
 use crate::core::grounding::truncate;
 use crate::core::knowledge_store::{AgentAuditEntry, KnowledgeStoreHandle};

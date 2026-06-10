@@ -1,20 +1,16 @@
-use std::sync::{atomic::AtomicBool, Arc, Mutex};
+use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
 use serde_json::json;
 
 use crate::app::feature_registry;
-use crate::core::agent_runtime::AgentArchiveSink;
 use crate::core::config_manager::ConfigManager;
-use crate::core::knowledge_store::AgentArchiveEntry;
 use crate::core::local_context::LocalContextSearcher;
 use crate::core::startup_preflight::StartupPreflight;
 use crate::core::{
-    ActionArena, AgentRuntime, AppEvent, BuiltinCommandRegistry, CommandRouter, EventBus,
-    KnowledgeStoreHandle,
+    ActionArena, AppEvent, BuiltinCommandRegistry, CommandRouter, EventBus, KnowledgeStoreHandle,
 };
 use crate::handlers::{
-    agent::{AgentHandler, AgentHandlerDeps},
     ai::AiHandler,
     ai_capability::{AiCapabilityHandler, AiCapabilityHandlerDeps},
     automation::AutomationHandler,
@@ -32,7 +28,6 @@ use crate::handlers::{
     hotkey::HotkeyHandler,
     launcher::LauncherHandler,
     model::ModelHandler,
-    mouse::MouseHandler,
     plugin::PluginHandler,
     search::{SearchHandler, SearchHandlerDeps},
     setting::SettingHandler,
@@ -42,11 +37,10 @@ use crate::handlers::{
 };
 use crate::managers::{
     ai_manager::AiManager, app_manager::AppManager, history_manager::HistoryManager,
-    hotkey_manager::HotkeyManager, model_manager::ModelManager, mouse_manager::MouseManager,
+    hotkey_manager::HotkeyManager, model_manager::ModelManager,
     note_manager::NoteManager, search_manager::SearchManager, search_service::SearchService,
     terminal_manager::TerminalManager, workspace_manager::WorkspaceManager,
 };
-use crate::models::agent::AgentRun;
 
 pub(crate) struct AppState {
     pub(crate) command_router: CommandRouter,
@@ -56,7 +50,6 @@ pub(crate) struct AppState {
     pub(crate) action_arena: Arc<ActionArena>,
     pub(crate) event_bus: EventBus,
     pub(crate) knowledge_store: KnowledgeStoreHandle,
-    pub(crate) mouse_active: Arc<AtomicBool>,
     pub(crate) launcher_focus_guard: Arc<Mutex<Option<Instant>>>,
     /// Timestamp of the last Ctrl+K launcher toggle, used to debounce a
     /// double-fired global shortcut so a single press cannot hide-then-show.
@@ -77,7 +70,6 @@ struct ManagerBundle {
     config_manager: Arc<Mutex<ConfigManager>>,
     app_manager: Arc<Mutex<AppManager>>,
     hotkey_manager: Arc<Mutex<HotkeyManager>>,
-    mouse_manager: Arc<Mutex<MouseManager>>,
     workspace_manager: Arc<Mutex<WorkspaceManager>>,
     model_manager: Arc<ModelManager>,
     note_manager: Arc<Mutex<NoteManager>>,
@@ -86,36 +78,11 @@ struct ManagerBundle {
     search_manager: Arc<Mutex<SearchManager>>,
     startup_preflight: Arc<StartupPreflight>,
     ai_manager: Arc<AiManager>,
-    agent_runtime: Arc<AgentRuntime>,
 }
 
-/// Adapter that forwards FIFO-evicted agent runs to the `agent_archive` SQLite table.
-/// Errors are swallowed by KnowledgeStore's fire-and-forget contract; we intentionally
-/// trade durability for never blocking the runtime under DB backpressure.
-struct KnowledgeStoreArchiveSink {
-    handle: KnowledgeStoreHandle,
-}
-
-impl AgentArchiveSink for KnowledgeStoreArchiveSink {
-    fn archive(&self, run: &AgentRun) {
-        let status = serde_json::to_value(&run.status)
-            .ok()
-            .and_then(|v| v.as_str().map(str::to_owned))
-            .unwrap_or_else(|| "unknown".into());
-        let payload_json = serde_json::to_string(run).unwrap_or_else(|_| "{}".into());
-        self.handle.try_archive_agent_run(AgentArchiveEntry {
-            run_id: run.id.clone(),
-            prompt: run.prompt.clone(),
-            status,
-            payload_json,
-        });
-    }
-}
-
-fn create_managers(event_bus: &EventBus, knowledge_store: &KnowledgeStoreHandle) -> ManagerBundle {
+fn create_managers(event_bus: &EventBus) -> ManagerBundle {
     let app_manager = Arc::new(Mutex::new(AppManager::new()));
     let hotkey_manager = Arc::new(Mutex::new(HotkeyManager::new()));
-    let mouse_manager = Arc::new(Mutex::new(MouseManager::new()));
     let workspace_manager = Arc::new(Mutex::new(WorkspaceManager::new()));
     // PROJECT_ROOT.wire — detect the launch directory's project root once at
     // startup so workspace-aware search + project command discovery (1.A/1.C/1.D)
@@ -180,30 +147,10 @@ fn create_managers(event_bus: &EventBus, knowledge_store: &KnowledgeStoreHandle)
         let _ = eb_for_ai.publish(event);
     })));
 
-    let eb_for_agent = event_bus.clone();
-    let run_cap = config_manager
-        .lock()
-        .ok()
-        .and_then(|c| c.get("agent.run_history_cap"))
-        .and_then(|v| v.parse::<usize>().ok())
-        .filter(|n| *n > 0)
-        .unwrap_or(20);
-    let archive_sink: Arc<dyn AgentArchiveSink> = Arc::new(KnowledgeStoreArchiveSink {
-        handle: knowledge_store.clone(),
-    });
-    let agent_runtime = Arc::new(AgentRuntime::with_archive(
-        Arc::new(move |event| {
-            let _ = eb_for_agent.publish(event);
-        }),
-        run_cap,
-        archive_sink,
-    ));
-
     ManagerBundle {
         config_manager,
         app_manager,
         hotkey_manager,
-        mouse_manager,
         workspace_manager,
         model_manager,
         note_manager,
@@ -212,14 +159,10 @@ fn create_managers(event_bus: &EventBus, knowledge_store: &KnowledgeStoreHandle)
         search_manager,
         startup_preflight,
         ai_manager,
-        agent_runtime,
     }
 }
 
-fn build_builtin_registry(
-    config_manager: &Arc<Mutex<ConfigManager>>,
-    note_manager: &Arc<Mutex<NoteManager>>,
-) -> Arc<Mutex<BuiltinCommandRegistry>> {
+fn build_builtin_registry() -> Arc<Mutex<BuiltinCommandRegistry>> {
     let registry = Arc::new(Mutex::new(BuiltinCommandRegistry::new()));
     let mut reg = registry.lock().expect("registry init");
     reg.register(Box::new(HelpCommand));
@@ -234,15 +177,11 @@ fn build_builtin_registry(
     // `ai.model` config still feeds the capability layer via /model.
     // If chat ever returns, re-register here and reinstate
     // `PanelRegistry["ai"]`.
-    // REF.8 — the `/ai_legacy_chat` builtin + AiPanel chat UI were removed. The
-    // backend agent_runtime + handlers/agent are retained (dormant) behind the
-    // reserved `ai.legacy_agent` config flag, but there is no command/panel entry
-    // point in this build, so nothing is registered here.
+    // REF.8 — the legacy ReAct agent (`/ai_legacy_chat` builtin, AiPanel chat UI,
+    // `agent_runtime`, `handlers/agent`, the `ai.legacy_agent` flag) was fully
+    // removed; ADR-0029 supersedes it. Inline AI is the capability layer only.
     reg.register(Box::new(ModelCommand));
-    reg.register(Box::new(NoteCommand::new(
-        Arc::clone(note_manager),
-        Arc::clone(config_manager),
-    )));
+    reg.register(Box::new(NoteCommand::new()));
     reg.register(Box::new(CalCommand));
     reg.register(Box::new(HistoryCommand));
     reg.register(Box::new(SysCtlCommand));
@@ -275,16 +214,8 @@ fn build_command_router(
     event_bus: &EventBus,
     action_arena: &Arc<ActionArena>,
     knowledge_store: &KnowledgeStoreHandle,
-    mouse_active: &Arc<AtomicBool>,
 ) -> (CommandRouter, Vec<(&'static str, &'static str)>) {
-    let builtin_registry = build_builtin_registry(&bundle.config_manager, &bundle.note_manager);
-
-    let agent_tantivy_dir = bundle
-        .search_manager
-        .lock()
-        .ok()
-        .map(|m| m.tantivy_index_dir().to_path_buf())
-        .unwrap_or_else(|| crate::managers::tantivy_index::resolve_index_dir(None));
+    let builtin_registry = build_builtin_registry();
 
     let mut router = CommandRouter::new();
     router.register(Arc::new(LauncherHandler::new(Arc::clone(
@@ -298,10 +229,6 @@ fn build_command_router(
         Arc::clone(&bundle.workspace_manager),
     )));
     router.register(Arc::new(FeatureHandler::new()));
-    router.register(Arc::new(MouseHandler::new(
-        Arc::clone(&bundle.mouse_manager),
-        Arc::clone(mouse_active),
-    )));
     router.register(Arc::new(SearchHandler::new(SearchHandlerDeps {
         manager: Arc::clone(&bundle.search_manager),
         action_arena: Arc::clone(action_arena),
@@ -342,17 +269,6 @@ fn build_command_router(
         Arc::clone(&bundle.workspace_manager),
         Arc::clone(&bundle.model_manager),
     )));
-    router.register(Arc::new(AgentHandler::new(AgentHandlerDeps {
-        runtime: Arc::clone(&bundle.agent_runtime),
-        config: Arc::clone(&bundle.config_manager),
-        note_manager: Arc::clone(&bundle.note_manager),
-        history_manager: Arc::clone(&bundle.history_manager),
-        workspace_manager: Arc::clone(&bundle.workspace_manager),
-        builtin_registry: Arc::clone(&builtin_registry),
-        model_manager: Arc::clone(&bundle.model_manager),
-        knowledge_store: knowledge_store.clone(),
-        tantivy_index_dir: agent_tantivy_dir,
-    })));
     router.register(Arc::new(AiCapabilityHandler::new(
         AiCapabilityHandlerDeps {
             ai: Arc::clone(&bundle.ai_manager),
@@ -408,15 +324,13 @@ impl AppState {
         let event_bus = EventBus::default();
         let action_arena = Arc::new(ActionArena::default());
         let knowledge_store = KnowledgeStoreHandle::new_default();
-        let mouse_active = Arc::new(AtomicBool::new(false));
 
-        let bundle = create_managers(&event_bus, &knowledge_store);
+        let bundle = create_managers(&event_bus);
         let (command_router, feature_namespace_guards) = build_command_router(
             &bundle,
             &event_bus,
             &action_arena,
             &knowledge_store,
-            &mouse_active,
         );
 
         Self {
@@ -425,7 +339,6 @@ impl AppState {
             action_arena,
             event_bus,
             knowledge_store,
-            mouse_active,
             launcher_focus_guard: Arc::new(Mutex::new(None)),
             last_launcher_toggle: Arc::new(Mutex::new(None)),
             _config_manager: bundle.config_manager,

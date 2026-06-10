@@ -75,7 +75,6 @@ pub(crate) const REGISTRARS: &[fn(&mut FeatureRegistrar, &AssemblyCtx)] = &[
     crate::handlers::system_control::register,
     crate::handlers::note::register,
     crate::handlers::history::register,
-    crate::handlers::nvim::register,
     crate::handlers::learning_material::register,
     crate::handlers::system_monitoring::register,
 ];

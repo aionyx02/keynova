@@ -346,7 +346,7 @@ mod tests {
     #[test]
     fn truncate_reason_respects_char_boundary() {
         // 4-byte char (e.g. 𝄞 U+1D11E) repeated. Each char is 4 bytes UTF-8.
-        let s: String = std::iter::repeat('𝄞').take(80).collect();
+        let s: String = "𝄞".repeat(80);
         assert_eq!(s.len(), 320); // > 256
         let truncated = truncate_reason(s);
         // Must end on a char boundary and within max bytes.

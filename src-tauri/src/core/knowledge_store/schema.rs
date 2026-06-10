@@ -110,13 +110,6 @@ fn init_schema(conn: &Connection) -> Result<(), String> {
             payload_json TEXT,
             created_at INTEGER NOT NULL DEFAULT (strftime('%s','now'))
         );
-        CREATE TABLE IF NOT EXISTS agent_archive (
-            run_id TEXT PRIMARY KEY,
-            prompt TEXT NOT NULL,
-            status TEXT NOT NULL,
-            payload_json TEXT NOT NULL,
-            archived_at INTEGER NOT NULL DEFAULT (strftime('%s','now'))
-        );
         CREATE TABLE IF NOT EXISTS agent_memories (
             id TEXT PRIMARY KEY,
             scope TEXT NOT NULL,

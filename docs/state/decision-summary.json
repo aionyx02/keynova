@@ -57,12 +57,12 @@
     }
   },
   "workflow": {
-    "current_task": "REF.6",
-    "current_task_summary": "Search Box As Pure Dispatcher (in progress)",
+    "current_task": null,
+    "current_task_summary": null,
     "progress": {
-      "done": 6,
+      "done": 9,
       "total": 9,
-      "percent": 67
+      "percent": 100
     }
   }
 }

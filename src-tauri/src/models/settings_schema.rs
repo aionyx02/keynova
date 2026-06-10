@@ -60,15 +60,6 @@ pub fn builtin_setting_schema() -> Vec<SettingSchema> {
             &[],
         ),
         SettingSchema::new(
-            "hotkeys.mouse_control",
-            "hotkeys",
-            "Mouse control",
-            Hotkey,
-            "Ctrl+Alt+M",
-            false,
-            &[],
-        ),
-        SettingSchema::new(
             "hotkeys.workspace_1",
             "hotkeys",
             "Workspace 1",
@@ -213,36 +204,9 @@ pub fn builtin_setting_schema() -> Vec<SettingSchema> {
             &[],
         ),
         SettingSchema::new(
-            "mouse_control.step_size",
-            "mouse_control",
-            "Step size",
-            Integer,
-            "10",
-            false,
-            &[],
-        ),
-        SettingSchema::new(
-            "mouse_control.fast_step_size",
-            "mouse_control",
-            "Fast step size",
-            Integer,
-            "50",
-            false,
-            &[],
-        ),
-        SettingSchema::new(
             "features.ai",
             "features",
             "AI Assistant (inline)",
-            Boolean,
-            "false",
-            false,
-            &["true", "false"],
-        ),
-        SettingSchema::new(
-            "features.agent",
-            "features",
-            "AI Agent (ReAct)",
             Boolean,
             "false",
             false,
@@ -394,78 +358,6 @@ pub fn builtin_setting_schema() -> Vec<SettingSchema> {
             &["true", "false"],
         ),
         SettingSchema::new(
-            "agent.show_audit_by_default",
-            "agent",
-            "Show audit by default",
-            Boolean,
-            "false",
-            false,
-            &["true", "false"],
-        ),
-        SettingSchema::new(
-            "agent.run_history_cap",
-            "agent",
-            "Run history cap",
-            Integer,
-            "20",
-            false,
-            &[],
-        ),
-        SettingSchema::new(
-            "agent.approval_timeout_secs",
-            "agent",
-            "Approval timeout (seconds)",
-            Integer,
-            "300",
-            false,
-            &[],
-        ),
-        SettingSchema::new(
-            "agent.web_search_provider",
-            "agent",
-            "Web search provider",
-            String,
-            "disabled",
-            false,
-            &["disabled", "searxng", "tavily", "duckduckgo"],
-        ),
-        SettingSchema::new(
-            "agent.long_term_memory_opt_in",
-            "agent",
-            "Long-term memory opt-in",
-            Boolean,
-            "false",
-            false,
-            &["true", "false"],
-        ),
-        SettingSchema::new(
-            "agent.searxng_url",
-            "agent",
-            "SearXNG URL",
-            String,
-            "",
-            false,
-            &[],
-        ),
-        SettingSchema::new(
-            "agent.web_search_api_key",
-            "agent",
-            "Web search API key",
-            Secret,
-            "",
-            true,
-            &[],
-        ),
-        SettingSchema::new(
-            "agent.web_search_timeout_secs",
-            "agent",
-            "Web search timeout",
-            Integer,
-            "8",
-            false,
-            &[],
-        ),
-        SettingSchema::new(
             "translation.default_src",
             "translation",
             "Default source",
@@ -525,24 +417,6 @@ pub fn builtin_setting_schema() -> Vec<SettingSchema> {
             "Default extension",
             String,
             "md",
-            false,
-            &[],
-        ),
-        SettingSchema::new(
-            "notes.lazyvim_command",
-            "notes",
-            "LazyVim command",
-            String,
-            "",
-            false,
-            &[],
-        ),
-        SettingSchema::new(
-            "notes.lazyvim_config_dir",
-            "notes",
-            "LazyVim config directory",
-            String,
-            "",
             false,
             &[],
         ),
@@ -663,20 +537,6 @@ pub fn builtin_setting_schema() -> Vec<SettingSchema> {
             false,
             &[],
         ),
-        // REF.8 — reserved backend flag for the retained legacy agent path. The
-        // chat-first UI (AiPanel + /ai_legacy_chat command) was removed in REF.8;
-        // agent_runtime + handlers/agent are kept as a dormant capability asset.
-        // When true, the ConfigManager-gated paths in handlers/agent/planning.rs
-        // and handlers/agent/answers.rs stay active. No UI entry point in this build.
-        SettingSchema::new(
-            "ai.legacy_agent",
-            "ai",
-            "Legacy agent backend (reserved, no UI)",
-            Boolean,
-            "false",
-            false,
-            &["true", "false"],
-        ),
         // REF.7.A — fixes a REF.6.B latent bug where useLauncherSettings watched
         // this key but no schema row backed it. setting.list_all therefore could
         // never return it. Default true matches the in-code default consumed by
@@ -741,9 +601,9 @@ pub fn validate_user_setting_value(key: &str, value: &str) -> Result<(), String>
         ));
     }
 
-    // Command-path settings (`terminal.default_shell`,
-    // `notes.lazyvim_command`) feed the program field of a backend-issued
-    // TerminalLaunchSpec. Terminal launch is already gated to backend-issued
+    // Command-path settings (`terminal.default_shell`) feed the program field of
+    // a backend-issued TerminalLaunchSpec. Terminal launch is already gated to
+    // backend-issued
     // specs, but reject shell metacharacters / control chars here as
     // defense-in-depth so a stored setting can't smuggle extra commands into any
     // current or future launch path. Spaces and quotes (paths) remain allowed.
@@ -757,7 +617,7 @@ pub fn validate_user_setting_value(key: &str, value: &str) -> Result<(), String>
 }
 
 fn is_command_setting_key(key: &str) -> bool {
-    matches!(key, "terminal.default_shell" | "notes.lazyvim_command")
+    matches!(key, "terminal.default_shell")
 }
 
 fn contains_unsafe_command_chars(value: &str) -> bool {

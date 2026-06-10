@@ -13,7 +13,7 @@ use rusqlite::Connection;
 
 use super::schema::open_connection;
 use super::sql::{
-    insert_action_log, insert_action_logs, insert_agent_archive, insert_agent_audit,
+    insert_action_log, insert_action_logs, insert_agent_audit,
     insert_agent_memory, insert_clipboard_metadata, insert_clipboard_metadata_batch,
     insert_workflow_history, read_action_stats, read_agent_memories, read_recent_workflows,
 };
@@ -78,10 +78,6 @@ fn handle_request(conn: &mut Connection, request: DbRequest) -> Result<WorkerSig
         }
         DbRequest::WriteClipboardMetadataBatch(entries) => {
             insert_clipboard_metadata_batch(conn, &entries)?;
-            Ok(WorkerSignal::Continue)
-        }
-        DbRequest::WriteAgentArchive(entry) => {
-            insert_agent_archive(conn, &entry)?;
             Ok(WorkerSignal::Continue)
         }
         DbRequest::WriteAgentAudit(entry) => {
@@ -150,7 +146,6 @@ fn respond_error(request: DbRequest, error: String) {
         | DbRequest::WriteClipboardMetadata(_)
         | DbRequest::WriteClipboardMetadataBatch(_)
         | DbRequest::WriteAgentAudit(_)
-        | DbRequest::WriteAgentArchive(_)
         | DbRequest::WriteAgentMemory(_)
         | DbRequest::WriteWorkflowHistory(_)
         | DbRequest::Shutdown => {}

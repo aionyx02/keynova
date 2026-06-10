@@ -1,4 +1,3 @@
-pub mod agent;
 pub mod ai;
 pub mod ai_capability;
 pub mod automation;
@@ -12,9 +11,7 @@ pub mod hotkey;
 pub mod launcher;
 pub mod learning_material;
 pub mod model;
-pub mod mouse;
 pub mod note;
-pub mod nvim;
 pub mod plugin;
 pub mod search;
 pub mod setting;

@@ -17,9 +17,8 @@ import type { BuiltinCommandResult } from "../../../hooks/useCommands";
 import type { TerminalLaunchSpec } from "../../../types/terminal";
 
 // Panel name → gate key, sourced entirely from feature manifests
-// (DECOUP.5 / ADR-0044). `model`/`setting`/`nvim_download` contribute no gate:
-// the model panel must stay reachable while AI is off (bootstrap), and
-// setting/nvim are not feature-gated.
+// (DECOUP.5 / ADR-0044). `model`/`setting` contribute no gate: the model panel
+// must stay reachable while AI is off (bootstrap), and setting is not gated.
 const PANEL_FEATURE: Readonly<Record<string, GateKey>> = manifestPanelGates();
 
 interface Deps {

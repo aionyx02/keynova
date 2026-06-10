@@ -114,7 +114,7 @@ pub fn collapse_home(path: &str, home: &str, token: &str) -> String {
 
 /// Feature-flag config keys surfaced in the dedicated flags section.
 fn is_flag_key(key: &str) -> bool {
-    key.starts_with("features.") || key == "ai.legacy_agent"
+    key.starts_with("features.")
 }
 
 /// Assemble a [`DiagnosticsReport`] from already-redacted inputs. Pure: enforces
@@ -355,15 +355,13 @@ mod tests {
     }
 
     #[test]
-    fn flags_section_extracts_feature_and_legacy_keys() {
+    fn flags_section_extracts_feature_keys() {
         let report = build_report(inputs_with_config(vec![
             ("features.ai", "false", false),
-            ("ai.legacy_agent", "false", false),
             ("launcher.theme", "dark", false),
         ]));
         let flag_keys: Vec<&str> = report.flags.iter().map(|f| f.key.as_str()).collect();
         assert!(flag_keys.contains(&"features.ai"));
-        assert!(flag_keys.contains(&"ai.legacy_agent"));
         assert!(!flag_keys.contains(&"launcher.theme"));
     }
 

@@ -1,6 +1,6 @@
 # Agent Read-only Tool Runtime
 
-**狀態：** 接受  
+**狀態：** 已被 ADR-0029 取代（REF.8，2026-06-09 移除 legacy ReAct agent runtime + `handlers/agent`）  
 **日期：** 2026-05-05  
 **決策者：** 開發者  
 **相關文件：**

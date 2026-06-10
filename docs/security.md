@@ -2,7 +2,7 @@
 type: security_policy
 status: active
 priority: p0
-updated: 2026-06-07
+updated: 2026-06-09
 context_policy: retrieve_only
 owner: project
 ---
@@ -45,7 +45,7 @@ Handling rules:
 
 # Keynova 安全模型
 
-> Retrieval policy: 在涉及權限、路徑、網路、Agent 工具風險時優先讀取，平時不需整份注入。
+> Retrieval policy: 在涉及權限、路徑、網路、capability 風險時優先讀取，平時不需整份注入。
 
 **版本：** 1.0  
 **最後更新：** 2026-05-13  
@@ -69,14 +69,14 @@ Handling rules:
 [不信任區域]
   使用者輸入（CommandPalette 文字、設定值、API payload）
   使用者提供的檔案路徑
-  LLM 輸出（Agent thought/action）
+  LLM 輸出（capability 回應）
   外部網路回應
 
 [信任邊界]──────────────────────────────
   Tauri IPC（invoke 呼叫）
   cmd_dispatch payload 驗證
   path canonicalize + workspace root 檢查
-  AgentObservationPolicy / 工具安全 gate
+  AgentObservationPolicy（preview 機密遮蔽）
 
 [信任區域]
   Rust backend 內部模組間呼叫
@@ -136,7 +136,7 @@ Handling rules:
 
 - IPC error payload 的 `details` 欄位
 - EventBus payload
-- action_log / agent_audit
+- action_log / agent_audit_logs
 - 測試 fixture
 - 搜尋索引（Tantivy）
 
@@ -168,22 +168,25 @@ Handling rules:
 
 ---
 
-## 6. Agent 工具安全
+## 6. AI Capability 安全
 
-### 6.1 AgentObservationPolicy
+> **REF.8（2026-06-09）：** 舊版 ReAct agent 工具執行模型（`ToolPermissionGate`、
+> `intent.rs` action 解析、agent shell/web 工具）已隨 `handlers/agent` 一併移除（ADR-0029）。
+> 現行 inline capability 為**無狀態、single-shot、不執行任何工具**：只讀取本機 grounding
+> 來源、回傳文字 / copy-only 建議；任何具風險的後續動作由 UI 層持有 confirmation
+> ownership（ADR-0030 risk tag contract）。
 
-Agent 執行工具前，`safety.rs` 中的 `ToolPermissionGate` 必須評估：
+### 6.1 AgentObservationPolicy（機密遮蔽）
 
-- 工具的 `risk` 等級（low / medium / high）
-- 目前的 `AgentObservationPolicy`（允許 / 拒絕哪些工具類型）
-
-高風險工具（刪除檔案、執行 shell 命令）必須在 ADR 中明確允許，並需要使用者確認。
+`AgentObservationPolicy` 不再是工具 gate，而是 `core/agent_observation.rs` 的**機密遮蔽政策**：
+`core/preview::read_text_preview`（`file.preview` 與 learning material review 共用）在回傳
+bounded 文字前套用 `AgentObservationPolicy { redact_secrets: true }`，遮蔽常見 secret pattern。
 
 ### 6.2 LLM 輸出不信任原則
 
-- Agent 從 LLM 收到的 action 必須經過解析與驗證（`intent.rs`）。
-- LLM 輸出中的路徑、命令不得直接執行，必須與 `ToolPermissionGate` 對照。
-- Prompt injection 防護：使用者輸入不得直接插入 system prompt 的指令部分。
+- Capability 從 LLM 收到的輸出視為不信任資料；不得直接執行其中的路徑或命令。
+- 結構化 capability（`gen_command` / `fix_error`）僅產生 **copy-only** 建議，由使用者顯式複製或 replay，後端不自動執行。
+- Prompt injection 防護：使用者輸入不得直接插入 system prompt 的指令部分；grounding 來源經 visibility 過濾（`GroundingSource`/`ContextVisibility`）。
 
 ---
 
@@ -212,7 +215,7 @@ Agent 執行工具前，`safety.rs` 中的 `ToolPermissionGate` 必須評估：
 - 改變 allowlist、denylist、sandbox、capability 定義
 - 新增對外網路連線目標
 - 新增需要系統權限的功能（Accessibility API、全域 hook）
-- 改變 Agent 工具的 risk 等級或 PermissionGate 邏輯
+- 改變 capability 的 risk tag 契約（ADR-0030）或 UI confirmation ownership
 - 新增處理使用者私人檔案的功能
 
 ---
@@ -222,7 +225,6 @@ Agent 執行工具前，`safety.rs` 中的 `ToolPermissionGate` 必須評估：
 | 項目                      | 現況                     | 計劃                     |
 | ------------------------- | ------------------------ | ------------------------ |
 | Neovim 下載 checksum 驗證 | 目前僅驗證檔案大小       | ADR 後補充 SHA256 驗證   |
-| Agent shell 命令執行      | 目前高風險工具需人工審查 | 計劃加入細粒度 allowlist |
 | 翻譯 API key 儲存         | 存在 config.toml（明文） | 計劃支援 OS keychain     |
 | CSP 設定                  | 尚未完整設定             | TD.5 安全強化計劃中      |
 | 程式碼簽署 / notarization | 管線已接好但尚未簽署：CI 有 secret-gated 簽章步驟，缺憑證時優雅產 unsigned build（SmartScreen/Gatekeeper 仍警告） | 開發者補上 ADR-0048 列出的 Windows/Apple 憑證 secrets 後自動啟用 |
@@ -253,7 +255,7 @@ Agent 執行工具前，`safety.rs` 中的 `ToolPermissionGate` 必須評估：
 
 ### 11.1 範圍
 
-`/diag` builtin 指令產生一份可貼到 bug report 的純文字摘要：app 版本、OS/arch、feature flags（`features.*` + `ai.legacy_agent`）、redacted config、本機資料檔（`config.toml`、`knowledge.db`、`notes/`、Tantivy 索引、preflight snapshot）的存在與大小，以及 preflight 摘要（status / source_mode / ollama_reachable / 本機模型數 / generated_at）。
+`/diag` builtin 指令產生一份可貼到 bug report 的純文字摘要：app 版本、OS/arch、feature flags（`features.*`）、redacted config、本機資料檔（`config.toml`、`knowledge.db`、`notes/`、Tantivy 索引、preflight snapshot）的存在與大小，以及 preflight 摘要（status / source_mode / ollama_reachable / 本機模型數 / generated_at）。
 
 ### 11.2 遮蔽與邊界
 
