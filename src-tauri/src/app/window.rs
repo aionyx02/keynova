@@ -39,6 +39,17 @@ pub(crate) fn show_launcher_window(window: &tauri::WebviewWindow) -> Result<(), 
 }
 
 pub(crate) fn hide_launcher_window(window: &tauri::WebviewWindow) -> Result<(), IpcError> {
+    // An explicit hide (Ctrl+K toggle, Esc, `cmd_hide_launcher`) is a definitive
+    // close, so cancel any pending focus-guard. Otherwise a guard renewed by a
+    // keystroke ~moments before the hide (2000 ms TTL > the 1500 ms blur grace)
+    // stays valid when the blur task wakes and re-shows the window — the
+    // "Ctrl+K close then instantly reopen" race. The keep-open path uses `show`,
+    // never `hide`, so clearing here never fights a legitimate keep-open.
+    if let Some(state) = window.try_state::<AppState>() {
+        if let Ok(mut guard) = state.launcher_focus_guard.lock() {
+            *guard = None;
+        }
+    }
     window
         .hide()
         .map_err(|e| IpcError::tauri_api("window.hide", e.to_string()))?;
