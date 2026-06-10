@@ -45,18 +45,12 @@ owner: project
 
 ## Next Step
 
-- `PRODUCT.3` trusted-release: verify gate, versioned notes, `/diag` (ADR-0047),
-  signing-pipeline scaffold (ADR-0048), config rollback (ADR-0049), dormant
-  keyless updater (ADR-0050) all landed. Self-contained items done and green
-  2026-06-07. Branch `feature/product-3-diagnostics-export` (from `main`@v0.6.0)
-  is **merge-ready into `main`** pending developer confirmation. Only open:
-  secret-gated signing certs (**deferred per dev**) + updater keypair.
-  Detail: `sessions/2026-06-07.md`.
-- REF.7.D **done** (2026-06-06): CPU throughput is the latency wall; ADR-0029 §8
-  → **tiered** (CPU P50<5s/P95<8s) + **`qwen2.5:1.5b`** default (PASS 4266/6269).
-  REF.7.C closer = user Bug A/B smoke. Detail: `sessions/2026-06-06.md`.
-- `v0.6.0` release commit bumps app metadata and adds release notes for the
-  PRODUCT.1 workflow-core pass. Pushing tag `v0.6.0` triggers GitHub release CI
-  and creates a draft release. Still UNSIGNED. `v0.5.0` remains the previous
-  stable tag. Detail in `sessions/2026-06-05.md`.
+- `v0.7.0` cut on `main` (2026-06-10): bundles the post-`v0.6.0` delta —
+  PRODUCT.2 inline-AI hardening, PRODUCT.3 trusted-release scaffold (`/diag`,
+  dormant updater, config quarantine, signing scaffold), PRODUCT.4 ranking,
+  PROFILE.1, CONT/STAB, REF.8 removals (legacy agent + nvim + mouse_control),
+  CI.HARDEN — plus PROFILE.2 pin removal, the Ctrl+K reopen fix, and SEC-PERF
+  docs. Version bumped to `0.7.0`; notes `release-notes/v0.7.0.md`. Pushing tag
+  `v0.7.0` triggers release CI (draft). Still **UNSIGNED** (certs deferred per
+  dev). `v0.6.0` was the prior tag. Push + tag are the developer's (`gh` unauth).
 - Run `npm run docs:refresh` before commit or handoff.

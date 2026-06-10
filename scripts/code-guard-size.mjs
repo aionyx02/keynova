@@ -20,14 +20,12 @@ import { ROOT } from "./docs-utils.mjs";
 // underlying detection (`fs.statSync(path).size`) is byte-based and avoids a
 // per-file read for line counting.
 const LIMITS = new Map([
-  ["src-tauri/src/handlers/agent/mod.rs", 27_648],
-  ["src-tauri/src/handlers/agent/sources.rs", 13_312],
-  ["src-tauri/src/handlers/agent/tools.rs", 23_552],
   ["src-tauri/src/handlers/builtin_cmd.rs", 44_032],
-  // Bumped 36864→43008: a11y live regions (UX.AUDIT.2b capability completion/error)
-  // + launcher starter-actions wiring grew it; recompression declined per developer
-  // decision (REF.6 accepted overshoot). REF.8 ratchets back down.
-  ["src/components/CommandPalette.tsx", 43_008],
+  // Bumped 43008→46080: post-v0.6.0 PROFILE.1 + PRODUCT.4 ranking wiring grew it;
+  // the 2026-06-10 PROFILE.2 pin removal clawed back ~1.7 KB but not under 43008.
+  // Recompression still declined per developer decision — the split is the deferred
+  // path ([[project_ref2_p5_landing]]) — so bless current size + ~1 KiB headroom.
+  ["src/components/CommandPalette.tsx", 46_080],
   ["src/features/settings/SettingPanel.tsx", 18_432],
   ["src/features/translation/TranslationPanel.tsx", 21_504],
 ]);
