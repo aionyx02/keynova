@@ -353,7 +353,7 @@ low_memory_mode = false
 ```
 
 - `performance.low_memory_mode = true` 會跳過 terminal prewarm、避免啟動時重新索引，並縮短 Ollama keep-alive。
-- API key 等機密設定在 `setting.list_all` 回傳前會於本機端遮罩，避免明文進入 UI。
+- API key 等機密以 **OS keychain**（Windows Credential Manager / macOS Keychain / Linux secret-service）儲存，`config.toml` 只保留參照、不存明文；首次升級時會自動把舊有明文搬入 keychain。`setting.list_all` 回傳前也會於本機端遮罩，避免明文進入 UI。
 - Windows 搜尋可使用 Everything；跨平台環境則使用 Tantivy 與平台 fallback。
 
 ## 架構與設計原則
@@ -383,10 +383,12 @@ flowchart LR
 - 不提供 generic shell execution。
 - AI 命令卡沒有執行能力。
 - Destructive file action 需要明確確認與結果驗證。
+- 機密設定（API key 等）以 OS keychain 儲存，不以明文留在 config 檔。
 - 網路請求受 allowlist / policy boundary 控制。
 - Keynova-owned data 目錄與可讀寫範圍有明確界線。
 - Secret-classified context 不會回傳到一般 UI。
 - 外部 provider 與個人 memory grounding 依 policy 與 feature flag 決定是否啟用。
+- 依賴稽核：`npm audit` 與 `cargo audit`（716 套件）目前皆為 **0 漏洞**；Dependabot 與 CodeQL 在 CI 上持續掃描。
 
 完整 permission、path、network、secret 與 release trust 模型見 [docs/security.md](docs/security.md)。
 
@@ -416,6 +418,21 @@ Keynova 的真實常駐足跡以 **Private Working Set** 計算約為 **80 MB**�
 - WebView2 `SetMemoryUsageTargetLevel(Low)`
 - `--disable-gpu`
 - `performance.low_memory_mode`
+
+### 安裝體積與 Bundle
+
+實測 release 產物（`cargo build --release`，strip + thin-LTO）：
+
+| 產物                     | 大小                               |
+| :----------------------- | :--------------------------------- |
+| GUI 主程式 `tauri-app.exe` | 23,996,928 bytes（約 **22.9 MB**） |
+| CLI `keynova.exe`        | 865,792 bytes（約 **0.85 MB**）    |
+
+前端 bundle（Vite，gzip 後）：
+
+- 初始載入約 **119 KB**：`index` 49 KB、`react-vendor` 60 KB、CSS 9 KB。
+- 大型相依採 **lazy chunk**，只在對應面板開啟時載入，不進初始路徑：
+  `markdown-vendor` 101 KB、`terminal-vendor` 83 KB。
 
 ## 從原始碼建置
 
@@ -460,7 +477,6 @@ npm run verify           # 文件、前端與 Rust 完整驗證
 | :-------------------------- | :------------------------------------------------------------ |
 | Code signing / notarization | Windows Authenticode、macOS Developer ID 與正式 release trust |
 | In-app updater              | 透過 GitHub Releases 更新；在 signing key 完成前保持 dormant  |
-| Secret at-rest storage      | 將 API key 等機密從 config 遷移到 OS keychain                 |
 | Workflow ranking            | 納入 recency、frequency、success rate 與更完整 context        |
 | Cross-platform polish       | Windows-first 穩定後，持續補齊 macOS / Linux integration      |
 
