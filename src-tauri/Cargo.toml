@@ -49,7 +49,7 @@ chrono = { version = "0.4", features = ["serde"] }
 rusqlite = { version = "0.32", features = ["bundled"] }
 tantivy = "0.26.1"
 dirs = "5"
-sysinfo = "0.30"
+sysinfo = "0.39"
 trash = "5"
 sha2 = "0.10"
 sha1 = "0.10"
