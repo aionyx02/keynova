@@ -57,13 +57,6 @@ interface Props {
     onSelectIndex: (index: number) => void;
     onRunSelected: (index: number) => void;
     onCancel: () => void;
-    hint?: string;
-    pinControl?: {
-      pinnable: (item: SuggestedNextAction) => boolean;
-      isPinned: (item: SuggestedNextAction) => boolean;
-      onToggle: (index: number) => void;
-      anyPinned: boolean;
-    };
   };
   memoryCard: {
     status: CapabilityRunStatus;
@@ -176,8 +169,6 @@ export function CapabilityResultArea({
           status={listCard.status}
           items={listCard.items}
           error={listCard.error}
-          hint={listCard.hint}
-          pinControl={listCard.pinControl}
           startedAtMs={listCard.startedAtMs}
           completedAtMs={listCard.completedAtMs}
           selectedIndex={listCard.selectedIndex}

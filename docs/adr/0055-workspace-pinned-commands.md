@@ -1,17 +1,17 @@
 ---
 type: adr
-status: proposed
+status: rejected
 priority: p1
-updated: 2026-06-08
+updated: 2026-06-10
 context_policy: retrieve_only
 owner: project
 ---
 
 # Per-Workspace Pinned Commands
 
-**Status:** proposed
+**Status:** rejected — feature removed 2026-06-10 (developer-directed); see §5.
 **Date:** 2026-06-08
-**Decision makers:** AI agent draft; developer acceptance requested by PROFILE.2
+**Decision makers:** AI agent draft; developer rejected at PROFILE.2 review (never accepted)
 **Related documents:**
 
 - `docs/tasks/product-4-profiles.md` (§PROFILE.2)
@@ -87,3 +87,26 @@ Rejected alternatives:
 Stop reading/writing `pinned_commands` and drop the `workspace.pin` command; the
 field can remain unused in `workspaces.json`. No data loss — the computed profile
 (ADR-0054) is unaffected.
+
+## 5. Outcome — rejected and removed (2026-06-10)
+
+Developer-directed: the pin feature was judged not worth its surface and removed
+on branch `chore/drop-workspace-pins`. Rationale:
+
+- **Surfacing was too weak for the value prop.** Pins only appeared inside the
+  on-demand `profile` card, reachable only by typing the `profile` prefix — so a
+  pinned command was never actually "one keystroke away," undercutting the whole
+  premise.
+- **Overlapped the automatic ranker.** PROFILE.1 (ADR-0054) already ranks by
+  frequency × success rate, so a command you rely on surfaces on its own; manual
+  pinning only helped the narrow "rely-on-but-rarely-run" slice.
+- **Per-slot keying was the same shaky premise** that sank PROFILE.3 (slots are
+  general-purpose; only the launch slot carries `project_root`).
+
+Removed per the §4 rollback (full removal, not the "leave the field" variant):
+the `pinned_commands` field + `toggle_pin` + `workspace.pin` IPC, the
+`workspacePins`/`useWorkspacePins` frontend layer, the 📌 toggle / onboarding
+banner / footer hint in `CapabilityListCard`, the Ctrl+P binding, and the pin
+i18n strings. `workspaces.json` stays v3 — serde ignores any residual
+`pinned_commands` in old files. The computed `profile` surface (ADR-0054) is
+untouched.

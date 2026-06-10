@@ -2,7 +2,7 @@
 type: task_index
 status: active
 priority: p0
-updated: 2026-06-09
+updated: 2026-06-10
 context_policy: always_retrievable
 owner: project
 tags: [refactor, ai-capability, search-first, p0]
@@ -65,9 +65,9 @@ Detailed batch definitions, done criteria, non-goals, file map, and validation g
   success-rate (ADR-0053). Detail: `tasks/product-4-ranking.md`.
 - [x] `PROFILE` workspace profiles. **.1 done** (`b616bdd`/`6964d90`):
   `project_root` col (v7) + `workspace_profile` capability + `profile` prefix
-  (ADR-0054). **.2 done**: per-slot `pinned_commands` (v3) + `workspace.pin` +
-  Ctrl+P pin atop the profile list (ADR-0055). **.3 dropped** (low ROI — see
-  `tasks/product-4-profiles.md`). Detail: `tasks/product-4-profiles.md`.
+  (ADR-0054). **.2 removed** (2026-06-10, `chore/drop-workspace-pins`): pin
+  feature cut, ADR-0055 rejected. **.3 dropped** (low ROI). Detail:
+  `tasks/product-4-profiles.md`.
 
 ### P2
 

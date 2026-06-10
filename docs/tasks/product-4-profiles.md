@@ -55,7 +55,13 @@ Done:
   reliability-weighted; switching project changes the profile; replay works from
   the keyboard. New unit tests for project-scoped ranking + legacy handling.
 
-## PROFILE.2 - Per-workspace pinned commands (done, ADR-0055)
+## PROFILE.2 - Per-workspace pinned commands (REMOVED 2026-06-10, ADR-0055 rejected)
+
+> **Removed** on `chore/drop-workspace-pins` (developer-directed): weak surfacing
+> behind the `profile` prefix, overlap with the frequency×success ranker, and the
+> same shaky per-slot premise that sank PROFILE.3. Rationale + removal scope in
+> ADR-0055 §5. The computed `profile` surface (PROFILE.1) is untouched. The
+> original design is kept below for history.
 
 Let a workspace carry a curated `pinned_commands` set surfaced atop the computed
 profile, so a command you rely on is always one keystroke away even if it drifts
