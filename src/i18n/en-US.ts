@@ -182,7 +182,6 @@ export const enUS: I18nKeys = {
       launcher: "Launcher",
       search: "Search",
       terminal: "Terminal",
-      mouse_control: "Mouse",
       features: "Features",
       ai: "AI",
       agent: "Agent",
@@ -198,7 +197,6 @@ export const enUS: I18nKeys = {
       launcher: "Used by the command palette immediately.",
       search: "Changes search behavior and index selection.",
       terminal: "Takes effect the next time a terminal opens.",
-      mouse_control: "Used by mouse control mode.",
       features: "Toggles feature visibility.",
       ai: "Affects provider and model configuration.",
       agent: "Controls agent web search and memory behavior.",
@@ -212,7 +210,6 @@ export const enUS: I18nKeys = {
     featureDescriptions: {
       "features.ai":
         "Inline AI (explain / summarize / cmd / memory search); needs Ollama or an API key",
-      "features.agent": "Needs Ollama or a tool-calling model",
       "features.translation": "Google Cloud Translation API (needs an API key)",
       "features.notes": "Built-in notes with LazyVim integration",
       "features.history": "Clipboard history",
@@ -518,26 +515,6 @@ export const enUS: I18nKeys = {
     updatesEveryTwoSeconds: "Updates every 2 seconds",
     streamPaused: "Stream paused",
   },
-  nvim: {
-    title: "Install Neovim",
-    subtitle: "Fetch a portable Neovim copy for the LazyVim workflow",
-    body: "Neovim was not found on this machine. Keynova can download a portable copy of Neovim v0.10.4 and wire it into the note workflow for you.",
-    download: "Download Neovim v0.10.4",
-    installed: "Neovim installed successfully.",
-    closeRetry: "Close and retry /lazyvim",
-    downloadFailed: "The download failed.",
-    retry: "Retry",
-    escCloses: "Esc closes",
-    readyFooter: "Neovim is ready to use",
-    portableFooter: "Portable install, no manual setup required",
-    stages: {
-      idle: "Ready",
-      downloading: "Downloading",
-      extracting: "Extracting",
-      done: "Installed",
-      error: "Failed",
-    },
-  },
   previewPane: {
     unknown: "Unknown",
     selectResult: "Select a result to preview",
@@ -610,12 +587,6 @@ export const enUS: I18nKeys = {
       next: "",
       profile: "",
     } as Record<string, string>,
-  },
-  mouseControl: {
-    titleOn: "Global mouse control: on (Alt+M to turn off)",
-    titleOff: "Global mouse control: off (Alt+M to turn on)",
-    labelOn: "Mouse mode: ON",
-    labelOff: "Mouse mode: OFF",
   },
   workspace: {
     label: "Workspace",

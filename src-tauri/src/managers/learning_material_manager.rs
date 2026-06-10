@@ -388,7 +388,7 @@ mod tests {
 
         let mgr = enabled_manager();
         let (canonical_path, preview) = mgr
-            .preview_file_with_roots(&file, &[root.clone()])
+            .preview_file_with_roots(&file, std::slice::from_ref(&root))
             .expect("preview allowed");
 
         assert_eq!(canonical_path, file.canonicalize().expect("canonical file"));
@@ -405,7 +405,7 @@ mod tests {
 
         let mgr = enabled_manager();
         let error = mgr
-            .preview_file_with_roots(&file, &[root.clone()])
+            .preview_file_with_roots(&file, std::slice::from_ref(&root))
             .expect_err("outside file must be rejected");
 
         assert!(error.contains("outside approved"));
@@ -421,7 +421,7 @@ mod tests {
 
         let mgr = disabled_manager();
         let error = mgr
-            .preview_file_with_roots(&file, &[root.clone()])
+            .preview_file_with_roots(&file, std::slice::from_ref(&root))
             .expect_err("disabled manager must reject preview");
 
         assert!(error.contains("disabled"));

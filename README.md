@@ -203,7 +203,7 @@ Keynova 不追求 Raycast 或 Alfred 的全功能廣度。它把產品範圍收�
 - **Translation**：Google Cloud Translation v2 文字翻譯。
 - **Model Manager**：透過 `/model` 下載、列出、啟用與移除本機模型，並依硬體顯示建議清單。
 - **History**：本機 clipboard history、搜尋、釘選與貼上。
-- **System / Learning / Nvim**：保留為選用或 feature-gated surface，不構成產品主敘事。
+- **System / Learning**：保留為選用或 feature-gated surface，不構成產品主敘事。
 
 ## AI 的角色
 
@@ -254,7 +254,7 @@ Inline AI 的延遲主要取決於硬體與 token 生成吞吐：
 - `qwen2.5:1.5b`：預設建議，適合純 CPU 或低階機器，速度與品質較平衡。
 - `qwen2.5:7b`：適合有 GPU 或優先追求回答品質的環境。
 
-舊版 chat-first `AiPanel` 已移除。後端 typed-tool + approval agent runtime 以休眠形式保留；`ai.legacy_agent` 沒有 UI 入口，只供未來 tool-using capability 重新接用。
+舊版 chat-first `AiPanel` 與後端 ReAct agent runtime（typed-tool + approval）已於 REF.8 整段移除（ADR-0029）。AI 現以無狀態的 inline capability 形式提供（`explain` / `summarize` / `cmd` / 記憶搜尋等），不再有自主 agent 迴圈或 `ai.legacy_agent` flag。
 
 ## 下載與安裝
 
@@ -311,7 +311,7 @@ Keynova 不是通用 launcher、AI chat app 或 catch-all 生產力套件。產�
 ### 核心與選用功能
 
 - **核心 daily path**：unified search、file actions、terminal、project command discovery、dev utilities、inline AI capability。
-- **選用 / parked**：Model Manager、Translation、Notes、Automation、Nvim、Learning Panel、System Monitor、Plugin System、長期自主 agent memory。這些功能可存在於 feature gate 後，但不主導 v0.6 / v0.7 的產品敘事。
+- **選用 / parked**：Model Manager、Translation、Notes、Automation、Learning Panel、System Monitor、Plugin System、長期自主 agent memory。這些功能可存在於 feature gate 後，但不主導 v0.6 / v0.7 的產品敘事。REF.8 已移除 nvim/LazyVim 整合與 mouse-control。
 
 ### 明確非目標
 

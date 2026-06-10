@@ -22,7 +22,6 @@ describe("FeatureFlagsContext", () => {
   it("seeds AI off and other features on before any backend read", () => {
     const { result } = renderHook(() => useFeatureFlags(), { wrapper });
     expect(result.current.isEnabled("ai")).toBe(false);
-    expect(result.current.isEnabled("agent")).toBe(false);
     expect(result.current.isEnabled("notes")).toBe(true);
     expect(result.current.isEnabled("history")).toBe(true);
     expect(result.current.isEnabled("translation")).toBe(true);

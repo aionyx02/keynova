@@ -15,7 +15,6 @@ import type { PanelProps } from "../types/panel";
 import { calculatorManifest } from "./calculator/manifest";
 import { historyManifest } from "./history/manifest";
 import { notesManifest } from "./notes/manifest";
-import { nvimManifest } from "./nvim/manifest";
 import { systemManifest } from "./system/manifest";
 import { systemMonitorManifest } from "./system-monitor/manifest";
 import { translationManifest } from "./translation/manifest";
@@ -35,7 +34,6 @@ export const FEATURE_MANIFESTS: readonly FeatureManifest[] = [
   historyManifest,
   systemManifest,
   systemMonitorManifest,
-  nvimManifest,
 ];
 
 /** Merged panel name → component map contributed by all manifests. */

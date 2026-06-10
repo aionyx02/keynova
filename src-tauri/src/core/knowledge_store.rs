@@ -45,14 +45,6 @@ pub struct AgentAuditEntry {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct AgentArchiveEntry {
-    pub run_id: String,
-    pub prompt: String,
-    pub status: String,
-    pub payload_json: String,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AgentMemoryEntry {
     pub id: String,
     pub scope: String,
@@ -108,7 +100,6 @@ pub enum DbRequest {
     WriteClipboardMetadata(ClipboardMetadataEntry),
     WriteClipboardMetadataBatch(Vec<ClipboardMetadataEntry>),
     WriteAgentAudit(AgentAuditEntry),
-    WriteAgentArchive(AgentArchiveEntry),
     WriteAgentMemory(AgentMemoryEntry),
     WriteWorkflowHistory(WorkflowHistoryEntry),
     ReadActionStats {
@@ -180,10 +171,6 @@ impl KnowledgeStoreHandle {
 
     pub fn try_log_agent_audit(&self, entry: AgentAuditEntry) {
         self.try_send_fire_and_forget(DbRequest::WriteAgentAudit(entry));
-    }
-
-    pub fn try_archive_agent_run(&self, entry: AgentArchiveEntry) {
-        self.try_send_fire_and_forget(DbRequest::WriteAgentArchive(entry));
     }
 
     pub fn try_store_agent_memory(&self, entry: AgentMemoryEntry) {
@@ -409,7 +396,7 @@ mod tests {
                 content: "Approved note draft".into(),
                 visibility: "user_private".into(),
             });
-            let _ = tokio::runtime::Runtime::new()
+            tokio::runtime::Runtime::new()
                 .unwrap()
                 .block_on(store.flush())
                 .unwrap();

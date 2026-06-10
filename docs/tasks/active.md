@@ -22,12 +22,17 @@ tags: [refactor, ai-capability, search-first, p0]
 - [x] `REF.3` split `handlers/agent/mod.rs` (landed 616 lines, observation target `< 600`).
 - [x] `REF.4` stateless AI capability layer. All 5 capabilities are now live behind one `call_capability` entry: `explain`, `summarize`, `fix_error`, `gen_command`, `suggest_next`.
 - [x] `REF.5` workflow memory schema v4 + `record` / `suggest`.
-- [~] `REF.6` search box = pure dispatcher. Sub-batches `A`–`G`, `I`, `J` done
-  (prefix dispatcher + all 5 capabilities + `CapabilityAnswerCard` family +
-  `classifyNlIntent` NL fallback + ADR-0040). Only `REF.6.H` open:
-  - [~] `REF.6.H` feature-first directory migration. 11 panels + 3 model panels relocated to `src/features/<feature>/`; 7 shared components moved to `src/shared/components/`. Model-manager tab consolidation deferred.
-- [~] `REF.7` quantitative gates, default `ai.legacy_agent = false`. .A/.B in v0.3.0; .C release notes shipped. REF.7.D **done** (2026-06-06): ADR-0029 §10 filled + §8 → **tiered** (CPU-host P50<5s/P95<8s) with **`qwen2.5:1.5b` reference default** (PASS). Detail: `sessions/2026-06-06.md`.
-- [~] `REF.8` physical removal. Done: `AiPanel.tsx` + `ai_legacy` route/builtin deleted (2026-06-01). Retained (developer): `agent_runtime.rs` + `handlers/agent/` + `ai.legacy_agent` flag (dormant). Not done: backend agent trim, flag removal, supersede ADRs 0011/0016/0022/0026.
+- [x] `REF.6` search box = pure dispatcher. Sub-batches `A`–`G`, `I`, `J` +
+  `REF.6.H` (feature-first directory migration: 11 panels + 3 model panels →
+  `src/features/<feature>/`, 7 shared components → `src/shared/components/`) done.
+  Model-manager tab consolidation deferred to backlog (cosmetic, non-blocking).
+- [x] `REF.7` quantitative gates. .A/.B in v0.3.0; .C release notes shipped;
+  .D **done** (2026-06-06): ADR-0029 §10 + §8 tiered gates (`qwen2.5:1.5b` ref
+  default, PASS). The `ai.legacy_agent` default/observation items are moot —
+  the flag and the whole legacy agent were removed in REF.8.
+- [x] `REF.8` legacy-agent removal + parked-feature cut (2026-06-09): deleted
+  `agent_runtime`/`handlers/agent` + flag (ADRs 0016/0022/0023/0026 superseded by
+  0029), cut nvim + mouse_control (notes kept). Detail: `sessions/2026-06-09.md`.
 
 Detailed batch definitions, done criteria, non-goals, file map, and validation gates live in `docs/tasks/refactor-ai-capability.md`.
 
@@ -52,6 +57,8 @@ Detailed batch definitions, done criteria, non-goals, file map, and validation g
 - [x] `PRODUCT.2` v0.7 inline AI capabilities **complete** (2026-06-06; A–E,
   copy-only, ADR-0046). Detail: `archive/product-2-ai-capabilities.md`.
 
+- [x] `CI.HARDEN` Dependabot + CodeQL + branch-protection (`/status` triage;
+  `feature/ci-supply-chain-hardening`). Detail: `sessions/2026-06-09.md`.
 - [x] `CONT` (`8fc68c7`): idle `next` (ADR-0052), resize coalescing, Ctrl+K fix.
   `STAB` (`8825cce`): crash-log hook (ADR-0051), `/diag` fixes.
 - [x] `PRODUCT.4` ranking (`b0a8b5c`): 4.A freq+workspace (ADR-0052), 4.B
@@ -70,9 +77,9 @@ Detailed batch definitions, done criteria, non-goals, file map, and validation g
 
 Keynova's active priority is the search-first workflow refactor: AI is a stateless capability layer invoked inline from unified result rows and prefix-keyword palette flows; chat-first surfaces leave the hot path.
 
-Freeze status (developer-directed): `PRODUCT.1`/`.2`/`.3` complete; REF.7.D done.
-`ai.legacy_agent` observation items and parked tracks (`AGENT.*`, `CLIP.1`) stay
-frozen, non-blocking.
+Freeze status (developer-directed): `PRODUCT.1`/`.2`/`.3` complete; REF.6/7/8
+done. The legacy ReAct agent was fully removed (REF.8); parked tracks
+(`AGENT.*`, `CLIP.1`) stay frozen, non-blocking.
 
 Keep `active.md` compact. Put batch-level task detail in `docs/tasks/refactor-ai-capability.md`, detailed implementation notes in `docs/memory/sessions/YYYY-MM-DD.md`, and future non-refactor ideas in `docs/tasks/backlog.md`.
 
@@ -82,4 +89,3 @@ Keep `active.md` compact. Put batch-level task detail in `docs/tasks/refactor-ai
   2026-06-07 (`8b26a4d`). Only open: secret-gated signing (**deferred per dev**)
   + updater keypair. Detail: `sessions/2026-06-07.md`.
 - `REF.7.C` final closer: user-side Bug A/B smoke.
-- After `REF.8`, refresh affected ADR statuses and architecture docs.

@@ -2,7 +2,7 @@
 type: decision_index
 status: active
 priority: p1
-updated: 2026-06-08
+updated: 2026-06-09
 context_policy: retrieve_only
 owner: project
 ---
@@ -54,17 +54,17 @@ owner: project
 | [0013](adr/0013-system-control-permissions.md)             | System Control 權限範圍                                                 | 接受                             | 2026-05-03 |
 | [0014](adr/0014-action-knowledge-plugin-boundary.md)       | Action / Knowledge / Plugin 邊界                                        | 接受                             | 2026-05-05 |
 | [0015](adr/0015-search-backend-preference.md)              | Search Backend Preference 與重建入口                                    | 接受                             | 2026-05-05 |
-| [0016](adr/0016-agent-read-only-tools.md)                  | Agent Read-only Tool Runtime                                            | 接受                             | 2026-05-05 |
+| [0016](adr/0016-agent-read-only-tools.md)                  | Agent Read-only Tool Runtime                                            | 已被 0029 取代（REF.8）          | 2026-05-05 |
 | [0017](adr/0017-automation-executor.md)                    | Automation Action Chain Executor                                        | 接受                             | 2026-05-06 |
 | [0018](adr/0018-app-module-split.md)                       | App Module Split（app/ 子模組）                                         | 接受                             | 2026-05-06 |
 | [0019](adr/0019-progressive-search-runtime.md)             | Progressive Search Runtime（stream=true）                               | 接受                             | 2026-05-06 |
 | [0020](adr/0020-terminal-launch-specs.md)                  | Terminal Launch Specs for Builtin Commands                              | 接受                             | 2026-05-06 |
 | [0021](adr/0021-persisted-search-index.md)                 | Persisted Search Index And Runtime Ranking                              | 接受                             | 2026-05-07 |
-| [0022](adr/0022-agent-approval-boundary.md)                | Agent Approval Boundary And Prompt Audit                                | 接受                             | 2026-05-07 |
-| [0023](adr/0023-react-tool-schema-foundation.md)           | ReAct Tool Schema And Observation Safety Foundation                     | 接受                             | 2026-05-08 |
+| [0022](adr/0022-agent-approval-boundary.md)                | Agent Approval Boundary And Prompt Audit                                | 部分被 0029 取代（audit 仍適用） | 2026-05-07 |
+| [0023](adr/0023-react-tool-schema-foundation.md)           | ReAct Tool Schema And Observation Safety Foundation                     | 已被 0029 取代（REF.8）          | 2026-05-08 |
 | [0024](adr/0024-agent-system-indexer.md)                   | Agent SystemIndexer Search Path                                         | 接受                             | 2026-05-08 |
 | [0025](adr/0025-web-search-providers.md)                   | Structured Agent Web Search Providers                                   | 接受                             | 2026-05-08 |
-| [0026](adr/0026-provider-driven-react-loop.md)             | Provider-Driven ReAct Agent Loop                                        | 接受                             | 2026-05-08 |
+| [0026](adr/0026-provider-driven-react-loop.md)             | Provider-Driven ReAct Agent Loop                                        | 已被 0029 取代（REF.8）          | 2026-05-08 |
 | [0027](adr/0027-generic-shell-sandbox.md)                  | Generic Shell Tool Sandbox Requirement                                  | 接受（research，product 未解封） | 2026-05-09 |
 | [0028](adr/0028-learning-material-review-local-context.md) | Learning Material Review Local Context Boundary                         | 提議                             | 2026-05-15 |
 | [0029](adr/0029-ai-capability-layer.md)                    | AI Capability Layer — Stateless Inline Capabilities Over Search Results | 接受                             | 2026-05-20 |
@@ -107,9 +107,10 @@ owner: project
 | ADR-034  | ScheduleManager — Local Cron-like Scheduler | UTIL.3                                             |
 | ADR-035  | External Provider Auth Boundary             | DEV.1.C/D                                          |
 | ADR-036  | Git-Backed Sync Boundary                    | SYNC.1.D/E/F                                       |
-| ADR-037  | Inline AI Surfaces Boundary                 | AI.1（已被 ADR-0029 取代，待接受後正式廢棄此預留） |
 
 備註：
+
+- 預留的 `ADR-037 Inline AI Surfaces Boundary` 槽位已由 `ADR-0029 AI Capability Layer` 取代，REF.8（2026-06-09）正式移除此預留列，不再另寫。
 
 - 原本預留給 `AGENT.3` 的 `ADR-029` 槽位已由 `ADR-0029 AI Capability Layer` 接管；`AGENT.3` 軌道本身已被 ADR-0029 / AI capability refactor 取代（見 `docs/tasks/refactor-ai-capability.md`）。
 - 原本預留給 `AGENT.4 OS-Level Selection Capture Boundary` 的 `ADR-030` 槽位已由 `ADR-0030 Backend Risk Tag Contract` 接管（ADR-0029 衍生的資料契約）；`AGENT.4` 仍為 parked-until-REF.7 軌道，若日後復活需另取新編號。
