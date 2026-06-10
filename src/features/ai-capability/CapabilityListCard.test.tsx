@@ -83,50 +83,6 @@ describe("CapabilityListCard", () => {
     expect(onRunSelected).not.toHaveBeenCalled();
   });
 
-  it("renders pin buttons + onboarding banner when pinControl is given (PROFILE.2)", () => {
-    const onToggle = vi.fn();
-    render(
-      <CapabilityListCard
-        {...baseProps}
-        pinControl={{
-          pinnable: (item) => item.route === "cmd.run",
-          isPinned: () => false,
-          onToggle,
-          anyPinned: false,
-        }}
-      />,
-    );
-    // First-run banner shows until the user has any pin.
-    expect(screen.getByText(/press Ctrl\+P/i)).not.toBeNull();
-    // Only the replayable (cmd.run) row gets a pin toggle.
-    const pinButtons = screen.getAllByRole("button", { name: /Pin to this workspace/i });
-    expect(pinButtons).toHaveLength(1);
-    fireEvent.mouseDown(pinButtons[0]);
-    expect(onToggle).toHaveBeenCalledWith(0);
-  });
-
-  it("hides the onboarding banner once a pin exists and marks pinned rows", () => {
-    render(
-      <CapabilityListCard
-        {...baseProps}
-        pinControl={{
-          pinnable: (item) => item.route === "cmd.run",
-          isPinned: (item) => item.title === "/help",
-          onToggle: vi.fn(),
-          anyPinned: true,
-        }}
-      />,
-    );
-    expect(screen.queryByText(/press Ctrl\+P/i)).toBeNull();
-    expect(screen.getByRole("button", { name: /Unpin from this workspace/i })).not.toBeNull();
-  });
-
-  it("does not render pin controls without pinControl (next surface)", () => {
-    render(<CapabilityListCard {...baseProps} />);
-    expect(screen.queryByText(/press Ctrl\+P/i)).toBeNull();
-    expect(screen.queryByRole("button", { name: /Pin to this workspace/i })).toBeNull();
-  });
-
   it("shows empty and pending states", () => {
     const { rerender } = render(<CapabilityListCard {...baseProps} items={[]} />);
     expect(screen.getByText(/No recent workflows yet/i)).not.toBeNull();
