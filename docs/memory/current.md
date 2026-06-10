@@ -2,7 +2,7 @@
 type: working_memory
 status: active
 priority: p0
-updated: 2026-06-09
+updated: 2026-06-10
 context_policy: always_retrievable
 owner: project
 ---
@@ -24,7 +24,7 @@ owner: project
 - `PRODUCT.2` completed on `feature/product-2-ai-capabilities` (2026-06-06):
   hardened all five capabilities while keeping generated commands copy-only.
 - REF.7.A/.B + `BRAND.ICON` + `PREFLIGHT` are merged to `main` and shipped as tag `v0.3.0`. `dev` is strictly behind `main`. Active close-out work is on `feature/ref-7-closeout` (forked from `main`, since REF.7/v0.3.0 do not exist on `dev`). REF.7.C release notes shipped as `docs/release-notes/v0.3.0.md`; ADR-0029 §10 measurement is scaffolded and `pending REF.7.D`.
-- User-directed memory follow-up is active on this branch. The pass started with eager WebView2 renderer JS/DOM trimming, then moved into Windows-native WebView2 memory controls once bundle wins flattened out.
+- `REF.8` + `CI.HARDEN` merged to `main` (`--no-ff` `8e49dd1`, 2026-06-10): legacy agent + nvim/mouse_control removal, post-cleanup, and Dependabot/CodeQL/branch-protection runbook landed together. `main` is 6 ahead of `origin/main` — **push + branch protection pending developer** (`gh` unauth). Detail: `sessions/2026-06-10.md`.
 - `PERF.1.FU` closed: real unique footprint ~`80 MB` (Private-WS), under the `200 MB` goal; the ~`324 MB` process-tree figure is shared Edge/Chromium DLL pages, not keynova's. Landed `[profile.release]` (strip+LTO) + host `EmptyWorkingSet` on hide. Detail in `sessions/2026-05-30.md`.
 - The `agent_runtime.rs < 400` REF.7 size criterion is moot: REF.8 deleted the file outright (legacy agent removed, ADR-0029).
 - `current.md` and `active.md` are current-state indexes only. REF.6 batch detail lives in `docs/memory/sessions/2026-05-29.md`.
