@@ -63,11 +63,12 @@ Detailed batch definitions, done criteria, non-goals, file map, and validation g
   `STAB` (`8825cce`): crash-log hook (ADR-0051), `/diag` fixes.
 - [x] `PRODUCT.4` ranking (`b0a8b5c`): 4.A freq+workspace (ADR-0052), 4.B
   success-rate (ADR-0053). Detail: `tasks/product-4-ranking.md`.
-- [x] `PROFILE` workspace profiles. **.1 done** (`b616bdd`/`6964d90`):
-  `project_root` col (v7) + `workspace_profile` capability + `profile` prefix
-  (ADR-0054). **.2 removed** (2026-06-10, `chore/drop-workspace-pins`): pin
-  feature cut, ADR-0055 rejected. **.3 dropped** (low ROI). Detail:
+- [x] `PROFILE` workspace profiles: .1 (`b616bdd`/`6964d90`, ADR-0054); .2
+  **removed** (2026-06-10, pins cut, ADR-0055 rejected); .3 dropped. Detail:
   `tasks/product-4-profiles.md`.
+- [~] `SEC-PERF` security + perf hardening (`hardening/security-perf`): audit
+  baseline, `security.md` reconcile (nvim/keychain/CSP), perf baseline. Detail:
+  `tasks/security-perf-hardening.md`.
 
 ### P2
 
