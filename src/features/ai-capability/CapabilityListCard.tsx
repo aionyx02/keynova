@@ -119,7 +119,7 @@ export function CapabilityListCard({
                     if (item.replay) onRunSelected(index);
                   }}
                   className={[
-                    "min-w-0 flex-1 rounded-[16px] border px-3 py-3 text-left transition-colors",
+                    "w-full rounded-[16px] border px-3 py-3 text-left transition-colors",
                     active
                       ? "border-[color:var(--kn-accent)] bg-[rgba(110,231,255,0.09)]"
                       : "border-[color:var(--kn-border)] bg-white/[0.02] hover:bg-white/[0.04]",
