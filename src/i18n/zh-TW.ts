@@ -297,13 +297,6 @@ export const zhTW = {
     listNoRecentBody: "尚無近期工作流。",
     replay: "重播",
     historyOnly: "僅歷史",
-    // pinned commands (PROFILE.2 / ADR-0055)
-    pinnedRationale: "已釘選到此工作區",
-    pinnedSubtitle: "釘選指令",
-    pinHint: "Ctrl+P 釘選/取消",
-    pinOnboarding: "選一個指令後按 Ctrl+P（或點 📌）即可釘選到這個工作區。",
-    pinAdd: "釘選到此工作區",
-    pinRemove: "從此工作區取消釘選",
     // answer
     explain: "解釋",
     summarize: "摘要",
