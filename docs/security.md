@@ -2,7 +2,7 @@
 type: security_policy
 status: active
 priority: p0
-updated: 2026-06-09
+updated: 2026-06-10
 context_policy: retrieve_only
 owner: project
 ---
@@ -16,7 +16,7 @@ Allowed local writes:
 
 - `platform_dirs::keynova_data_dir()/bootstrap/preflight-v1.json`
 - Keynova-owned directories created during bootstrap, including notes/search
-  index/Nvim/icon-cache roots already used by the app
+  index/icon-cache roots already used by the app
 
 Allowed probes:
 
@@ -103,7 +103,6 @@ Handling rules:
 | `%LOCALAPPDATA%\Keynova\knowledge.db`    | 讀/寫      | SQLite 儲存     |
 | `%LOCALAPPDATA%\Keynova\notes\`          | 讀/寫      | 使用者筆記      |
 | `%LOCALAPPDATA%\Keynova\search\tantivy\` | 讀/寫      | 搜尋索引        |
-| `%LOCALAPPDATA%\Keynova\nvim\`           | 寫（下載） | Portable Neovim |
 | `%LOCALAPPDATA%\Keynova\crash.log`       | 讀/寫      | 後端 panic 紀錄（ADR-0051） |
 | Workspace root（使用者設定）             | 遞迴讀     | 搜尋索引掃描    |
 
@@ -145,6 +144,17 @@ Handling rules:
 `config.toml` 解析失敗時，`ConfigManager` 會把原檔複製到同目錄的
 `config.toml.corrupt-<unix_secs>` 後才回退至預設值（避免下次 `persist()` 用預設覆寫造成永久遺失）。隔離檔留在 app-owned config 目錄、與 `config.toml` 同一信任區，不擴大暴露面；不自動清理（交由使用者決定）。
 
+### 4.5 機密 at-rest 存放（OS keychain, ADR-0041）
+
+敏感設定（`is_sensitive_key`：`ai.api_key`、`ai.openai_api_key`、
+`translation.api_key` 等）**不再以明文存於 `config.toml`**。`core/secret_store.rs`
+透過 `keyring` crate 寫入 OS 憑證庫（Windows Credential Manager / macOS Keychain /
+Linux secret-service）；`config.toml` 只保留 `keyring:keynova:<key>` 參照。首次升級時
+`ConfigManager::migrate_plaintext_secrets_to_keychain()` 會把既有明文搬入憑證庫並從
+TOML 移除；憑證庫不可用時該 secret 視為未設定（不回退寫明文）。
+> **ADR 狀態：** 程式碼已落地，但 ADR-0041 在 docs 仍為 `proposed`，待開發者依
+> governance §3 確認後翻為 accepted（與 ADR-0039 同模式：AI 不自行翻 accepted）。
+
 ---
 
 ## 5. 網路存取
@@ -154,7 +164,6 @@ Handling rules:
 | 目標                                 | 用途                 | 使用者可關閉                 |
 | ------------------------------------ | -------------------- | ---------------------------- |
 | Ollama（本機 HTTP, 預設 port 11434） | 本機 AI 推理         | 不需關閉，本機連線           |
-| GitHub releases（HTTPS）             | Neovim portable 下載 | 是（不設定 nvim_bin 則跳過） |
 | GitHub Releases `latest.json`（HTTPS）| 應用程式自動更新檢查（ADR-0050）| 是（未設定 `plugins.updater` 前不連線；MVP 僅檢查不自動安裝）|
 | 使用者設定的翻譯 API                 | 翻譯功能             | 是（不設定 API key 則停用）  |
 
@@ -224,9 +233,9 @@ bounded 文字前套用 `AgentObservationPolicy { redact_secrets: true }`，遮�
 
 | 項目                      | 現況                     | 計劃                     |
 | ------------------------- | ------------------------ | ------------------------ |
-| Neovim 下載 checksum 驗證 | 目前僅驗證檔案大小       | ADR 後補充 SHA256 驗證   |
-| 翻譯 API key 儲存         | 存在 config.toml（明文） | 計劃支援 OS keychain     |
-| CSP 設定                  | 尚未完整設定             | TD.5 安全強化計劃中      |
+| 機密 at-rest 存放         | 已存 OS keychain（`keyring`，§4.5）；明文已遷出 `config.toml` | ADR-0041 程式碼已落地，待開發者翻 accepted |
+| CSP 設定                  | 已收緊：`script-src 'self'`、scoped `connect-src`、`object-src`/`frame-src`/`worker-src 'none'`、`base-uri 'self'` | 殘留 `style-src 'unsafe-inline'`；如要移除需補 nonce/hash plumbing（另立 ADR） |
+| 翻譯 API key 儲存         | 已隨「機密 at-rest 存放」遷入 OS keychain | （已完成，見上）|
 | 程式碼簽署 / notarization | 管線已接好但尚未簽署：CI 有 secret-gated 簽章步驟，缺憑證時優雅產 unsigned build（SmartScreen/Gatekeeper 仍警告） | 開發者補上 ADR-0048 列出的 Windows/Apple 憑證 secrets 後自動啟用 |
 
 ---
