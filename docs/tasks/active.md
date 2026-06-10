@@ -2,7 +2,7 @@
 type: task_index
 status: active
 priority: p0
-updated: 2026-06-09
+updated: 2026-06-10
 context_policy: always_retrievable
 owner: project
 tags: [refactor, ai-capability, search-first, p0]
@@ -63,11 +63,11 @@ Detailed batch definitions, done criteria, non-goals, file map, and validation g
   `STAB` (`8825cce`): crash-log hook (ADR-0051), `/diag` fixes.
 - [x] `PRODUCT.4` ranking (`b0a8b5c`): 4.A freq+workspace (ADR-0052), 4.B
   success-rate (ADR-0053). Detail: `tasks/product-4-ranking.md`.
-- [x] `PROFILE` workspace profiles. **.1 done** (`b616bdd`/`6964d90`):
-  `project_root` col (v7) + `workspace_profile` capability + `profile` prefix
-  (ADR-0054). **.2 done**: per-slot `pinned_commands` (v3) + `workspace.pin` +
-  Ctrl+P pin atop the profile list (ADR-0055). **.3 dropped** (low ROI — see
-  `tasks/product-4-profiles.md`). Detail: `tasks/product-4-profiles.md`.
+- [x] `PROFILE` workspace profiles: .1 (`b616bdd`/`6964d90`, ADR-0054) + .2
+  pinned_commands (ADR-0055); .3 dropped. Detail: `tasks/product-4-profiles.md`.
+- [~] `SEC-PERF` security + perf hardening (`hardening/security-perf`): audit
+  baseline (0 vulns), `security.md` reconcile (nvim/keychain/CSP), perf
+  measure-first baseline. Detail: `tasks/security-perf-hardening.md`.
 
 ### P2
 
