@@ -10,19 +10,6 @@ interface Props {
   status: CapabilityRunStatus;
   items: SuggestedNextAction[];
   error: string | null;
-  /** Optional discoverability hint appended to the footer (e.g. pin shortcut). */
-  hint?: string;
-  /**
-   * PROFILE.2 (ADR-0055): when provided, each pinnable row shows a clickable 📌
-   * toggle and a first-run onboarding banner appears until the user has any pin.
-   * Only the `profile` surface passes this; `next` leaves rows unpinnable.
-   */
-  pinControl?: {
-    pinnable: (item: SuggestedNextAction) => boolean;
-    isPinned: (item: SuggestedNextAction) => boolean;
-    onToggle: (index: number) => void;
-    anyPinned: boolean;
-  };
   startedAtMs: number | null;
   completedAtMs: number | null;
   selectedIndex: number;
@@ -56,8 +43,6 @@ export function CapabilityListCard({
   status,
   items,
   error,
-  hint,
-  pinControl,
   startedAtMs,
   completedAtMs,
   selectedIndex,
@@ -121,24 +106,11 @@ export function CapabilityListCard({
           </div>
         ) : (
           <div className="space-y-1">
-            {pinControl && !pinControl.anyPinned ? (
-              <div className="mb-1 flex items-start gap-2 rounded-[12px] border border-dashed border-[color:var(--kn-border)] bg-white/[0.02] px-3 py-2 text-[11px] leading-5 text-[color:var(--kn-text-muted)]">
-                <span aria-hidden className="shrink-0">
-                  📌
-                </span>
-                <span>{c.pinOnboarding}</span>
-              </div>
-            ) : null}
             {items.map((item, index) => {
               const active = index === selectedIndex;
-              const pinnable = pinControl?.pinnable(item) ?? false;
-              const pinned = pinnable && (pinControl?.isPinned(item) ?? false);
               return (
-                <div
-                  key={`${item.route}-${item.title}-${item.last_executed_at}`}
-                  className="flex items-stretch gap-1"
-                >
                 <button
+                  key={`${item.route}-${item.title}-${item.last_executed_at}`}
                   type="button"
                   onMouseEnter={() => onSelectIndex(index)}
                   onMouseDown={(e) => {
@@ -189,28 +161,6 @@ export function CapabilityListCard({
                     {formatExecutedAt(item.last_executed_at)}
                   </div>
                 </button>
-                {pinnable ? (
-                  <span
-                    role="button"
-                    tabIndex={-1}
-                    aria-label={pinned ? c.pinRemove : c.pinAdd}
-                    title={pinned ? c.pinRemove : c.pinAdd}
-                    onMouseDown={(e) => {
-                      e.preventDefault();
-                      e.stopPropagation();
-                      pinControl?.onToggle(index);
-                    }}
-                    className={[
-                      "flex shrink-0 cursor-pointer select-none items-center rounded-[12px] border px-2 text-sm transition-opacity",
-                      pinned
-                        ? "border-[color:var(--kn-accent)] bg-[rgba(110,231,255,0.09)] opacity-100"
-                        : "border-[color:var(--kn-border)] opacity-30 hover:opacity-90",
-                    ].join(" ")}
-                  >
-                    📌
-                  </span>
-                ) : null}
-                </div>
               );
             })}
           </div>
@@ -219,7 +169,6 @@ export function CapabilityListCard({
 
       <div className="border-t border-[color:var(--kn-border)] bg-[rgba(7,11,17,0.48)] px-4 py-2 text-[10px] text-[color:var(--kn-text-muted)]">
         {footerLabel}
-        {hint ? ` · ${hint}` : ""}
       </div>
     </div>
   );

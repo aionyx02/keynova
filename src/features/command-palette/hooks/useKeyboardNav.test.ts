@@ -50,8 +50,6 @@ function makeDeps(overrides: Partial<UseKeyboardNavDeps> = {}): UseKeyboardNavDe
     setCapabilityListSelected: setNoop as never,
     onCapabilitySubmit: vi.fn(),
     onCapabilityRunSelected: vi.fn(),
-    capabilityPinMode: false,
-    onCapabilityTogglePin: vi.fn(),
     keepLauncherOpen: vi.fn(),
     ...overrides,
   };
@@ -213,42 +211,6 @@ describe("useKeyboardNav - capability Enter routing", () => {
     expect(e.preventDefault).toHaveBeenCalledTimes(1);
     expect(onCapabilityRunSelected).toHaveBeenCalledTimes(1);
     expect(onCapabilitySubmit).not.toHaveBeenCalled();
-  });
-
-  it("toggles the pin on Ctrl+P in profile (pin) mode (PROFILE.2)", () => {
-    const onCapabilityTogglePin = vi.fn();
-    const { result } = renderHook(() =>
-      useKeyboardNav(
-        makeDeps({
-          capabilityMode: true,
-          capabilityListMode: true,
-          capabilityPinMode: true,
-          capabilityListCount: 2,
-          onCapabilityTogglePin,
-        }),
-      ),
-    );
-    const e = fakeKey("p", { ctrlKey: true });
-    result.current.onKeyDown(e);
-    expect(e.preventDefault).toHaveBeenCalledTimes(1);
-    expect(onCapabilityTogglePin).toHaveBeenCalledTimes(1);
-  });
-
-  it("does NOT toggle pin on Ctrl+P when not in pin mode (idle next)", () => {
-    const onCapabilityTogglePin = vi.fn();
-    const { result } = renderHook(() =>
-      useKeyboardNav(
-        makeDeps({
-          capabilityMode: true,
-          capabilityListMode: true,
-          capabilityPinMode: false,
-          capabilityListCount: 2,
-          onCapabilityTogglePin,
-        }),
-      ),
-    );
-    result.current.onKeyDown(fakeKey("p", { ctrlKey: true }));
-    expect(onCapabilityTogglePin).not.toHaveBeenCalled();
   });
 });
 

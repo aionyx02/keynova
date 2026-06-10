@@ -72,19 +72,6 @@ impl CommandHandler for WorkspaceHandler {
                 mgr.record_action(action_id);
                 Ok(json!({ "ok": true }))
             }
-            "pin" => {
-                let command = payload
-                    .get("command")
-                    .and_then(Value::as_str)
-                    .ok_or_else(|| "missing 'command'".to_string())?
-                    .to_string();
-                let mut mgr = self.manager.lock().map_err(|e| e.to_string())?;
-                let pinned = mgr.toggle_pin(command);
-                Ok(json!({
-                    "pinned": pinned,
-                    "commands": mgr.current().pinned_commands,
-                }))
-            }
             "get_all" => {
                 let mgr = self.manager.lock().map_err(|e| e.to_string())?;
                 Ok(json!(mgr.all()))
