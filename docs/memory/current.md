@@ -50,8 +50,12 @@ owner: project
   dormant updater, config quarantine, signing scaffold), PRODUCT.4 ranking,
   PROFILE.1, CONT/STAB, REF.8 removals (legacy agent + nvim + mouse_control),
   CI.HARDEN — plus PROFILE.2 pin removal, the Ctrl+K reopen fix, and SEC-PERF
-  docs. Version bumped to `0.7.0`; notes `release-notes/v0.7.0.md`. Tag `v0.7.0`
-  **pushed to origin** (2026-06-11) → release CI (`release.yml`, `v*`) triggered,
-  builds a **draft** release. Still **UNSIGNED** (certs deferred per dev).
-  `v0.6.0` was the prior tag. Remaining: developer reviews/publishes the draft.
+  docs. Version bumped to `0.7.0`; notes `release-notes/v0.7.0.md`. Still
+  **UNSIGNED** (certs deferred per dev). `v0.6.0` was the prior tag.
+- v0.7.0 release CI first failed at `verify` clippy (`-D warnings`): 16
+  dead/unused errors from the Windows-only + test-only tantivy index warmup path
+  on the Linux runner. Fixed via targeted `#[allow(dead_code)]` + `#[cfg]` gating
+  (local Windows clippy + `cargo test` green). Follow-up `SEARCH.TANTIVY` in
+  `backlog.md`. Re-run re-points the `v0.7.0` tag (prior tag built no artifacts);
+  developer publishes the draft. Detail: `sessions/2026-06-11.md`.
 - Run `npm run docs:refresh` before commit or handoff.
