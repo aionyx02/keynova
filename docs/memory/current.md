@@ -2,7 +2,7 @@
 type: working_memory
 status: active
 priority: p0
-updated: 2026-06-10
+updated: 2026-06-11
 context_policy: always_retrievable
 owner: project
 ---
@@ -50,7 +50,8 @@ owner: project
   dormant updater, config quarantine, signing scaffold), PRODUCT.4 ranking,
   PROFILE.1, CONT/STAB, REF.8 removals (legacy agent + nvim + mouse_control),
   CI.HARDEN — plus PROFILE.2 pin removal, the Ctrl+K reopen fix, and SEC-PERF
-  docs. Version bumped to `0.7.0`; notes `release-notes/v0.7.0.md`. Pushing tag
-  `v0.7.0` triggers release CI (draft). Still **UNSIGNED** (certs deferred per
-  dev). `v0.6.0` was the prior tag. Push + tag are the developer's (`gh` unauth).
+  docs. Version bumped to `0.7.0`; notes `release-notes/v0.7.0.md`. Tag `v0.7.0`
+  **pushed to origin** (2026-06-11) → release CI (`release.yml`, `v*`) triggered,
+  builds a **draft** release. Still **UNSIGNED** (certs deferred per dev).
+  `v0.6.0` was the prior tag. Remaining: developer reviews/publishes the draft.
 - Run `npm run docs:refresh` before commit or handoff.
