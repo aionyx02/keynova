@@ -7,12 +7,13 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use serde::Serialize;
 
-use crate::managers::{
-    app_manager::AppManager,
-    tantivy_index::{self, TantivyFileEntry},
-};
+use crate::managers::app_manager::AppManager;
+use crate::managers::tantivy_index;
+#[cfg(target_os = "windows")]
+use crate::managers::tantivy_index::TantivyFileEntry;
 use crate::models::search_result::{ResultKind, SearchResult};
 
+#[allow(dead_code)] // consumed by the Windows startup-warmup path + warmup tests
 pub const STARTUP_INDEX_MAX_AGE: Duration = Duration::from_secs(24 * 60 * 60);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
@@ -83,12 +84,14 @@ pub struct SearchIndexRebuildStatus {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "snake_case")]
+#[allow(dead_code)] // produced by the Windows startup-warmup path + warmup tests
 pub enum SearchIndexWarmupReason {
     Empty,
     Stale,
 }
 
 impl SearchIndexWarmupReason {
+    #[allow(dead_code)] // only the Windows warmup status events stringify this
     pub fn as_str(self) -> &'static str {
         match self {
             Self::Empty => "empty",
@@ -143,6 +146,7 @@ impl SearchManager {
         self.backend = Self::detect_backend(self.preference, &self.tantivy_index_dir);
     }
 
+    #[allow(dead_code)] // re-detection is driven by the Windows warmup flow
     pub fn refresh_backend(&mut self) {
         self.backend = Self::detect_backend(self.preference, &self.tantivy_index_dir);
     }
@@ -356,11 +360,11 @@ impl SearchManager {
         if query.trim().is_empty() || limit == 0 {
             return Vec::new();
         }
-        let q = query.to_lowercase();
         let fetch_limit = existing_path_fetch_limit(limit);
 
         #[cfg(target_os = "windows")]
         {
+            let q = query.to_lowercase();
             match backend {
                 SearchBackend::Everything => {
                     let results =
@@ -459,11 +463,13 @@ impl SearchManager {
         self.indexing.load(Ordering::SeqCst)
     }
 
+    #[allow(dead_code)] // indexing state is flipped by the Windows warmup flow + tests
     pub fn set_indexing(&self, indexing: bool) {
         self.indexing.store(indexing, Ordering::SeqCst);
     }
 }
 
+#[allow(dead_code)] // entry point for the Windows startup index warmup
 pub fn startup_index_warmup_reason(
     index_dir: &std::path::Path,
     max_age: Duration,
@@ -473,6 +479,7 @@ pub fn startup_index_warmup_reason(
     index_warmup_reason_for_state(entries, age, max_age)
 }
 
+#[allow(dead_code)] // pure helper behind startup_index_warmup_reason + warmup tests
 fn index_warmup_reason_for_state(
     entries: usize,
     age: Option<Duration>,
@@ -506,6 +513,7 @@ fn app_name_match_score(name: &str, query_lower: &str) -> i64 {
 /// Exact match → 95, prefix → 88, substring → 80.
 /// Exact and prefix beat app prefix (90) so relevant files surface above
 /// apps that only partially match the query.
+#[allow(dead_code)] // scoring is applied only on the Windows native-search path
 fn file_name_match_score(name: &str, query_lower: &str) -> i64 {
     let name_lower = name.to_lowercase();
     if name_lower == query_lower {

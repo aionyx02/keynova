@@ -260,6 +260,7 @@ impl SystemIndexer for IgnoreWalkIndexer {
     }
 }
 
+#[cfg_attr(not(target_os = "windows"), allow(unused_variables))] // index_dir is Windows-only
 fn native_index_search(
     query: &str,
     limit: usize,

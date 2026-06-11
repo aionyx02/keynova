@@ -8,7 +8,11 @@ use tantivy::{doc, Index};
 
 use crate::models::search_result::{ResultKind, SearchResult};
 
+// TODO(tantivy-followup): the index write/warmup path is currently only wired on
+// Windows + exercised by tests; the read path stays cross-platform. Tracked for a
+// keep-vs-cut decision in docs/tasks/backlog.md.
 #[derive(Debug, Clone)]
+#[allow(dead_code)]
 pub struct TantivyFileEntry {
     pub name: String,
     pub path: String,
@@ -19,6 +23,7 @@ pub struct TantivyFileEntry {
 struct TantivyFields {
     name: Field,
     path: Field,
+    #[allow(dead_code)] // "kind" is stored in the schema but not read back yet
     kind: Field,
     is_folder: Field,
 }
@@ -47,11 +52,13 @@ pub fn indexed_entries(index_dir: &Path) -> usize {
     reader.searcher().num_docs() as usize
 }
 
+#[allow(dead_code)] // used by the Windows startup-warmup staleness check
 pub fn index_age(index_dir: &Path) -> Option<Duration> {
     let modified = std::fs::metadata(index_dir).ok()?.modified().ok()?;
     std::time::SystemTime::now().duration_since(modified).ok()
 }
 
+#[allow(dead_code)] // index write path: Windows warmup/rebuild + tests only
 pub fn rebuild(index_dir: &Path, entries: &[TantivyFileEntry]) -> Result<usize, String> {
     if let Some(parent) = index_dir.parent() {
         std::fs::create_dir_all(parent).map_err(|e| e.to_string())?;
@@ -129,6 +136,7 @@ pub fn search(index_dir: &Path, query: &str, limit: usize) -> Result<Vec<SearchR
     Ok(results)
 }
 
+#[allow(dead_code)] // only the write path (rebuild) builds a fresh schema
 fn build_schema() -> (Schema, TantivyFields) {
     let mut builder = Schema::builder();
     let name = builder.add_text_field("name", TEXT | STORED);

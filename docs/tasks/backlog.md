@@ -2,7 +2,7 @@
 type: task_index
 status: backlog
 priority: p1
-updated: 2026-06-06
+updated: 2026-06-11
 context_policy: on_demand
 owner: project
 tags: [roadmap, docs-governance, planning]
@@ -39,6 +39,14 @@ Backlog is on-demand planning context. During the P0 refactor track, it is not a
   profiles, command replay, cross-platform UX fixes, and 7-day dogfood.
 - [ ] `PRODUCT.5` v1.0 public stable: user/developer docs, roadmap/changelog,
   install trust, keyboard-complete core workflows, and launch-blocker burn-down.
+- [ ] `SEARCH.TANTIVY` decide keep-vs-cut for the tantivy file index. The write/
+  warmup path (`rebuild`, `build_schema`, `TantivyFileEntry`, startup warmup in
+  `run_windows_file_index_warmup`) is Windows-only + test-only and currently has
+  no live trigger, so the index never populates and search always falls back to
+  app-cache/Everything. Held behind `#[allow(dead_code)]` / `#[cfg]` to unblock the
+  v0.7.0 release. Options: (a) re-wire the startup warmup call, or (b) cut the
+  module + drop the `tantivy` dep + remove the `"tantivy"` `search.backend` enum
+  value (public config contract → needs an ADR + config migration).
 - [ ] Reassess docs guard threshold fit after several normal refactor commits.
 - [ ] Decide whether `completed.md` regeneration should stay manual or become part of `docs:refresh`.
 - [ ] Review `docs/tasks/bug-followup.md`: keep reusable structural bug patterns, migrate dated narratives to sessions, and fold active regression checks into `REF.2`/`REF.7`.

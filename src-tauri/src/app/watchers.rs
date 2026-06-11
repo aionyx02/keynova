@@ -6,6 +6,7 @@ use tauri::Manager;
 use crate::app::dispatch::reload_config_from_disk;
 use crate::app::state::AppState;
 use crate::core::AppEvent;
+#[cfg(target_os = "windows")]
 use crate::managers::search_manager::{startup_index_warmup_reason, STARTUP_INDEX_MAX_AGE};
 pub(crate) fn setup_config_watcher(app: &tauri::App) {
     let handle = app.handle().clone();
