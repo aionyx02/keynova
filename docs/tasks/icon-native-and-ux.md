@@ -24,17 +24,21 @@ user asked to also address the remaining UX-affecting items ("都改").
   startup CPU spike). New dep: `png`; windows features `Win32_UI_Shell`,
   `Win32_Graphics_Gdi`.
 
-## Secondary (non-blocking; investigate, fix-or-report)
+## Secondary (non-blocking; investigated 2026-06-13)
 
-- [ ] `PERF.REOPEN` — measure overlay re-open latency from `EmptyWorkingSet`-on-hide
-  (PERF.1.FU tradeoff). If show latency is materially hurt, gate/remove the trim.
-  Pure measurement first; no change without a number.
-- [ ] `STAB.4` — `嚙` garbled-path mojibake. Documented blocked-on-repro in
-  `active.md`/`ux-audit.md`. Investigate root cause (likely ANSI/UTF-8 codepage
-  decode on a Win32 path API); fix if a deterministic repro is found, else keep the
-  existing fallback and report findings.
-- [ ] `UX.AUDIT.2` — the broader focused UX/perf sweep the user requested. Produce a
-  verified findings list (not impression-based) before proposing further changes.
+- [~] `PERF.REOPEN` — `EmptyWorkingSet`-on-every-hide (`app/window.rs:57`) trades
+  instant reopen for a leaner hidden-state working-set number (PERF.1.FU). **Decision
+  (user, 2026-06-13): keep as-is, measure first.** No code change until a real-machine
+  reopen-latency number (with/without trim) shows a perceptible hitch; if it does, gate
+  the trim to low-memory mode only. Cannot be measured headlessly.
+- [x] `STAB.4` — `嚙` mojibake: **no blind fix possible.** Prior audit (`ux-audit.md`
+  §UX.AUDIT.5) already verified every live search read path is encoding-correct (Everything
+  `…W` APIs + FFFD skip, `.lnk` `file_stem` + FFFD guard, fs walk); no current code path
+  produces `嚙`, so the guard is vestigial or masks stale store data. User-facing harm is
+  already mitigated by the raw-path fallback. Closing the root cause needs a concrete `嚙`
+  filename/path from the user — not reproducible here.
+- [ ] `UX.AUDIT.2` — broader focused UX/perf sweep. Pending user greenlight; will produce a
+  verified findings list (not impression-based) before proposing changes.
 
 ## Done criteria
 
