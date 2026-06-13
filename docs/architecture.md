@@ -2,7 +2,7 @@
 type: architecture_spec
 status: active
 priority: p1
-updated: 2026-06-09
+updated: 2026-06-13
 context_policy: retrieve_only
 owner: project
 ---
@@ -143,6 +143,7 @@ src-tauri/src/
 │   ├── plugin_runtime.rs
 │   ├── preview.rs         # LAUNCH.1.C: bounded read + classify_path + guess_image_mime (shared by file.preview + learning_material)
 │   ├── dev_utils.rs       # UTIL.2: uuid/nanoid/pw/hash/b64/url/json/regex/jwt/color/cron pure-fn computations
+│   ├── proc.rs            # SilentCommandExt::no_window() — CREATE_NO_WINDOW on Windows (no-op elsewhere); every Windows Command spawn chains it to avoid a focus-stealing console flash
 │   ├── process_lookup.rs  # UTIL.2.J: find_process_by_port + kill_pid (Windows netstat+tasklist / Unix lsof)
 │   ├── project_commands.rs # PRODUCT.1.D: discover(root) — package.json/Cargo.toml/Makefile/justfile → copy-only command rows (normalize_intent + risky); execution deferred to 1.E
 │   ├── grounding.rs       # REF.3: GroundingSource construction helpers (source/visibility_filtered_source/truncate/contains_any/parse_visibility); consumed by the ai_capability layer

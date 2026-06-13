@@ -194,6 +194,7 @@ mod common {
 #[cfg(target_os = "windows")]
 mod imp {
     use super::{KillReason, SandboxAvailability, SandboxConfig, SandboxError, SandboxedOutput};
+    use crate::core::SilentCommandExt;
     use std::io::Read;
     use std::process::{Command, Stdio};
     use windows::core::PCWSTR;
@@ -221,6 +222,7 @@ mod imp {
         config: &SandboxConfig,
     ) -> Result<SandboxedOutput, SandboxError> {
         let mut child = Command::new(program)
+            .no_window()
             .args(args)
             .current_dir(cwd)
             .stdout(Stdio::piped())

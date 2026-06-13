@@ -83,6 +83,9 @@ keyring = { version = "3", features = ["sync-secret-service", "crypto-rust"] }
 
 [target.'cfg(target_os = "windows")'.dependencies]
 keyring = { version = "3", features = ["windows-native"] }
+# Native shell-icon extraction PNG encoder (ADR-0056). Windows-only: icon.rs is
+# the sole consumer and the whole module is cfg(windows).
+png = "0.17"
 webview2-com = "0.38.2"
 windows-core-compat = { package = "windows-core", version = "0.61.2" }
 windows = { version = "0.58", features = [
@@ -91,6 +94,8 @@ windows = { version = "0.58", features = [
   "Win32_System_Threading",
   "Win32_System_LibraryLoader",
   "Win32_UI_WindowsAndMessaging",
+  "Win32_UI_Shell",
+  "Win32_Graphics_Gdi",
   "Win32_Storage_FileSystem",
   "Win32_System_Com",
   "Win32_System_DataExchange",

@@ -5155,6 +5155,7 @@ dependencies = [
  "keyring",
  "md-5",
  "notify",
+ "png 0.17.16",
  "portable-pty",
  "rand 0.8.6",
  "regex",
