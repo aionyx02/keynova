@@ -86,7 +86,7 @@ keyring = { version = "3", features = ["windows-native"] }
 # Native shell-icon extraction PNG encoder (ADR-0056). Windows-only: icon.rs is
 # the sole consumer and the whole module is cfg(windows).
 png = "0.17"
-webview2-com = "0.38.2"
+webview2-com = "0.39.1"
 windows-core-compat = { package = "windows-core", version = "0.61.2" }
 windows = { version = "0.58", features = [
   "Win32_Foundation",
