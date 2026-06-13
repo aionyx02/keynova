@@ -1,88 +1,15 @@
-//! Shell icon extraction (PowerShell + SHGetFileInfo) with in-memory + on-disk
-//! PNG caching.
+//! Shell icon extraction (native `SHGetFileInfo` + GDI `GetDIBits`, PNG-encoded
+//! via the `png` crate) with in-memory + on-disk PNG caching.
+//!
+//! Replaces the former per-icon `powershell.exe` shell-out (ADR-0056): no child
+//! process, so no console flash and no per-row spawn latency on a cold cache.
 //!
 //! Focused Windows icon helpers re-exported by the platform facade.
 
 use std::collections::HashMap;
 use std::sync::{Mutex, OnceLock};
 
-/// 以 ShellExecute 語義開啟捷徑或可執行檔。
 static SEARCH_ICON_CACHE: OnceLock<Mutex<HashMap<String, Option<String>>>> = OnceLock::new();
-
-const SEARCH_ICON_SCRIPT: &str = r#"
-Add-Type -AssemblyName System.Drawing
-if (-not ("KeynovaShellIcon" -as [type])) {
-Add-Type @"
-using System;
-using System.Runtime.InteropServices;
-
-public static class KeynovaShellIcon {
-    [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
-    public struct SHFILEINFO {
-        public IntPtr hIcon;
-        public int iIcon;
-        public uint dwAttributes;
-        [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 260)]
-        public string szDisplayName;
-        [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 80)]
-        public string szTypeName;
-    }
-
-    [DllImport("Shell32.dll", CharSet = CharSet.Unicode)]
-    public static extern IntPtr SHGetFileInfo(
-        string pszPath,
-        uint dwFileAttributes,
-        out SHFILEINFO psfi,
-        uint cbFileInfo,
-        uint uFlags
-    );
-
-    [DllImport("User32.dll", SetLastError = true)]
-    public static extern bool DestroyIcon(IntPtr hIcon);
-}
-"@
-}
-
-$path = $env:KEYNOVA_ICON_PATH
-$kind = $env:KEYNOVA_ICON_KIND
-if ([string]::IsNullOrWhiteSpace($path)) {
-    exit 1
-}
-
-$attrs = 0
-if ($kind -eq "folder") {
-    $attrs = 0x10
-} elseif ($kind -eq "file") {
-    $attrs = 0x80
-}
-
-$flags = 0x100
-if ($env:KEYNOVA_ICON_USE_ATTRS -eq "1") {
-    $flags = $flags -bor 0x10
-}
-$info = New-Object KeynovaShellIcon+SHFILEINFO
-[void][KeynovaShellIcon]::SHGetFileInfo(
-    $path,
-    [uint32]$attrs,
-    [ref]$info,
-    [uint32][System.Runtime.InteropServices.Marshal]::SizeOf([type][KeynovaShellIcon+SHFILEINFO]),
-    [uint32]$flags
-)
-
-if ($info.hIcon -eq [IntPtr]::Zero) {
-    exit 1
-}
-
-try {
-    $icon = [System.Drawing.Icon]::FromHandle($info.hIcon)
-    $bitmap = $icon.ToBitmap()
-    $stream = New-Object System.IO.MemoryStream
-    $bitmap.Save($stream, [System.Drawing.Imaging.ImageFormat]::Png)
-    [Convert]::ToBase64String($stream.ToArray())
-} finally {
-    [KeynovaShellIcon]::DestroyIcon($info.hIcon) | Out-Null
-}
-"#;
 
 pub fn search_icon_data_url(icon_key: &str, kind: &str, path: &str) -> Option<String> {
     if path.trim().is_empty() {
@@ -175,36 +102,189 @@ fn write_icon_disk_cache(icon_key: &str, base64: &str) {
 }
 
 fn extract_shell_icon_base64(path: &str, kind: &str) -> Option<String> {
-    run_icon_script(path, kind, false)
+    extract_icon_base64(path, kind, false)
 }
 
-fn run_icon_script(path: &str, kind: &str, use_attrs: bool) -> Option<String> {
-    use crate::core::SilentCommandExt;
-    let mut cmd = std::process::Command::new("powershell.exe");
-    cmd.no_window();
-    cmd.args([
-        "-NoProfile",
-        "-NonInteractive",
-        "-ExecutionPolicy",
-        "Bypass",
-        "-Command",
-        SEARCH_ICON_SCRIPT,
-    ])
-    .env("KEYNOVA_ICON_PATH", path)
-    .env("KEYNOVA_ICON_KIND", kind);
+// ─── Native shell-icon extraction (ADR-0056) ────────────────────────────────
+//
+// SHGetFileInfoW → HICON → GetIconInfo → GetDIBits (32bpp top-down BGRA) → PNG.
+// `use_attrs` sets SHGFI_USEFILEATTRIBUTES so warming can probe a file extension
+// from a dummy path without touching disk; the runtime path queries the real
+// file. Returns base64-encoded PNG (same payload the old PowerShell path emitted).
+
+/// Base64-encoded PNG for the shell icon of `path`, or `None` if extraction fails.
+fn extract_icon_base64(path: &str, kind: &str, use_attrs: bool) -> Option<String> {
+    use base64::Engine;
+    let png = native_shell_icon_png(path, kind, use_attrs)?;
+    Some(base64::engine::general_purpose::STANDARD.encode(png))
+}
+
+fn native_shell_icon_png(path: &str, kind: &str, use_attrs: bool) -> Option<Vec<u8>> {
+    use windows::core::PCWSTR;
+    use windows::Win32::Storage::FileSystem::FILE_FLAGS_AND_ATTRIBUTES;
+    use windows::Win32::UI::Shell::{
+        SHGetFileInfoW, SHFILEINFOW, SHGFI_ICON, SHGFI_LARGEICON, SHGFI_USEFILEATTRIBUTES,
+    };
+    use windows::Win32::UI::WindowsAndMessaging::DestroyIcon;
+
+    let wide: Vec<u16> = path.encode_utf16().chain(std::iter::once(0)).collect();
+    let attrs: u32 = match kind {
+        "folder" => 0x10, // FILE_ATTRIBUTE_DIRECTORY
+        "file" => 0x80,   // FILE_ATTRIBUTE_NORMAL
+        _ => 0,
+    };
+    let mut flags = SHGFI_ICON | SHGFI_LARGEICON;
     if use_attrs {
-        cmd.env("KEYNOVA_ICON_USE_ATTRS", "1");
+        flags |= SHGFI_USEFILEATTRIBUTES;
     }
-    let output = cmd.output().ok()?;
-    if !output.status.success() {
+
+    let mut info = SHFILEINFOW::default();
+    let ret = unsafe {
+        SHGetFileInfoW(
+            PCWSTR(wide.as_ptr()),
+            FILE_FLAGS_AND_ATTRIBUTES(attrs),
+            Some(&mut info),
+            std::mem::size_of::<SHFILEINFOW>() as u32,
+            flags,
+        )
+    };
+    if ret == 0 || info.hIcon.is_invalid() {
         return None;
     }
-    let text = String::from_utf8(output.stdout).ok()?;
-    let base64 = text.trim();
-    if base64.is_empty() {
+    let png = hicon_to_png(info.hIcon);
+    unsafe {
+        let _ = DestroyIcon(info.hIcon);
+    }
+    png
+}
+
+fn hicon_to_png(hicon: windows::Win32::UI::WindowsAndMessaging::HICON) -> Option<Vec<u8>> {
+    use windows::Win32::Graphics::Gdi::{DeleteObject, GetObjectW, HGDIOBJ, BITMAP};
+    use windows::Win32::UI::WindowsAndMessaging::{GetIconInfo, ICONINFO};
+
+    let mut ii = ICONINFO::default();
+    unsafe { GetIconInfo(hicon, &mut ii) }.ok()?;
+    let hbm_color = ii.hbmColor;
+    let hbm_mask = ii.hbmMask;
+    let cleanup = || unsafe {
+        if !hbm_color.is_invalid() {
+            let _ = DeleteObject(HGDIOBJ(hbm_color.0));
+        }
+        if !hbm_mask.is_invalid() {
+            let _ = DeleteObject(HGDIOBJ(hbm_mask.0));
+        }
+    };
+
+    let mut bmp = BITMAP::default();
+    let got = unsafe {
+        GetObjectW(
+            HGDIOBJ(hbm_color.0),
+            std::mem::size_of::<BITMAP>() as i32,
+            Some(&mut bmp as *mut _ as *mut core::ffi::c_void),
+        )
+    };
+    if got == 0 || bmp.bmWidth <= 0 || bmp.bmHeight <= 0 {
+        cleanup();
         return None;
     }
-    Some(base64.to_string())
+    let width = bmp.bmWidth as u32;
+    let height = bmp.bmHeight as u32;
+
+    let color = get_dib_bgra(hbm_color, width, height);
+    let mask = get_dib_bgra(hbm_mask, width, height);
+    cleanup();
+
+    let color = color?;
+    let rgba = bgra_to_rgba(width, height, &color, mask.as_deref());
+    encode_png_rgba(width, height, &rgba)
+}
+
+fn get_dib_bgra(
+    hbm: windows::Win32::Graphics::Gdi::HBITMAP,
+    width: u32,
+    height: u32,
+) -> Option<Vec<u8>> {
+    use windows::Win32::Graphics::Gdi::{
+        GetDC, GetDIBits, ReleaseDC, BITMAPINFO, BITMAPINFOHEADER, BI_RGB, DIB_RGB_COLORS,
+    };
+
+    if hbm.is_invalid() {
+        return None;
+    }
+    let hdc = unsafe { GetDC(None) };
+    if hdc.is_invalid() {
+        return None;
+    }
+    let mut bmi = BITMAPINFO::default();
+    bmi.bmiHeader.biSize = std::mem::size_of::<BITMAPINFOHEADER>() as u32;
+    bmi.bmiHeader.biWidth = width as i32;
+    bmi.bmiHeader.biHeight = -(height as i32); // top-down
+    bmi.bmiHeader.biPlanes = 1;
+    bmi.bmiHeader.biBitCount = 32;
+    bmi.bmiHeader.biCompression = BI_RGB.0;
+
+    let mut buf = vec![0u8; (width * height * 4) as usize];
+    let lines = unsafe {
+        GetDIBits(
+            hdc,
+            hbm,
+            0,
+            height,
+            Some(buf.as_mut_ptr() as *mut core::ffi::c_void),
+            &mut bmi,
+            DIB_RGB_COLORS,
+        )
+    };
+    unsafe {
+        ReleaseDC(None, hdc);
+    }
+    if lines == 0 {
+        None
+    } else {
+        Some(buf)
+    }
+}
+
+/// Convert 32bpp top-down BGRA (as `GetDIBits` returns it) to RGBA. If the color
+/// bitmap carries no alpha (all-zero alpha — older icons), recover transparency
+/// from the AND mask (`mask` black = opaque, non-black = transparent).
+fn bgra_to_rgba(width: u32, height: u32, color_bgra: &[u8], mask_bgra: Option<&[u8]>) -> Vec<u8> {
+    let n = (width as usize) * (height as usize);
+    let mut rgba = vec![0u8; n * 4];
+    let has_alpha = color_bgra.chunks_exact(4).any(|p| p[3] != 0);
+    for i in 0..n {
+        let b = color_bgra[i * 4];
+        let g = color_bgra[i * 4 + 1];
+        let r = color_bgra[i * 4 + 2];
+        let a = if has_alpha {
+            color_bgra[i * 4 + 3]
+        } else if let Some(mask) = mask_bgra {
+            if mask[i * 4] == 0 {
+                255
+            } else {
+                0
+            }
+        } else {
+            255
+        };
+        rgba[i * 4] = r;
+        rgba[i * 4 + 1] = g;
+        rgba[i * 4 + 2] = b;
+        rgba[i * 4 + 3] = a;
+    }
+    rgba
+}
+
+fn encode_png_rgba(width: u32, height: u32, rgba: &[u8]) -> Option<Vec<u8>> {
+    let mut out = Vec::new();
+    {
+        let mut encoder = png::Encoder::new(&mut out, width, height);
+        encoder.set_color(png::ColorType::Rgba);
+        encoder.set_depth(png::BitDepth::Eight);
+        let mut writer = encoder.write_header().ok()?;
+        writer.write_image_data(rgba).ok()?;
+    }
+    Some(out)
 }
 
 // ─── Icon cache pre-warm ────────────────────────────────────────────────────
@@ -245,7 +325,7 @@ fn warm_folder_icon() {
     if read_icon_disk_cache(&key).is_some() {
         return;
     }
-    if let Some(base64) = run_icon_script(&probe, "folder", false) {
+    if let Some(base64) = extract_icon_base64(&probe, "folder", false) {
         write_icon_disk_cache(&key, &base64);
     }
 }
@@ -259,7 +339,7 @@ fn warm_file_ext_icons() {
         if read_icon_disk_cache(&key).is_some() {
             continue;
         }
-        if let Some(base64) = run_icon_script(&dummy, "file", true) {
+        if let Some(base64) = extract_icon_base64(&dummy, "file", true) {
             write_icon_disk_cache(&key, &base64);
         }
     }
@@ -273,7 +353,7 @@ fn warm_app_icons() {
         if read_icon_disk_cache(&key).is_some() {
             continue;
         }
-        if let Some(base64) = run_icon_script(&app.path, "app", false) {
+        if let Some(base64) = extract_icon_base64(&app.path, "app", false) {
             write_icon_disk_cache(&key, &base64);
         }
     }
@@ -341,5 +421,40 @@ mod tests {
             let key = icon_key_for_item("warmcache", &dummy, &ResultKind::File);
             assert_eq!(key, format!("file:{ext}"));
         }
+    }
+
+    #[test]
+    fn bgra_to_rgba_swaps_channels_and_keeps_alpha() {
+        // one pixel: B=10 G=20 R=30 A=40
+        let bgra = [10u8, 20, 30, 40];
+        let rgba = bgra_to_rgba(1, 1, &bgra, None);
+        assert_eq!(rgba, vec![30, 20, 10, 40]);
+    }
+
+    #[test]
+    fn bgra_to_rgba_recovers_alpha_from_mask_when_color_has_none() {
+        // two pixels, color alpha all zero -> must use mask.
+        // mask pixel 0 = black (opaque -> 255), pixel 1 = white (transparent -> 0).
+        let color = [1u8, 2, 3, 0, 4, 5, 6, 0];
+        let mask = [0u8, 0, 0, 0, 255, 255, 255, 255];
+        let rgba = bgra_to_rgba(2, 1, &color, Some(&mask));
+        assert_eq!(rgba[3], 255, "mask-black pixel should be opaque");
+        assert_eq!(rgba[7], 0, "mask-white pixel should be transparent");
+    }
+
+    #[test]
+    fn bgra_to_rgba_prefers_real_alpha_over_mask() {
+        // color carries alpha -> mask is ignored.
+        let color = [0u8, 0, 0, 128];
+        let mask = [255u8, 255, 255, 255]; // would force transparent if used
+        let rgba = bgra_to_rgba(1, 1, &color, Some(&mask));
+        assert_eq!(rgba[3], 128);
+    }
+
+    #[test]
+    fn encode_png_rgba_emits_valid_png_signature() {
+        let rgba = [255u8, 0, 0, 255, 0, 255, 0, 255]; // 2x1
+        let png = encode_png_rgba(2, 1, &rgba).expect("encode");
+        assert_eq!(&png[..8], &[0x89, b'P', b'N', b'G', 0x0D, 0x0A, 0x1A, 0x0A]);
     }
 }

@@ -2,7 +2,7 @@
 type: task_index
 status: active
 priority: p0
-updated: 2026-06-10
+updated: 2026-06-13
 context_policy: always_retrievable
 owner: project
 tags: [refactor, ai-capability, search-first, p0]
@@ -69,6 +69,7 @@ Detailed batch definitions, done criteria, non-goals, file map, and validation g
 - [~] `SEC-PERF` security + perf hardening (`hardening/security-perf`): audit
   baseline, `security.md` reconcile (nvim/keychain/CSP), perf baseline. Detail:
   `tasks/security-perf-hardening.md`.
+- [~] `ICON.NATIVE`+UX (2026-06-13): native icon rewrite (ADR-0056). `tasks/icon-native-and-ux.md`.
 
 ### P2
 
