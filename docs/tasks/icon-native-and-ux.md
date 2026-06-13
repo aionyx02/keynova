@@ -37,8 +37,22 @@ user asked to also address the remaining UX-affecting items ("都改").
   produces `嚙`, so the guard is vestigial or masks stale store data. User-facing harm is
   already mitigated by the raw-path fallback. Closing the root cause needs a concrete `嚙`
   filename/path from the user — not reproducible here.
-- [ ] `UX.AUDIT.2` — broader focused UX/perf sweep. Pending user greenlight; will produce a
-  verified findings list (not impression-based) before proposing changes.
+- [~] `UX.AUDIT.2` — focused static UX/perf sweep done 2026-06-13. Core hot paths verified
+  healthy (200ms-debounced + cancelable search, concurrent providers w/ 800ms timeout,
+  background prescan/warm/index, bounded clipboard history, graceful lock handling; all
+  `file.rs` unwraps are test-only). Findings:
+  - [x] `F1` (fixed) — `ModelManager::detect_hardware()` spawned `wmic`/`nvidia-smi`/
+    `powershell` on every call with no cache; `handlers/ai.rs:94` used the live path, so an
+    AI setup check after the `CHECK_SETUP_TTL` lapse stalled ~1–2s on the dispatch thread.
+    Fixed by session-memoizing a *successful* probe in ModelManager (zero/failed probe stays
+    retryable via `hardware_probe_succeeded`). Preflight's once-per-boot `detect_hardware()`
+    now warms the memo for all callers. `cargo test` 463 (+1).
+  - [ ] `F2` (deferred, low) — `metadata_payload` (search.rs:623) does a synchronous stat +
+    ≤64KB read for the focused-row preview on the dispatch thread; debounced via
+    `useFilePreview` so not per-keystroke. Move to a worker / tighten the cap if it ever
+    surfaces. Not worth the churn now.
+  - Scope caveat: static review only; true per-frame latency needs runtime profiling on the
+    real app.
 
 ## Done criteria
 

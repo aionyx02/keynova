@@ -17,6 +17,13 @@ pub struct HardwareInfo {
     pub vram_mb: u64,
 }
 
+/// A hardware probe is only worth memoizing when it actually detected something.
+/// An all-zero result is a transient failure (slow `wmic`, missing `nvidia-smi`)
+/// that must stay retryable, matching `model_hardware_snapshot_or_live`'s filter.
+fn hardware_probe_succeeded(hardware: &HardwareInfo) -> bool {
+    hardware.ram_mb > 0 || hardware.vram_mb > 0
+}
+
 /// A local model recommendation with an approximate footprint.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ModelCandidate {
@@ -58,6 +65,11 @@ struct OllamaPullChunk {
 pub struct ModelManager {
     client: reqwest::blocking::Client,
     catalog_cache: Arc<Mutex<Vec<ModelCandidate>>>,
+    /// Session-level memo of a successful hardware probe. RAM/VRAM do not change
+    /// during a session, so we run the (slow, subprocess-backed) `wmic` /
+    /// `nvidia-smi` / `powershell` detection at most once per boot instead of on
+    /// every `detect_hardware()` call (e.g. AI setup checks after the TTL lapses).
+    hardware_cache: Arc<Mutex<Option<HardwareInfo>>>,
 }
 
 impl ModelManager {
@@ -65,15 +77,29 @@ impl ModelManager {
         Self {
             client: reqwest::blocking::Client::new(),
             catalog_cache: Arc::new(Mutex::new(Vec::new())),
+            hardware_cache: Arc::new(Mutex::new(None)),
         }
     }
 
-    /// Detects RAM and GPU VRAM where the platform exposes them.
+    /// Detects RAM and GPU VRAM where the platform exposes them. Memoized after
+    /// the first successful probe; a zero result (transient detection failure —
+    /// slow `wmic`, missing `nvidia-smi`) is not cached so it can be retried.
     pub fn detect_hardware(&self) -> HardwareInfo {
-        HardwareInfo {
+        if let Ok(guard) = self.hardware_cache.lock() {
+            if let Some(cached) = guard.as_ref() {
+                return cached.clone();
+            }
+        }
+        let hardware = HardwareInfo {
             ram_mb: detect_ram_mb().unwrap_or(0),
             vram_mb: detect_vram_mb().unwrap_or(0),
+        };
+        if hardware_probe_succeeded(&hardware) {
+            if let Ok(mut guard) = self.hardware_cache.lock() {
+                *guard = Some(hardware.clone());
+            }
         }
+        hardware
     }
 
     /// Recommends models from the curated catalog based on available memory.
@@ -740,6 +766,22 @@ fn run_powershell_u64(script: &str) -> Option<u64> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn hardware_probe_succeeded_only_for_nonzero() {
+        assert!(!hardware_probe_succeeded(&HardwareInfo {
+            ram_mb: 0,
+            vram_mb: 0,
+        }));
+        assert!(hardware_probe_succeeded(&HardwareInfo {
+            ram_mb: 8192,
+            vram_mb: 0,
+        }));
+        assert!(hardware_probe_succeeded(&HardwareInfo {
+            ram_mb: 0,
+            vram_mb: 4096,
+        }));
+    }
 
     #[test]
     fn recommends_small_models_for_low_memory() {
