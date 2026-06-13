@@ -1,0 +1,69 @@
+name: ci
+
+# Per-push clippy + tests on all three desktop OSes. Before this, Linux/macOS
+# were only ever compiled at release-tag time (release.yml), so platform
+# regressions in cfg(not(windows)) / cfg(target_os = "macos") code only surfaced
+# during a release. This job catches them on every push instead.
+
+on:
+  push:
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  rust:
+    name: rust (${{ matrix.platform }})
+    strategy:
+      fail-fast: false
+      matrix:
+        platform: ["ubuntu-22.04", "macos-latest", "windows-latest"]
+    runs-on: ${{ matrix.platform }}
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Linux build deps
+        if: matrix.platform == 'ubuntu-22.04'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev \
+            librsvg2-dev \
+            patchelf \
+            build-essential \
+            libxdo-dev \
+            libssl-dev \
+            libayatana-appindicator3-dev
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+
+      - name: Setup Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+
+      - name: Rust cache
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: "./src-tauri -> target"
+
+      - name: Install npm dependencies
+        run: npm ci
+
+      # tauri-build's build script validates frontendDist (../dist), so the
+      # frontend bundle must exist before cargo clippy / test can compile.
+      - name: Build frontend (creates ../dist for tauri-build)
+        run: npm run build
+
+      - name: Clippy (-D warnings)
+        run: npm run rust:clippy
+
+      - name: Rust tests
+        run: npm run rust:test
