@@ -179,7 +179,9 @@ fn extract_shell_icon_base64(path: &str, kind: &str) -> Option<String> {
 }
 
 fn run_icon_script(path: &str, kind: &str, use_attrs: bool) -> Option<String> {
+    use crate::core::SilentCommandExt;
     let mut cmd = std::process::Command::new("powershell.exe");
+    cmd.no_window();
     cmd.args([
         "-NoProfile",
         "-NonInteractive",

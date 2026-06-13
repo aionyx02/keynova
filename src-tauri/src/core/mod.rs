@@ -19,6 +19,7 @@ pub mod network_policy;
 pub mod observability;
 pub mod plugin_runtime;
 pub mod preview;
+pub mod proc;
 pub mod process_lookup;
 pub mod project_commands;
 pub mod search_registry;
@@ -33,6 +34,7 @@ pub use builtin_command_registry::BuiltinCommandRegistry;
 pub use command_router::{CommandHandler, CommandResult, CommandRouter};
 pub use event_bus::{AppEvent, EventBus};
 pub use ipc_error::IpcError;
+pub use proc::SilentCommandExt;
 pub use knowledge_store::{
     ActionLogEntry, AgentAuditEntry, AgentMemoryEntry, KnowledgeStoreHandle,
 };

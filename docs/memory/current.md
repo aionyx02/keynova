@@ -2,7 +2,7 @@
 type: working_memory
 status: active
 priority: p0
-updated: 2026-06-11
+updated: 2026-06-13
 context_policy: always_retrievable
 owner: project
 ---
@@ -41,6 +41,7 @@ owner: project
 - LLM-driven execution must stay approval-gated for risky or system-affecting actions; risk + `ConfirmRequirement` live on `UnifiedResult.ActionChip`.
 - Generic shell tool exposure stays blocked until the platform sandbox boundary is complete.
 - Background Core memory targets exclude active WebView, loaded local LLM model memory, PTY terminal sessions, monitoring streams, and index rebuild tasks.
+- Windows `Command` spawns must chain `.no_window()` (`core::SilentCommandExt` = `CREATE_NO_WINDOW`) or a console flashes, stealing focus. `sessions/2026-06-13.md`
 - Two intentional deviations from docx literal text remain in force: `CommandPalette.tsx < 250` is dropped, and inline AI invocation uses capability cards in the palette body rather than row chips; entry is now mixed (`explain` / `summarize` / `fix` stay explicit prefixes, while `next` empty-state mount and `cmd` NL-query detection are enabled). (`AiPanel.tsx` deletion + legacy-agent removal landed in REF.8, 2026-06-09.)
 
 ## Next Step
@@ -58,4 +59,3 @@ owner: project
   (local Windows clippy + `cargo test` green). Follow-up `SEARCH.TANTIVY` in
   `backlog.md`. Re-run re-points the `v0.7.0` tag (prior tag built no artifacts);
   developer publishes the draft. Detail: `sessions/2026-06-11.md`.
-- Run `npm run docs:refresh` before commit or handoff.
