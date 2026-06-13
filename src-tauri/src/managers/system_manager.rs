@@ -61,6 +61,7 @@ impl SystemManager {
 #[cfg(target_os = "windows")]
 mod win_impl {
     use super::VolumeInfo;
+    use crate::core::SilentCommandExt;
     use windows::Win32::Media::Audio::Endpoints::IAudioEndpointVolume;
     use windows::Win32::Media::Audio::{
         eConsole, eRender, IMMDeviceEnumerator, MMDeviceEnumerator,
@@ -111,6 +112,7 @@ mod win_impl {
 
     pub fn get_brightness() -> Result<u32, String> {
         let output = std::process::Command::new("powershell")
+            .no_window()
             .args([
                 "-NoProfile",
                 "-Command",
@@ -127,6 +129,7 @@ mod win_impl {
             "(Get-WmiObject -Namespace root/WMI -Class WmiMonitorBrightnessMethods).WmiSetBrightness(1, {level})"
         );
         let status = std::process::Command::new("powershell")
+            .no_window()
             .args(["-NoProfile", "-Command", &script])
             .status()
             .map_err(|e| e.to_string())?;
@@ -140,6 +143,7 @@ mod win_impl {
     pub fn wifi_info() -> Result<Vec<super::WifiInfo>, String> {
         // Current connection
         let current_output = std::process::Command::new("netsh")
+            .no_window()
             .args(["wlan", "show", "interfaces"])
             .output()
             .map_err(|e| e.to_string())?;

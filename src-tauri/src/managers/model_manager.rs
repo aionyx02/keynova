@@ -7,6 +7,8 @@ use std::sync::Mutex;
 use serde::{Deserialize, Serialize};
 
 use crate::core::AppEvent;
+#[cfg(target_os = "windows")]
+use crate::core::SilentCommandExt;
 
 /// Hardware capacity used to choose a reasonable local model.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -604,6 +606,7 @@ fn detect_ram_mb() -> Option<u64> {
 #[cfg(target_os = "windows")]
 fn detect_ram_mb_wmic() -> Option<u64> {
     let output = std::process::Command::new("wmic")
+        .no_window()
         .args(["computersystem", "get", "TotalPhysicalMemory", "/value"])
         .output()
         .ok()?;
@@ -652,6 +655,7 @@ fn detect_vram_mb() -> Option<u64> {
 #[cfg(target_os = "windows")]
 fn detect_vram_mb_wmic() -> Option<u64> {
     let output = std::process::Command::new("wmic")
+        .no_window()
         .args([
             "path",
             "Win32_VideoController",
@@ -702,6 +706,7 @@ fn detect_vram_mb_powershell() -> Option<u64> {
 #[cfg(target_os = "windows")]
 fn detect_vram_mb_nvidia_smi() -> Option<u64> {
     let output = std::process::Command::new("nvidia-smi")
+        .no_window()
         .args(["--query-gpu=memory.total", "--format=csv,noheader,nounits"])
         .output()
         .ok()?;
@@ -721,6 +726,7 @@ fn parse_nvidia_smi_total_mb(output: &str) -> Option<u64> {
 #[cfg(target_os = "windows")]
 fn run_powershell_u64(script: &str) -> Option<u64> {
     let output = std::process::Command::new("powershell.exe")
+        .no_window()
         .args(["-NoProfile", "-NonInteractive", "-Command", script])
         .output()
         .ok()?;

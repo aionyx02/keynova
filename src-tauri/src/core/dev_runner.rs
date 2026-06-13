@@ -36,7 +36,10 @@ pub fn run_bounded_dev_cmd(
 ) -> Result<Value, String> {
     use std::io::Read;
 
+    use crate::core::SilentCommandExt;
+
     let mut child = std::process::Command::new(program)
+        .no_window()
         .args(args)
         .current_dir(cwd)
         .stdout(std::process::Stdio::piped())

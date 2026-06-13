@@ -12,6 +12,9 @@
 
 use std::process::Command;
 
+#[cfg(target_os = "windows")]
+use crate::core::SilentCommandExt;
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ProcessInfo {
     pub pid: u32,
@@ -43,6 +46,7 @@ pub fn kill_pid(pid: u32) -> Result<(), String> {
     #[cfg(target_os = "windows")]
     {
         let out = Command::new("taskkill")
+            .no_window()
             .args(["/F", "/PID", &pid.to_string()])
             .output()
             .map_err(|e| format!("taskkill spawn failed: {e}"))?;
@@ -71,6 +75,7 @@ pub fn kill_pid(pid: u32) -> Result<(), String> {
 #[cfg(target_os = "windows")]
 fn find_process_windows(port: u16) -> Result<Option<ProcessInfo>, String> {
     let out = Command::new("netstat")
+        .no_window()
         .args(["-ano", "-p", "TCP"])
         .output()
         .map_err(|e| format!("netstat spawn failed: {e}"))?;
@@ -96,6 +101,7 @@ fn find_process_windows(port: u16) -> Result<Option<ProcessInfo>, String> {
 #[cfg(target_os = "windows")]
 fn process_name_from_tasklist(pid: u32) -> Result<Option<String>, String> {
     let out = Command::new("tasklist")
+        .no_window()
         .args(["/FI", &format!("PID eq {pid}"), "/FO", "CSV", "/NH"])
         .output()
         .map_err(|e| format!("tasklist spawn failed: {e}"))?;
