@@ -41,11 +41,13 @@ anti-crash + continuous verification (verifiable), Phase 2 fill platform feature
     `0o600` on the unix control token.
   No crash bugs to fix. The real Phase-1 gap was the missing CI gate, now filled.
 
-### Verification status
-CI YAML validated locally (js-yaml parse OK, 3 platforms). **Real Linux/macOS
-compile/test result requires a push** (CI triggers on push; `gh` is authed so the
-run can be watched). First run may surface pre-existing macOS-only issues never
-compiled outside release; fix from the run logs.
+### Verification status — VERIFIED GREEN (2026-06-13)
+Pushed `feature/cross-platform-stability`; CI run 27456635291 passed on all three:
+`ubuntu-22.04` (4m54s), `macos-latest` (4m03s), `windows-latest` (11m41s) — clippy
+`-D warnings` + `cargo test` clean. No pre-existing macOS/Linux breaks; this
+session's changes are cross-platform-safe. Non-blocking annotations only: Node 20
+action deprecation (actions/checkout + setup-node, due ~2026-06-16) and the
+windows-latest→windows-2025 image redirect — future CI maintenance, not failures.
 
 ## Phase 2 — fill platform features (later, safety-netted by Phase 1 CI)
 
