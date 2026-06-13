@@ -6,6 +6,8 @@
 use std::path::Path;
 use std::sync::{Arc, Mutex, OnceLock};
 
+use crate::core::SilentCommandExt;
+
 /// 已知噪音目錄：掃描時略過，避免 AppData / node_modules / build 產物拖慢速度。
 const SKIP_DIRS: &[&str] = &[
     "AppData",
@@ -295,6 +297,7 @@ fn wsl_home_dirs() -> Vec<(std::path::PathBuf, usize)> {
 /// 失敗時回退至常見發行版名稱清單。
 fn wsl_distro_names() -> Vec<String> {
     if let Ok(out) = std::process::Command::new("wsl.exe")
+        .no_window()
         .args(["--list", "--quiet"])
         .output()
     {
