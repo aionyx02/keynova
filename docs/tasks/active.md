@@ -20,7 +20,7 @@ tags: [refactor, ai-capability, search-first, p0]
 - [x] `REF.1` define `UnifiedResult` as the shared result/action contract.
 - [x] `REF.2` split `CommandPalette.tsx` (landed 598 lines; `< 250` dropped, see plan).
 - [x] `REF.3` split `handlers/agent/mod.rs` (landed 616 lines, observation target `< 600`).
-- [x] `REF.4` stateless AI capability layer. All 5 capabilities are now live behind one `call_capability` entry: `explain`, `summarize`, `fix_error`, `gen_command`, `suggest_next`.
+- [x] `REF.4` stateless AI capability layer: all 5 capabilities behind one `call_capability` entry.
 - [x] `REF.5` workflow memory schema v4 + `record` / `suggest`.
 - [x] `REF.6` search box = pure dispatcher. Sub-batches `A`–`G`, `I`, `J` +
   `REF.6.H` (feature-first directory migration: 11 panels + 3 model panels →
@@ -80,7 +80,7 @@ Detailed batch definitions, done criteria, non-goals, file map, and validation g
 
 ## Strategy
 
-Keynova's active priority is the search-first workflow refactor: AI is a stateless capability layer invoked inline from unified result rows and prefix-keyword palette flows; chat-first surfaces leave the hot path.
+Keynova's active priority is the search-first workflow refactor: AI is a stateless capability layer invoked inline from the palette; chat-first surfaces leave the hot path.
 
 Freeze status (developer-directed): `PRODUCT.1`/`.2`/`.3` complete; REF.6/7/8
 done. The legacy ReAct agent was fully removed (REF.8); parked tracks

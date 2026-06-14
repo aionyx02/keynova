@@ -15,6 +15,7 @@
 
 import { useEffect } from "react";
 
+import { confirmInputReady, markPaletteOpen } from "../devTiming";
 import { PALETTE_WIDTH_NARROW, PALETTE_WIDTH_WIDE } from "../../../hooks/useWindowResize";
 import type { SourceFilter } from "../../../types/search";
 import type { BuiltinCommandResult } from "../../../hooks/useCommands";
@@ -57,7 +58,9 @@ export function usePaletteEffects(deps: Deps) {
 
   // One-shot focus on mount.
   useEffect(() => {
+    markPaletteOpen("cold-mount");
     inputRef.current?.focus();
+    confirmInputReady("cold-mount", inputRef);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
