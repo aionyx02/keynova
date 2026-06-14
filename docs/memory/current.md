@@ -2,7 +2,7 @@
 type: working_memory
 status: active
 priority: p0
-updated: 2026-06-13
+updated: 2026-06-14
 context_policy: always_retrievable
 owner: project
 ---
@@ -46,16 +46,13 @@ owner: project
 
 ## Next Step
 
-- `v0.7.0` cut on `main` (2026-06-10): bundles the post-`v0.6.0` delta —
-  PRODUCT.2 inline-AI hardening, PRODUCT.3 trusted-release scaffold (`/diag`,
-  dormant updater, config quarantine, signing scaffold), PRODUCT.4 ranking,
-  PROFILE.1, CONT/STAB, REF.8 removals (legacy agent + nvim + mouse_control),
-  CI.HARDEN — plus PROFILE.2 pin removal, the Ctrl+K reopen fix, and SEC-PERF
-  docs. Version bumped to `0.7.0`; notes `release-notes/v0.7.0.md`. Still
-  **UNSIGNED** (certs deferred per dev). `v0.6.0` was the prior tag.
-- v0.7.0 release CI first failed at `verify` clippy (`-D warnings`): 16
-  dead/unused errors from the Windows-only + test-only tantivy index warmup path
-  on the Linux runner. Fixed via targeted `#[allow(dead_code)]` + `#[cfg]` gating
-  (local Windows clippy + `cargo test` green). Follow-up `SEARCH.TANTIVY` in
-  `backlog.md`. Re-run re-points the `v0.7.0` tag (prior tag built no artifacts);
-  developer publishes the draft. Detail: `sessions/2026-06-11.md`.
+- `v0.7.1` cut (2026-06-14): stability/perf/CI patch bundling the post-`v0.7.0`
+  delta — Windows console-flash fix (`SilentCommandExt`), native shell-icon perf,
+  hardware-probe memoize, per-push cross-platform CI matrix. Version → `0.7.1`
+  (package.json/tauri.conf.json/Cargo.toml/Cargo.lock); notes
+  `release-notes/v0.7.1.md`. Merged `feature/cross-platform-stability` → `main`
+  (`--no-ff`), tagged `v0.7.1`; `release.yml` builds the 3-OS **draft** (still
+  **UNSIGNED**, certs deferred per dev) to publish. Detail: `sessions/2026-06-14.md`.
+- Cross-platform stability Phase 1 (CI gate + static review, no panics) done and
+  CI-green on all 3 OSes; Phase 2 (fill `platform/linux.rs`/`macos.rs` skeletons)
+  deferred. Detail: `tasks/cross-platform-stability.md`.
