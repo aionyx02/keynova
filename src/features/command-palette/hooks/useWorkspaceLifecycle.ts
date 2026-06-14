@@ -15,6 +15,7 @@
 import { useEffect } from "react";
 import { listen } from "@tauri-apps/api/event";
 
+import { confirmInputReady, markPaletteOpen } from "../devTiming";
 import type { WorkspaceState } from "../../../hooks/useWorkspace";
 
 export interface UseWorkspaceLifecycleDeps {
@@ -42,11 +43,13 @@ export function useWorkspaceLifecycle({
     if (!window.__TAURI_INTERNALS__) return;
     const unlisten = listen<void>("window-focused", () => {
       if (modeRef.current === "terminal") return;
+      markPaletteOpen("window-focused");
       cancelSearch();
       setQuery("");
       clearSearchResults();
       setCmdResult(null);
       inputRef.current?.focus();
+      confirmInputReady("window-focused", inputRef);
     });
     return () => {
       unlisten.then((fn) => fn());
@@ -57,12 +60,16 @@ export function useWorkspaceLifecycle({
     if (!window.__TAURI_INTERNALS__) return;
     const unlisten = listen<WorkspaceState>("workspace-switched", (event) => {
       const ws = event.payload;
+      markPaletteOpen("workspace-switched");
       setQuery(ws.query ?? "");
       clearSearchResults();
       setCmdResult(null);
       cancelSearch();
       clearRecentlyDeleted();
-      requestAnimationFrame(() => inputRef.current?.focus());
+      requestAnimationFrame(() => {
+        inputRef.current?.focus();
+        confirmInputReady("workspace-switched", inputRef);
+      });
     });
     return () => {
       unlisten.then((fn) => fn());
@@ -72,12 +79,16 @@ export function useWorkspaceLifecycle({
   useEffect(() => {
     if (!window.__TAURI_INTERNALS__) return;
     const unlisten = listen<WorkspaceState>("workspace-cycled", () => {
+      markPaletteOpen("workspace-cycled");
       setQuery("");
       clearSearchResults();
       setCmdResult(null);
       cancelSearch();
       clearRecentlyDeleted();
-      requestAnimationFrame(() => inputRef.current?.focus());
+      requestAnimationFrame(() => {
+        inputRef.current?.focus();
+        confirmInputReady("workspace-cycled", inputRef);
+      });
     });
     return () => {
       unlisten.then((fn) => fn());
