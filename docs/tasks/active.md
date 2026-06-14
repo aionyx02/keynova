@@ -2,7 +2,7 @@
 type: task_index
 status: active
 priority: p0
-updated: 2026-06-13
+updated: 2026-06-14
 context_policy: always_retrievable
 owner: project
 tags: [refactor, ai-capability, search-first, p0]
@@ -70,6 +70,9 @@ Detailed batch definitions, done criteria, non-goals, file map, and validation g
   baseline, `security.md` reconcile (nvim/keychain/CSP), perf baseline. Detail:
   `tasks/security-perf-hardening.md`.
 - [~] `ICON.NATIVE`+UX (2026-06-13): native icon rewrite (ADR-0056). `tasks/icon-native-and-ux.md`.
+- [x] `XPLAT` x-platform stability Phase 1 (CI-green 3 OSes, in `v0.7.1`):
+  per-push 3-OS clippy+test + static review (no panics). Phase 2 deferred.
+  Detail: `tasks/cross-platform-stability.md`.
 
 ### P2
 
@@ -87,7 +90,4 @@ Keep `active.md` compact. Put batch-level task detail in `docs/tasks/refactor-ai
 
 ## Next Phase Candidates
 
-- [x] `PRODUCT.3` trusted-release (ADR-0047/0048/0049/0050): **merged to `main`**
-  2026-06-07 (`8b26a4d`). Only open: secret-gated signing (**deferred per dev**)
-  + updater keypair. Detail: `sessions/2026-06-07.md`.
-- `REF.7.C` final closer: user-side Bug A/B smoke.
+- `XPLAT` Phase 2: fill `platform/{linux,macos}.rs` (CI-gated).
