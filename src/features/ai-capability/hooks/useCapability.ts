@@ -150,7 +150,16 @@ export function useCapability({ dispatch, id }: UseCapabilityDeps): UseCapabilit
           responseUnlistenP,
           chunkUnlistenP ?? Promise.resolve<UnlistenFn>(() => {}),
         ]);
-        unlistensRef.current = [responseUnlisten, chunkUnlisten];
+        // A newer run() may have started (and run teardown() on an empty ref)
+        // while we awaited subscription. If so, these two subscriptions are
+        // orphaned — unlisten them now instead of overwriting the ref and
+        // leaking them until unmount (M6).
+        if (activeIdRef.current !== rid) {
+          responseUnlisten();
+          chunkUnlisten();
+        } else {
+          unlistensRef.current = [responseUnlisten, chunkUnlisten];
+        }
       }
 
       try {

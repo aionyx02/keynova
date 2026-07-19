@@ -143,7 +143,10 @@ pub(super) fn read_recent_workflows(
                 action_label: row.get(3)?,
                 payload_digest: row.get(4)?,
                 workspace_id: row.get(5)?,
-                succeeded: row.get(6)?,
+                // Read as integer then map, so a stray value outside {NULL,0,1}
+                // (corruption / future writer) degrades to a bool instead of
+                // failing the whole query_map and killing suggest_next (L11).
+                succeeded: row.get::<_, Option<i64>>(6)?.map(|v| v != 0),
                 project_root: row.get(7)?,
                 executed_at: row.get(8)?,
             })

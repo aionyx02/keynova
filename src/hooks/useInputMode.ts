@@ -6,11 +6,15 @@ export interface ParsedInput {
 }
 
 export function parseInputMode(value: string): ParsedInput {
-  if (value.startsWith(">")) {
-    return { mode: "terminal", rawInput: value.slice(1).trimStart() };
+  // Strip leading whitespace before testing the `>` / `/` sigils so a leading
+  // space can't defeat terminal/command mode. The downstream capability parsers
+  // already lstrip, so this keeps both layers consistent (L7).
+  const lstripped = value.replace(/^\s+/, "");
+  if (lstripped.startsWith(">")) {
+    return { mode: "terminal", rawInput: lstripped.slice(1).trimStart() };
   }
-  if (value.startsWith("/")) {
-    return { mode: "command", rawInput: value.slice(1) };
+  if (lstripped.startsWith("/")) {
+    return { mode: "command", rawInput: lstripped.slice(1) };
   }
   return { mode: "search", rawInput: value };
 }
