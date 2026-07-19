@@ -42,6 +42,14 @@ impl CalculatorManager {
         if trimmed.is_empty() {
             return Err("empty expression".into());
         }
+        // Bound input length before parsing: the recursive-descent evaluator has
+        // no depth limit, so an expression of hundreds of thousands of `(` (or a
+        // long unary `-` run) would overflow the stack and abort the process
+        // (M2). No legitimate calculator input approaches this cap.
+        const MAX_EXPR_LEN: usize = 4096;
+        if trimmed.len() > MAX_EXPR_LEN {
+            return Err(format!("expression too long (max {MAX_EXPR_LEN} bytes)"));
+        }
 
         // 進位轉換：0x / 0b / 0o 前綴
         if let Some(result) = self.try_base_conversion(trimmed) {
@@ -101,7 +109,10 @@ impl CalculatorManager {
 
     fn try_base_conversion(&self, s: &str) -> Option<Result<String, String>> {
         // "0x1A to dec", "255 to hex", "10 to bin", "0b1010 to dec"
-        let lower = s.to_lowercase();
+        // ASCII-only lowercasing keeps byte offsets aligned with `s`, so the
+        // `s[..idx]` slices below can never land inside a multi-byte character.
+        // (Unicode `to_lowercase` can change byte length — see H1 regression.)
+        let lower = s.to_ascii_lowercase();
 
         // Has " to " separator
         if let Some(idx) = lower.find(" to ") {
@@ -135,7 +146,10 @@ impl CalculatorManager {
     ///
     /// Online rates require ADR-038 (currently `提議`) and are not implemented.
     fn try_currency_conversion(&self, s: &str) -> Option<Result<String, String>> {
-        let lower = s.to_lowercase();
+        // ASCII-only lowercasing keeps byte offsets aligned with `s`, so the
+        // `s[..idx]` slices below can never land inside a multi-byte character.
+        // (Unicode `to_lowercase` can change byte length — see H1 regression.)
+        let lower = s.to_ascii_lowercase();
         let idx = lower.find(" to ")?;
         let left = s[..idx].trim();
         let target_raw = lower[idx + 4..].trim().to_uppercase();
@@ -173,7 +187,10 @@ impl CalculatorManager {
     ///
     /// Dates accept `YYYY-MM-DD` or `YYYY/MM/DD`.
     fn try_date_arithmetic(&self, s: &str) -> Option<Result<String, String>> {
-        let lower = s.to_lowercase();
+        // ASCII-only lowercasing keeps byte offsets aligned with `s`, so the
+        // `s[..idx]` slices below can never land inside a multi-byte character.
+        // (Unicode `to_lowercase` can change byte length — see H1 regression.)
+        let lower = s.to_ascii_lowercase();
 
         // Quick rejects: must contain at least one date-ish token.
         if !lower.contains("today")
@@ -245,7 +262,10 @@ impl CalculatorManager {
     }
 
     fn try_unit_conversion(&self, s: &str) -> Option<Result<String, String>> {
-        let lower = s.to_lowercase();
+        // ASCII-only lowercasing keeps byte offsets aligned with `s`, so the
+        // `s[..idx]` slices below can never land inside a multi-byte character.
+        // (Unicode `to_lowercase` can change byte length — see H1 regression.)
+        let lower = s.to_ascii_lowercase();
         let idx = lower.find(" to ")?;
         let left = s[..idx].trim();
         let target_unit = lower[idx + 4..].trim().to_string();
@@ -260,6 +280,26 @@ impl CalculatorManager {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    // H1 回歸測試（對抗式驗證）：非 ASCII 輸入不可 panic。
+    // U+212A KELVIN SIGN 的 Unicode 小寫是 ASCII 'k'（3 bytes -> 1 byte），
+    // 使得「在 lowercased 複本上算的 byte offset」切原字串時落在字元中間。
+    // 修前：`s[..idx]` panic（byte index N is not a char boundary）。
+    // 修後：不 panic（回 Err 也可接受）。
+    #[test]
+    fn conversion_handles_non_ascii_without_panicking() {
+        let mut m = CalculatorManager::new();
+        let _ = m.eval("\u{212A} to dec"); // try_base_conversion 路徑
+        let _ = m.eval("100 \u{212A}B to MB"); // try_unit_conversion 路徑
+    }
+
+    // M2 回歸測試：極長運算式必須被拒，不可讓遞迴 parser 撐爆 stack。
+    #[test]
+    fn absurdly_long_expression_is_rejected_not_crashed() {
+        let mut m = CalculatorManager::new();
+        let bomb = "(".repeat(300_000);
+        assert!(m.eval(&bomb).is_err());
+    }
 
     #[test]
     fn basic_arithmetic() {

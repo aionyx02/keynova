@@ -25,6 +25,8 @@ function formatLatencyMs(ms: number): string {
 }
 
 function formatExecutedAt(epochSeconds: number): string {
+  // A non-finite/garbage epoch would render "Invalid Date" (L10).
+  if (!Number.isFinite(epochSeconds)) return "";
   return new Date(epochSeconds * 1000).toLocaleString();
 }
 
@@ -149,7 +151,7 @@ export function CapabilityListCard({
                     </div>
                     <div className="shrink-0 text-right">
                       <div className="text-[11px] font-medium text-[color:var(--kn-text-soft)]">
-                        {Math.round(item.confidence * 100)}%
+                        {Number.isFinite(item.confidence) ? Math.round(item.confidence * 100) : 0}%
                       </div>
                       <div className="mt-1 text-[10px] text-[color:var(--kn-text-faint)]">
                         {item.replay ? c.replay : c.historyOnly}

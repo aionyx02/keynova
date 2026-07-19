@@ -88,7 +88,13 @@ export function useSearchStream({ dispatch, setLoading }: UseSearchStreamDeps): 
       if (payload.diagnostics) {
         setFileDiagnostics(payload.diagnostics);
       }
-      if (payload.replace) {
+      // Guard the array before dereferencing: this is the one IPC-return path
+      // that skips the field-by-field validation the capability parsers use, so
+      // a malformed chunk (items missing/non-array) would throw inside the
+      // listener callback (unhandled rejection, stuck spinner) (L8).
+      if (!Array.isArray(payload.items)) {
+        // ignore malformed items; still honor done/diagnostics below
+      } else if (payload.replace) {
         // Final balanced batch from backend — replace results entirely.
         // Deleted paths are filtered at render time via
         // `visibleResults`, so the kill set doesn't need to live in this

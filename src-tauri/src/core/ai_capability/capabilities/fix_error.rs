@@ -5,9 +5,7 @@
 //! execution return `UnsupportedAction`. `audit = true`,
 //! `requires_confirmation = false` (no destructive action).
 
-use std::path::PathBuf;
 use std::sync::atomic::Ordering;
-use std::time::Duration;
 
 use serde::{Deserialize, Serialize};
 
@@ -19,25 +17,24 @@ use crate::core::ai_capability::contract::{
 use crate::core::ai_capability::memory::push_memory_sources;
 use crate::core::ai_capability::prompt::{build_prompt_with_sources, maybe_audit};
 use crate::core::ai_capability::registry::{meta, CapabilityId};
-use crate::core::dev_runner::{
-    extract_compiler_errors, run_bounded_dev_cmd, DEV_CARGO_TIMEOUT_SECS, DEV_NPM_TIMEOUT_SECS,
-};
+use crate::core::dev_runner::extract_compiler_errors;
 use crate::models::agent::GroundingSource;
-
-/// Programs the read-only re-run path will accept. Anything else routes to
-/// `UnsupportedAction` so a future destructive `fix_error` ADR can broaden
-/// the surface explicitly.
-const ALLOWED_PROGRAMS: &[&str] = &["cargo", "npm", "pnpm", "yarn", "tsc"];
 
 #[derive(Debug, Deserialize)]
 #[serde(untagged)]
 enum Payload {
-    /// Re-run a known-safe dev command and use its captured output.
+    /// Rejected in v1 (ADR-0057): `fix_error` is explanation-only and must not
+    /// spawn processes. `args`/`cwd` were fully caller-controlled with no
+    /// approval gate — a caller-directed exec path. Supply `raw_output` instead.
     RunCommand {
+        #[allow(dead_code)]
         program: String,
+        #[allow(dead_code)]
         args: Vec<String>,
+        #[allow(dead_code)]
         cwd: String,
         #[serde(default)]
+        #[allow(dead_code)]
         timeout_secs: Option<u64>,
     },
     /// Caller supplies raw compiler/linter output (preferred — no exec).
@@ -80,37 +77,14 @@ pub fn call(
             ));
         }
         Payload::RawOutput { raw_output } => raw_output,
-        Payload::RunCommand {
-            program,
-            args,
-            cwd,
-            timeout_secs,
-        } => {
-            if !ALLOWED_PROGRAMS.contains(&program.as_str()) {
-                return Err(CapabilityError::UnsupportedAction(format!(
-                    "program '{program}' is not in the bounded dev-runner allowlist"
-                )));
-            }
-            let arg_refs: Vec<&str> = args.iter().map(String::as_str).collect();
-            let default_to = if program == "cargo" {
-                DEV_CARGO_TIMEOUT_SECS
-            } else {
-                DEV_NPM_TIMEOUT_SECS
-            };
-            let timeout = Duration::from_secs(timeout_secs.unwrap_or(default_to));
-            let value = run_bounded_dev_cmd(&program, &arg_refs, &PathBuf::from(cwd), timeout)
-                .map_err(CapabilityError::ProviderError)?;
-            let stdout = value
-                .get("stdout")
-                .and_then(|v| v.as_str())
-                .unwrap_or("")
-                .to_string();
-            let stderr = value
-                .get("stderr")
-                .and_then(|v| v.as_str())
-                .unwrap_or("")
-                .to_string();
-            format!("{stdout}\n{stderr}")
+        Payload::RunCommand { .. } => {
+            // ADR-0057: explanation-only. Re-running commands (caller-controlled
+            // args + cwd, no approval gate) is not a capability responsibility.
+            return Err(CapabilityError::UnsupportedAction(
+                "re-running commands is not supported — supply raw_output instead \
+                 (fix_error is explanation-only)"
+                    .into(),
+            ));
         }
     };
 
@@ -391,6 +365,23 @@ mod tests {
             req(serde_json::json!({
                 "program": "rm",
                 "args": ["-rf", "/"],
+                "cwd": "."
+            })),
+            &deps(Arc::new(EchoProvider)),
+        )
+        .unwrap_err();
+        assert!(matches!(err, CapabilityError::UnsupportedAction(_)));
+    }
+
+    // ADR-0057 (H2): even a formerly-allowlisted program must no longer execute;
+    // fix_error is explanation-only. This is the caller-directed exec path the
+    // adversarial review flagged.
+    #[test]
+    fn run_command_rejects_allowlisted_program_too() {
+        let err = call(
+            req(serde_json::json!({
+                "program": "cargo",
+                "args": ["check"],
                 "cwd": "."
             })),
             &deps(Arc::new(EchoProvider)),

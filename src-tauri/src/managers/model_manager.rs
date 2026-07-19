@@ -562,7 +562,12 @@ fn parse_library_tag_candidates(html: &str, base_name: &str, limit: usize) -> Ve
         let raw = after[..end].split(['?', '#', '/']).next().unwrap_or("");
         let name = raw.trim();
         if is_valid_model_tag(name) && name.starts_with(base_name) && name.contains(':') {
-            let snippet_end = after.len().min(end + 900);
+            // `end + 900` is an arbitrary byte offset into network-fetched HTML;
+            // retreat to a char boundary so a multi-byte char there can't panic (L1).
+            let mut snippet_end = after.len().min(end + 900);
+            while snippet_end > end && !after.is_char_boundary(snippet_end) {
+                snippet_end -= 1;
+            }
             let snippet = &after[end..snippet_end];
             let size_gb = parse_size_gb(snippet)
                 .or_else(|| estimate_model_size_gb(name))

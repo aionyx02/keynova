@@ -172,9 +172,16 @@ pub fn extract_compiler_errors(output: &str) -> Vec<Value> {
 pub fn bound_output_n(bytes: &[u8], limit: usize) -> String {
     let s = String::from_utf8_lossy(bytes);
     if s.len() > limit {
+        // Retreat to the largest char boundary <= limit so we never slice inside
+        // a multi-byte character (M1). Dev-tool output routinely exceeds 64 KiB
+        // and contains non-ASCII (cargo box-drawing, unicode paths/snippets).
+        let mut end = limit;
+        while end > 0 && !s.is_char_boundary(end) {
+            end -= 1;
+        }
         format!(
             "{}\n[output truncated: {} bytes total, limit {}B]",
-            &s[..limit],
+            &s[..end],
             bytes.len(),
             limit
         )
@@ -187,6 +194,18 @@ pub fn bound_output_n(bytes: &[u8], limit: usize) -> String {
 mod tests {
     use super::*;
     use uuid::Uuid;
+
+    // M1 回歸測試：截斷點落在多位元組字元中間時不可 panic。
+    #[test]
+    fn bound_output_n_truncates_on_char_boundary() {
+        // 'é' is 2 bytes. Fill so byte `limit` lands inside a char.
+        let mut bytes = vec![b'a'; 9];
+        bytes.extend_from_slice("é".as_bytes()); // bytes 9,10
+        bytes.extend_from_slice(&[b'b'; 20]);
+        // limit=10 falls inside 'é' (bytes 9..11) — must retreat to 9, not panic.
+        let out = bound_output_n(&bytes, 10);
+        assert!(out.starts_with("aaaaaaaaa\n[output truncated"));
+    }
 
     #[test]
     fn bound_output_n_truncates_at_given_limit() {

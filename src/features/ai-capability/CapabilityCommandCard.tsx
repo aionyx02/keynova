@@ -38,6 +38,9 @@ function useTickingClock(active: boolean, intervalMs = 100): number {
 }
 
 function confidenceLabel(confidence: number): "low" | "medium" | "high" {
+  // A non-finite confidence (NaN/Infinity from a malformed backend payload)
+  // would otherwise fall through both `<` checks and render as "high" (L10).
+  if (!Number.isFinite(confidence)) return "low";
   if (confidence < 0.4) return "low";
   if (confidence < 0.75) return "medium";
   return "high";
