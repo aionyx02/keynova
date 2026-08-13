@@ -507,10 +507,19 @@ git ls-files | grep -Ei '(^|/)(\.mcp\.json|\.claude/|\.cursor/|\.amazonq/|\.wind
 | 依賴升級    | Dependabot（npm / cargo / github-actions，每週）                    | 排程                              | 上游新版本               |
 | 文件同步    | `npm run docs:refresh` guards、`guard:size`                        | pre-commit / verify               | 安全模型與程式碼不漂移   |
 
-### 17.2 已知缺口（待辦，不是已完成事項）
+### 17.2 Advisory 例外機制
 
-- `cargo audit` 的 CI job 尚未在真實 CI 上跑過綠燈（本機未安裝 `cargo-audit`，
-  2026-08-13 只驗證了 workflow YAML 可解析與 `npm audit` 那一半）。首次 push 後需確認。
+`src-tauri/.cargo/audit.toml` 是唯一的 `cargo audit` 例外清單。每筆 ignore 必須寫明
+**修不掉的原因、暴露面為何可接受、何時複查**；只是「修起來麻煩」不構成理由。
+Informational（unsound / unmaintained / yanked）**不列入** ignore——它們預設就不會讓
+`cargo audit` 失敗，列進去只會把訊號藏起來（2026-08-13 有 22 筆，全部留在 CI log 可見）。
+
+現行唯一例外：`RUSTSEC-2026-0194` / `RUSTSEC-2026-0195`（`quick-xml` DoS）。
+`plist` 釘住 `quick-xml ^0.39.2`，本 repo 無法升級；該路徑是 Tauri build/codegen 期
+解析自有檔案，非執行期不信任輸入。複查點：tauri > 2.11.1，或 2026-11-13。
+
+### 17.3 已知缺口（待辦，不是已完成事項）
+
 - 尚未導入 `cargo-deny`（license + 來源 + 重複依賴），目前只擋 RustSec advisory。
 - `npm audit signatures` 目前為 `continue-on-error`（缺簽章多半是 registry 端缺口，
   不當作合併阻擋）；若日後要收緊需確認全依賴樹皆有簽章。
@@ -519,6 +528,6 @@ git ls-files | grep -Ei '(^|/)(\.mcp\.json|\.claude/|\.cursor/|\.amazonq/|\.wind
 - GitHub secret scanning / push protection 尚無設定紀錄，建議開啟。
 - 無 SBOM 產出、release artifact 未簽章（見 §9 code signing）。
 
-### 17.3 合併前最小安全門檻
+### 17.4 合併前最小安全門檻
 
 `npm run verify` 綠燈 + CodeQL 無新 alert + 觸及 §8 清單的變更有對應 ADR。
