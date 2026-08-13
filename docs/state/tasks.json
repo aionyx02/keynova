@@ -295,7 +295,7 @@
       "title": "Stateless AI Capability Layer - DONE",
       "priority": "P0",
       "status": "done",
-      "summary": "stateless AI capability layer. All 5 capabilities are now live behind one `call_capability` entry: `explain`, `summarize`, `fix_error`, `gen_command`, `suggest_next`",
+      "summary": "stateless AI capability layer: all 5 capabilities behind one `call_capability` entry",
       "depends_on": [
         "REF.3"
       ],

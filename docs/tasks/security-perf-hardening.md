@@ -42,6 +42,32 @@ drifting behind REF.8 + the keychain migration. Perf is **measure-first**: memor
   Repoint §9 known-limits (keychain DONE, CSP DONE-residual-`unsafe-inline`, drop
   nvim checksum), clean nvim from §3.2 path table + §5.1 network table, add a
   keychain note to §4 sensitive-data handling. Docs-only, no runtime change.
+- [x] `SEC.3` `security.md` verification playbook §13–§17 (2026-08-13, docs-only):
+  supply-chain (`npm view`) preflight, authorization-bypass regression list,
+  XSS/SQLi evidence + rules, agent-config trust boundary (`.mcp.json`/`.claude`/
+  `.cursor`/`.amazonq`), SAST/CI gate matrix. Surfaced three new §9 known limits:
+  dev origins in production CSP, `npm audit`/`cargo audit` not in CI, and
+  `.gitignore` missing the agent-config paths. Detail: `sessions/2026-08-13.md`.
+- [~] `SEC.4` Close the three gaps `SEC.3` recorded (2026-08-13):
+  - [x] `.github/workflows/audit.yml`: `npm audit --audit-level=high` +
+    `npm audit signatures` (advisory) + `cargo audit`, on main/dev push, PRs,
+    and a weekly sweep. `cargo-audit` installed from crates.io rather than a
+    third-party action (this job *is* the supply-chain gate).
+  - [x] `.gitignore` agent-config block (`.mcp.json`, `.cursor*`, `.amazonq/`,
+    `.windsurf*`, `.roo/`, `.aider*`, copilot-instructions) — `security.md` §16.3.
+  - [x] Dependency remediation the new gate exposed: the 2026-06-10 "0 vulns"
+    baseline had rotted to 9 (2 low / 7 high), all dev-toolchain transitives.
+    `npm audit fix` resolved all 9 in-range (lockfile only, no `package.json`
+    range change); `npm run check` + `vitest` green.
+  - [ ] ADR-0057 (`提議`) production CSP split — **needs developer acceptance
+    before any `tauri.conf.json` change**. Audit found the renderer makes zero
+    direct network calls, so production `connect-src` can drop the dev origins
+    *and* all four remote hosts.
+  - [ ] Decide on `DEFAULT_NETWORK_ALLOWLIST` dead grants (`api.tavily.com`,
+    `duckduckgo.com` — web search removed in REF.8). Default-value change,
+    affects existing `security.network_allowlist` overrides; developer call.
+  - [ ] First CI run of the `cargo audit` half is unverified (no local
+    `cargo-audit`); confirm green after the first push.
 - [ ] `PERF.1` Measurement baseline (measure-first, NO optimization this batch).
   `cargo tauri build` release; capture cold-start / first-paint, Private-WS
   footprint, and `dist/` bundle sizes. Record baseline in `sessions/2026-06-10.md`.
