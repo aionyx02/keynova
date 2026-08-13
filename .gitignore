@@ -51,10 +51,23 @@ Desktop.ini
 # Local config overrides
 *.local
 .keynova/
-.claude/
 
 # Private design working area
 files/
 
-# Personal notes are intentionally tracked.
+# AI agent config and local rule files (docs/security.md §16).
+# These are executable configuration: they can launch MCP servers, widen tool
+# permissions, or inject agent rules on any machine that clones the repo. They
+# stay out of version control; sharing one requires an ADR + code-owner review.
+# (Tracked, reviewed exceptions: CLAUDE.md, docs/CLAUDE.md — text-only governance.)
+.claude/
+.mcp.json
+.cursor/
+.cursorrules
+.amazonq/
+.windsurf/
+.windsurfrules
+.roo/
+.aider*
+.github/copilot-instructions.md
 AGENTS.md
