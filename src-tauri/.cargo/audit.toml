@@ -1,0 +1,32 @@
+# cargo-audit configuration (docs/security.md §17).
+#
+# Every entry in `ignore` must state (a) why it cannot be fixed from this repo,
+# (b) why the exposure is acceptable meanwhile, and (c) when to re-check. An
+# advisory that is merely inconvenient does not belong here — the gate is only
+# useful while it stays honest.
+#
+# Informational advisories (unmaintained / unsound / notice) do not fail
+# `cargo audit` and are deliberately NOT listed here: they stay visible as
+# warnings in the CI log. As of 2026-08-13 there are 22 of them, including
+# RUSTSEC-2024-0429 (glib unsoundness, Linux GTK stack).
+
+[advisories]
+ignore = [
+  # quick-xml 0.39.2 — RUSTSEC-2026-0194 (quadratic run time when checking a
+  # start tag for duplicate attribute names) and RUSTSEC-2026-0195 (unbounded
+  # namespace-declaration allocation in NsReader). Both are DoS-class issues in
+  # XML parsing.
+  #
+  # Cannot fix here: patched in quick-xml >= 0.41, but the only path to it is
+  # plist v1.9.0 <- tauri-utils <- tauri-codegen / tauri-macros, and plist pins
+  # `quick-xml = "^0.39.2"`. `cargo update -p quick-xml --precise 0.41.0` fails
+  # on that requirement; plist (and therefore Tauri) has to bump first.
+  #
+  # Exposure meanwhile: that dependency path is Tauri's build/codegen-time
+  # plist handling, parsing files that ship with the repo. Keynova has no
+  # runtime path that feeds attacker-supplied XML into quick-xml.
+  #
+  # Re-check when Tauri moves past 2.11.1, or by 2026-11-13 at the latest.
+  "RUSTSEC-2026-0194",
+  "RUSTSEC-2026-0195",
+]

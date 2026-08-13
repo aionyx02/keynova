@@ -79,8 +79,13 @@ jobs:
       # Installed from crates.io rather than a third-party action: this workflow
       # is the supply-chain gate, so it should add as little supply chain of its
       # own as possible. --locked uses cargo-audit's own pinned dependencies.
+      #
+      # Pinned to the 0.22 line, not 0.21: 0.21.x cannot parse the CVSS 4.0
+      # entries now present in the RustSec database and fails with
+      # "unsupported CVSS version: 4.0" before auditing anything. Bump the major
+      # line deliberately rather than tracking latest silently.
       - name: Install cargo-audit
-        run: cargo install cargo-audit --locked --version ^0.21
+        run: cargo install cargo-audit --locked --version ^0.22
 
       # Fails on RustSec vulnerabilities. Unmaintained/yanked crates surface as
       # warnings without failing — those are triage items, not merge blockers.

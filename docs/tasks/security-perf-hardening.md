@@ -66,8 +66,16 @@ drifting behind REF.8 + the keychain migration. Perf is **measure-first**: memor
   - [ ] Decide on `DEFAULT_NETWORK_ALLOWLIST` dead grants (`api.tavily.com`,
     `duckduckgo.com` — web search removed in REF.8). Default-value change,
     affects existing `security.network_allowlist` overrides; developer call.
-  - [ ] First CI run of the `cargo audit` half is unverified (no local
-    `cargo-audit`); confirm green after the first push.
+  - [x] `cargo audit` half verified locally (2026-08-13, exit 0). Four Rust
+    advisories fixed in-range (`quinn-proto`, `serde_with`, `crossbeam-epoch`,
+    and `tauri` 2.11.0 → 2.11.1 — CVE-2026-42184 Origin Confusion, the only one
+    touching the product's own WebView boundary). `quick-xml` RUSTSEC-2026-0194/
+    0195 are unreachable from here (`plist` pins `^0.39.2`) → documented, dated
+    ignore in `src-tauri/.cargo/audit.toml`. Running it locally also caught a bug
+    in the workflow itself: the `^0.21` pin cannot parse CVSS 4.0 advisories →
+    `^0.22`.
+  - [ ] CI-side confirmation still pending: `audit.yml` only triggers on
+    main/dev push and PRs, so it has not run on this branch.
 - [ ] `PERF.1` Measurement baseline (measure-first, NO optimization this batch).
   `cargo tauri build` release; capture cold-start / first-paint, Private-WS
   footprint, and `dist/` bundle sizes. Record baseline in `sessions/2026-06-10.md`.
