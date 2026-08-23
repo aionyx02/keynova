@@ -24,7 +24,15 @@ for (const [file, limit] of LIMITS) {
   if (!fs.existsSync(fullPath)) {
     continue;
   }
-  const size = fs.statSync(fullPath).size;
+  // Measure the repository form, not the checked-out form. With
+  // core.autocrlf=true a checkout rewrites LF to CRLF, so an unmodified file
+  // gains one byte per line on Windows and can breach a limit it passes in CI
+  // (ubuntu, LF). Normalizing first makes the local hook and the CI job agree
+  // on the same number.
+  const size = Buffer.byteLength(
+    fs.readFileSync(fullPath, "utf8").replace(/\r\n/g, "\n"),
+    "utf8",
+  );
   if (size > limit) {
     failures.push({ file, size, limit });
   }
