@@ -34,10 +34,7 @@ jobs:
           node-version: "20"
           cache: "npm"
 
-      - name: Setup Rust toolchain
-        uses: dtolnay/rust-toolchain@stable
-        with:
-          components: clippy
+      # Toolchain comes from rust-toolchain.toml; see ci.yml.
 
       - name: Rust cache
         uses: swatinem/rust-cache@v2
@@ -100,10 +97,14 @@ jobs:
           node-version: "20"
           cache: "npm"
 
-      - name: Setup Rust toolchain
-        uses: dtolnay/rust-toolchain@stable
-        with:
-          targets: ${{ matrix.platform == 'macos-latest' && 'aarch64-apple-darwin,x86_64-apple-darwin' || '' }}
+      # Toolchain comes from rust-toolchain.toml; see ci.yml. The two Apple
+      # targets used to be installed through the toolchain action's `targets`
+      # input, so they need an explicit step now — without them the universal
+      # bundle fails to build. They are not declared in rust-toolchain.toml
+      # because that would install them on Linux and Windows too.
+      - name: Add macOS universal targets
+        if: matrix.platform == 'macos-latest'
+        run: rustup target add aarch64-apple-darwin x86_64-apple-darwin
 
       - name: Rust cache
         uses: swatinem/rust-cache@v2
