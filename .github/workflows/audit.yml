@@ -1,0 +1,94 @@
+name: audit
+
+# Dependency vulnerability gate (docs/security.md §17). Dependabot opens upgrade
+# PRs, CodeQL scans our own code — neither one fails a build when an advisory
+# lands against a version we already ship. This workflow does.
+#
+# Not on every push: advisory state changes with the RustSec/npm databases, not
+# with our commits, so main/dev + PRs + a weekly sweep is the useful cadence and
+# keeps feature-branch pushes fast.
+
+on:
+  push:
+    branches:
+      - main
+      - dev
+  pull_request:
+    branches:
+      - main
+      - dev
+  schedule:
+    # Weekly sweep (Mondays 07:05 UTC), staggered after the CodeQL scan.
+    - cron: "5 7 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: audit-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  npm:
+    name: npm audit
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+
+      # --ignore-scripts: the audit only needs the dependency tree, so third-party
+      # lifecycle scripts must not run here. Keynova's own `prepare` hook (git
+      # hooks install) is local-developer tooling and is not needed in CI.
+      - name: Install dependencies (no lifecycle scripts)
+        run: npm ci --ignore-scripts
+
+      # Fails on high/critical only. Moderate advisories in the dev toolchain are
+      # tracked by Dependabot instead of blocking every merge.
+      - name: npm audit (high+)
+        run: npm audit --audit-level=high
+
+      # Registry-signature verification: catches tampered/re-published tarballs
+      # that still match the lockfile version. Advisory-only for now — a missing
+      # signature is usually a registry-side gap, not a compromise.
+      - name: npm audit signatures
+        continue-on-error: true
+        run: npm audit signatures
+
+  cargo:
+    name: cargo audit
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      # cache-bin (rust-cache default) keeps the compiled cargo-audit binary, so
+      # only the first run pays the build cost.
+      - name: Rust cache
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: "./src-tauri -> target"
+
+      # Installed from crates.io rather than a third-party action: this workflow
+      # is the supply-chain gate, so it should add as little supply chain of its
+      # own as possible. --locked uses cargo-audit's own pinned dependencies.
+      #
+      # Pinned to the 0.22 line, not 0.21: 0.21.x cannot parse the CVSS 4.0
+      # entries now present in the RustSec database and fails with
+      # "unsupported CVSS version: 4.0" before auditing anything. Bump the major
+      # line deliberately rather than tracking latest silently.
+      - name: Install cargo-audit
+        run: cargo install cargo-audit --locked --version ^0.22
+
+      # Fails on RustSec vulnerabilities. Unmaintained/yanked crates surface as
+      # warnings without failing — those are triage items, not merge blockers.
+      - name: cargo audit
+        working-directory: src-tauri
+        run: cargo audit

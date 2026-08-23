@@ -13,6 +13,27 @@ mod worker;
 
 use worker::spawn_worker;
 
+/// Budget for one request/reply round trip with the store worker.
+///
+/// In the app this is a liveness guard: a UI thread must never block on SQLite
+/// for longer than a user would tolerate, so two seconds is deliberate.
+///
+/// Under `cargo test` there is no UI to protect, and the budget instead becomes
+/// a source of false failures. A test constructs the handle and issues its
+/// first request immediately, so that request pays for opening the connection
+/// and running migrations — a cold cost the two-second figure was never sized
+/// for — while several hundred other tests compete for the same cores. Both
+/// `knowledge_store` tests failed this way on a contended Windows runner, at
+/// `store.flush()`, in a PR that changed no Rust.
+///
+/// A generous test budget keeps a genuine deadlock detectable (the test still
+/// fails, just deterministically) without turning scheduler pressure into a red
+/// pipeline.
+#[cfg(not(test))]
+const REQUEST_TIMEOUT: Duration = Duration::from_secs(2);
+#[cfg(test)]
+const REQUEST_TIMEOUT: Duration = Duration::from_secs(30);
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ActionLogEntry {
     pub action_id: String,
@@ -198,7 +219,7 @@ impl KnowledgeStoreHandle {
             limit,
             reply,
         })?;
-        tokio::time::timeout(Duration::from_secs(2), rx)
+        tokio::time::timeout(REQUEST_TIMEOUT, rx)
             .await
             .map_err(|_| "knowledge store read timed out".to_string())?
             .map_err(|_| "knowledge store worker dropped response".to_string())?
@@ -224,7 +245,7 @@ impl KnowledgeStoreHandle {
     pub async fn action_stats(&self, action_id: String) -> Result<ActionStats, String> {
         let (reply, rx) = oneshot::channel();
         self.send_request(DbRequest::ReadActionStats { action_id, reply })?;
-        tokio::time::timeout(Duration::from_secs(2), rx)
+        tokio::time::timeout(REQUEST_TIMEOUT, rx)
             .await
             .map_err(|_| "knowledge store read timed out".to_string())?
             .map_err(|_| "knowledge store worker dropped response".to_string())?
@@ -243,7 +264,7 @@ impl KnowledgeStoreHandle {
             limit,
             reply,
         })?;
-        tokio::time::timeout(Duration::from_secs(2), rx)
+        tokio::time::timeout(REQUEST_TIMEOUT, rx)
             .await
             .map_err(|_| "knowledge store read timed out".to_string())?
             .map_err(|_| "knowledge store worker dropped response".to_string())?
@@ -269,7 +290,7 @@ impl KnowledgeStoreHandle {
     pub async fn flush(&self) -> Result<(), String> {
         let (reply, rx) = oneshot::channel();
         self.send_request(DbRequest::Flush { reply })?;
-        tokio::time::timeout(Duration::from_secs(2), rx)
+        tokio::time::timeout(REQUEST_TIMEOUT, rx)
             .await
             .map_err(|_| "knowledge store flush timed out".to_string())?
             .map_err(|_| "knowledge store worker dropped response".to_string())?

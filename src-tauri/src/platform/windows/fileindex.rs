@@ -309,8 +309,10 @@ fn wsl_distro_names() -> Vec<String> {
             // wsl.exe 輸出 UTF-16 LE，含 BOM
             let words: Vec<u16> = out
                 .stdout
-                .chunks_exact(2)
-                .map(|c| u16::from_le_bytes([c[0], c[1]]))
+                .as_chunks::<2>()
+                .0
+                .iter()
+                .map(|c| u16::from_le_bytes(*c))
                 .collect();
             let text = String::from_utf16_lossy(&words);
             let names: Vec<String> = text
@@ -341,8 +343,10 @@ fn parse_wsl_distro_names(stdout: &[u8]) -> Vec<String> {
 
     let text = if looks_like_utf16_le(stdout) {
         let words = stdout
-            .chunks_exact(2)
-            .map(|c| u16::from_le_bytes([c[0], c[1]]))
+            .as_chunks::<2>()
+            .0
+            .iter()
+            .map(|c| u16::from_le_bytes(*c))
             .collect::<Vec<_>>();
         String::from_utf16_lossy(&words)
     } else {
@@ -365,12 +369,12 @@ fn looks_like_utf16_le(bytes: &[u8]) -> bool {
     if bytes.len() < 4 {
         return false;
     }
-    let pairs = bytes.chunks_exact(2).count();
-    if pairs == 0 {
+    let pairs = bytes.as_chunks::<2>().0;
+    if pairs.is_empty() {
         return false;
     }
-    let nul_second_bytes = bytes.chunks_exact(2).filter(|pair| pair[1] == 0).count();
-    nul_second_bytes * 2 >= pairs
+    let nul_second_bytes = pairs.iter().filter(|pair| pair[1] == 0).count();
+    nul_second_bytes * 2 >= pairs.len()
 }
 
 #[cfg(test)]
