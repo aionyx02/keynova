@@ -1178,6 +1178,21 @@ mod tests {
 
     // ── Slice 2: ai.cancel cooperative-abort tests ───────────────────────────
 
+    /// `chat_async`'s worker publishes its terminal `ai.response` event and only
+    /// then, at thread end, removes its `cancel_registry` entry. So receiving
+    /// the event establishes nothing about the registry, and asserting on it
+    /// straight afterwards is a race — one that turned `rust (windows-latest)`
+    /// red on 2026-08-23.
+    ///
+    /// The production ordering is fine: cleanup is centralized at thread end so
+    /// it runs on every path. It is the assertion that has to wait.
+    fn wait_for_registry_drain(registry: &CancelRegistry) {
+        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(5);
+        while !registry.lock().unwrap().is_empty() && std::time::Instant::now() < deadline {
+            std::thread::sleep(std::time::Duration::from_millis(20));
+        }
+    }
+
     #[test]
     fn cancel_flag_aborts_pending_chat_before_request() {
         use std::sync::mpsc::channel;
@@ -1223,6 +1238,7 @@ mod tests {
             manager.get_history().is_empty(),
             "user message must be rolled back"
         );
+        wait_for_registry_drain(&registry);
         assert!(
             registry.lock().unwrap().is_empty(),
             "cancel registry entry must be self-cleaned"
@@ -1267,12 +1283,7 @@ mod tests {
 
         // Wait for completion event (will be ok:false network error).
         let _ = rx.recv_timeout(Duration::from_secs(5));
-        // Cleanup runs *after* publish in the spawned thread; poll briefly to
-        // avoid a race between the event arriving and the registry remove call.
-        let deadline = std::time::Instant::now() + Duration::from_secs(2);
-        while !registry.lock().unwrap().is_empty() && std::time::Instant::now() < deadline {
-            std::thread::sleep(Duration::from_millis(20));
-        }
+        wait_for_registry_drain(&registry);
         assert!(
             registry.lock().unwrap().is_empty(),
             "cancel registry entry must be removed on natural completion"
