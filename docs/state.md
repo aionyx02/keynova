@@ -35,6 +35,14 @@ and **`main` → `dev` sync is now allowed** — without it `dev` rots again.
   certificate secrets are added. SmartScreen and Gatekeeper warn.
 - **`XPLAT` phase 2**: `platform/linux.rs` and `macos.rs` are skeletons. Phase 1
   (3-OS CI, no panics) is done.
+- **One flaky test on macOS.**
+  `startup_preflight::tests::ensure_started_creates_snapshot_and_reuses_same_boot`
+  fails intermittently on `macos-latest` at the `generated_at` assertion: a
+  second `ensure_started()` within the same boot regenerates the snapshot
+  instead of reusing it. Observed once on 2026-08-23 in a PR that changed no
+  Rust at all, green on re-run and green on the preceding PR. Either boot-ID or
+  source-mode detection is unstable on a fresh macOS runner, or the 250 ms
+  settle in the test is a race. Re-running is a workaround, not a diagnosis.
 - **`嚙` mojibake root cause** — masked, not solved. See Traps in `decisions.md`.
 - **`ICON.NATIVE` + UX** and the `SEC-PERF` perf baseline are mid-flight.
 
