@@ -251,7 +251,7 @@ fn get_dib_bgra(
 fn bgra_to_rgba(width: u32, height: u32, color_bgra: &[u8], mask_bgra: Option<&[u8]>) -> Vec<u8> {
     let n = (width as usize) * (height as usize);
     let mut rgba = vec![0u8; n * 4];
-    let has_alpha = color_bgra.chunks_exact(4).any(|p| p[3] != 0);
+    let has_alpha = color_bgra.as_chunks::<4>().0.iter().any(|p| p[3] != 0);
     for i in 0..n {
         let b = color_bgra[i * 4];
         let g = color_bgra[i * 4 + 1];
