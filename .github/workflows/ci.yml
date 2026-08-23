@@ -5,8 +5,21 @@ name: ci
 # regressions in cfg(not(windows)) / cfg(target_os = "macos") code only surfaced
 # during a release. This job catches them on every push instead.
 
+# Triggered on the integration branches plus every PR into them, rather than on
+# every push anywhere. Feature-branch pushes used to fire a full 3-OS matrix
+# before a PR even existed, and a push-triggered run is a fragile thing to make
+# a required status check: `concurrency.cancel-in-progress` can cancel it out
+# from under an open PR, which then waits forever for a check that will not
+# arrive. The pull_request trigger reports against the PR head directly.
 on:
   push:
+    branches:
+      - main
+      - dev
+  pull_request:
+    branches:
+      - main
+      - dev
   workflow_dispatch:
 
 concurrency:
@@ -44,10 +57,10 @@ jobs:
           node-version: "20"
           cache: "npm"
 
-      - name: Setup Rust toolchain
-        uses: dtolnay/rust-toolchain@stable
-        with:
-          components: clippy
+      # No toolchain action: rust-toolchain.toml pins the version and its
+      # components, and rustup installs it on the first cargo call. Naming a
+      # toolchain here would be a second source for the version number, which is
+      # the drift this pin exists to remove.
 
       - name: Rust cache
         uses: swatinem/rust-cache@v2
@@ -67,3 +80,30 @@ jobs:
 
       - name: Rust tests
         run: npm run rust:test
+
+  # The frontend suite (36 files, 218 cases) and eslint previously ran only
+  # inside `npm run verify`, which is wired to release.yml and therefore fires
+  # on version tags only. Every PR and every push to main/dev merged without
+  # either one ever executing. Linux-only: these checks are platform-agnostic,
+  # and the 3-OS matrix above already covers the platform-specific surface.
+  frontend:
+    name: frontend
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+
+      - name: Install npm dependencies
+        run: npm ci
+
+      - name: ESLint (--max-warnings 0)
+        run: npm run lint
+
+      - name: Frontend tests (vitest)
+        run: npm run test
