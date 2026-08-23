@@ -57,10 +57,10 @@ jobs:
           node-version: "20"
           cache: "npm"
 
-      - name: Setup Rust toolchain
-        uses: dtolnay/rust-toolchain@stable
-        with:
-          components: clippy
+      # No toolchain action: rust-toolchain.toml pins the version and its
+      # components, and rustup installs it on the first cargo call. Naming a
+      # toolchain here would be a second source for the version number, which is
+      # the drift this pin exists to remove.
 
       - name: Rust cache
         uses: swatinem/rust-cache@v2

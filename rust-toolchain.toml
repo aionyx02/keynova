@@ -1,0 +1,18 @@
+# The single source of truth for the Rust version, for CI and for a developer
+# machine alike. rustup reads this file for any cargo invocation under the repo
+# root and installs the toolchain on demand, so no workflow repeats the number.
+#
+# Why pin at all: CI resolved `stable` and a developer machine resolved whatever
+# it last installed, so the two measured with different rulers. Rust 1.98 added
+# `clippy::chunks_exact_to_as_chunks`, which turned CI red on a PR that changed
+# no Rust while local clippy (1.95) reported clean. That was the second such
+# event.
+#
+# The cost of pinning is that new lints stop arriving on their own, so
+# `.github/workflows/toolchain-drift.yml` runs the latest stable weekly as a
+# non-blocking check. Upgrading is: bump `channel` here, and let CI say what
+# broke.
+[toolchain]
+channel = "1.98.0"
+components = ["clippy", "rustfmt"]
+profile = "minimal"
