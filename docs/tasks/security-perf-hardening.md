@@ -42,6 +42,40 @@ drifting behind REF.8 + the keychain migration. Perf is **measure-first**: memor
   Repoint §9 known-limits (keychain DONE, CSP DONE-residual-`unsafe-inline`, drop
   nvim checksum), clean nvim from §3.2 path table + §5.1 network table, add a
   keychain note to §4 sensitive-data handling. Docs-only, no runtime change.
+- [x] `SEC.3` `security.md` verification playbook §13–§17 (2026-08-13, docs-only):
+  supply-chain (`npm view`) preflight, authorization-bypass regression list,
+  XSS/SQLi evidence + rules, agent-config trust boundary (`.mcp.json`/`.claude`/
+  `.cursor`/`.amazonq`), SAST/CI gate matrix. Surfaced three new §9 known limits:
+  dev origins in production CSP, `npm audit`/`cargo audit` not in CI, and
+  `.gitignore` missing the agent-config paths. Detail: `sessions/2026-08-13.md`.
+- [~] `SEC.4` Close the three gaps `SEC.3` recorded (2026-08-13):
+  - [x] `.github/workflows/audit.yml`: `npm audit --audit-level=high` +
+    `npm audit signatures` (advisory) + `cargo audit`, on main/dev push, PRs,
+    and a weekly sweep. `cargo-audit` installed from crates.io rather than a
+    third-party action (this job *is* the supply-chain gate).
+  - [x] `.gitignore` agent-config block (`.mcp.json`, `.cursor*`, `.amazonq/`,
+    `.windsurf*`, `.roo/`, `.aider*`, copilot-instructions) — `security.md` §16.3.
+  - [x] Dependency remediation the new gate exposed: the 2026-06-10 "0 vulns"
+    baseline had rotted to 9 (2 low / 7 high), all dev-toolchain transitives.
+    `npm audit fix` resolved all 9 in-range (lockfile only, no `package.json`
+    range change); `npm run check` + `vitest` green.
+  - [ ] ADR-0057 (`提議`) production CSP split — **needs developer acceptance
+    before any `tauri.conf.json` change**. Audit found the renderer makes zero
+    direct network calls, so production `connect-src` can drop the dev origins
+    *and* all four remote hosts.
+  - [ ] Decide on `DEFAULT_NETWORK_ALLOWLIST` dead grants (`api.tavily.com`,
+    `duckduckgo.com` — web search removed in REF.8). Default-value change,
+    affects existing `security.network_allowlist` overrides; developer call.
+  - [x] `cargo audit` half verified locally (2026-08-13, exit 0). Four Rust
+    advisories fixed in-range (`quinn-proto`, `serde_with`, `crossbeam-epoch`,
+    and `tauri` 2.11.0 → 2.11.1 — CVE-2026-42184 Origin Confusion, the only one
+    touching the product's own WebView boundary). `quick-xml` RUSTSEC-2026-0194/
+    0195 are unreachable from here (`plist` pins `^0.39.2`) → documented, dated
+    ignore in `src-tauri/.cargo/audit.toml`. Running it locally also caught a bug
+    in the workflow itself: the `^0.21` pin cannot parse CVSS 4.0 advisories →
+    `^0.22`.
+  - [ ] CI-side confirmation still pending: `audit.yml` only triggers on
+    main/dev push and PRs, so it has not run on this branch.
 - [ ] `PERF.1` Measurement baseline (measure-first, NO optimization this batch).
   `cargo tauri build` release; capture cold-start / first-paint, Private-WS
   footprint, and `dist/` bundle sizes. Record baseline in `sessions/2026-06-10.md`.

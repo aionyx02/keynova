@@ -2,7 +2,7 @@
 type: decision_index
 status: active
 priority: p1
-updated: 2026-06-10
+updated: 2026-08-13
 context_policy: retrieve_only
 owner: project
 ---
@@ -85,6 +85,8 @@ owner: project
 | [0053](adr/0053-workflow-outcome-success-rate.md)         | Workflow Outcome + Success-Rate Ranking                                | 提議                             | 2026-06-07 |
 | [0054](adr/0054-workspace-command-profile.md)             | Workspace Command Profile (Project-Keyed)                              | 提議                             | 2026-06-07 |
 | [0055](adr/0055-workspace-pinned-commands.md)             | Per-Workspace Pinned Commands                                          | 拒絕（2026-06-10 移除 pin 功能） | 2026-06-08 |
+| [0056](adr/0056-native-shell-icon-extraction.md)          | Native Win32 Shell Icon Extraction                                     | 提議                             | 2026-06-13 |
+| [0057](adr/0057-production-csp-without-dev-origins.md)    | Production CSP Without Dev Origins Or Unused Remote Hosts              | 提議                             | 2026-08-13 |
 
 ---
 
