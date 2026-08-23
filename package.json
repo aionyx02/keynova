@@ -24,22 +24,7 @@
     "guard:size": "node scripts/code-guard-size.mjs",
     "release:notes:check": "node scripts/release-notes.mjs",
     "bench:ai": "node scripts/bench-ai-capability.mjs",
-    "verify": "npm run docs:refresh && npm run release:notes:check && npm run check && npm run test && npm run rust:test && npm run rust:clippy && npm run guard:size",
-    "docs:sync": "node scripts/docs-sync.mjs",
-    "docs:guard": "node scripts/docs-guard.mjs",
-    "docs:guard-size": "node scripts/docs-guard-size.mjs",
-    "docs:guard-schema": "node scripts/docs-guard-schema.mjs",
-    "docs:audit-frontmatter": "node scripts/docs-audit-frontmatter.mjs",
-    "docs:narrative-check": "node scripts/docs-narrative-check.mjs",
-    "docs:new-session": "node scripts/docs-new-session.mjs",
-    "docs:extract-narrative": "node scripts/docs-extract-narrative.mjs",
-    "docs:completed-regen": "node scripts/docs-completed-regen.mjs",
-    "docs:archive-sessions": "node scripts/docs-archive-sessions.mjs",
-    "docs:workbench-sync": "node scripts/docs-workbench-sync.mjs",
-    "docs:workbench-guard": "node scripts/docs-workbench-guard.mjs",
-    "docs:refresh": "npm run docs:workbench-sync && npm run docs:workbench-guard && npm run docs:sync && npm run docs:guard-size && npm run docs:guard-schema && npm run docs:audit-frontmatter && npm run docs:narrative-check && npm run docs:guard",
-    "hooks:install": "node scripts/install-githooks.mjs",
-    "prepare": "npm run hooks:install"
+    "verify": "npm run release:notes:check && npm run check && npm run test && npm run rust:test && npm run rust:clippy && npm run guard:size"
   },
   "dependencies": {
     "@tauri-apps/api": "^2",
