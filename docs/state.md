@@ -25,11 +25,19 @@ Merging is the review. Admins are not enforced, so there is an escape hatch.
 while the old rule forbade merging `main` back. Rebuilt at `main` 2026-08-23,
 and **`main` → `dev` sync is now allowed** — without it `dev` rots again.
 
+## Toolchain
+
+Rust is pinned in `rust-toolchain.toml` — one number, read by CI and by a
+developer machine alike. Upgrading is bumping `channel` and letting CI say what
+broke.
+
+`toolchain-drift.yml` runs clippy and the tests against the latest stable every
+Monday. It is informational and not a required check: a red run means the next
+bump has work waiting, not that anything is broken now. Without it, pinning
+would trade random CI failures for silence.
+
 ## Unfinished
 
-- **Rust toolchain is unpinned.** No `rust-toolchain.toml`, no `rust-version`.
-  CI floats on latest stable and has gone red twice from new lints alone.
-  Pin for determinism or float to catch lints early — undecided.
 - **Releases are unsigned.** `release.yml` builds a draft on three OSes with
   secret-gated signing steps that stay inert until the ADR-0048 Windows/Apple
   certificate secrets are added. SmartScreen and Gatekeeper warn.
