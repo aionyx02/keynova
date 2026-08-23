@@ -16,7 +16,7 @@
 
 import fs from "node:fs";
 import path from "node:path";
-import { ROOT } from "./docs-utils.mjs";
+const ROOT = process.cwd();
 
 // Keep entries sorted by relative path. Bytes — not lines — because the
 // underlying detection (`fs.statSync(path).size`) is byte-based and avoids a
