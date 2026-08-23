@@ -2,7 +2,7 @@
 type: task_index
 status: active
 priority: p0
-updated: 2026-06-14
+updated: 2026-08-23
 context_policy: always_retrievable
 owner: project
 tags: [refactor, ai-capability, search-first, p0]
@@ -59,6 +59,7 @@ Detailed batch definitions, done criteria, non-goals, file map, and validation g
 
 - [x] `CI.HARDEN` Dependabot + CodeQL + branch-protection (`/status` triage;
   `feature/ci-supply-chain-hardening`). Detail: `sessions/2026-06-09.md`.
+  Dependabot half **retired** 2026-08-23; CodeQL stands. `sessions/2026-08-23.md`.
 - [x] `CONT` (`8fc68c7`): idle `next` (ADR-0052), resize coalescing, Ctrl+K fix.
   `STAB` (`8825cce`): crash-log hook (ADR-0051), `/diag` fixes.
 - [x] `PRODUCT.4` ranking (`b0a8b5c`): 4.A freq+workspace (ADR-0052), 4.B
