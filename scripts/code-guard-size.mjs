@@ -2,7 +2,9 @@
 
 // REF.7.B — Hard-fail file-size drift detector for the REF.6 refactor.
 //
-// Mirrors `scripts/docs-guard-size.mjs`. Ceilings are NOT the docx §8 hard
+// This is a source-file guard and has nothing to do with documentation; the
+// Markdown size guard it once mirrored was removed with the rest of the docs
+// tooling. Ceilings are NOT the docx §8 hard
 // targets (any handler < 600 lines / any component < 400 lines). Instead each
 // file's ceiling is its current size rounded up to the next 1 KiB boundary +
 // a 10 % buffer, so the script catches regressive bloat without forcing an
@@ -14,7 +16,7 @@
 
 import fs from "node:fs";
 import path from "node:path";
-import { ROOT } from "./docs-utils.mjs";
+const ROOT = process.cwd();
 
 // Keep entries sorted by relative path. Bytes — not lines — because the
 // underlying detection (`fs.statSync(path).size`) is byte-based and avoids a

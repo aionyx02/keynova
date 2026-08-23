@@ -465,8 +465,7 @@ npm run lint             # ESLint
 npm run test             # Vitest
 npm run rust:test        # Rust tests
 npm run rust:clippy      # Rust clippy，warnings 視為錯誤
-npm run docs:refresh     # 文件同步與 guard
-npm run verify           # 文件、前端與 Rust 完整驗證
+npm run verify           # 前端與 Rust 完整驗證
 ```
 
 ## Roadmap

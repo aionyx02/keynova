@@ -2,7 +2,33 @@ import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 
-import { parseFrontmatter, ROOT } from "./docs-utils.mjs";
+const ROOT = process.cwd();
+
+// Inlined from the deleted scripts/docs-utils.mjs. Release notes are the only
+// remaining files whose frontmatter is load-bearing: the `type: release_notes`
+// marker is what stops release.yml publishing an arbitrary Markdown file as the
+// body of a GitHub release.
+function parseFrontmatter(text) {
+  const normalized = text.replace(/^﻿/, "").replace(/\r\n/g, "\n");
+  const match = normalized.match(/^---\n([\s\S]*?)\n---\n?/);
+  if (!match) {
+    return { frontmatter: new Map(), body: normalized, hasFrontmatter: false };
+  }
+
+  const frontmatter = new Map();
+  for (const line of match[1].split("\n")) {
+    const kv = line.match(/^([a-zA-Z0-9_]+):\s*(.*)$/);
+    if (kv) {
+      frontmatter.set(kv[1], kv[2]);
+    }
+  }
+
+  return {
+    frontmatter,
+    body: normalized.slice(match[0].length),
+    hasFrontmatter: true,
+  };
+}
 
 function fail(message) {
   console.error(`[release-notes] ${message}`);
