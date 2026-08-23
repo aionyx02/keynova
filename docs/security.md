@@ -2,7 +2,7 @@
 type: security_policy
 status: active
 priority: p0
-updated: 2026-06-10
+updated: 2026-08-13
 context_policy: retrieve_only
 owner: project
 ---
@@ -47,9 +47,12 @@ Handling rules:
 
 > Retrieval policy: 在涉及權限、路徑、網路、capability 風險時優先讀取，平時不需整份注入。
 
-**版本：** 1.0  
-**最後更新：** 2026-05-13  
+**版本：** 1.1  
+**最後更新：** 2026-08-13  
 **相關文件：** `docs/architecture.md`, `docs/CLAUDE.md`
+
+> §1–§12 描述**安全模型**（邊界是什麼）。§13–§17 是**驗證手冊**（怎麼證明邊界還在），
+> 供例行稽核、PR review 與依賴變更時逐條走。
 
 ---
 
@@ -166,6 +169,24 @@ TOML 移除；憑證庫不可用時該 secret 視為未設定（不回退寫明�
 | Ollama（本機 HTTP, 預設 port 11434） | 本機 AI 推理         | 不需關閉，本機連線           |
 | GitHub Releases `latest.json`（HTTPS）| 應用程式自動更新檢查（ADR-0050）| 是（未設定 `plugins.updater` 前不連線；MVP 僅檢查不自動安裝）|
 | 使用者設定的翻譯 API                 | 翻譯功能             | 是（不設定 API key 則停用）  |
+| 雲端 AI provider（`api.anthropic.com` / `api.openai.com` 或使用者指定的 OpenAI 相容端點） | 非本機模型推理 | 是（不設定 API key / base URL 則不連線）|
+
+**外連一律由 Rust 後端發出**：renderer 端沒有任何 `fetch` / `XMLHttpRequest` /
+WebSocket 呼叫，所以上表的目標都不需要（也不應該）出現在 WebView 的 `connect-src`
+（見 ADR-0057）。
+
+### 5.1a 後端 outbound allowlist（`core/network_policy.rs`）
+
+所有可由設定改動的外連 URL 都必須通過 `enforce_outbound_url`：
+
+- scheme 僅接受 `http` / `https`；`http` 只允許 loopback（`localhost`、`127.0.0.1`、`::1`），
+  其餘一律要求 HTTPS。
+- 非 loopback 的 host 必須落在 `security.network_allowlist`（未設定時用
+  `DEFAULT_NETWORK_ALLOWLIST`）。不在清單內回錯誤，不發請求。
+- 呼叫點：`handlers/model.rs`（Ollama / OpenAI base URL、Anthropic endpoint）、
+  `handlers/translation.rs`、`managers/ai_manager.rs`、`core/startup_preflight.rs`。
+- 現行預設清單含 `api.tavily.com` 與 `duckduckgo.com`，但 REF.8 已移除 web search
+  provider —— 屬殘留的死授權，列於 §9 待開發者決定是否收掉。
 
 ### 5.2 網路安全規則
 
@@ -237,6 +258,8 @@ bounded 文字前套用 `AgentObservationPolicy { redact_secrets: true }`，遮�
 | CSP 設定                  | 已收緊：`script-src 'self'`、scoped `connect-src`、`object-src`/`frame-src`/`worker-src 'none'`、`base-uri 'self'` | 殘留 `style-src 'unsafe-inline'`；如要移除需補 nonce/hash plumbing（另立 ADR） |
 | 翻譯 API key 儲存         | 已隨「機密 at-rest 存放」遷入 OS keychain | （已完成，見上）|
 | 程式碼簽署 / notarization | 管線已接好但尚未簽署：CI 有 secret-gated 簽章步驟，缺憑證時優雅產 unsigned build（SmartScreen/Gatekeeper 仍警告） | 開發者補上 ADR-0048 列出的 Windows/Apple 憑證 secrets 後自動啟用 |
+| CSP `connect-src` 過寬       | production CSP 仍含 dev origin `localhost:1420` 與四個遠端 host，但 renderer 實際不發任何直接網路請求 | ADR-0057（`提議`）：拆 `csp` / `devCsp`，production `connect-src` 收到只剩 `'self' ipc: http://ipc.localhost` |
+| 後端 allowlist 殘留死授權    | `DEFAULT_NETWORK_ALLOWLIST` 仍含 `api.tavily.com`、`duckduckgo.com`，但 REF.8 已移除 web search provider | 收掉兩個 host 屬預設值變更（影響既有 `security.network_allowlist` 覆寫語意），待開發者決定 |
 
 ---
 
@@ -291,3 +314,220 @@ bounded 文字前套用 `AgentObservationPolicy { redact_secrets: true }`，遮�
 - 寫檔為 best-effort：失敗一律吞掉，hook 內絕不再 panic、不阻塞關閉。
 - **純本機診斷 sink，非遙測**：除非使用者自行複製 `/diag` 或該檔，內容不離開機器。無網路、無自動上傳。
 - 刪除 `crash.log` 任何時候皆安全。
+
+---
+
+## 13. 依賴與供應鏈驗證（`npm view`）
+
+### 13.1 安裝前驗證（新增或升級任何套件前必做）
+
+```bash
+npm view <pkg>                                   # maintainers / repository / license / 最新版
+npm view <pkg> time.created time.modified        # 「沉睡多年突然發版」= 帳號接管訊號
+npm view <pkg> maintainers dist-tags versions --json
+npm view <pkg>@<ver> dist.integrity dist.tarball # 與 package-lock.json 的 integrity 對照
+npm view <pkg> scripts                           # 是否帶 pre/post install 生命週期腳本
+npm view <pkg> dependencies                      # 間接依賴爆炸面
+```
+
+紅旗（命中任一項 → 不安裝，先查清楚）：
+
+- 版本發布時間過新（< 30 天）且無其他採用者，或套件長期停更後突然換 maintainer。
+- 名稱與知名套件僅差一字元、大小寫或連字號（typosquatting）。
+- `repository` 欄位缺失，或指向與 npm 頁面宣稱不符的 repo。
+- 帶 `preinstall` / `postinstall` / `install` 腳本 —— Keynova 的直接依賴**都不應該需要**。
+- `dist.integrity` 與 lockfile 既有值不一致（同版本被重新發布）。
+
+### 13.2 專案規則
+
+- 直接 runtime 依賴刻意保持小：`@tauri-apps/*`、`react`/`react-dom`、
+  `react-markdown` + `remark-gfm` + `rehype-highlight`、`@xterm/*`、`zustand`。
+  **新增任何 runtime 依賴視同 §8 的邊界變更，需先立 ADR。**
+- 安裝一律 `npm ci`（走 lockfile integrity），不用 `npm install` 造成未審查的版本漂移。
+- 本 repo 自有一個 lifecycle script：`prepare` → `npm run hooks:install`（安裝
+  `.githooks/pre-commit`，純本機、無網路）。稽核第三方腳本時把它排除在「未知腳本」之外。
+- 例行掃描已進 CI（`.github/workflows/audit.yml`，見 §17.1），本機可直接跑
+  `npm audit --audit-level=high`、`npm audit signatures`、`cargo audit`。
+- Baseline 演進：2026-06-10 為 0 vulnerabilities；2026-08-13 重測為 9（2 low / 7 high），
+  全部是 build/test 工具鏈的間接依賴（`vite`/`esbuild`/`postcss`/`@babel/core`/
+  `brace-expansion`/`js-yaml`/`nanoid`/`form-data`/`ws`），已用 `npm audit fix`
+  在 semver 範圍內升級（`package.json` 版本區間未變，只動 lockfile），回到 0。
+  **教訓：一次性 baseline 會過期，所以掃描必須由 CI 排程持續執行，而不是靠人記得跑。**
+- Dependabot 已涵蓋 npm / cargo / github-actions 三個 ecosystem（`.github/dependabot.yml`，
+  每週）。**Dependabot PR 不因為是機器人開的就免審**：同樣跑 §13.1 的 `npm view` 檢查，
+  並確認 CI 綠燈才合。
+
+---
+
+## 14. 授權驗證是否失效（authorization bypass）
+
+Keynova 沒有多使用者帳號系統，授權面是**本機能力授權**：Tauri capability allowlist、
+IPC namespace 的 feature gate、以及高風險動作的 UI confirmation ownership。
+以下任一層失效即為 P0。
+
+### 14.1 三個強制點
+
+| 層                       | 位置                                                         | 失效表現                       |
+| ------------------------ | ------------------------------------------------------------ | ------------------------------ |
+| Tauri capability allowlist | `src-tauri/capabilities/default.json`                       | 前端能呼叫未列於 permissions 的 core 指令 |
+| Namespace feature gate   | `app/dispatch.rs::namespace_feature_block`                    | 已關閉的 feature 仍能經 IPC 觸發 |
+| Risk / confirmation      | `UnifiedResult.ActionChip` 的 risk + `ConfirmRequirement`（ADR-0030） | 高風險動作未經使用者確認即執行 |
+
+### 14.2 迴歸檢查清單
+
+- [ ] `capabilities/default.json` 維持最小集合（現況：`core:default`、`opener:default`、
+      window `hide`/`show`/`set-focus`/`is-visible`/`set-size`、`updater:default`）。
+      新增任一條 permission 必須有 ADR。
+- [ ] Gate 由**後端**強制，不是只把前端 UI 藏起來：關閉 `features.notes` 後直接
+      `cmd_dispatch("note.save", …)` 必須被拒（測試 `route_feature_key_gates_feature_namespaces`）。
+- [ ] Namespace 比對是**分段等值**而非 `starts_with`：`system_monitoring.*` 不得被
+      `system` guard 命中（已有迴歸測試）。
+- [ ] 繞道入口一律回到同一個 gate：`automation.execute`、`automation.execute_pipeline`、
+      `action.run` 的 `CommandRoute` 都經由 `dispatch_command` 再分派。
+      **新增任何批次／腳本執行入口不得直接呼叫 `command_router.dispatch`。**
+- [ ] AI namespace（`capability`/`ai`/`agent`）刻意豁免 namespace gate、改在 handler 內
+      逐 route 檢查（避免模型設定的 bootstrap 死鎖）。改動時確認 bootstrap 例外
+      （`ai.check_setup`、`capability.list`）沒有被擴大成整個 namespace 免檢。
+- [ ] `action_ref` 維持不透明 handle（由 `action_arena` 解析），前端不得改成直接傳路徑或
+      命令字串；過期 ref 必須回 `stale_action_ref` 而不是照常執行。
+- [ ] 缺 key 視為啟用的 `unwrap_or(true)` idiom **只適用於 feature 可見性**；安全開關必須
+      fail-closed（缺值 = 關閉）。
+
+---
+
+## 15. 注入驗證：XSS 與 SQL injection
+
+### 15.1 XSS（renderer 面）
+
+現況（可稽核事實）：
+
+- 全 `src/` 無 `dangerouslySetInnerHTML`、無 `eval()`、無動態 `<script>` 注入；
+  `innerHTML` 僅出現在測試 teardown。
+- Markdown 是唯一「不信任文字 → DOM」通道：`shared/components/MarkdownImpl.tsx` 用
+  `react-markdown` + `remark-gfm` + `rehype-highlight`，**未**啟用 `rehype-raw`，
+  因此模型輸出裡的原始 HTML 不會被解析成節點；連結 `href` 走 react-markdown 預設的
+  `urlTransform`，`javascript:` 等 scheme 會被剝除。
+- CSP（`tauri.conf.json`）：`script-src 'self'`、`object-src`/`frame-src`/`worker-src 'none'`、
+  `base-uri 'self'`、`img-src 'self' data:`；asset protocol 已停用（ADR-0042），
+  所以即使 renderer 被攻陷也拿不到任意本機檔案讀取原語。
+
+檢查清單：
+
+- [ ] 不得引入 `rehype-raw`、`dangerouslySetInnerHTML`、`innerHTML =`、`eval`、`new Function`。
+      不信任來源包含：LLM 輸出、剪貼簿內容、檔名／路徑、搜尋結果、設定值。
+- [ ] 檔名、路徑、搜尋 highlight 一律以 React 文字節點渲染，不得自行組 HTML 字串。
+- [ ] 外部連結一律 `target="_blank" rel="noreferrer"`。
+- [ ] 放寬 CSP（新增 `connect-src` 目標、放行 `script-src`）→ 先立 ADR（§8）。
+- [ ] 已知殘留（§9）：`style-src 'unsafe-inline'`（需 nonce/hash plumbing，另立 ADR）；
+      production `connect-src` 過寬已由 **ADR-0057（`提議`）** 涵蓋，待開發者接受後實作。
+
+### 15.2 SQL injection（knowledge store 面）
+
+現況：
+
+- 所有 row 級 SQL 都是**參數化**的：`core/knowledge_store/sql.rs` 一律 `?1..?n` +
+  `params![]` 綁值，沒有任何把使用者字串串進 SQL 的位置。
+- 唯二的動態 SQL 在 schema 遷移：`ensure_workflow_column(conn, "succeeded", "INTEGER")` /
+  `("project_root", "TEXT")`，以及 `PRAGMA user_version = {version}`（`u32`）。
+  插值的都是**編譯期常數／整數**，不接受外部輸入。
+
+檢查清單：
+
+- [ ] 新查詢一律 `params!` / `named_params!`。
+- [ ] identifier（表名、欄名）若需動態，只能取自程式內白名單常數，
+      **不得**來自 IPC payload、config 或檔案內容。
+- [ ] `LIKE` 樣式（例如 `/setting %` 清理）同樣走參數綁定，不做字串拼接。
+- [ ] 不得為了方便而 `execute_batch(&format!(...))` 帶入任何 runtime 字串。
+- [ ] 搜尋端：Tantivy query 字串屬不信任輸入，解析失敗必須回錯誤而非 panic
+      （非 SQL 面，但同屬 query injection 面）。
+
+---
+
+## 16. Agent 信任邊界：agent 組態檔
+
+`.mcp.json`、`.claude/settings.json`、`.cursor/*.mdc`、`.amazonq/mcp.json` 這類檔案是
+**可執行的組態**：它們能讓本機 AI agent 自動啟動外部程序、放寬工具授權、或注入額外規則。
+把它們放進版本控制，等於把「誰能在 clone 此 repo 的人的機器上跑什麼」寫進 repo，
+屬於 §8 的信任邊界變更。
+
+### 16.1 威脅模型
+
+- **MCP server 投毒**：`.mcp.json` 的 `command` / `args` 會在 agent 啟動時執行，
+  等同 repo 內的 `postinstall`；`env` 區塊還可能挾帶 token。
+- **權限自動放行**：`.claude/settings.json` 的 `permissions` / allow-list 能把
+  「需人工確認」變成自動執行，繞過 §14 的 confirmation ownership。
+- **規則注入（config 形式的 prompt injection）**：`.cursor/*.mdc`、`AGENTS.md`、
+  `CLAUDE.md` 會被 agent 當指令讀取。PR 改一行規則就能改變 agent 行為，
+  而 diff 看起來只是「文件變更」。
+- **跨工具擴散**：Claude / Cursor / Amazon Q / Windsurf 各有一份組態，稽核容易漏掉某一家。
+
+### 16.2 現況稽核（2026-08-13）
+
+- repo 內**不存在** `.mcp.json`、`.cursor/`、`.amazonq/`、`.vscode/`。
+- `.claude/` 存在但為空目錄，且已列入 `.gitignore`（agent 本機設定不入版控）。
+- `AGENTS.md` 亦已 gitignore。
+- 被追蹤、且會被 agent 讀取的規則檔只有 `CLAUDE.md` 與 `docs/CLAUDE.md`
+  （純文字治理規則，不含可執行組態）。
+
+### 16.3 規則
+
+- 預設**不追蹤**任何 agent 可執行組態。`.gitignore` 的 agent 區塊涵蓋 `.claude/`、
+  `.mcp.json`、`.cursor/`、`.cursorrules`、`.amazonq/`、`.windsurf/`、`.windsurfrules`、
+  `.roo/`、`.aider*`、`.github/copilot-instructions.md`、`AGENTS.md`
+  （2026-08-13 補齊；已審查的例外只有 `CLAUDE.md` 與 `docs/CLAUDE.md`）。
+  新增其他 agent 工具時要同步補條目——**ignore 清單漏一個，等於預設允許該工具的組態入庫**。
+- 若日後確實要共用某份組態：立 ADR + 逐條說明每個 MCP server 的 `command`／權限範圍，
+  並要求 code owner review。
+- 組態 `env` 內不得出現實際密鑰。密鑰只走 OS keychain（§4.5）或本機 `.env`（已 gitignore）。
+- clone、rebase 或接手外部 PR 前掃一次：
+
+```bash
+git ls-files | grep -Ei '(^|/)(\.mcp\.json|\.claude/|\.cursor/|\.amazonq/|\.windsurf|\.aider|\.vscode/|AGENTS\.md|CLAUDE\.md)'
+```
+
+- PR review 硬規則：凡改到 `CLAUDE.md`、`docs/CLAUDE.md` 或任何 agent 組態的 PR，
+  一律當作**權限變更**審，不適用「純文件變更可快速合併」的慣例。
+- AI agent 不得自行放寬自己的權限：不得修改 `.claude/`、`capabilities/default.json`
+  或本節規則（對應 `docs/CLAUDE.md` §3 的 ADR 權限限制）。
+
+---
+
+## 17. 靜態驗證（SAST）與 CI 安全閘門
+
+### 17.1 現行 pipeline
+
+| 檢查        | 工具 / 位置                                                       | 觸發                              | 涵蓋                     |
+| ----------- | ----------------------------------------------------------------- | --------------------------------- | ------------------------ |
+| SAST        | CodeQL（`.github/workflows/codeql.yml`）：`javascript-typescript` + `rust`，`build-mode: none` | push/PR 到 `main`·`dev` + 每週一 06:17 UTC | 注入、危險 sink、常見 CWE |
+| Lint (Rust) | `cargo clippy -- -D warnings`（`ci.yml`，3-OS 矩陣）                | 每次 push                         | panic 面、正確性 lint    |
+| Lint (TS)   | `eslint --ext .ts,.tsx --max-warnings 0`                           | `npm run check` / pre-commit      | React/TS 危險模式        |
+| 型別        | `tsc`（`npm run build`）                                           | 每次 push（CI 先建前端）          | 型別層防呆               |
+| 測試        | `cargo test` + `vitest`                                            | push / `npm run verify`           | §14 授權 gate 等安全迴歸 |
+| 依賴弱點    | `npm audit --audit-level=high` + `cargo audit`（`.github/workflows/audit.yml`） | push/PR 到 `main`·`dev` + 每週一 07:05 UTC + 手動 | 已發布版本的已知 CVE（**會擋合併**） |
+| 依賴升級    | Dependabot（npm / cargo / github-actions，每週）                    | 排程                              | 上游新版本               |
+| 文件同步    | `npm run docs:refresh` guards、`guard:size`                        | pre-commit / verify               | 安全模型與程式碼不漂移   |
+
+### 17.2 Advisory 例外機制
+
+`src-tauri/.cargo/audit.toml` 是唯一的 `cargo audit` 例外清單。每筆 ignore 必須寫明
+**修不掉的原因、暴露面為何可接受、何時複查**；只是「修起來麻煩」不構成理由。
+Informational（unsound / unmaintained / yanked）**不列入** ignore——它們預設就不會讓
+`cargo audit` 失敗，列進去只會把訊號藏起來（2026-08-13 有 22 筆，全部留在 CI log 可見）。
+
+現行唯一例外：`RUSTSEC-2026-0194` / `RUSTSEC-2026-0195`（`quick-xml` DoS）。
+`plist` 釘住 `quick-xml ^0.39.2`，本 repo 無法升級；該路徑是 Tauri build/codegen 期
+解析自有檔案，非執行期不信任輸入。複查點：tauri > 2.11.1，或 2026-11-13。
+
+### 17.3 已知缺口（待辦，不是已完成事項）
+
+- 尚未導入 `cargo-deny`（license + 來源 + 重複依賴），目前只擋 RustSec advisory。
+- `npm audit signatures` 目前為 `continue-on-error`（缺簽章多半是 registry 端缺口，
+  不當作合併阻擋）；若日後要收緊需確認全依賴樹皆有簽章。
+- CodeQL 對 Rust 使用 `build-mode: none`（不編譯抽取），涵蓋率低於 build 模式；
+  提高涵蓋率需評估 CI 時間成本。
+- GitHub secret scanning / push protection 尚無設定紀錄，建議開啟。
+- 無 SBOM 產出、release artifact 未簽章（見 §9 code signing）。
+
+### 17.4 合併前最小安全門檻
+
+`npm run verify` 綠燈 + CodeQL 無新 alert + 觸及 §8 清單的變更有對應 ADR。
