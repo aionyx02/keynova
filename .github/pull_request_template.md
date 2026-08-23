@@ -22,11 +22,14 @@ Closes #
 
 ## 檢查清單
 
-- [ ] `npm run verify` 通過（docs + frontend + Rust）。
+- [ ] `npm run verify` 通過（frontend + Rust）。
 - [ ] `npm run lint` 與 `npm run rust:clippy`（`-D warnings`）乾淨。
 - [ ] 相關測試已新增 / 更新並通過。
-- [ ] 文件已依路由更新，並跑過 `npm run docs:refresh`。
-- [ ] 涉及架構 / 安全 / IPC contract 變更者，已先走 ADR（見 `docs/decisions.md`）。
+- [ ] 文件：預設不需要更新。只有當這個 PR 產生了程式碼裡讀不到的資訊
+      （為什麼這樣選、踩到的雷、未完成的坑、repo 外的狀態）才寫進
+      `docs/decisions.md` 或 `docs/state.md`。
+- [ ] 觸及 `docs/security.md` 的「需要先立 ADR」清單者，已先有 ADR。
+- [ ] 改到 `CLAUDE.md` 或任何 agent 組態者：這是**權限變更**，逐條審。
 - [ ] 符合開發原則：不新增 generic shell、不把 AI 放回產品核心、不繞過 approval / confirmation boundary、不讓單一 component / handler 變成 god module。
 
 ## 驗證方式
