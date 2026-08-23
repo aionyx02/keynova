@@ -25,24 +25,41 @@ Merging is the review. Admins are not enforced, so there is an escape hatch.
 while the old rule forbade merging `main` back. Rebuilt at `main` 2026-08-23,
 and **`main` → `dev` sync is now allowed** — without it `dev` rots again.
 
+## Toolchain
+
+Rust is pinned in `rust-toolchain.toml` — one number, read by CI and by a
+developer machine alike. Upgrading is bumping `channel` and letting CI say what
+broke.
+
+`toolchain-drift.yml` runs clippy and the tests against the latest stable every
+Monday. It is informational and not a required check: a red run means the next
+bump has work waiting, not that anything is broken now. Without it, pinning
+would trade random CI failures for silence.
+
 ## Unfinished
 
-- **Rust toolchain is unpinned.** No `rust-toolchain.toml`, no `rust-version`.
-  CI floats on latest stable and has gone red twice from new lints alone.
-  Pin for determinism or float to catch lints early — undecided.
 - **Releases are unsigned.** `release.yml` builds a draft on three OSes with
   secret-gated signing steps that stay inert until the ADR-0048 Windows/Apple
   certificate secrets are added. SmartScreen and Gatekeeper warn.
 - **`XPLAT` phase 2**: `platform/linux.rs` and `macos.rs` are skeletons. Phase 1
   (3-OS CI, no panics) is done.
-- **One flaky test on macOS.**
-  `startup_preflight::tests::ensure_started_creates_snapshot_and_reuses_same_boot`
-  fails intermittently on `macos-latest` at the `generated_at` assertion: a
-  second `ensure_started()` within the same boot regenerates the snapshot
-  instead of reusing it. Observed once on 2026-08-23 in a PR that changed no
-  Rust at all, green on re-run and green on the preceding PR. Either boot-ID or
-  source-mode detection is unstable on a fresh macOS runner, or the 250 ms
-  settle in the test is a race. Re-running is a workaround, not a diagnosis.
+- **A class of flaky tests: real paths + background threads + wall-clock
+  assertions.** Not one test and not one platform. Seen twice on 2026-08-23, in
+  two PRs that changed no Rust at all:
+
+  - `startup_preflight::…::ensure_started_creates_snapshot_and_reuses_same_boot`
+    — on macOS at the `generated_at` assertion (a second `ensure_started()` in
+    the same boot regenerated the snapshot), and on Windows at the 10-second
+    "did not finish in time" assertion.
+  - `knowledge_store::…::batch_writes_action_logs_on_worker_thread` and
+    `…::stores_and_reads_agent_memories` — both on Windows, both at
+    `store.flush()`, waiting on the SQLite worker thread.
+
+  The Windows run took 40.5s against ~2s locally, so a contended runner is the
+  trigger. What they share is state on a real filesystem path plus a deadline
+  measured in wall-clock time. A fix means per-test temp directories and
+  waiting on a condition rather than a duration; re-running is a workaround, not
+  a diagnosis.
 - **`嚙` mojibake root cause** — masked, not solved. See Traps in `decisions.md`.
 - **`ICON.NATIVE` + UX** and the `SEC-PERF` perf baseline are mid-flight.
 

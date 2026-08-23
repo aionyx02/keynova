@@ -1,0 +1,69 @@
+name: toolchain drift
+
+# Informational, never blocking. rust-toolchain.toml pins the version every
+# required check runs against, which stops a Rust release turning CI red on an
+# unrelated PR — but it also means new lints stop arriving on their own. This
+# job goes looking for them instead.
+#
+# `+stable` overrides rust-toolchain.toml, so this is the one place that
+# deliberately runs the newest compiler. A red run here is a to-do, not a
+# breakage: it means the next `channel` bump will need work, and it says exactly
+# what. It is deliberately NOT in the required status checks.
+#
+# Weekly rather than per-push because the answer changes when Rust ships, not
+# when we commit. Monday 08:00 UTC, after the CodeQL (06:17) and audit (07:05)
+# sweeps.
+
+on:
+  schedule:
+    - cron: "0 8 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  latest-stable:
+    name: latest stable
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Linux build deps
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev \
+            librsvg2-dev \
+            patchelf \
+            build-essential \
+            libxdo-dev \
+            libssl-dev \
+            libayatana-appindicator3-dev
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+
+      - name: Install latest stable Rust
+        run: |
+          rustup toolchain install stable --profile minimal --component clippy
+          echo "pinned:  $(cargo --version)"
+          echo "stable:  $(cargo +stable --version)"
+
+      - name: Install npm dependencies
+        run: npm ci
+
+      # tauri-build validates frontendDist, so the bundle must exist before
+      # cargo can compile — same reason as in ci.yml.
+      - name: Build frontend
+        run: npm run build
+
+      - name: Clippy on latest stable
+        run: cargo +stable clippy --manifest-path src-tauri/Cargo.toml -- -D warnings
+
+      - name: Tests on latest stable
+        run: cargo +stable test --manifest-path src-tauri/Cargo.toml
