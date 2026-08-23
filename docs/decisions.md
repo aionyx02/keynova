@@ -122,6 +122,23 @@ whatever it last installed — Rust 1.98 added
 while local clippy (1.95) reported clean. Nothing pins the toolchain; a new
 stable release can turn CI red with zero code change.
 
+**Never hold a lock across IO.** Not across a filesystem walk, a process
+launch, or an EventBus publish either. The search worker and the knowledge-store
+actor both exist partly because of this.
+
+**A security-boundary test asserts the rejection too.** Testing that the allowed
+path works proves nothing about the boundary. Both directions, always.
+
+**Keep `unsafe` localized and justified by the API contract it wraps.** ADR-0056
+added ~200 lines of Windows FFI; that is the ceiling, not a precedent.
+
+**Source files are UTF-8 without BOM.** No mojibake, no replacement characters,
+no comments with broken encoding — see the `嚙` trap for why this is not
+pedantry here.
+
+Everything else about style is enforced by `prettier`, `eslint`, `cargo fmt` and
+`clippy`, or is generic Google/Rust style. Run the formatter instead of arguing.
+
 **Memory numbers: use Private Working Set.** Real unique footprint is about
 80 MB. The ~324 MB process-tree figure is shared Edge/Chromium DLL pages, not
 Keynova's. The "Background Core" target excludes the active WebView, loaded LLM
