@@ -2,7 +2,7 @@
 type: working_memory
 status: active
 priority: p0
-updated: 2026-06-14
+updated: 2026-08-23
 context_policy: always_retrievable
 owner: project
 ---
@@ -41,6 +41,7 @@ owner: project
 - LLM-driven execution must stay approval-gated for risky or system-affecting actions; risk + `ConfirmRequirement` live on `UnifiedResult.ActionChip`.
 - Generic shell tool exposure stays blocked until the platform sandbox boundary is complete.
 - Background Core memory targets exclude active WebView, loaded local LLM model memory, PTY terminal sessions, monitoring streams, and index rebuild tasks.
+- Dependabot retired 2026-08-23: 21 branches + PRs closed, config removed (`chore/retire-dependabot`). Bumps are manual; CodeQL unaffected. `sessions/2026-08-23.md`
 - Windows `Command` spawns must chain `.no_window()` (`core::SilentCommandExt` = `CREATE_NO_WINDOW`) or a console flashes, stealing focus. `sessions/2026-06-13.md`
 - Two intentional deviations from docx literal text remain in force: `CommandPalette.tsx < 250` is dropped, and inline AI invocation uses capability cards in the palette body rather than row chips; entry is now mixed (`explain` / `summarize` / `fix` stay explicit prefixes, while `next` empty-state mount and `cmd` NL-query detection are enabled). (`AiPanel.tsx` deletion + legacy-agent removal landed in REF.8, 2026-06-09.)
 
