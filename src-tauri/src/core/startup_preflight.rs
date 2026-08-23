@@ -495,18 +495,44 @@ fn save_snapshot_to_disk(snapshot: &StartupPreflightSnapshot) -> Result<(), Stri
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::sync::{Mutex, MutexGuard};
     use std::time::Instant;
+
+    /// `snapshot_path()` resolves to one real location under the user's data
+    /// directory, so every test that touches it shares a single file. `cargo
+    /// test` runs tests on parallel threads, and capture/restore alone does not
+    /// stop two of them interleaving: `snapshot_round_trips_on_disk` writes a
+    /// fixture with `boot_id: "windows:test"`, and if that lands between the two
+    /// reads in `ensure_started_creates_snapshot_and_reuses_same_boot`, the
+    /// second `StartupPreflight` sees a foreign boot id, declares the snapshot
+    /// stale and rebuilds it — failing the `generated_at` assertion. That is
+    /// exactly the macOS failure observed on 2026-08-23; a loaded runner widens
+    /// the window but is not the cause.
+    ///
+    /// Serializing on acquisition fixes it without giving production code a
+    /// test-only injection point.
+    static SNAPSHOT_LOCK: Mutex<()> = Mutex::new(());
 
     struct SnapshotFileGuard {
         path: PathBuf,
         original: Option<Vec<u8>>,
+        // Declared last so it is dropped last: the file is restored while the
+        // lock is still held.
+        _lock: MutexGuard<'static, ()>,
     }
 
     impl SnapshotFileGuard {
         fn capture() -> Self {
+            // A panicking test poisons the mutex. Recovering keeps one failure
+            // from cascading into every other test that shares the file.
+            let lock = SNAPSHOT_LOCK.lock().unwrap_or_else(|e| e.into_inner());
             let path = snapshot_path();
             let original = std::fs::read(&path).ok();
-            Self { path, original }
+            Self {
+                path,
+                original,
+                _lock: lock,
+            }
         }
     }
 
@@ -650,6 +676,12 @@ mod tests {
         );
         preflight.ensure_started();
 
+        // The bound exists to fail a hang rather than let the harness sit
+        // forever, so it is sized well above the work: preflight probes
+        // hardware and reaches for Ollama while several hundred other tests
+        // compete for cores. Ten seconds was close enough to the real cost to
+        // fire on a loaded Windows runner. This is a hang detector, not a
+        // performance assertion, so being generous costs nothing.
         let wait_started = Instant::now();
         loop {
             let status = preflight.current_status();
@@ -657,8 +689,8 @@ mod tests {
                 break;
             }
             assert!(
-                wait_started.elapsed() < Duration::from_secs(10),
-                "startup preflight did not finish in time"
+                wait_started.elapsed() < Duration::from_secs(60),
+                "startup preflight did not finish within 60s — treat as a hang, not slowness"
             );
             std::thread::sleep(Duration::from_millis(50));
         }

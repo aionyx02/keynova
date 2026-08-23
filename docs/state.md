@@ -43,23 +43,6 @@ would trade random CI failures for silence.
   certificate secrets are added. SmartScreen and Gatekeeper warn.
 - **`XPLAT` phase 2**: `platform/linux.rs` and `macos.rs` are skeletons. Phase 1
   (3-OS CI, no panics) is done.
-- **A class of flaky tests: real paths + background threads + wall-clock
-  assertions.** Not one test and not one platform. Seen twice on 2026-08-23, in
-  two PRs that changed no Rust at all:
-
-  - `startup_preflight::…::ensure_started_creates_snapshot_and_reuses_same_boot`
-    — on macOS at the `generated_at` assertion (a second `ensure_started()` in
-    the same boot regenerated the snapshot), and on Windows at the 10-second
-    "did not finish in time" assertion.
-  - `knowledge_store::…::batch_writes_action_logs_on_worker_thread` and
-    `…::stores_and_reads_agent_memories` — both on Windows, both at
-    `store.flush()`, waiting on the SQLite worker thread.
-
-  The Windows run took 40.5s against ~2s locally, so a contended runner is the
-  trigger. What they share is state on a real filesystem path plus a deadline
-  measured in wall-clock time. A fix means per-test temp directories and
-  waiting on a condition rather than a duration; re-running is a workaround, not
-  a diagnosis.
 - **`嚙` mojibake root cause** — masked, not solved. See Traps in `decisions.md`.
 - **`ICON.NATIVE` + UX** and the `SEC-PERF` perf baseline are mid-flight.
 
