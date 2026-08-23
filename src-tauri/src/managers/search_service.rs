@@ -185,16 +185,34 @@ mod tests {
         let svc = SearchService::new();
         let ran = Arc::new(AtomicBool::new(false));
 
+        // The scenario is "cancel lands after submit but before pickup", which
+        // needs the worker to be provably busy — submitting and then setting the
+        // flag races the worker and asserts nothing when the worker wins. Hold
+        // the worker on a blocker, and wait for it to signal that it actually
+        // started, so the slot is occupied before the real task is submitted.
+        let (started_tx, started_rx) = std::sync::mpsc::channel::<()>();
+        let (unblock_tx, unblock_rx) = std::sync::mpsc::channel::<()>();
+        svc.submit(Arc::new(AtomicBool::new(false)), move || {
+            let _ = started_tx.send(());
+            let _ = unblock_rx.recv_timeout(Duration::from_secs(5));
+        });
+        started_rx
+            .recv_timeout(Duration::from_secs(5))
+            .expect("worker must pick up the blocker before the test can be meaningful");
+
         let cancel = Arc::new(AtomicBool::new(false));
         let ran_clone = Arc::clone(&ran);
         svc.submit(Arc::clone(&cancel), move || {
             ran_clone.store(true, Ordering::Relaxed);
         });
 
-        // Cancel the task before the worker picks it up.
+        // The worker is inside the blocker, so this is ordered before pickup.
         cancel.store(true, Ordering::Relaxed);
+        let _ = unblock_tx.send(());
 
-        thread::sleep(Duration::from_millis(100));
+        // Generous on purpose: too short only risks missing a regression, never
+        // a false failure, because the assertion is that nothing happened.
+        thread::sleep(Duration::from_millis(500));
         assert!(
             !ran.load(Ordering::Relaxed),
             "task with cancel=true must not run"
