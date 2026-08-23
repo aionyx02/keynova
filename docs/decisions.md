@@ -122,6 +122,22 @@ whatever it last installed — Rust 1.98 added
 while local clippy (1.95) reported clean. Nothing pins the toolchain; a new
 stable release can turn CI red with zero code change.
 
+**A test touching `snapshot_path()` must take `SnapshotFileGuard`.** It resolves
+to one real file under the user's data directory, and `cargo test` runs tests in
+parallel. The guard both captures/restores the file and serializes on a static
+mutex; skipping it means another test's fixture can land mid-test, and since
+`StartupPreflight::new` loads the snapshot from disk, a foreign `boot_id` makes
+the instance declare the snapshot stale and rebuild. That produced red CI on
+macOS and Windows across three PRs that changed no Rust, and reproduces locally
+about once in twenty runs.
+
+**A timeout that guards the UI does not belong in a test's success path.**
+`KnowledgeStoreHandle`'s two-second round-trip budget is a liveness guard — a UI
+thread must not block on SQLite. A test has no UI, and its first request also
+pays for opening the connection and running migrations, so `cfg(test)` widens
+the budget to 30s. A real deadlock still fails; scheduler pressure no longer
+does.
+
 **Never hold a lock across IO.** Not across a filesystem walk, a process
 launch, or an EventBus publish either. The search worker and the knowledge-store
 actor both exist partly because of this.
