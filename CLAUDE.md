@@ -1,68 +1,76 @@
----
-type: agent_bootstrap
-status: active
-priority: p0
-updated: 2026-05-20
-context_policy: always_retrievable
-owner: project
----
-
 # CLAUDE.md
 
-> Auto-loaded at session start. Detailed governance and ADR rules are in `docs/CLAUDE.md`.
+Keynova is a keyboard-first launcher (Tauri 2 + React + Rust). The goal is
+completing developer workflows without the mouse. AI is an inline capability,
+not the product core. Windows 10+, Linux (X11/Wayland), macOS 11+.
 
-## Session Start
+## Documentation
 
-1. Read `docs/index.md` for routing.
-2. Read `docs/memory/current.md` for current strategy and constraints.
-3. Read `docs/tasks/active.md` for the active queue.
-4. Retrieve additional documents by intent. Never load all docs recursively.
+Four files, and you read them when you need them — there is no startup ritual
+and no routing layer:
 
-## Session Close
+- `docs/state.md` — where the project is, what is unfinished, what is true
+  outside the repo
+- `docs/decisions.md` — why things are the way they are, and the traps
+- `docs/architecture.md` — the shape you cannot get one file at a time
+- `docs/security.md` — what is refused and why
 
-Before final response or commit:
+**Do not update documentation by default.** No session logs, no task queue, no
+"update the smallest matching doc before replying". Those rules produced 118
+files and 3267 lines of tooling to manage them, and the whole apparatus went
+unused for ten weeks without anyone missing it.
 
-1. Update only the smallest matching state doc.
-2. Put detailed execution notes, debugging narrative, and command-output history in `docs/memory/sessions/YYYY-MM-DD.md`.
-3. Keep `current.md` and `active.md` as current-state indexes only.
-4. Put completed-task detail in the session log and refresh the compact completed index when needed.
-5. Run `npm run docs:refresh`.
+Write something down only when you have produced a fact that **cannot be
+recovered from the code or from git log**. There are exactly four kinds:
 
-## Project Overview
+1. why a choice was made, including what was rejected
+2. a trap — something that has bitten and will bite again
+3. what is unfinished, or deliberately not being done
+4. state outside the repo
 
-Keynova is a keyboard-first productivity launcher built with Tauri 2.x, React, and Rust.
+Everything else — module layout, IPC routes, event topics, config shapes, what
+changed in a commit — is already recorded somewhere that stays correct. Adding
+a Markdown copy makes it wrong later, not clearer now. When you do write, say so
+in your reply.
 
-Primary goal: complete 90%+ developer workflows without mouse interaction.
-
-Supported platforms: Windows 10+, Linux (X11/Wayland), macOS 11+.
-
-## Git Workflow Rules
+## Git
 
 ```text
-main <- always releasable
-dev  <- integration
-feature/<name> <- work branches
+main    <- always releasable
+dev     <- integration
+feature/<name>, chore/<name>  <- work branches, cut from dev
 ```
 
-- Do not merge without explicit user confirmation.
-- Create feature branches from `dev`.
-- Show diffs and pass checks before merge.
-- Never merge `main` back into `dev` for this repository policy.
+- **Never merge without explicit confirmation.** Show the diff first.
+- `main` → `dev` sync is allowed and expected. The old rule forbidding it is
+  what killed `dev` once: work forked from `main`, `dev` had no legal way to
+  catch up, and it fell 191 commits behind.
+- `main` and `dev` are protected. A PR needs 8 green checks; no approving
+  review is required, because GitHub will not let a solo maintainer approve
+  their own PR. The human pressing merge is the review.
 
-## Build Commands
+## Commands
 
 ```bash
 npm install && npm run tauri dev
 npm run tauri build
-npm run lint
-cargo test && cargo clippy -- -D warnings
-npm run docs:refresh
+npm run lint && npm run test
+cargo clippy --manifest-path src-tauri/Cargo.toml -- -D warnings
+npm run verify          # everything, before a release
 ```
 
-## Documentation Entry Points
+There are no git hooks. Checks run in CI.
 
-- `docs/index.md` - documentation router
-- `docs/project.md` - stable project facts
-- `docs/memory/current.md` - short working memory
-- `docs/tasks/active.md` - active work only
-- `docs/CLAUDE.md` - governance and ADR rules
+## Boundaries
+
+Read `docs/security.md` before touching anything on this list — several changes
+require an ADR *before* implementation, not after.
+
+Two rules that apply to you specifically:
+
+- **You may not widen your own permissions.** Do not edit `.claude/`,
+  `capabilities/default.json`, or the agent-configuration section of
+  `docs/security.md`.
+- **A PR touching this file or any agent configuration is a permission
+  change**, and is reviewed line by line. "It's only documentation" does not
+  apply here.
