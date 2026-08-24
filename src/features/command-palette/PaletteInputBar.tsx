@@ -1,8 +1,5 @@
 import type React from "react";
 
-import keynovaLogo from "../../assets/keynova_icon.png";
-
-import { UiIcon } from "../../components/icons/UiIcon";
 import { useI18n } from "../../i18n/useI18n";
 
 interface Props {
@@ -27,8 +24,10 @@ export function PaletteInputBar({
   const t = useI18n();
   const p = t.palette;
   const modeLabel = mode === "command" ? p.modeCommands : p.modeSearch;
-  const modeIcon = mode === "command" ? "command" : "search";
   const isEmptySearch = mode === "search" && query === "";
+  // The prompt mark replaces the icon: one mono glyph that also says which
+  // mode the bar is in, which the icon never did.
+  const promptMark = mode === "command" ? "/" : mode === "terminal" ? "$" : "\u203a";
 
   return (
     <div
@@ -36,17 +35,12 @@ export function PaletteInputBar({
         hasContentBelow ? "rounded-b-none" : ""
       }`}
     >
-      <img
-        src={keynovaLogo}
-        alt=""
+      <span
+        className="kn-mono shrink-0 text-[15px] font-medium text-[color:var(--kn-accent)]"
         aria-hidden="true"
-        className="h-[22px] w-[22px] shrink-0 rounded-[5px]"
-        draggable={false}
-      />
-
-      <div className="kn-launcher-mark" aria-hidden="true">
-        <UiIcon name={modeIcon} className="h-[18px] w-[18px]" />
-      </div>
+      >
+        {promptMark}
+      </span>
 
       <div className="kn-input-shell flex min-w-0 flex-1 items-center gap-2">
         {isEmptySearch && <span className="kn-caret" aria-hidden="true" />}
@@ -58,7 +52,7 @@ export function PaletteInputBar({
           onFocus={onFocus}
           aria-label={modeLabel}
           placeholder={mode === "command" ? t.command.placeholder : t.search.placeholder}
-          className="min-w-0 flex-1 bg-transparent text-[17px] font-normal leading-6 tracking-[-0.012em] text-[color:var(--kn-text)] placeholder:text-[color:var(--kn-text-muted)] outline-none focus-visible:shadow-none"
+          className="min-w-0 flex-1 bg-transparent text-[20px] font-normal leading-7 tracking-[-0.018em] text-[color:var(--kn-text)] placeholder:text-[color:var(--kn-text-muted)] outline-none focus-visible:shadow-none"
           spellCheck={false}
           autoComplete="off"
           style={isEmptySearch ? { caretColor: "transparent" } : undefined}
@@ -71,9 +65,9 @@ export function PaletteInputBar({
               aria-label={p.commandModeHint}
               onMouseDown={(event) => event.preventDefault()}
               onClick={() => onQueryChange("/")}
-              className="inline-flex items-center gap-1 rounded-[6px] px-1.5 py-1 text-[10px] font-normal text-[color:var(--kn-text-faint)] transition hover:bg-white/[0.05] hover:text-[color:var(--kn-text-soft)]"
+              className="kn-mono inline-flex items-center gap-1.5 px-1 py-1 text-[11px] text-[color:var(--kn-text-faint)] transition hover:text-[color:var(--kn-text-soft)]"
             >
-              <span className="kn-kbd">/</span>
+              <span>/</span>
               <span>{p.modeCommands}</span>
             </button>
             <button
@@ -81,9 +75,9 @@ export function PaletteInputBar({
               aria-label={p.terminalModeHint}
               onMouseDown={(event) => event.preventDefault()}
               onClick={() => onQueryChange(">")}
-              className="inline-flex items-center gap-1 rounded-[6px] px-1.5 py-1 text-[10px] font-normal text-[color:var(--kn-text-faint)] transition hover:bg-white/[0.05] hover:text-[color:var(--kn-text-soft)]"
+              className="kn-mono inline-flex items-center gap-1.5 px-1 py-1 text-[11px] text-[color:var(--kn-text-faint)] transition hover:text-[color:var(--kn-text-soft)]"
             >
-              <span className="kn-kbd">&gt;</span>
+              <span>&gt;</span>
               <span>{t.terminal.terminal}</span>
             </button>
           </div>

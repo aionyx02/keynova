@@ -527,7 +527,7 @@ export function CommandPalette() {
     cmdResultRef,
     paletteWidthRef,
   );
-  const { metadataByPath, iconsByKey } = useSearchMetadata(legacyResults, selected);
+  const { metadataByPath } = useSearchMetadata(legacyResults, selected);
 
   // Split rawInput into command name and trailing args (Minecraft-style).
   const spaceIdx = rawInput.search(/\s/);
@@ -1035,7 +1035,6 @@ export function CommandPalette() {
               visibleResults={visibleResults}
               unifiedVisible={visibleUnified}
               safeSelected={safeSelected}
-              iconsByKey={iconsByKey}
               onSelectIndex={setSelected}
               onLaunch={(r) => void launchResult(r)}
               showRankBreakdown={showRankBreakdown}
