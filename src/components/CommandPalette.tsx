@@ -19,7 +19,6 @@ import { ArgsSuggestionsList } from "../features/command-palette/ArgsSuggestions
 import { SearchResultsList } from "../features/command-palette/SearchResultsList";
 import { CommandResultArea } from "../features/command-palette/CommandResultArea";
 import { StarterActionsLine } from "../features/command-palette/StarterActionsLine";
-import { PerfBadge } from "../features/command-palette/PerfBadge";
 import { useRecentlyDeleted } from "../features/command-palette/hooks/useRecentlyDeleted";
 import { usePipeline } from "../features/command-palette/hooks/usePipeline";
 import { useSearchStream } from "../features/command-palette/hooks/useSearchStream";
@@ -745,7 +744,6 @@ export function CommandPalette() {
     ? 0
     : Math.min(capabilitySuggestionSelected, Math.max(listData.length - 1, 0));
 
-
   const { liveTranslationPanel, PanelComponent, panelInitialArgs, terminalLaunchSpec, panelKey } =
     usePalettePanels({ mode, cmdName, cmdArgs, spaceIdx, cmdResult });
 
@@ -900,8 +898,6 @@ export function CommandPalette() {
 
   return (
     <div ref={containerRef} tabIndex={-1} className="w-full outline-none">
-      {/* Dev-only Ctrl+K input-ready timing badge (null in production). */}
-      <PerfBadge />
       {/* Terminal: mounted once on first visit, hidden via CSS when not active */}
       {terminalMounted && (
         <div style={{ display: mode === "terminal" ? "block" : "none" }}>

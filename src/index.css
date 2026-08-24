@@ -89,10 +89,10 @@
   --kn-border: rgba(28, 25, 23, 0.08);
   --kn-border-strong: rgba(28, 25, 23, 0.16);
   --kn-selected: rgba(28, 25, 23, 0.06);
-  --kn-text: #1c1917;
-  --kn-text-soft: #292524;
-  --kn-text-muted: #78716c;
-  --kn-text-faint: #a8a29e;
+  --kn-text: #1f1a10;
+  --kn-text-soft: #3d3320;
+  --kn-text-muted: #6b5836;
+  --kn-text-faint: #8a7346;
   --kn-accent: #986528;
   --kn-accent-strong: #7c521f;
   --kn-accent-wash: rgba(152, 101, 40, 0.12);
@@ -170,6 +170,11 @@ body,
     font: inherit;
   }
 
+  input,
+  textarea {
+    caret-color: var(--kn-accent);
+  }
+
   button {
     cursor: default;
   }
@@ -243,6 +248,7 @@ body,
 
   .kn-panel-shell {
     position: relative;
+    overflow: hidden;
     border-radius: var(--kn-radius-panel);
     background: var(--kn-panel-bg);
     backdrop-filter: var(--kn-panel-blur);
