@@ -48,7 +48,7 @@
   --kn-radius-chip: 6px;
   --kn-radius-kbd: 5px;
   --kn-row-h: 42px;
-  --kn-input-h: 60px;
+  --kn-input-h: 52px;
 
   /* 暖霧 — the default: warm, dark. */
   --kn-panel-bg: #272320;
@@ -290,6 +290,7 @@ body {
 
   .kn-launcher-bar {
     min-height: var(--kn-input-h);
+    background: var(--kn-panel-bg-elevated);
   }
 
   .kn-launcher-mark {
@@ -329,13 +330,13 @@ body {
 
   .kn-quick-start {
     display: inline-flex;
-    min-height: 3.25rem;
+    min-height: 2.5rem;
     width: 9.4rem;
     align-items: center;
     gap: 0.625rem;
     border-radius: var(--kn-radius-card);
-    background: var(--kn-panel-bg-soft);
-    padding: 0 0.75rem;
+    background: transparent;
+    padding: 0 0.5rem;
     color: var(--kn-text-soft);
     text-align: left;
     transition:
