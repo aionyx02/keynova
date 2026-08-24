@@ -11,9 +11,7 @@ use windows_core_compat::Interface;
 
 use crate::app::state::AppState;
 use crate::core::IpcError;
-// Window width, i.e. the 700px panel plus PALETTE_MARGIN_PX on each side
-// (see useWindowResize.ts). Used only to centre the window on screen.
-const LAUNCHER_NARROW_WIDTH: f64 = 732.0;
+const LAUNCHER_NARROW_WIDTH: f64 = 700.0;
 const LAUNCHER_LEFT_SHIFT: i32 = 36;
 
 #[derive(Clone, Copy)]
