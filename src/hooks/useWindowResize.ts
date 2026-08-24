@@ -14,23 +14,6 @@ const TERMINAL_HEIGHT_ATTACHED = 620;
 export const PALETTE_WIDTH_NARROW = 700;
 export const PALETTE_WIDTH_WIDE = 1040;
 
-// The palette does not fill its window. It is inset by this much on every side
-// so the OS window corner falls on fully transparent pixels — Windows rounds a
-// borderless window itself, and with the panel flush to the edge that system
-// arc sat on top of the panel's own radius, which is what read as misaligned
-// corners. The margin is also the only room the drop shadow has: sized to the
-// window, it was clipped away entirely and never rendered.
-//
-// PALETTE_WIDTH_* stay PANEL widths. Window width is derived here, and the
-// same margin has to be added to any height that is applied as a constant
-// rather than measured (the measured path reads the padded container, so it
-// already includes it).
-export const PALETTE_MARGIN_PX = 16;
-
-/** Window size for a given panel size. */
-function windowWidthFor(panelWidth: number) {
-  return panelWidth + PALETTE_MARGIN_PX * 2;
-}
 const PALETTE_LEFT_SHIFT_PX = 36;
 const PALETTE_TOP_RATIO = 0.25;
 
@@ -71,14 +54,11 @@ export function useWindowResize(
   const lastAppliedWidthRef = useRef(0);
   const lastAppliedHeightRef = useRef(0);
 
-  // `width` is the PANEL width; the window is wider by the margin on each side.
-  // `height` is already a window height — the measured path reads the padded
-  // container, and the fixed terminal heights add the margin at their call site.
   const applyWindowSize = useCallback((width: number, height: number) => {
     lastAppliedWidthRef.current = width;
     lastAppliedHeightRef.current = height;
     getCurrentWindow()
-      .setSize(new LogicalSize(windowWidthFor(width), height))
+      .setSize(new LogicalSize(width, height))
       .catch(() => {});
   }, []);
 
@@ -89,7 +69,7 @@ export function useWindowResize(
       void currentMonitor()
         .then((monitor) => {
           if (!monitor) return;
-          const physW = Math.round(windowWidthFor(width) * monitor.scaleFactor);
+          const physW = Math.round(width * monitor.scaleFactor);
           const x = Math.max(
             monitor.position.x,
             Math.round(
@@ -125,11 +105,11 @@ export function useWindowResize(
 
       // Structural modes have a deterministic height; apply directly.
       if (modeRef.current === "terminal") {
-        applyWindowSize(PALETTE_WIDTH_NARROW, TERMINAL_HEIGHT_MODE + PALETTE_MARGIN_PX * 2);
+        applyWindowSize(PALETTE_WIDTH_NARROW, TERMINAL_HEIGHT_MODE);
         return;
       }
       if (isTerminalResult(cmdResultRef.current)) {
-        applyWindowSize(PALETTE_WIDTH_NARROW, TERMINAL_HEIGHT_ATTACHED + PALETTE_MARGIN_PX * 2);
+        applyWindowSize(PALETTE_WIDTH_NARROW, TERMINAL_HEIGHT_ATTACHED);
         return;
       }
 

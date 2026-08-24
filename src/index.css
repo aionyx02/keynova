@@ -33,15 +33,16 @@
 
   /* Geometry — shared by every theme.
    *
-   * Nested radii must be CONCENTRIC: an element inset by `p` from a corner of
-   * radius `R` needs radius `R - p`, or the two arcs stop being parallel and
-   * the corner reads as bent. So the scale below is not free — each step is
-   * tied to the inset it sits at:
-   *   panel 14                      outermost
-   *   row    8  = 14 - 6            list padding is 6
-   *   card   6  = 14 - 8            grids inset 8 from the panel
-   * Change an inset and the matching radius has to move with it. */
-  --kn-radius-panel: 14px;
+   * The panel IS the window (see the canvas note below), so its own radius is
+   * 0: the window is a rectangle and any curve here would just draw a rounded
+   * hairline inside a square field of the same colour. Rounding comes from the
+   * OS, which is the only thing that can actually cut the window shape.
+   *
+   * The radii that remain are interior, so they answer only to each other —
+   * but nested ones still have to be CONCENTRIC: an element inset by `p` from
+   * a corner of radius `R` needs `R - p`, or the arcs stop being parallel and
+   * the corner reads as bent. Change an inset, move the radius with it. */
+  --kn-radius-panel: 0;
   --kn-radius-row: 8px;
   --kn-radius-card: 6px;
   --kn-radius-chip: 6px;
@@ -77,7 +78,7 @@
   --kn-danger-wash: rgba(255, 139, 148, 0.14);
   --kn-terminal-bg: #16130f;
   --kn-terminal-surface: #16130f;
-  --kn-shadow: 0 10px 24px -8px rgba(0, 0, 0, 0.6);
+  --kn-shadow: none;
   --kn-focus-shadow: 0 0 0 1px rgba(235, 188, 99, 0.45), 0 0 0 4px rgba(235, 188, 99, 0.12);
 }
 
@@ -116,7 +117,7 @@
   --kn-danger-wash: rgba(176, 42, 55, 0.1);
   --kn-terminal-bg: #f5f3f1;
   --kn-terminal-surface: #f5f3f1;
-  --kn-shadow: 0 10px 24px -8px rgba(0, 0, 0, 0.35);
+  --kn-shadow: none;
   --kn-focus-shadow: 0 0 0 1px rgba(152, 101, 40, 0.5), 0 0 0 4px rgba(152, 101, 40, 0.14);
 }
 
@@ -145,24 +146,29 @@
   --kn-desktop: #0b0b0d;
   --kn-terminal-bg: #0d0d10;
   --kn-terminal-surface: #0d0d10;
-  --kn-shadow: 0 10px 24px -8px rgba(0, 0, 0, 0.75);
+  --kn-shadow: none;
 }
 
-/* The launcher window is transparent, and the canvas is what fills it when the
- * panel does not. `background: transparent` alone does not get there: with
- * `color-scheme` on the root element Chromium derives a dark canvas from it and
- * paints the whole window rectangle, which is what put a hard-edged dark block
- * behind the panel's rounded corners — the square corner that kept showing.
+/* The window canvas is painted, not transparent, and cannot be made otherwise
+ * here: WebView2 needs GPU compositing for a transparent window and the window
+ * runs with `--disable-gpu` (tauri.conf.json). Every rounded corner therefore
+ * exposed a hard dark rectangle behind it — the square corner that kept coming
+ * back through several attempted fixes.
  *
- * So color-scheme lives on `body` instead. It still drives form controls,
- * scrollbars and the light theme's native widgets; it just no longer decides
- * what the canvas is painted with. */
+ * So the canvas is painted the panel's own colour instead of fought. The panel
+ * fills the window edge to edge, its radius lands on an identical colour and
+ * disappears, and the only corner anyone sees is the one the OS gives the
+ * window (rounded on Windows 11). Nothing can mismatch, because there are no
+ * longer two surfaces.
+ *
+ * Restoring true transparency means removing `--disable-gpu` first; until then
+ * the drop shadow has nowhere to render either, hence --kn-shadow: none. */
 html,
 body,
 #root {
   margin: 0;
   padding: 0;
-  background-color: transparent;
+  background-color: var(--kn-panel-bg);
   height: 100%;
   overflow: hidden;
 }
