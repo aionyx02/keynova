@@ -3,7 +3,7 @@
 Where the project actually is, what is unfinished, and what is true outside this
 repo. Updated when one of those changes — not per task, not per session.
 
-Last touched: 2026-08-23
+Last touched: 2026-08-24
 
 ## Now
 
@@ -45,6 +45,24 @@ would trade random CI failures for silence.
   (3-OS CI, no panics) is done.
 - **`嚙` mojibake root cause** — masked, not solved. See Traps in `decisions.md`.
 - **`ICON.NATIVE` + UX** and the `SEC-PERF` perf baseline are mid-flight.
+
+## Planned (2026-08-24, none started)
+
+Declared during the palette restyle, and deliberately not started until it
+lands. Each one moves something the restyle just decided, which is why they are
+written down rather than left implicit:
+
+- **Settings becomes its own small window**, opened by a command, costing
+  nothing while closed. It takes the theme picker out of the 700px palette
+  panel, and makes the theme a cross-window value — a `data-theme` attribute on
+  one window's DOM stops being enough.
+- **A `.config` in the repo** so others can customise their own checkout. The
+  restyle defines each theme as one set of `:root` variables, so a fourth theme
+  declared there needs no new mechanism.
+- **Pluggable commands**, parameterised from `.config` first and from a market
+  later, once the settings window exists. Result kinds become open-ended, which
+  is the reason the restyle's fixed six-chip filter strip is not worth rehoming
+  as it stands — whatever replaces it has to be driven by what is installed.
 
 ## Security gaps (2026-08-13 audit)
 
