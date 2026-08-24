@@ -18,7 +18,6 @@ import { PipelineStatusRow } from "../features/command-palette/PipelineStatusRow
 import { ArgsSuggestionsList } from "../features/command-palette/ArgsSuggestionsList";
 import { SearchResultsList } from "../features/command-palette/SearchResultsList";
 import { CommandResultArea } from "../features/command-palette/CommandResultArea";
-import { StarterActionsLine } from "../features/command-palette/StarterActionsLine";
 import { useRecentlyDeleted } from "../features/command-palette/hooks/useRecentlyDeleted";
 import { usePipeline } from "../features/command-palette/hooks/usePipeline";
 import { useSearchStream } from "../features/command-palette/hooks/useSearchStream";
@@ -842,8 +841,6 @@ export function CommandPalette() {
     query === "" &&
     showCapabilityHint &&
     !showCapabilityResult;
-  const showStarterActionsLine =
-    paletteMode.kind === "search" && mode === "search" && query === "" && !showCapabilityResult;
   const showSearchEmptyState =
     paletteMode.kind === "search" &&
     mode === "search" &&
@@ -890,7 +887,6 @@ export function CommandPalette() {
     pipelineRunning ||
     pipelineResult ||
     showCapabilityResult ||
-    showStarterActionsLine ||
     showCapabilityHintLine ||
     showSearchEmptyState ||
     showEmptyFilterState,
@@ -1004,13 +1000,6 @@ export function CommandPalette() {
               onRunSelected={runSuggestedWorkflow}
               onCancel={suggestNextState.cancel}
               onClose={() => setIdleNextDismissed(true)}
-            />
-          )}
-
-          {showStarterActionsLine && !idleNextActive && (
-            <StarterActionsLine
-              visible={showStarterActionsLine}
-              onPickQuery={startSuggestedQuery}
             />
           )}
 

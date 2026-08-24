@@ -30,7 +30,7 @@ export function PaletteInputBar({
 
   return (
     <div
-      className={`kn-launcher-bar kn-panel-shell kn-panel-focus flex items-center gap-2.5 px-3.5 ${
+      className={`kn-launcher-bar kn-panel-shell kn-panel-focus flex items-center gap-3 px-4 ${
         hasContentBelow ? "rounded-b-none" : ""
       }`}
     >
@@ -48,7 +48,7 @@ export function PaletteInputBar({
           onFocus={onFocus}
           aria-label={modeLabel}
           placeholder={mode === "command" ? t.command.placeholder : t.search.placeholder}
-          className="min-w-0 flex-1 bg-transparent text-[15.5px] font-normal leading-5 tracking-[-0.01em] text-[color:var(--kn-text)] placeholder:text-[color:var(--kn-text-faint)] outline-none focus-visible:shadow-none"
+          className="min-w-0 flex-1 bg-transparent text-[17px] font-normal leading-6 tracking-[-0.012em] text-[color:var(--kn-text)] placeholder:text-[color:var(--kn-text-faint)] outline-none focus-visible:shadow-none"
           spellCheck={false}
           autoComplete="off"
           style={isEmptySearch ? { caretColor: "transparent" } : undefined}
