@@ -2,33 +2,129 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Theme layer.
+ *
+ * Every theme redefines the same variable names; nothing else in this file or
+ * in any component reads a raw colour. Switching themes is therefore one
+ * attribute on the root element — `data-theme="frosted" | "ink"`, absent for
+ * the default. A fourth theme is a fourth block here, which is what makes the
+ * planned `.config` customisation cheap (docs/state.md, Planned).
+ *
+ * Geometry is deliberately NOT themed: all three share the same shape, so the
+ * radius/height tokens live in :root only and are never overridden.
+ */
 :root {
-  color: #eef1f4;
+  color: #f7f4f1;
   color-scheme: dark;
   font-family: "Segoe UI Variable Text", "Segoe UI", "Noto Sans TC", sans-serif;
-  --kn-panel-bg: rgba(20, 22, 24, 0.985);
-  --kn-panel-bg-elevated: rgba(27, 29, 32, 0.985);
-  --kn-panel-bg-soft: rgba(255, 255, 255, 0.035);
-  --kn-panel-bg-strong: rgba(12, 13, 15, 0.9);
-  --kn-border: rgba(255, 255, 255, 0.09);
-  --kn-border-strong: rgba(255, 255, 255, 0.18);
-  --kn-text: #eef1f4;
-  --kn-text-soft: #d7dde4;
-  --kn-text-muted: #9aa4af;
-  --kn-text-faint: #66717c;
-  --kn-accent: #7dd8c1;
-  --kn-accent-strong: #b6f4df;
-  --kn-accent-wash: rgba(125, 216, 193, 0.15);
+
+  /* Geometry — shared by every theme. */
+  --kn-radius-panel: 20px;
+  --kn-radius-row: 12px;
+  --kn-radius-chip: 7px;
+  --kn-radius-kbd: 6px;
+  --kn-row-h: 42px;
+  --kn-input-h: 60px;
+
+  /* 暖霧 — the default: warm, translucent, dark. */
+  --kn-panel-bg: rgba(41, 37, 34, 0.68);
+  --kn-panel-blur: blur(44px) saturate(1.5);
+  --kn-panel-bg-elevated: rgba(52, 47, 43, 0.72);
+  --kn-panel-bg-soft: rgba(255, 255, 255, 0.055);
+  --kn-panel-bg-strong: rgba(28, 25, 23, 0.72);
+  --kn-ring: rgba(255, 255, 255, 0.09);
+  --kn-border: rgba(255, 255, 255, 0.07);
+  --kn-border-strong: rgba(255, 255, 255, 0.14);
+  --kn-selected: rgba(255, 255, 255, 0.1);
+  --kn-text: #f7f4f1;
+  --kn-text-soft: #ece7e3;
+  --kn-text-muted: #a89f98;
+  --kn-text-faint: #8f867f;
+  --kn-accent: #ebbc63;
+  --kn-accent-strong: #f4cc64;
+  --kn-accent-wash: rgba(235, 188, 99, 0.16);
+  --kn-accent-soft: rgba(235, 188, 99, 0.1);
+  --kn-accent-line: rgba(235, 188, 99, 0.28);
+  --kn-desktop: #17130f;
   --kn-success: #92dc9d;
   --kn-success-wash: rgba(146, 220, 157, 0.14);
   --kn-warm: #f3c06f;
   --kn-danger: #ff8b94;
   --kn-danger-strong: #ffadb4;
   --kn-danger-wash: rgba(255, 139, 148, 0.14);
-  --kn-terminal-bg: #101113;
-  --kn-terminal-surface: rgba(16, 17, 19, 0.96);
-  --kn-shadow: 0 24px 54px rgba(0, 0, 0, 0.44), 0 10px 24px rgba(0, 0, 0, 0.28);
-  --kn-focus-shadow: 0 0 0 1px rgba(125, 216, 193, 0.42), 0 0 0 4px rgba(125, 216, 193, 0.1);
+  --kn-terminal-bg: #16130f;
+  --kn-terminal-surface: rgba(22, 19, 15, 0.96);
+  --kn-shadow: 0 32px 64px -20px rgba(0, 0, 0, 0.7);
+  --kn-focus-shadow: 0 0 0 1px rgba(235, 188, 99, 0.45), 0 0 0 4px rgba(235, 188, 99, 0.12);
+}
+
+/* 霧面淺 — light, translucent. The one theme that flips color-scheme, so
+ * native scrollbars, selects and form controls follow. Accent has to drop to
+ * oklch(0.55 0.10 68) to clear 4.5:1 on a near-white panel; success and danger
+ * darken for the same reason. */
+[data-theme="frosted"] {
+  color: #1c1917;
+  color-scheme: light;
+
+  --kn-panel-bg: rgba(252, 251, 250, 0.82);
+  --kn-panel-blur: blur(44px) saturate(1.6);
+  --kn-panel-bg-elevated: rgba(255, 255, 255, 0.86);
+  --kn-panel-bg-soft: rgba(28, 25, 23, 0.045);
+  --kn-panel-bg-strong: rgba(245, 243, 241, 0.9);
+  --kn-ring: rgba(255, 255, 255, 0.6);
+  --kn-border: rgba(28, 25, 23, 0.08);
+  --kn-border-strong: rgba(28, 25, 23, 0.16);
+  --kn-selected: rgba(28, 25, 23, 0.06);
+  --kn-text: #1c1917;
+  --kn-text-soft: #292524;
+  --kn-text-muted: #78716c;
+  --kn-text-faint: #a8a29e;
+  --kn-accent: #986528;
+  --kn-accent-strong: #7c521f;
+  --kn-accent-wash: rgba(152, 101, 40, 0.12);
+  --kn-accent-soft: rgba(152, 101, 40, 0.08);
+  --kn-accent-line: rgba(152, 101, 40, 0.24);
+  --kn-desktop: #e8e4e0;
+  --kn-success: #2f7d4a;
+  --kn-success-wash: rgba(47, 125, 74, 0.12);
+  --kn-warm: #9a6b12;
+  --kn-danger: #b02a37;
+  --kn-danger-strong: #8c1f2a;
+  --kn-danger-wash: rgba(176, 42, 55, 0.1);
+  --kn-terminal-bg: #f5f3f1;
+  --kn-terminal-surface: rgba(245, 243, 241, 0.96);
+  --kn-shadow: 0 32px 64px -20px rgba(0, 0, 0, 0.45);
+  --kn-focus-shadow: 0 0 0 1px rgba(152, 101, 40, 0.5), 0 0 0 4px rgba(152, 101, 40, 0.14);
+}
+
+/* 深墨 — opaque, cool, near-black. The only theme with no blur, so it stays
+ * usable on machines where backdrop-filter is expensive. */
+[data-theme="ink"] {
+  color: #fafafa;
+  color-scheme: dark;
+
+  --kn-panel-bg: #121215;
+  --kn-panel-blur: none;
+  --kn-panel-bg-elevated: #1a1a1e;
+  --kn-panel-bg-soft: rgba(255, 255, 255, 0.05);
+  --kn-panel-bg-strong: #0d0d10;
+  --kn-ring: rgba(255, 255, 255, 0.06);
+  --kn-border: rgba(255, 255, 255, 0.05);
+  --kn-border-strong: rgba(255, 255, 255, 0.12);
+  --kn-selected: rgba(255, 255, 255, 0.08);
+  --kn-text: #fafafa;
+  --kn-text-soft: #e4e4e7;
+  --kn-text-muted: #a1a1aa;
+  --kn-text-faint: #71717a;
+  --kn-accent: #ebbc63;
+  --kn-accent-strong: #f4cc64;
+  --kn-accent-wash: rgba(235, 188, 99, 0.16);
+  --kn-accent-soft: rgba(235, 188, 99, 0.1);
+  --kn-accent-line: rgba(235, 188, 99, 0.28);
+  --kn-desktop: #0b0b0d;
+  --kn-terminal-bg: #0d0d10;
+  --kn-terminal-surface: rgba(13, 13, 16, 0.96);
+  --kn-shadow: 0 32px 64px -20px rgba(0, 0, 0, 0.85);
 }
 
 html,
@@ -74,8 +170,48 @@ body,
   }
 
   ::selection {
-    background: rgba(138, 168, 255, 0.28);
-    color: #fff;
+    background: var(--kn-accent-wash);
+    color: var(--kn-text);
+  }
+}
+
+/* Breathing caret.
+ *
+ * Only usable while the input is EMPTY. A native caret cannot be animated —
+ * `caret-color` sets the colour and the browser owns the blink — so this is a
+ * drawn element, and drawing one over real text means measuring the cursor
+ * position, which breaks during IME composition (zh-TW is the default locale;
+ * people compose with 注音). Hand back to the native caret as soon as there is
+ * a value. Opacity never reaches 0: that is what reads as breathing rather
+ * than blinking, and it carries the glow with it for free. */
+@keyframes kn-breathe {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.28;
+  }
+}
+
+.kn-caret {
+  width: 2px;
+  height: 20px;
+  flex-shrink: 0;
+  border-radius: 1px;
+  background: var(--kn-accent);
+  box-shadow: 0 0 10px var(--kn-accent-wash);
+  animation: kn-breathe 1.5s ease-in-out infinite;
+}
+
+/* A glow on a near-white panel just looks smudged. */
+[data-theme="frosted"] .kn-caret {
+  box-shadow: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .kn-caret {
+    animation: none;
   }
 }
 
@@ -83,9 +219,7 @@ body,
   .kn-browser-preview {
     height: 100%;
     overflow: auto;
-    background:
-      linear-gradient(135deg, rgba(125, 216, 193, 0.08), transparent 34%),
-      linear-gradient(180deg, #141619 0%, #090a0b 100%);
+    background: var(--kn-desktop);
     padding: 2.5rem 1.5rem;
   }
 
@@ -96,63 +230,33 @@ body,
 
   .kn-panel-shell {
     position: relative;
-    border: 1px solid var(--kn-border);
-    border-radius: 8px;
-    background:
-      linear-gradient(180deg, rgba(255, 255, 255, 0.045), transparent 30%),
-      linear-gradient(180deg, rgba(27, 29, 32, 0.985) 0%, rgba(16, 18, 20, 0.985) 100%);
-    box-shadow: var(--kn-shadow);
-  }
-
-  .kn-panel-shell::before {
-    content: "";
-    position: absolute;
-    inset: 0;
-    border-radius: inherit;
-    background: linear-gradient(180deg, rgba(255, 255, 255, 0.05), transparent 24%);
-    pointer-events: none;
+    border-radius: var(--kn-radius-panel);
+    background: var(--kn-panel-bg);
+    backdrop-filter: var(--kn-panel-blur);
+    -webkit-backdrop-filter: var(--kn-panel-blur);
+    box-shadow:
+      var(--kn-shadow),
+      inset 0 0 0 1px var(--kn-ring);
   }
 
   .kn-launcher-bar {
-    min-height: 74px;
-    background:
-      linear-gradient(180deg, rgba(255, 255, 255, 0.055), transparent 34%),
-      linear-gradient(180deg, rgba(29, 31, 34, 0.99) 0%, rgba(18, 20, 22, 0.99) 100%);
+    min-height: var(--kn-input-h);
+    background: transparent;
   }
 
   .kn-launcher-mark {
     display: inline-flex;
-    height: 2.75rem;
-    width: 2.75rem;
+    height: 1.25rem;
+    width: 1.25rem;
     flex-shrink: 0;
     align-items: center;
     justify-content: center;
-    border: 1px solid rgba(125, 216, 193, 0.22);
-    border-radius: 8px;
-    background:
-      linear-gradient(180deg, rgba(125, 216, 193, 0.16), rgba(125, 216, 193, 0.07)),
-      rgba(255, 255, 255, 0.03);
-    color: var(--kn-accent);
-    box-shadow:
-      inset 0 1px 0 rgba(255, 255, 255, 0.06),
-      0 10px 22px rgba(0, 0, 0, 0.18);
+    color: var(--kn-text-faint);
   }
 
   .kn-input-shell {
-    border: 1px solid rgba(255, 255, 255, 0.11);
-    border-radius: 8px;
-    background: rgba(7, 8, 10, 0.32);
-    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.035);
-    transition:
-      border-color 150ms ease,
-      background 150ms ease,
-      box-shadow 150ms ease;
-  }
-
-  .kn-input-shell:focus-within {
-    border-color: rgba(125, 216, 193, 0.38);
-    background: rgba(7, 8, 10, 0.42);
-    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.055);
+    border-radius: var(--kn-radius-row);
+    background: transparent;
   }
 
   .kn-mode-pill {
@@ -182,11 +286,8 @@ body,
     width: 9.4rem;
     align-items: center;
     gap: 0.65rem;
-    border: 1px solid rgba(255, 255, 255, 0.075);
-    border-radius: 8px;
-    background:
-      linear-gradient(180deg, rgba(255, 255, 255, 0.04), transparent 42%),
-      rgba(255, 255, 255, 0.026);
+    border-radius: var(--kn-radius-row);
+    background: var(--kn-panel-bg-soft);
     padding: 0.55rem 0.65rem;
     color: var(--kn-text-soft);
     text-align: left;
@@ -198,9 +299,7 @@ body,
 
   .kn-quick-start:hover,
   .kn-quick-start:focus-visible {
-    border-color: rgba(125, 216, 193, 0.24);
-    background:
-      linear-gradient(180deg, rgba(125, 216, 193, 0.09), transparent 48%), rgba(255, 255, 255, 0.04);
+    background: var(--kn-selected);
   }
 
   .kn-quick-start:active {
@@ -215,7 +314,7 @@ body,
   }
 
   .kn-panel-focus:focus-within {
-    border-color: rgba(138, 168, 255, 0.34);
+    border-color: var(--kn-accent-line);
     box-shadow: var(--kn-shadow), var(--kn-focus-shadow);
   }
 
@@ -241,57 +340,32 @@ body,
   }
 
   .kn-scroll::-webkit-scrollbar-thumb:hover {
-    background: rgba(138, 168, 255, 0.56);
+    background: var(--kn-accent);
     background-clip: padding-box;
   }
 
   .kn-result-row {
     position: relative;
-    border: 1px solid transparent;
-    border-radius: 8px;
-    transition:
-      border-color 150ms ease,
-      background 150ms ease,
-      box-shadow 150ms ease;
+    border-radius: var(--kn-radius-row);
+    transition: background 150ms ease;
   }
 
   .kn-result-row[data-selected="true"] {
-    border-color: rgba(125, 216, 193, 0.26);
-    background:
-      linear-gradient(180deg, rgba(125, 216, 193, 0.13), rgba(125, 216, 193, 0.055)),
-      rgba(255, 255, 255, 0.032);
-    box-shadow:
-      inset 0 1px 0 rgba(255, 255, 255, 0.045),
-      0 8px 18px rgba(0, 0, 0, 0.12);
-  }
-
-  .kn-result-row[data-selected="true"]::before {
-    content: "";
-    position: absolute;
-    left: 0;
-    top: 0.7rem;
-    bottom: 0.7rem;
-    width: 3px;
-    border-radius: 999px;
-    background: linear-gradient(180deg, var(--kn-accent), var(--kn-accent-strong));
+    background: var(--kn-selected);
   }
 
   .kn-result-row[data-selected="false"]:hover {
-    border-color: rgba(255, 255, 255, 0.06);
-    background: rgba(255, 255, 255, 0.04);
+    background: var(--kn-panel-bg-soft);
   }
 
   .kn-result-icon {
     display: inline-flex;
-    height: 2.75rem;
-    width: 2.75rem;
+    height: 1.25rem;
+    width: 1.25rem;
     flex-shrink: 0;
     align-items: center;
     justify-content: center;
-    border-radius: 8px;
-    box-shadow:
-      inset 0 1px 0 rgba(255, 255, 255, 0.045),
-      0 8px 18px rgba(0, 0, 0, 0.12);
+    color: var(--kn-text-faint);
   }
 
   .kn-result-kind {
@@ -312,15 +386,13 @@ body,
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    min-width: 1.5rem;
-    border: 1px solid var(--kn-border);
-    border-radius: 6px;
-    background: rgba(255, 255, 255, 0.04);
-    padding: 0.1rem 0.35rem;
-    font-size: 0.7rem;
-    font-weight: 600;
-    color: var(--kn-text-soft);
-    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+    min-width: 1.25rem;
+    border-radius: var(--kn-radius-kbd);
+    background: var(--kn-panel-bg-soft);
+    padding: 0.1rem 0.375rem;
+    font-size: 0.66rem;
+    font-weight: 500;
+    color: var(--kn-text-muted);
   }
 
   .kn-panel-header {
@@ -409,7 +481,7 @@ body,
 
   .kn-field:focus,
   .kn-textarea:focus {
-    border-color: rgba(138, 168, 255, 0.3);
+    border-color: var(--kn-accent-line);
     background: rgba(255, 255, 255, 0.06);
   }
 
@@ -438,14 +510,14 @@ body,
   }
 
   .kn-button-primary {
-    border-color: rgba(138, 168, 255, 0.18);
-    background: linear-gradient(180deg, rgba(138, 168, 255, 0.2), rgba(138, 168, 255, 0.12));
+    border-color: var(--kn-accent-line);
+    background: var(--kn-accent-wash);
     color: #fff;
   }
 
   .kn-button-primary:hover {
-    border-color: rgba(138, 168, 255, 0.28);
-    background: linear-gradient(180deg, rgba(138, 168, 255, 0.24), rgba(138, 168, 255, 0.15));
+    border-color: var(--kn-accent-line);
+    background: var(--kn-accent-wash);
   }
 
   .kn-button-danger {
@@ -458,10 +530,9 @@ body,
     display: inline-flex;
     align-items: center;
     gap: 0.35rem;
-    border: 1px solid var(--kn-border);
-    border-radius: 999px;
-    background: rgba(255, 255, 255, 0.035);
-    padding: 0.28rem 0.6rem;
+    border-radius: var(--kn-radius-chip);
+    background: var(--kn-panel-bg-soft);
+    padding: 0.32rem 0.65rem;
     font-size: 0.65rem;
     font-weight: 600;
     color: var(--kn-text-muted);
@@ -477,15 +548,12 @@ body,
   }
 
   .kn-chip-active {
-    border-color: rgba(125, 216, 193, 0.28);
-    background: rgba(125, 216, 193, 0.13);
-    color: var(--kn-text);
+    background: var(--kn-accent-wash);
+    color: var(--kn-accent);
   }
 
   .kn-empty-state {
-    background:
-      linear-gradient(180deg, rgba(255, 255, 255, 0.04), transparent 34%),
-      linear-gradient(180deg, rgba(24, 26, 29, 0.99), rgba(15, 16, 18, 0.99));
+    background: var(--kn-panel-bg);
   }
 
   .kn-sidebar-item {
@@ -500,7 +568,7 @@ body,
   }
 
   .kn-sidebar-item[data-active="true"] {
-    background: rgba(138, 168, 255, 0.14);
+    background: var(--kn-accent-wash);
     color: var(--kn-text);
   }
 
@@ -583,7 +651,7 @@ body,
   }
 
   .kn-terminal-body .xterm .xterm-viewport::-webkit-scrollbar-thumb:hover {
-    background: rgba(138, 168, 255, 0.56);
+    background: var(--kn-accent);
     background-clip: padding-box;
   }
 
@@ -611,5 +679,5 @@ body,
 }
 
 .setting-tabs-scroll::-webkit-scrollbar-thumb:hover {
-  background: rgba(138, 168, 255, 0.72);
+  background: var(--kn-accent);
 }
