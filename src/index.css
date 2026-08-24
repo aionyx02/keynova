@@ -48,7 +48,7 @@
   --kn-radius-chip: 6px;
   --kn-radius-kbd: 5px;
   --kn-row-h: 40px;
-  --kn-input-h: 48px;
+  --kn-input-h: 44px;
 
   /* 暖霧 — the default: warm, dark. */
   --kn-panel-bg: #272320;
@@ -295,8 +295,8 @@ body {
 
   .kn-launcher-mark {
     display: inline-flex;
-    height: 1.25rem;
-    width: 1.25rem;
+    height: 1.0625rem;
+    width: 1.0625rem;
     flex-shrink: 0;
     align-items: center;
     justify-content: center;
