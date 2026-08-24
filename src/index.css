@@ -29,7 +29,6 @@
 :root,
 [data-theme="warm"] {
   color: #f7f4f1;
-  color-scheme: dark;
   font-family: "Segoe UI Variable Text", "Segoe UI", "Noto Sans TC", sans-serif;
 
   /* Geometry — shared by every theme.
@@ -82,13 +81,13 @@
   --kn-focus-shadow: 0 0 0 1px rgba(235, 188, 99, 0.45), 0 0 0 4px rgba(235, 188, 99, 0.12);
 }
 
-/* 霧面淺 — light. The one theme that flips color-scheme, so native
- * scrollbars, selects and form controls follow. Accent has to drop to
+/* 霧面淺 — light. The one theme that flips color-scheme (set on body, see the
+ * canvas note below), so native scrollbars, selects and form controls follow.
+ * Accent has to drop to
  * oklch(0.55 0.10 68) to clear 4.5:1 on a near-white panel; success and danger
  * darken for the same reason. */
 [data-theme="frosted"] {
   color: #1c1917;
-  color-scheme: light;
 
   --kn-panel-bg: #faf9f8;
   --kn-panel-blur: none;
@@ -124,7 +123,6 @@
 /* 深墨 — cool, near-black. */
 [data-theme="ink"] {
   color: #fafafa;
-  color-scheme: dark;
 
   --kn-panel-bg: #121215;
   --kn-panel-blur: none;
@@ -150,14 +148,31 @@
   --kn-shadow: 0 10px 24px -8px rgba(0, 0, 0, 0.75);
 }
 
+/* The launcher window is transparent, and the canvas is what fills it when the
+ * panel does not. `background: transparent` alone does not get there: with
+ * `color-scheme` on the root element Chromium derives a dark canvas from it and
+ * paints the whole window rectangle, which is what put a hard-edged dark block
+ * behind the panel's rounded corners — the square corner that kept showing.
+ *
+ * So color-scheme lives on `body` instead. It still drives form controls,
+ * scrollbars and the light theme's native widgets; it just no longer decides
+ * what the canvas is painted with. */
 html,
 body,
 #root {
   margin: 0;
   padding: 0;
-  background: transparent;
+  background-color: transparent;
   height: 100%;
   overflow: hidden;
+}
+
+body {
+  color-scheme: dark;
+}
+
+[data-theme="frosted"] body {
+  color-scheme: light;
 }
 
 @layer base {
@@ -476,13 +491,12 @@ body,
   }
 
   select.kn-field {
-    color-scheme: dark;
-    background-color: rgb(31 34 40);
+    background-color: var(--kn-panel-bg-elevated);
   }
 
   select.kn-field option,
   select.kn-field optgroup {
-    background-color: rgb(24 26 31);
+    background-color: var(--kn-panel-bg);
     color: var(--kn-text);
   }
 
