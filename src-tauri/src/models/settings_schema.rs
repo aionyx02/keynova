@@ -550,6 +550,19 @@ pub fn builtin_setting_schema() -> Vec<SettingSchema> {
             false,
             &["true", "false"],
         ),
+        // Palette appearance. The value is written straight onto the root
+        // element as `data-theme`, which is what selects a variable set in
+        // index.css; "warm" is the default and carries no attribute. Options
+        // are validated here, so an unknown theme cannot be persisted.
+        SettingSchema::new(
+            "launcher.theme",
+            "launcher",
+            "Appearance",
+            String,
+            "warm",
+            false,
+            &["warm", "frosted", "ink"],
+        ),
     ]
 }
 
