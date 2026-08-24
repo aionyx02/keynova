@@ -13,7 +13,13 @@
  * Geometry is deliberately NOT themed: all three share the same shape, so the
  * radius/height tokens live in :root only and are never overridden.
  */
-:root {
+/* `[data-theme="warm"]` is listed alongside :root so the default theme can also
+ * be re-declared on a nested element. That is what lets the settings preview
+ * render each theme in its own colours: wrapping a subtree in the attribute
+ * rebinds the whole variable set for it, so a preview never duplicates the
+ * palette and a fourth theme gets a correct preview for free. */
+:root,
+[data-theme="warm"] {
   color: #f7f4f1;
   color-scheme: dark;
   font-family: "Segoe UI Variable Text", "Segoe UI", "Noto Sans TC", sans-serif;

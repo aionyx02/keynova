@@ -215,6 +215,12 @@ export const zhTW = {
       "performance.low_memory_mode":
         "跳過 terminal prewarm、避免重走磁碟建索引，並縮短預設 Ollama keep-alive",
     } as Record<string, string>,
+    themeLabel: "外觀",
+    themeNames: {
+      warm: "暖霧",
+      frosted: "霧面淺",
+      ink: "深墨",
+    } as Record<string, string>,
     filterPlaceholder: "篩選設定…（名稱或鍵）",
     matchCount: "{count} 筆相符",
     defaultHint: "於下次相關動作後套用。",
