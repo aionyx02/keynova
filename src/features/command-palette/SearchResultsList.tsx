@@ -137,7 +137,7 @@ export function SearchResultsList({
 
       <div className={showPreview ? "grid grid-cols-[minmax(0,1fr)_336px]" : ""}>
         <div className={`relative min-w-0 ${secondaryMenuOpen ? "min-h-[420px]" : ""}`}>
-          <ul className="kn-scroll max-h-[360px] space-y-1 overflow-y-auto px-1.5 py-1.5">
+          <ul className="kn-scroll max-h-[320px] space-y-0.5 overflow-y-auto px-1.5 py-1.5">
             {visibleResults.map((result, index) => {
               const isSelected = index === safeSelected;
               const badge = KIND_BADGE[result.kind] ?? KIND_BADGE.file;
@@ -174,7 +174,7 @@ export function SearchResultsList({
                     onHoverStart(index, event.currentTarget.getBoundingClientRect());
                   }}
                   onMouseLeave={onHoverEnd}
-                  className="kn-result-row flex min-h-[44px] cursor-pointer items-center gap-2.5 px-3"
+                  className="kn-result-row flex min-h-[var(--kn-row-h)] cursor-pointer items-center gap-2.5 px-2.5"
                 >
                   {showIconImage ? (
                     <div className="kn-result-icon">
