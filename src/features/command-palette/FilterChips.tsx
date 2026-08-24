@@ -41,10 +41,6 @@ export function FilterChips({ active, onChange }: Props) {
       className="kn-filter-strip kn-scroll flex items-center gap-2 overflow-x-auto px-3 py-2"
       aria-label={p.scope}
     >
-      <span className="mr-1 inline-flex shrink-0 items-center gap-1.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-[color:var(--kn-text-faint)]">
-        <UiIcon name="filter" className="h-3.5 w-3.5" />
-        {p.scope}
-      </span>
       {CHIPS.map((chip) => {
         const isActive = active.has(chip.kind);
         return (

@@ -18,8 +18,6 @@ import { PipelineStatusRow } from "../features/command-palette/PipelineStatusRow
 import { ArgsSuggestionsList } from "../features/command-palette/ArgsSuggestionsList";
 import { SearchResultsList } from "../features/command-palette/SearchResultsList";
 import { CommandResultArea } from "../features/command-palette/CommandResultArea";
-import { StarterActionsLine } from "../features/command-palette/StarterActionsLine";
-import { PerfBadge } from "../features/command-palette/PerfBadge";
 import { useRecentlyDeleted } from "../features/command-palette/hooks/useRecentlyDeleted";
 import { usePipeline } from "../features/command-palette/hooks/usePipeline";
 import { useSearchStream } from "../features/command-palette/hooks/useSearchStream";
@@ -529,7 +527,7 @@ export function CommandPalette() {
     cmdResultRef,
     paletteWidthRef,
   );
-  const { metadataByPath, iconsByKey } = useSearchMetadata(legacyResults, selected);
+  const { metadataByPath } = useSearchMetadata(legacyResults, selected);
 
   // Split rawInput into command name and trailing args (Minecraft-style).
   const spaceIdx = rawInput.search(/\s/);
@@ -745,7 +743,6 @@ export function CommandPalette() {
     ? 0
     : Math.min(capabilitySuggestionSelected, Math.max(listData.length - 1, 0));
 
-
   const { liveTranslationPanel, PanelComponent, panelInitialArgs, terminalLaunchSpec, panelKey } =
     usePalettePanels({ mode, cmdName, cmdArgs, spaceIdx, cmdResult });
 
@@ -844,8 +841,6 @@ export function CommandPalette() {
     query === "" &&
     showCapabilityHint &&
     !showCapabilityResult;
-  const showStarterActionsLine =
-    paletteMode.kind === "search" && mode === "search" && query === "" && !showCapabilityResult;
   const showSearchEmptyState =
     paletteMode.kind === "search" &&
     mode === "search" &&
@@ -892,7 +887,6 @@ export function CommandPalette() {
     pipelineRunning ||
     pipelineResult ||
     showCapabilityResult ||
-    showStarterActionsLine ||
     showCapabilityHintLine ||
     showSearchEmptyState ||
     showEmptyFilterState,
@@ -900,8 +894,6 @@ export function CommandPalette() {
 
   return (
     <div ref={containerRef} tabIndex={-1} className="w-full outline-none">
-      {/* Dev-only Ctrl+K input-ready timing badge (null in production). */}
-      <PerfBadge />
       {/* Terminal: mounted once on first visit, hidden via CSS when not active */}
       {terminalMounted && (
         <div style={{ display: mode === "terminal" ? "block" : "none" }}>
@@ -1011,13 +1003,6 @@ export function CommandPalette() {
             />
           )}
 
-          {showStarterActionsLine && !idleNextActive && (
-            <StarterActionsLine
-              visible={showStarterActionsLine}
-              onPickQuery={startSuggestedQuery}
-            />
-          )}
-
           {/* Capability prefix discovery hint, shown on empty
               palette so first-time users see the available prefixes. */}
           {showCapabilityHintLine && (
@@ -1050,7 +1035,6 @@ export function CommandPalette() {
               visibleResults={visibleResults}
               unifiedVisible={visibleUnified}
               safeSelected={safeSelected}
-              iconsByKey={iconsByKey}
               onSelectIndex={setSelected}
               onLaunch={(r) => void launchResult(r)}
               showRankBreakdown={showRankBreakdown}

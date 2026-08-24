@@ -121,7 +121,9 @@ export function SettingPanel({ initialArgs }: PanelProps) {
     });
     const unlistenFailed = listen<ConfigReloadFailedPayload>("config-reload-failed", (event) => {
       setReloadNotice(null);
-      setSaveError(fmt(s.reloadFailed, { source: event.payload.source, error: event.payload.error }));
+      setSaveError(
+        fmt(s.reloadFailed, { source: event.payload.source, error: event.payload.error }),
+      );
     });
     return () => {
       unlistenReload.then((fn) => fn());

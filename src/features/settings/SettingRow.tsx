@@ -1,8 +1,13 @@
 import React from "react";
 import type { SettingEntry, SettingSchema } from "./settingTypes";
 import { useI18n } from "../../i18n/useI18n";
+import { resolveTheme, type Theme } from "../../shared/theme";
+import { ThemePicker } from "./ThemePicker";
 
-export type SettingControlKind = "text" | "hotkey" | "toggle" | "select";
+export type SettingControlKind = "text" | "hotkey" | "toggle" | "select" | "theme";
+
+/** The one key whose options are rendered as previews rather than a dropdown. */
+const THEME_KEY = "launcher.theme";
 
 interface SettingRowProps {
   entry: SettingEntry;
@@ -130,6 +135,29 @@ export function SettingRow({
           />
         </button>
         <StatusBadge saving={saving} saved={saved} />
+      </div>
+    );
+  }
+
+  if (key === THEME_KEY) {
+    return (
+      <div className="flex flex-col gap-2">
+        <div className="flex items-center gap-3">
+          <label className="flex min-w-0 flex-1 items-center truncate text-xs text-[color:var(--kn-text-muted)]">
+            {sectionTag}
+            {label}
+            {modifiedDot}
+          </label>
+          {resetButton}
+          <StatusBadge saving={saving} saved={saved} />
+        </div>
+        <ThemePicker
+          value={resolveTheme(displayValue)}
+          saving={saving}
+          registerRef={registerRef}
+          onSelect={(theme: Theme) => onSave(key, theme)}
+          onKeyDown={(e) => onKeyDown(e, key, rowIdx, displayValue, "theme")}
+        />
       </div>
     );
   }
