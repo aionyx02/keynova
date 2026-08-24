@@ -174,7 +174,7 @@ export function SearchResultsList({
                     onHoverStart(index, event.currentTarget.getBoundingClientRect());
                   }}
                   onMouseLeave={onHoverEnd}
-                  className="kn-result-row flex min-h-[42px] cursor-pointer items-center gap-2.5 px-3"
+                  className="kn-result-row flex min-h-[44px] cursor-pointer items-center gap-2.5 px-3"
                 >
                   {showIconImage ? (
                     <div className="kn-result-icon">
@@ -197,21 +197,32 @@ export function SearchResultsList({
                     </div>
                   )}
 
-                  <span
-                    className={`min-w-0 flex-1 truncate text-[13px] ${
-                      isSelected
-                        ? "font-medium text-[color:var(--kn-text)]"
-                        : "text-[color:var(--kn-text-soft)]"
-                    }`}
-                  >
-                    {title}
+                  <span className="flex min-w-0 flex-1 items-baseline gap-2">
+                    <span
+                      className={`shrink-0 truncate text-[13px] ${
+                        isSelected
+                          ? "font-medium text-[color:var(--kn-text)]"
+                          : "text-[color:var(--kn-text-soft)]"
+                      }`}
+                    >
+                      {title}
+                    </span>
+                    {detail && (
+                      <span
+                        className={`min-w-0 truncate text-[11.5px] ${
+                          isSelected
+                            ? "text-[color:var(--kn-text-muted)]"
+                            : "text-[color:var(--kn-text-faint)]"
+                        }`}
+                      >
+                        {detail}
+                      </span>
+                    )}
                   </span>
 
-                  {isSelected && detail && (
-                    <span className="hidden max-w-[45%] shrink-0 truncate text-[11.5px] text-[color:var(--kn-text-muted)] sm:block">
-                      {detail}
-                    </span>
-                  )}
+                  <span className="hidden shrink-0 text-[11px] text-[color:var(--kn-text-faint)] sm:block">
+                    {localizedKind}
+                  </span>
                 </li>
               );
             })}
@@ -302,6 +313,10 @@ export function SearchResultsList({
           <span className="flex items-center gap-1.5">
             <span className="kn-kbd">Enter</span>
             <span>{t.search.open}</span>
+          </span>
+          <span className="flex items-center gap-1.5">
+            <span className="kn-kbd">Shift+Enter</span>
+            <span>{t.search.preview}</span>
           </span>
           <span className="flex items-center gap-1.5">
             <span className="kn-kbd">Tab</span>
