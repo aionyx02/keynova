@@ -218,6 +218,12 @@ export const enUS: I18nKeys = {
       "performance.low_memory_mode":
         "Skips terminal prewarm, avoids disk re-indexing, and shortens the default Ollama keep-alive",
     } as Record<string, string>,
+    themeLabel: "Appearance",
+    themeNames: {
+      warm: "Warm haze",
+      frosted: "Frosted light",
+      ink: "Deep ink",
+    } as Record<string, string>,
     filterPlaceholder: "Filter settings… (name or key)",
     matchCount: "{count} match(es)",
     defaultHint: "Applies after the next relevant action.",
