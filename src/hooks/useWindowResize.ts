@@ -11,8 +11,8 @@ const TERMINAL_HEIGHT_MODE = 540;
 // Adds room for PaletteInputBar (~70) so the search box stays visible after
 // a builtin command opens a terminal panel.
 const TERMINAL_HEIGHT_ATTACHED = 620;
-export const PALETTE_WIDTH_NARROW = 700;
-export const PALETTE_WIDTH_WIDE = 1040;
+export const PALETTE_WIDTH_NARROW = 620;
+export const PALETTE_WIDTH_WIDE = 940;
 
 const PALETTE_LEFT_SHIFT_PX = 36;
 const PALETTE_TOP_RATIO = 0.25;

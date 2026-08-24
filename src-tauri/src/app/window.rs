@@ -11,7 +11,7 @@ use windows_core_compat::Interface;
 
 use crate::app::state::AppState;
 use crate::core::IpcError;
-const LAUNCHER_NARROW_WIDTH: f64 = 700.0;
+const LAUNCHER_NARROW_WIDTH: f64 = 620.0;
 const LAUNCHER_LEFT_SHIFT: i32 = 36;
 
 #[derive(Clone, Copy)]

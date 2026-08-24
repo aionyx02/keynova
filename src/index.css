@@ -47,8 +47,8 @@
   --kn-radius-card: 6px;
   --kn-radius-chip: 6px;
   --kn-radius-kbd: 5px;
-  --kn-row-h: 42px;
-  --kn-input-h: 52px;
+  --kn-row-h: 40px;
+  --kn-input-h: 48px;
 
   /* 暖霧 — the default: warm, dark. */
   --kn-panel-bg: #272320;
@@ -330,8 +330,8 @@ body {
 
   .kn-quick-start {
     display: inline-flex;
-    min-height: 2.5rem;
-    width: 9.4rem;
+    min-height: 2.25rem;
+    width: 8.5rem;
     align-items: center;
     gap: 0.625rem;
     border-radius: var(--kn-radius-card);
