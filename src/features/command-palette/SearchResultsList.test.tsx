@@ -59,9 +59,7 @@ function renderList(results: SearchResult[]) {
 
 describe("SearchResultsList encoding fallback (UX.AUDIT.5)", () => {
   it("shows the raw path when the detail line trips the mojibake guard", () => {
-    renderList([
-      makeResult({ subtitle: "嚙嚙嚙報告", path: "C:/projects/app/report.txt" }),
-    ]);
+    renderList([makeResult({ subtitle: "嚙嚙嚙報告", path: "C:/projects/app/report.txt" })]);
     // Raw path stays visible so the row remains actionable…
     expect(screen.getByText("C:/projects/app/report.txt")).toBeTruthy();
     // …and the old "Path unavailable" mask is gone.
@@ -69,9 +67,7 @@ describe("SearchResultsList encoding fallback (UX.AUDIT.5)", () => {
   });
 
   it("still masks a garbled title but keeps the path beneath it", () => {
-    renderList([
-      makeResult({ title: "嚙嚙標題", subtitle: undefined, path: "C:/data/notes.md" }),
-    ]);
+    renderList([makeResult({ title: "嚙嚙標題", subtitle: undefined, path: "C:/data/notes.md" })]);
     // Garbled title is masked to the localized placeholder…
     expect(screen.getByText("Unavailable text")).toBeTruthy();
     // …while the path (detail source) still identifies the row.

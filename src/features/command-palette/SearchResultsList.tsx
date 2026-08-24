@@ -174,14 +174,14 @@ export function SearchResultsList({
                     onHoverStart(index, event.currentTarget.getBoundingClientRect());
                   }}
                   onMouseLeave={onHoverEnd}
-                  className="kn-result-row flex min-h-16 cursor-pointer items-center gap-3 px-3 py-2.5"
+                  className="kn-result-row flex min-h-[42px] cursor-pointer items-center gap-2.5 px-3"
                 >
                   {showIconImage ? (
-                    <div className="kn-result-icon border border-white/5 bg-white/[0.035]">
+                    <div className="kn-result-icon">
                       <img
                         src={icon?.data_url}
                         alt=""
-                        className="h-7 w-7 shrink-0 rounded-[7px] object-contain"
+                        className="h-5 w-5 shrink-0 rounded-[4px] object-contain"
                         draggable={false}
                         onError={() => {
                           if (!iconKey) return;
@@ -192,42 +192,26 @@ export function SearchResultsList({
                       />
                     </div>
                   ) : (
-                    <div className={`kn-result-icon border ${badge.cls}`} title={localizedKind}>
+                    <div className="kn-result-icon" title={localizedKind}>
                       <UiIcon name={badge.icon} className="h-[18px] w-[18px]" />
                     </div>
                   )}
 
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-2">
-                      <span
-                        className={`truncate text-sm font-semibold ${
-                          isSelected ? "text-white" : "text-[color:var(--kn-text)]"
-                        }`}
-                      >
-                        {title}
-                      </span>
-                    </div>
-                    {detail && (
-                      <div
-                        className={`mt-1 truncate text-[11px] ${
-                          isSelected
-                            ? "text-[color:rgba(238,244,251,0.72)]"
-                            : "text-[color:var(--kn-text-muted)]"
-                        }`}
-                      >
-                        {detail}
-                      </div>
-                    )}
-                  </div>
+                  <span
+                    className={`min-w-0 flex-1 truncate text-[13px] ${
+                      isSelected
+                        ? "font-medium text-[color:var(--kn-text)]"
+                        : "text-[color:var(--kn-text-soft)]"
+                    }`}
+                  >
+                    {title}
+                  </span>
 
-                  <div className="hidden shrink-0 items-center gap-2 sm:flex">
-                    <span className={`kn-result-kind ${badge.cls}`}>{localizedKind}</span>
-                    {Boolean(result.secondary_action_count) && (
-                      <span className="kn-chip px-1.5 py-0 text-[10px]">
-                        +{result.secondary_action_count}
-                      </span>
-                    )}
-                  </div>
+                  {isSelected && detail && (
+                    <span className="hidden max-w-[45%] shrink-0 truncate text-[11.5px] text-[color:var(--kn-text-muted)] sm:block">
+                      {detail}
+                    </span>
+                  )}
                 </li>
               );
             })}
@@ -318,10 +302,6 @@ export function SearchResultsList({
           <span className="flex items-center gap-1.5">
             <span className="kn-kbd">Enter</span>
             <span>{t.search.open}</span>
-          </span>
-          <span className="flex items-center gap-1.5">
-            <span className="kn-kbd">Shift+Enter</span>
-            <span>{t.search.preview}</span>
           </span>
           <span className="flex items-center gap-1.5">
             <span className="kn-kbd">Tab</span>
