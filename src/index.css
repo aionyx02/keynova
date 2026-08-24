@@ -259,13 +259,12 @@ body,
   .kn-panel-shell {
     position: relative;
     overflow: hidden;
+    border: 1px solid var(--kn-ring);
     border-radius: var(--kn-radius-panel);
     background: var(--kn-panel-bg);
     backdrop-filter: var(--kn-panel-blur);
     -webkit-backdrop-filter: var(--kn-panel-blur);
-    box-shadow:
-      var(--kn-shadow),
-      inset 0 0 0 1px var(--kn-ring);
+    box-shadow: var(--kn-shadow);
   }
 
   .kn-launcher-bar {
@@ -342,7 +341,6 @@ body,
 
   .kn-panel-focus:focus-within {
     border-color: var(--kn-accent-line);
-    box-shadow: var(--kn-shadow), var(--kn-focus-shadow);
   }
 
   .kn-scroll {
