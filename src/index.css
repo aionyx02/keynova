@@ -244,10 +244,10 @@ body {
 }
 
 .kn-caret {
-  width: 2px;
-  height: 20px;
+  width: 2.5px;
+  height: 22px;
   flex-shrink: 0;
-  border-radius: 1px;
+  border-radius: 1.5px;
   background: var(--kn-accent);
   box-shadow: 0 0 10px var(--kn-accent-wash);
   animation: kn-breathe 1.5s ease-in-out infinite;
@@ -295,12 +295,12 @@ body {
 
   .kn-launcher-mark {
     display: inline-flex;
-    height: 1.0625rem;
-    width: 1.0625rem;
+    height: 1.125rem;
+    width: 1.125rem;
     flex-shrink: 0;
     align-items: center;
     justify-content: center;
-    color: var(--kn-text-faint);
+    color: var(--kn-text-muted);
   }
 
   .kn-input-shell {
