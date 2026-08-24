@@ -897,7 +897,7 @@ export function CommandPalette() {
   );
 
   return (
-    <div ref={containerRef} tabIndex={-1} className="w-full outline-none">
+    <div ref={containerRef} tabIndex={-1} className="w-full p-4 outline-none">
       {/* Terminal: mounted once on first visit, hidden via CSS when not active */}
       {terminalMounted && (
         <div style={{ display: mode === "terminal" ? "block" : "none" }}>
