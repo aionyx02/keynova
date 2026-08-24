@@ -26,84 +26,75 @@ function Preview() {
   return (
     <div
       style={{
-        height: "72px",
-        padding: "5px",
-        borderRadius: "8px",
-        background: "var(--kn-desktop)",
+        height: "62px",
+        overflow: "hidden",
+        borderRadius: "4px",
+        background: "var(--kn-panel-bg)",
+        boxShadow: "inset 0 0 0 1px var(--kn-ring)",
       }}
     >
       <div
         style={{
-          height: "100%",
-          overflow: "hidden",
-          borderRadius: "6px",
-          background: "var(--kn-panel-bg)",
-          boxShadow: "inset 0 0 0 1px var(--kn-ring)",
+          display: "flex",
+          alignItems: "center",
+          gap: "4px",
+          height: "17px",
+          padding: "0 6px",
         }}
       >
-        <div
+        <span
           style={{
-            display: "flex",
-            alignItems: "center",
-            gap: "4px",
-            height: "17px",
-            padding: "0 6px",
+            width: "5px",
+            height: "5px",
+            flexShrink: 0,
+            borderRadius: "2px",
+            background: "var(--kn-text-faint)",
           }}
-        >
-          <span
+        />
+        <span style={{ width: "1.5px", height: "8px", background: "var(--kn-accent)" }} />
+        <span
+          style={{
+            width: "26px",
+            height: "3px",
+            borderRadius: "2px",
+            background: "var(--kn-text-faint)",
+          }}
+        />
+      </div>
+      <div style={{ height: "1px", background: "var(--kn-border)" }} />
+      <div style={{ display: "flex", flexDirection: "column", gap: "2px", padding: "3px" }}>
+        {[0, 1, 2].map((i) => (
+          <div
+            key={i}
             style={{
-              width: "5px",
-              height: "5px",
-              flexShrink: 0,
-              borderRadius: "2px",
-              background: "var(--kn-text-faint)",
+              display: "flex",
+              alignItems: "center",
+              gap: "4px",
+              height: "12px",
+              padding: "0 4px",
+              borderRadius: "4px",
+              background: i === 0 ? "var(--kn-selected)" : "transparent",
             }}
-          />
-          <span style={{ width: "1.5px", height: "8px", background: "var(--kn-accent)" }} />
-          <span
-            style={{
-              width: "26px",
-              height: "3px",
-              borderRadius: "2px",
-              background: "var(--kn-text-faint)",
-            }}
-          />
-        </div>
-        <div style={{ height: "1px", background: "var(--kn-border)" }} />
-        <div style={{ display: "flex", flexDirection: "column", gap: "2px", padding: "3px" }}>
-          {[0, 1, 2].map((i) => (
-            <div
-              key={i}
+          >
+            <span
               style={{
-                display: "flex",
-                alignItems: "center",
-                gap: "4px",
-                height: "12px",
-                padding: "0 4px",
-                borderRadius: "4px",
-                background: i === 0 ? "var(--kn-selected)" : "transparent",
+                width: "5px",
+                height: "5px",
+                flexShrink: 0,
+                borderRadius: "2px",
+                background: i === 0 ? "var(--kn-text-soft)" : "var(--kn-text-faint)",
               }}
-            >
-              <span
-                style={{
-                  width: "5px",
-                  height: "5px",
-                  flexShrink: 0,
-                  borderRadius: "2px",
-                  background: i === 0 ? "var(--kn-text-soft)" : "var(--kn-text-faint)",
-                }}
-              />
-              <span
-                style={{
-                  width: i === 0 ? "46px" : i === 1 ? "34px" : "40px",
-                  height: "3px",
-                  borderRadius: "2px",
-                  background: i === 0 ? "var(--kn-text)" : "var(--kn-text-muted)",
-                }}
-              />
-            </div>
-          ))}
-        </div>
+            />
+            <span
+              style={{
+                width: i === 0 ? "46px" : i === 1 ? "34px" : "40px",
+                height: "3px",
+                borderRadius: "2px",
+                background: i === 0 ? "var(--kn-text)" : "var(--kn-text-muted)",
+              }}
+            />
+          </div>
+        ))}
       </div>
     </div>
   );
@@ -146,7 +137,7 @@ export function ThemePicker({ value, saving, registerRef, onSelect, onKeyDown }:
             tabIndex={isSelected ? 0 : -1}
             onClick={() => onSelect(theme)}
             onKeyDown={handleKeyDown}
-            className="cursor-pointer rounded-[12px] p-2 text-left transition-colors"
+            className="cursor-pointer rounded-[10px] p-1.5 text-left transition-colors"
             style={{
               background: "var(--kn-panel-bg-soft)",
               boxShadow: isSelected ? "inset 0 0 0 1.5px var(--kn-accent)" : "none",
