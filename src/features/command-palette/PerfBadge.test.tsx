@@ -1,11 +1,7 @@
 import { act, render } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import {
-  __resetPerfForTest,
-  confirmInputReady,
-  markPaletteOpen,
-} from "./devTiming";
+import { __resetPerfForTest, confirmInputReady, markPaletteOpen } from "./devTiming";
 import { PerfBadge } from "./PerfBadge";
 
 // Drive the rAF the timing util schedules by hand.
