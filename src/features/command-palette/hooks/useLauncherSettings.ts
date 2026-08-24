@@ -3,6 +3,7 @@
 // Reads `setting.list_all` on mount and re-reads when a `config-reloaded`
 // event fires for any of:
 //   - launcher.max_results        → routed via `onMaxResultsChange`
+//   - launcher.theme              → applied to the root element, not rendered
 //   - search.preview_enabled      → kept in hook state
 //   - search.show_rank_breakdown  → kept in hook state
 //
@@ -15,12 +16,14 @@ import { listen } from "@tauri-apps/api/event";
 import type { DispatchFn } from "../../../context/IPCContext";
 import { IPC } from "../../../ipc/routes";
 import type { SettingEntry } from "../../../ipc/types";
+import { applyTheme, resolveTheme } from "../../../shared/theme";
 
 interface ConfigReloadedPayload {
   changed_keys: string[];
 }
 
 const WATCHED_KEYS: ReadonlyArray<string> = [
+  "launcher.theme",
   "launcher.max_results",
   "search.preview_enabled",
   "search.show_rank_breakdown",
@@ -71,6 +74,12 @@ export function useLauncherSettings({
         if (hint !== undefined) {
           setShowCapabilityHint(hint !== "false");
         }
+        // Unlike every other key here, the theme has no React state: it is
+        // written straight onto <html>. An absent or unknown value resolves to
+        // the default rather than leaving the previous theme in place, so
+        // clearing the setting actually reverts the palette.
+        const theme = entries.find((e) => e.key === "launcher.theme")?.value;
+        applyTheme(resolveTheme(theme));
       } catch {
         // keep current values
       }
