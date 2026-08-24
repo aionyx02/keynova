@@ -38,10 +38,13 @@ export function CapabilityHintLine({ visible, onPickPrefix }: Props): ReactEleme
   const t = useI18n().capabilityHint;
   if (!visible) return null;
   return (
-    <div className="kn-panel-shell overflow-hidden rounded-t-none border-t-0 px-3 py-3">
+    <div className="kn-panel-shell overflow-hidden rounded-t-none border-t-0 px-2 py-2.5">
       <div className="mb-2 flex items-center justify-between gap-3 px-1">
         <div className="min-w-0">
-          <div className="truncate text-[11.5px] text-[color:var(--kn-text-faint)]">{t.title}</div>
+          <div className="text-[11.5px] text-[color:var(--kn-text-muted)]">{t.title}</div>
+          <div className="mt-0.5 truncate text-[11px] text-[color:var(--kn-text-faint)]">
+            {t.subtitle}
+          </div>
         </div>
         <span className="hidden shrink-0 text-[10px] text-[color:var(--kn-text-faint)] sm:inline">
           {t.try}
@@ -62,7 +65,7 @@ export function CapabilityHintLine({ visible, onPickPrefix }: Props): ReactEleme
             >
               <UiIcon
                 name={icon}
-                className="h-[17px] w-[17px] shrink-0 text-[color:var(--kn-text-muted)]"
+                className="h-[17px] w-[17px] shrink-0 text-[color:var(--kn-accent)]"
               />
               <span className="min-w-0 text-left">
                 <span className="block truncate text-[12.5px] text-[color:var(--kn-text-soft)]">

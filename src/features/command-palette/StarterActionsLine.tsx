@@ -26,9 +26,12 @@ export function StarterActionsLine({ visible, onPickQuery }: Props): ReactElemen
   if (!visible) return null;
 
   return (
-    <div className="kn-panel-shell overflow-hidden rounded-t-none border-t-0 px-3 py-3">
-      <div className="mb-2.5 px-1 text-[11.5px] text-[color:var(--kn-text-faint)]">
-        {p.starterTitle}
+    <div className="kn-panel-shell overflow-hidden rounded-t-none border-t-0 px-2 py-2.5">
+      <div className="mb-2.5 px-1.5">
+        <div className="text-[11.5px] text-[color:var(--kn-text-muted)]">{p.starterTitle}</div>
+        <div className="mt-0.5 truncate text-[11px] text-[color:var(--kn-text-faint)]">
+          {p.starterSubtitle}
+        </div>
       </div>
 
       <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
@@ -43,10 +46,15 @@ export function StarterActionsLine({ visible, onPickQuery }: Props): ReactElemen
             >
               <UiIcon
                 name={icon}
-                className="h-[17px] w-[17px] shrink-0 text-[color:var(--kn-text-muted)]"
+                className="h-[17px] w-[17px] shrink-0 text-[color:var(--kn-accent)]"
               />
-              <span className="min-w-0 truncate text-[12.5px] text-[color:var(--kn-text-soft)]">
-                {action.label}
+              <span className="min-w-0 text-left">
+                <span className="block truncate text-[12.5px] text-[color:var(--kn-text-soft)]">
+                  {action.label}
+                </span>
+                <span className="block truncate text-[10.5px] text-[color:var(--kn-text-faint)]">
+                  {action.description}
+                </span>
               </span>
             </button>
           );
