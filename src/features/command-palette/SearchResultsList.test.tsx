@@ -29,7 +29,6 @@ function renderList(results: SearchResult[]) {
       visibleResults={results}
       unifiedVisible={results.map((_, i) => makeUnified(`u${i}`))}
       safeSelected={0}
-      iconsByKey={{}}
       onSelectIndex={vi.fn()}
       onLaunch={vi.fn()}
       showRankBreakdown={false}

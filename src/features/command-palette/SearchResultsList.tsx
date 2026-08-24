@@ -1,12 +1,9 @@
-import { useState } from "react";
 import type React from "react";
 import type { ReactNode } from "react";
 
-import { UiIcon, type UiIconName } from "../../components/icons/UiIcon";
 import { PreviewPane } from "../../shared/components/PreviewPane";
 import type {
   FilePreviewResult,
-  SearchIconAsset,
   SearchMetadata,
   SearchResult,
   SourceFilter,
@@ -18,47 +15,19 @@ import { SecondaryActionMenu } from "./SecondaryActionMenu";
 import type { SecondaryInlineInput } from "./hooks/useSecondaryMenu";
 import { useI18n } from "../../i18n/useI18n";
 
-const KIND_BADGE: Record<string, { label: string; cls: string; icon: UiIconName }> = {
-  app: {
-    label: "App",
-    cls: "border-white/10 bg-white/[0.045] text-[color:var(--kn-text-soft)]",
-    icon: "app",
-  },
-  file: {
-    label: "File",
-    cls: "border-white/10 bg-white/[0.045] text-[color:var(--kn-text-soft)]",
-    icon: "file",
-  },
-  folder: {
-    label: "Dir",
-    cls: "border-amber-400/18 bg-amber-400/10 text-amber-200",
-    icon: "folder",
-  },
-  command: {
-    label: "Cmd",
-    cls: "border-[color:rgba(138,168,255,0.2)] bg-[color:var(--kn-accent-wash)] text-[color:var(--kn-accent)]",
-    icon: "command",
-  },
-  note: {
-    label: "Note",
-    cls: "border-white/10 bg-white/[0.045] text-[color:var(--kn-text-soft)]",
-    icon: "note",
-  },
-  history: {
-    label: "Hist",
-    cls: "border-white/10 bg-white/[0.045] text-[color:var(--kn-text-soft)]",
-    icon: "history",
-  },
-  model: {
-    label: "AI",
-    cls: "border-[color:rgba(88,211,166,0.22)] bg-[color:var(--kn-success-wash)] text-[color:var(--kn-success)]",
-    icon: "model",
-  },
-  memory: {
-    label: "Mem",
-    cls: "border-[color:rgba(138,168,255,0.2)] bg-[color:var(--kn-accent-wash)] text-[color:var(--kn-accent)]",
-    icon: "database",
-  },
+// Short Latin labels for the row's mono gutter. They are deliberately not the
+// localized names: set in mono at a fixed width they align down the left edge,
+// which is what carries kind now that rows have no icon. The localized name
+// rides along as the title attribute.
+const KIND_LABEL: Record<string, string> = {
+  app: "App",
+  file: "File",
+  folder: "Dir",
+  command: "Cmd",
+  note: "Note",
+  history: "Hist",
+  model: "AI",
+  memory: "Mem",
 };
 
 function hasEncodingError(s: string | undefined | null): boolean {
@@ -69,7 +38,6 @@ interface Props {
   visibleResults: SearchResult[];
   unifiedVisible: UnifiedResult[];
   safeSelected: number;
-  iconsByKey: Record<string, SearchIconAsset>;
   onSelectIndex: (index: number) => void;
   onLaunch: (result: SearchResult) => void;
   showRankBreakdown: boolean;
@@ -99,7 +67,6 @@ export function SearchResultsList({
   visibleResults,
   unifiedVisible,
   safeSelected,
-  iconsByKey,
   onSelectIndex,
   onLaunch,
   showRankBreakdown,
@@ -125,7 +92,6 @@ export function SearchResultsList({
   footerHint,
 }: Props) {
   const t = useI18n();
-  const [brokenIconKeys, setBrokenIconKeys] = useState<Record<string, true>>({});
 
   return (
     <div
@@ -137,15 +103,14 @@ export function SearchResultsList({
 
       <div className={showPreview ? "grid grid-cols-[minmax(0,1fr)_336px]" : ""}>
         <div className={`relative min-w-0 ${secondaryMenuOpen ? "min-h-[420px]" : ""}`}>
-          <ul className="kn-scroll max-h-[320px] space-y-0.5 overflow-y-auto px-1.5 py-1.5">
+          <ul className="kn-scroll max-h-[320px] overflow-y-auto py-1.5">
             {visibleResults.map((result, index) => {
               const isSelected = index === safeSelected;
-              const badge = KIND_BADGE[result.kind] ?? KIND_BADGE.file;
-              const localizedKind = t.search.kinds[result.kind] ?? badge.label;
-              const iconKey = result.icon_key ?? "";
-              const icon = iconKey ? iconsByKey[iconKey] : null;
-              const showIconImage = Boolean(icon && !brokenIconKeys[iconKey]);
+              const kindLabel = KIND_LABEL[result.kind] ?? KIND_LABEL.file;
+              const localizedKind = t.search.kinds[result.kind] ?? kindLabel;
               const unified = unifiedVisible[index];
+              // A filename is code; an app name is language. They set differently.
+              const titleIsPath = result.kind === "file" || result.kind === "folder";
               const title = hasEncodingError(result.title ?? result.name)
                 ? t.search.unavailableText
                 : (result.title ?? result.name);
@@ -174,55 +139,40 @@ export function SearchResultsList({
                     onHoverStart(index, event.currentTarget.getBoundingClientRect());
                   }}
                   onMouseLeave={onHoverEnd}
-                  className="kn-result-row flex min-h-[var(--kn-row-h)] cursor-pointer items-center gap-2.5 px-2.5"
+                  className="kn-result-row flex min-h-[var(--kn-row-h)] cursor-pointer items-baseline gap-3.5 px-[18px] py-[9px]"
                 >
-                  {showIconImage ? (
-                    <div className="kn-result-icon">
-                      <img
-                        src={icon?.data_url}
-                        alt=""
-                        className="h-5 w-5 shrink-0 rounded-[4px] object-contain"
-                        draggable={false}
-                        onError={() => {
-                          if (!iconKey) return;
-                          setBrokenIconKeys((prev) =>
-                            prev[iconKey] ? prev : { ...prev, [iconKey]: true },
-                          );
-                        }}
-                      />
-                    </div>
-                  ) : (
-                    <div className="kn-result-icon" title={localizedKind}>
-                      <UiIcon name={badge.icon} className="h-[18px] w-[18px]" />
-                    </div>
-                  )}
+                  <span
+                    className={`kn-mono w-[46px] shrink-0 text-right text-[10.5px] ${
+                      isSelected
+                        ? "text-[color:var(--kn-accent)]"
+                        : "text-[color:var(--kn-text-faint)]"
+                    }`}
+                    title={localizedKind}
+                  >
+                    {kindLabel.toUpperCase()}
+                  </span>
 
-                  <span className="flex min-w-0 flex-1 items-baseline gap-2">
+                  <span
+                    className={`min-w-0 flex-1 truncate text-[14px] ${titleIsPath ? "kn-mono" : ""} ${
+                      isSelected
+                        ? "font-medium text-[color:var(--kn-text)]"
+                        : "text-[color:var(--kn-text-soft)]"
+                    }`}
+                  >
+                    {title}
+                  </span>
+
+                  {detail && (
                     <span
-                      className={`shrink-0 truncate text-[13px] ${
+                      className={`kn-mono hidden max-w-[46%] shrink-0 truncate text-[11.5px] sm:block ${
                         isSelected
-                          ? "font-medium text-[color:var(--kn-text)]"
-                          : "text-[color:var(--kn-text-soft)]"
+                          ? "text-[color:var(--kn-text-muted)]"
+                          : "text-[color:var(--kn-text-faint)]"
                       }`}
                     >
-                      {title}
+                      {detail}
                     </span>
-                    {detail && (
-                      <span
-                        className={`min-w-0 truncate text-[11.5px] ${
-                          isSelected
-                            ? "text-[color:var(--kn-text-muted)]"
-                            : "text-[color:var(--kn-text-faint)]"
-                        }`}
-                      >
-                        {detail}
-                      </span>
-                    )}
-                  </span>
-
-                  <span className="hidden shrink-0 text-[11px] text-[color:var(--kn-text-faint)] sm:block">
-                    {localizedKind}
-                  </span>
+                  )}
                 </li>
               );
             })}
@@ -310,16 +260,16 @@ export function SearchResultsList({
       <div className="kn-panel-footer kn-result-footer flex-wrap">
         <span className="min-w-0 flex-1 truncate">{footerHint}</span>
         <div className="flex items-center gap-3">
-          <span className="flex items-center gap-1.5">
-            <span className="kn-kbd">Enter</span>
+          <span className="kn-mono flex items-center gap-1.5">
+            <span>↵</span>
             <span>{t.search.open}</span>
           </span>
-          <span className="flex items-center gap-1.5">
-            <span className="kn-kbd">Shift+Enter</span>
+          <span className="kn-mono flex items-center gap-1.5">
+            <span>⇧↵</span>
             <span>{t.search.preview}</span>
           </span>
-          <span className="flex items-center gap-1.5">
-            <span className="kn-kbd">Tab</span>
+          <span className="kn-mono flex items-center gap-1.5">
+            <span>⇥</span>
             <span>{t.search.actions}</span>
           </span>
         </div>

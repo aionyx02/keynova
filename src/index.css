@@ -30,6 +30,7 @@
 [data-theme="warm"] {
   color: #f7f4f1;
   font-family: "Segoe UI Variable Text", "Segoe UI", "Noto Sans TC", sans-serif;
+  --kn-font-mono: "Cascadia Mono", Consolas, ui-monospace, monospace;
 
   /* Geometry — shared by every theme.
    *
@@ -47,23 +48,23 @@
   --kn-radius-card: 6px;
   --kn-radius-chip: 6px;
   --kn-radius-kbd: 5px;
-  --kn-row-h: 40px;
-  --kn-input-h: 50px;
+  --kn-row-h: 38px;
+  --kn-input-h: 54px;
 
   /* 暖霧 — the default: warm, dark. */
-  --kn-panel-bg: #272320;
+  --kn-panel-bg: #161311;
   --kn-panel-blur: none;
-  --kn-panel-bg-elevated: #302b27;
-  --kn-panel-bg-soft: rgba(255, 255, 255, 0.055);
-  --kn-panel-bg-strong: #1e1a18;
+  --kn-panel-bg-elevated: #211d1b;
+  --kn-panel-bg-soft: rgba(255, 255, 255, 0.05);
+  --kn-panel-bg-strong: #100e0c;
   --kn-ring: rgba(255, 255, 255, 0.09);
   --kn-border: rgba(255, 255, 255, 0.07);
   --kn-border-strong: rgba(255, 255, 255, 0.14);
   --kn-selected: rgba(255, 255, 255, 0.1);
-  --kn-text: #f7f4f1;
-  --kn-text-soft: #ece7e3;
-  --kn-text-muted: #a89f98;
-  --kn-text-faint: #8f867f;
+  --kn-text: #f8f4f1;
+  --kn-text-soft: #dad7d4;
+  --kn-text-muted: #9b9795;
+  --kn-text-faint: #716e6b;
   --kn-accent: #ebbc63;
   --kn-accent-strong: #f4cc64;
   --kn-accent-wash: rgba(235, 188, 99, 0.16);
@@ -243,9 +244,13 @@ body {
   }
 }
 
+.kn-mono {
+  font-family: var(--kn-font-mono);
+}
+
 .kn-caret {
   width: 2.5px;
-  height: 22px;
+  height: 24px;
   flex-shrink: 0;
   border-radius: 1.5px;
   background: var(--kn-accent);
@@ -393,12 +398,12 @@ body {
 
   .kn-result-row {
     position: relative;
-    border-radius: var(--kn-radius-row);
     transition: background 150ms ease;
   }
 
   .kn-result-row[data-selected="true"] {
-    background: var(--kn-selected);
+    background: var(--kn-accent-soft);
+    box-shadow: inset 2px 0 0 var(--kn-accent);
   }
 
   .kn-result-row[data-selected="false"]:hover {
