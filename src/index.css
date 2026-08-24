@@ -12,6 +12,14 @@
  *
  * Geometry is deliberately NOT themed: all three share the same shape, so the
  * radius/height tokens live in :root only and are never overridden.
+ *
+ * Panels are OPAQUE. Translucency was the original intent, but it cannot work
+ * here: the window runs with `--disable-gpu` (tauri.conf.json), and
+ * backdrop-filter needs GPU compositing — and even with it, on Windows the
+ * filter only blurs page content, never the desktop behind a transparent
+ * window. A translucent panel therefore just leaks the wallpaper through and
+ * washes the text out. Real glass needs OS-level acrylic/mica via Tauri's
+ * window effects; `--kn-panel-blur` is kept as the seam for that.
  */
 /* `[data-theme="warm"]` is listed alongside :root so the default theme can also
  * be re-declared on a nested element. That is what lets the settings preview
@@ -32,12 +40,12 @@
   --kn-row-h: 42px;
   --kn-input-h: 60px;
 
-  /* 暖霧 — the default: warm, translucent, dark. */
-  --kn-panel-bg: rgba(41, 37, 34, 0.68);
-  --kn-panel-blur: blur(44px) saturate(1.5);
-  --kn-panel-bg-elevated: rgba(52, 47, 43, 0.72);
+  /* 暖霧 — the default: warm, dark. */
+  --kn-panel-bg: #272320;
+  --kn-panel-blur: none;
+  --kn-panel-bg-elevated: #302b27;
   --kn-panel-bg-soft: rgba(255, 255, 255, 0.055);
-  --kn-panel-bg-strong: rgba(28, 25, 23, 0.72);
+  --kn-panel-bg-strong: #1e1a18;
   --kn-ring: rgba(255, 255, 255, 0.09);
   --kn-border: rgba(255, 255, 255, 0.07);
   --kn-border-strong: rgba(255, 255, 255, 0.14);
@@ -59,25 +67,25 @@
   --kn-danger-strong: #ffadb4;
   --kn-danger-wash: rgba(255, 139, 148, 0.14);
   --kn-terminal-bg: #16130f;
-  --kn-terminal-surface: rgba(22, 19, 15, 0.96);
+  --kn-terminal-surface: #16130f;
   --kn-shadow: 0 32px 64px -20px rgba(0, 0, 0, 0.7);
   --kn-focus-shadow: 0 0 0 1px rgba(235, 188, 99, 0.45), 0 0 0 4px rgba(235, 188, 99, 0.12);
 }
 
-/* 霧面淺 — light, translucent. The one theme that flips color-scheme, so
- * native scrollbars, selects and form controls follow. Accent has to drop to
+/* 霧面淺 — light. The one theme that flips color-scheme, so native
+ * scrollbars, selects and form controls follow. Accent has to drop to
  * oklch(0.55 0.10 68) to clear 4.5:1 on a near-white panel; success and danger
  * darken for the same reason. */
 [data-theme="frosted"] {
   color: #1c1917;
   color-scheme: light;
 
-  --kn-panel-bg: rgba(252, 251, 250, 0.82);
-  --kn-panel-blur: blur(44px) saturate(1.6);
-  --kn-panel-bg-elevated: rgba(255, 255, 255, 0.86);
+  --kn-panel-bg: #faf9f8;
+  --kn-panel-blur: none;
+  --kn-panel-bg-elevated: #ffffff;
   --kn-panel-bg-soft: rgba(28, 25, 23, 0.045);
-  --kn-panel-bg-strong: rgba(245, 243, 241, 0.9);
-  --kn-ring: rgba(255, 255, 255, 0.6);
+  --kn-panel-bg-strong: #f2efec;
+  --kn-ring: rgba(28, 25, 23, 0.1);
   --kn-border: rgba(28, 25, 23, 0.08);
   --kn-border-strong: rgba(28, 25, 23, 0.16);
   --kn-selected: rgba(28, 25, 23, 0.06);
@@ -98,13 +106,12 @@
   --kn-danger-strong: #8c1f2a;
   --kn-danger-wash: rgba(176, 42, 55, 0.1);
   --kn-terminal-bg: #f5f3f1;
-  --kn-terminal-surface: rgba(245, 243, 241, 0.96);
+  --kn-terminal-surface: #f5f3f1;
   --kn-shadow: 0 32px 64px -20px rgba(0, 0, 0, 0.45);
   --kn-focus-shadow: 0 0 0 1px rgba(152, 101, 40, 0.5), 0 0 0 4px rgba(152, 101, 40, 0.14);
 }
 
-/* 深墨 — opaque, cool, near-black. The only theme with no blur, so it stays
- * usable on machines where backdrop-filter is expensive. */
+/* 深墨 — cool, near-black. */
 [data-theme="ink"] {
   color: #fafafa;
   color-scheme: dark;
@@ -129,7 +136,7 @@
   --kn-accent-line: rgba(235, 188, 99, 0.28);
   --kn-desktop: #0b0b0d;
   --kn-terminal-bg: #0d0d10;
-  --kn-terminal-surface: rgba(13, 13, 16, 0.96);
+  --kn-terminal-surface: #0d0d10;
   --kn-shadow: 0 32px 64px -20px rgba(0, 0, 0, 0.85);
 }
 
@@ -247,7 +254,6 @@ body,
 
   .kn-launcher-bar {
     min-height: var(--kn-input-h);
-    background: transparent;
   }
 
   .kn-launcher-mark {
