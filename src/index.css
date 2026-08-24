@@ -309,13 +309,13 @@ body,
 
   .kn-quick-start {
     display: inline-flex;
-    min-height: 3.25rem;
+    min-height: 2.75rem;
     width: 9.4rem;
     align-items: center;
-    gap: 0.65rem;
+    gap: 0.625rem;
     border-radius: var(--kn-radius-card);
     background: var(--kn-panel-bg-soft);
-    padding: 0.55rem 0.65rem;
+    padding: 0 0.75rem;
     color: var(--kn-text-soft);
     text-align: left;
     transition:
