@@ -112,6 +112,32 @@ and `cmd_close_settings_window` work without touching a capability definition �
 which `security.md` requires an ADR for. The cost is that the window cannot
 subscribe to `config-reloaded`; see Unfinished in `state.md`.
 
+**The startup preflight decides for itself how far to go.** It used to run the
+same work every boot; its one expensive step is a network probe for Ollama,
+which a user with AI switched off does not have. `plan_preflight` turns that
+into three outcomes — skip entirely (a snapshot already describes this boot),
+local checks only (AI off, or low-memory mode), or everything — from four
+inputs, as a pure function that tests without a running app. The snapshot
+gained `model.probed` in the same move, because otherwise a skipped probe and a
+failed one are the same `ollama_reachable: false` and the model panel would
+report Ollama offline when nobody had asked it. That panel calls
+`ensure_model_probed`, which forces the probe it specifically needs: boot-time
+laziness must not become a wrong answer on the one screen whose job is that
+answer. Rejected: a user-facing on/off setting — the two signals that matter
+(`features.ai`, `performance.low_memory_mode`) already exist, and a third knob
+describing the same intent is a knob to keep in sync.
+
+**Commands are pluggable; plugins may not shadow builtins.** The registry was
+keyed by `&'static str`, so a command could only exist if it was compiled in.
+It now carries an owned name and a `CommandOrigin`, and plugin commands can be
+registered and removed while the app runs. The single rule that keeps that from
+being a hijacking surface is enforced at registration: `register_plugin`
+refuses a name a builtin owns, and `unregister_plugin` refuses to remove one —
+`/setting` opening something other than settings is not an extension. The check
+has to live there because after registration nothing downstream can tell the
+two apart. Where plugin definitions *come from* is deliberately not decided
+here: that is a trust boundary, and this change is the mechanism only.
+
 **Release profile is deliberately conservative.** `[profile.release]` uses strip
 plus LTO but explicitly not `opt-level = "z"` and not `panic = "abort"` —
 abort would defeat the ADR-0051 crash log.

@@ -78,6 +78,13 @@ precondition for both of the two that are left:
   six-chip filter strip is not worth rehoming as it stands — whatever replaces
   it has to be driven by what is installed.
 
+  **The mechanism landed 2026-09-01**: `BuiltinCommandRegistry` registers and
+  removes commands at runtime and tags each with a `CommandOrigin`. What is left
+  is the **source**, and it is the half that carries the risk. A file that
+  defines commands is a new trust boundary, so `security.md` wants an ADR before
+  it exists — and what a plugin command may *do* is bounded by the Frozen entry
+  below: deterministic typed tools, not a command line.
+
 ## Security gaps (2026-08-13 audit)
 
 Accepted for now, not oversights:
