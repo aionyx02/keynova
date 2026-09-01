@@ -140,8 +140,18 @@ pub fn run() {
             setup_main_window(app)?;
             Ok(())
         })
+        // TRAP: this handler is App-level, so it fires for *every* window.
+        // Only the launcher may survive its own close — it is a background
+        // window that hides instead of exiting. Without the label check, a
+        // second window's close button would be swallowed here and would hide
+        // the launcher instead of closing anything, leaving a window the user
+        // cannot get rid of. Anyone adding a window inherits the correct
+        // behaviour by doing nothing.
         .on_window_event(|window, event| {
             if let tauri::WindowEvent::CloseRequested { api, .. } = event {
+                if window.label() != "main" {
+                    return;
+                }
                 api.prevent_close();
                 if let Some(main) = window.app_handle().get_webview_window("main") {
                     let _ = hide_launcher_window(&main);
