@@ -7,12 +7,23 @@ export interface CommandMeta {
   name: string;
   description: string;
   args_hint?: string;
+  /**
+   * Where the command came from. `builtin` is compiled in; `plugin` was
+   * registered at runtime and can be removed again. A plugin can never take a
+   * builtin's name — the backend registry refuses it — so this is a label, not
+   * a trust decision the frontend has to make.
+   */
+  origin?: "builtin" | "plugin";
 }
 
 export type CommandUiType =
   | { type: "Inline" }
   | { type: "Panel"; value: string }
-  | { type: "Terminal"; value: TerminalLaunchSpec };
+  | { type: "Terminal"; value: TerminalLaunchSpec }
+  // Renders nothing in the palette: the frontend opens the named OS window.
+  // The value is a window identity, mapped to a specific opener in
+  // `useExecCommand` — an unrecognised one is ignored rather than trusted.
+  | { type: "Window"; value: string };
 
 export interface BuiltinCommandResult {
   text: string;

@@ -21,10 +21,10 @@ impl Default for NoteCommand {
 }
 
 impl BuiltinCommand for NoteCommand {
-    fn name(&self) -> &'static str {
+    fn name(&self) -> &str {
         "note"
     }
-    fn description(&self) -> &'static str {
+    fn description(&self) -> &str {
         "Quick notes"
     }
     fn execute(&self, _args: &str) -> BuiltinCommandResult {

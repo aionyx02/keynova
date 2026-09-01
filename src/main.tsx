@@ -1,7 +1,7 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
-import App from "./App";
 import "./index.css";
+import { resolveWindowTarget } from "./windowTarget";
 
 // Bug-fix 2026-05-18: launcher was crashing intermittently with no console
 // trail. Capture both synchronous renderer errors and floating-promise
@@ -16,8 +16,17 @@ if (typeof window !== "undefined") {
   });
 }
 
-ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
-  <React.StrictMode>
-    <App />
-  </React.StrictMode>,
-);
+const root = ReactDOM.createRoot(document.getElementById("root") as HTMLElement);
+
+// The two windows are code-split here rather than at the Vite entry: one
+// `index.html`, one build, and the settings webview never parses the launcher's
+// palette / xterm / markdown chunks because it never imports them. `index.css`
+// stays static — both windows are styled by the same variable set.
+const tree =
+  resolveWindowTarget(window.location.search) === "settings"
+    ? import("./windows/SettingsWindow").then((m) => <m.SettingsWindow />)
+    : import("./App").then((m) => <m.default />);
+
+void tree.then((element) => {
+  root.render(<React.StrictMode>{element}</React.StrictMode>);
+});

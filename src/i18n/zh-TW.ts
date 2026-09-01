@@ -221,6 +221,8 @@ export const zhTW = {
       frosted: "霧面淺",
       ink: "深墨",
     } as Record<string, string>,
+    /** 設定視窗的作業系統標題列；開窗時傳給 Rust。 */
+    windowTitle: "Keynova 設定",
     filterPlaceholder: "篩選設定…（名稱或鍵）",
     matchCount: "{count} 筆相符",
     defaultHint: "於下次相關動作後套用。",

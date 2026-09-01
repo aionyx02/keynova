@@ -3,7 +3,7 @@
 Where the project actually is, what is unfinished, and what is true outside this
 repo. Updated when one of those changes — not per task, not per session.
 
-Last touched: 2026-08-24
+Last touched: 2026-09-01
 
 ## Now
 
@@ -45,24 +45,45 @@ would trade random CI failures for silence.
   (3-OS CI, no panics) is done.
 - **`嚙` mojibake root cause** — masked, not solved. See Traps in `decisions.md`.
 - **`ICON.NATIVE` + UX** and the `SEC-PERF` perf baseline are mid-flight.
+- **Three fixes the settings window found and deliberately left alone**, each
+  its own PR because none of them is about the window:
+  - `launcher.theme` exists in the Rust schema but not in `default_config.toml`.
+    Cosmetic only — `ConfigManager::list_all` backfills every schema key.
+  - `default_config.toml` is loaded through `env!("CARGO_MANIFEST_DIR")`, which
+    resolves to nothing on a shipped build. The settings UI then shows
+    `features.ai = false` from the schema backfill while the dispatch guard in
+    `app/dispatch.rs` reads `None` and falls through to `unwrap_or(true)` — the
+    `ai.*` namespace is allowed. It never self-heals: migration seeds no config
+    and `persist()` writes only what is already in `data`.
+  - The workspace hotkeys (`Ctrl+Alt+1/2/3/0`) still emit to the hidden `main`
+    while the settings window is open. The switch happens; nobody sees it.
+- **The settings window cannot receive Tauri events.** Tauri's ACL gates
+  `plugin:core:event|*` per window and `capabilities/default.json` is scoped to
+  `["main"]`, so that window has no capability at all. It does not need one to
+  work — application commands are outside the ACL — but a `config.toml` edited
+  in an external editor while the window is open no longer refreshes it. Fixing
+  it means a capability definition, which needs an ADR first (`security.md`).
 
-## Planned (2026-08-24, none started)
+## Planned (2026-08-24)
 
-Declared during the palette restyle, and deliberately not started until it
-lands. Each one moves something the restyle just decided, which is why they are
-written down rather than left implicit:
+Declared during the palette restyle and deliberately not started until it
+landed. **Settings became its own window on 2026-09-01**, which was the
+precondition for both of the two that are left:
 
-- **Settings becomes its own small window**, opened by a command, costing
-  nothing while closed. It takes the theme picker out of the 700px palette
-  panel, and makes the theme a cross-window value — a `data-theme` attribute on
-  one window's DOM stops being enough.
 - **A `.config` in the repo** so others can customise their own checkout. The
   restyle defines each theme as one set of `:root` variables, so a fourth theme
   declared there needs no new mechanism.
 - **Pluggable commands**, parameterised from `.config` first and from a market
-  later, once the settings window exists. Result kinds become open-ended, which
-  is the reason the restyle's fixed six-chip filter strip is not worth rehoming
-  as it stands — whatever replaces it has to be driven by what is installed.
+  later. Result kinds become open-ended, which is the reason the restyle's fixed
+  six-chip filter strip is not worth rehoming as it stands — whatever replaces
+  it has to be driven by what is installed.
+
+  **The mechanism landed 2026-09-01**: `BuiltinCommandRegistry` registers and
+  removes commands at runtime and tags each with a `CommandOrigin`. What is left
+  is the **source**, and it is the half that carries the risk. A file that
+  defines commands is a new trust boundary, so `security.md` wants an ADR before
+  it exists — and what a plugin command may *do* is bounded by the Frozen entry
+  below: deterministic typed tools, not a command line.
 
 ## Security gaps (2026-08-13 audit)
 

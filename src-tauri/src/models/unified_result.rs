@@ -89,6 +89,7 @@ pub enum BuiltinUi {
     Inline,
     Panel { name: String },
     Terminal,
+    Window { label: String },
 }
 
 impl From<CommandUiType> for BuiltinUi {
@@ -97,6 +98,7 @@ impl From<CommandUiType> for BuiltinUi {
             CommandUiType::Inline => BuiltinUi::Inline,
             CommandUiType::Panel(name) => BuiltinUi::Panel { name },
             CommandUiType::Terminal(_) => BuiltinUi::Terminal,
+            CommandUiType::Window(label) => BuiltinUi::Window { label },
         }
     }
 }

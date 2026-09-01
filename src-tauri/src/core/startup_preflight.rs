@@ -13,7 +13,9 @@ use crate::core::AppEvent;
 use crate::managers::model_manager::{HardwareInfo, LocalModel, ModelCandidate, ModelManager};
 
 // v2 (REF.8): dropped the `nvim_dir` path field with the nvim feature removal.
-const SNAPSHOT_SCHEMA_VERSION: u32 = 2;
+// v3: added `model.probed`, because the model section can now be filled in
+// without the Ollama probe having run at all.
+const SNAPSHOT_SCHEMA_VERSION: u32 = 3;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct StartupPreflightPaths {
@@ -49,9 +51,85 @@ pub struct StartupPreflightIcons {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct StartupPreflightModel {
     pub ollama_url: String,
+    /// Whether the Ollama probe actually ran this boot.
+    ///
+    /// Without this, a skipped probe is indistinguishable from a failed one:
+    /// `ollama_reachable` would be `false` either way, and the model panel
+    /// would tell the user Ollama is offline when nobody ever asked it. A
+    /// snapshot written before this field existed always probed, hence the
+    /// `true` default rather than `Default::default()`.
+    #[serde(default = "probed_by_default")]
+    pub probed: bool,
     pub ollama_reachable: bool,
     pub local_models: Vec<LocalModel>,
     pub recommended_models: Vec<ModelCandidate>,
+}
+
+fn probed_by_default() -> bool {
+    true
+}
+
+/// How much work a preflight run should do.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PreflightPlan {
+    /// A snapshot already describes this boot. Nothing to do.
+    Skip,
+    /// Paths, hardware and bundled icons only. Everything here is local; the
+    /// Ollama probe — the one part that opens a socket — is left out.
+    WithoutModelProbe,
+    /// Everything, the Ollama probe included.
+    Full,
+}
+
+impl PreflightPlan {
+    pub fn runs(self) -> bool {
+        !matches!(self, PreflightPlan::Skip)
+    }
+
+    pub fn probes_model(self) -> bool {
+        matches!(self, PreflightPlan::Full)
+    }
+}
+
+/// The facts the preflight decides from. Grouped into a struct so the decision
+/// itself stays a pure function that can be tested without a running app.
+#[derive(Debug, Clone, Copy)]
+pub struct PreflightConditions {
+    /// The user explicitly asked for a refresh (the model panel's button).
+    pub forced: bool,
+    /// A snapshot exists and still matches this boot, build and Ollama URL.
+    pub snapshot_covers_this_boot: bool,
+    /// `features.ai`. Missing means enabled, matching the dispatch guard.
+    pub ai_enabled: bool,
+    /// `performance.low_memory_mode`.
+    pub low_memory: bool,
+}
+
+/// Decides what this boot's preflight should do.
+///
+/// Startup is the most latency-sensitive moment there is, and the preflight's
+/// one genuinely expensive step is a network probe for a service that a user
+/// with AI switched off does not have and does not want. Rather than run it
+/// unconditionally and throw the answer away, the preflight now judges for
+/// itself: a snapshot that still describes this boot means there is nothing to
+/// do at all, and AI being off (or the machine being in low-memory mode) means
+/// do the local checks and stop there.
+///
+/// `forced` short-circuits the whole thing to [`PreflightPlan::Full`], gates
+/// included: its only caller is the model panel asking for exactly this data,
+/// which is the one moment the probe is worth its latency no matter what the
+/// settings say.
+pub fn plan_preflight(conditions: PreflightConditions) -> PreflightPlan {
+    if conditions.forced {
+        return PreflightPlan::Full;
+    }
+    if conditions.snapshot_covers_this_boot {
+        return PreflightPlan::Skip;
+    }
+    if !conditions.ai_enabled || conditions.low_memory {
+        return PreflightPlan::WithoutModelProbe;
+    }
+    PreflightPlan::Full
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -167,11 +245,29 @@ impl StartupPreflight {
         self.spawn_refresh(true);
     }
 
+    /// Entry point for callers that need the Ollama answer specifically.
+    ///
+    /// A snapshot that skipped the probe is good enough for everything else —
+    /// paths, hardware, icons are all there — but not for the model panel,
+    /// whose entire job is telling the user whether Ollama is up. Boot-time
+    /// laziness must not become a wrong answer at the one screen that asks.
+    pub fn ensure_model_probed(&self) {
+        let unprobed = self
+            .current_snapshot()
+            .is_none_or(|snapshot| !snapshot.model.probed);
+        if unprobed {
+            self.force_refresh();
+        } else {
+            self.ensure_started();
+        }
+    }
+
     fn spawn_refresh(&self, force: bool) {
         let current_boot_id = current_boot_id();
         let current_source_mode = current_source_mode();
         let current_ollama_url = current_ollama_url(&self.config);
 
+        let plan;
         {
             let Ok(mut state) = self.state.lock() else {
                 return;
@@ -179,16 +275,21 @@ impl StartupPreflight {
             if state.running {
                 return;
             }
-            let should_refresh = force
-                || state.snapshot.as_ref().is_none_or(|snapshot| {
-                    snapshot_is_stale(
-                        snapshot,
-                        &current_boot_id,
-                        &current_source_mode,
-                        &current_ollama_url,
-                    )
-                });
-            if !should_refresh {
+            let covered = state.snapshot.as_ref().is_some_and(|snapshot| {
+                !snapshot_is_stale(
+                    snapshot,
+                    &current_boot_id,
+                    &current_source_mode,
+                    &current_ollama_url,
+                )
+            });
+            plan = plan_preflight(PreflightConditions {
+                forced: force,
+                snapshot_covers_this_boot: covered,
+                ai_enabled: config_flag(&self.config, "features.ai", true),
+                low_memory: config_flag(&self.config, "performance.low_memory_mode", false),
+            });
+            if !plan.runs() {
                 return;
             }
             state.running = true;
@@ -215,6 +316,7 @@ impl StartupPreflight {
                 &model_manager,
                 &current_boot_id,
                 &current_source_mode,
+                plan.probes_model(),
             );
             if let Err(error) = save_snapshot_to_disk(&snapshot) {
                 snapshot.status = "partial".to_string();
@@ -261,6 +363,7 @@ fn build_snapshot(
     model_manager: &Arc<ModelManager>,
     boot_id: &str,
     source_mode: &str,
+    probe_model: bool,
 ) -> StartupPreflightSnapshot {
     let mut warnings = Vec::new();
     let mut errors = Vec::new();
@@ -268,7 +371,7 @@ fn build_snapshot(
     let paths = collect_paths(config, &mut warnings, &mut errors);
     let icons = collect_icons(source_mode, &mut warnings);
     let hardware = collect_hardware(model_manager, &mut warnings);
-    let model = collect_model_snapshot(config, model_manager, &hardware, &mut warnings);
+    let model = collect_model_snapshot(config, model_manager, &hardware, probe_model, &mut warnings);
 
     StartupPreflightSnapshot {
         schema_version: SNAPSHOT_SCHEMA_VERSION,
@@ -390,9 +493,26 @@ fn collect_model_snapshot(
     config: &Arc<Mutex<ConfigManager>>,
     model_manager: &Arc<ModelManager>,
     hardware: &StartupPreflightHardware,
+    probe_model: bool,
     warnings: &mut Vec<String>,
 ) -> StartupPreflightModel {
     let ollama_url = current_ollama_url(config);
+
+    // Not probing is not the same as probing and failing, and it is not a
+    // warning either — it is the plan working. `probed: false` is what stops a
+    // reader turning silence into "Ollama is offline".
+    if !probe_model {
+        return StartupPreflightModel {
+            ollama_url,
+            probed: false,
+            ollama_reachable: false,
+            local_models: Vec::new(),
+            // `catalog_fast` is local arithmetic over the hardware figures, so
+            // the recommendations stay useful even with no probe.
+            recommended_models: model_manager.catalog_fast(&hardware.as_model_hardware()),
+        };
+    }
+
     let probe = model_manager.probe_local(&ollama_url, Duration::from_millis(1200));
     let (ollama_reachable, local_models) = match probe {
         Ok(local_models) => (true, local_models),
@@ -404,10 +524,21 @@ fn collect_model_snapshot(
 
     StartupPreflightModel {
         ollama_url,
+        probed: true,
         ollama_reachable,
         local_models,
         recommended_models: model_manager.catalog_fast(&hardware.as_model_hardware()),
     }
+}
+
+/// Reads a boolean setting the way the rest of the app does: an absent or
+/// unreadable key falls back to `default` rather than to `false`.
+fn config_flag(config: &Arc<Mutex<ConfigManager>>, key: &str, default: bool) -> bool {
+    config
+        .lock()
+        .ok()
+        .and_then(|cfg| cfg.get_bool(key))
+        .unwrap_or(default)
 }
 
 fn current_ollama_url(config: &Arc<Mutex<ConfigManager>>) -> String {
@@ -495,6 +626,78 @@ fn save_snapshot_to_disk(snapshot: &StartupPreflightSnapshot) -> Result<(), Stri
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// A boot with nothing cached, AI on, plenty of memory: the case the
+    /// preflight was originally written for.
+    fn cold_boot() -> PreflightConditions {
+        PreflightConditions {
+            forced: false,
+            snapshot_covers_this_boot: false,
+            ai_enabled: true,
+            low_memory: false,
+        }
+    }
+
+    #[test]
+    fn cold_boot_runs_everything() {
+        assert_eq!(plan_preflight(cold_boot()), PreflightPlan::Full);
+    }
+
+    #[test]
+    fn a_snapshot_that_covers_this_boot_skips_the_run() {
+        let conditions = PreflightConditions {
+            snapshot_covers_this_boot: true,
+            ..cold_boot()
+        };
+        assert_eq!(plan_preflight(conditions), PreflightPlan::Skip);
+        assert!(!plan_preflight(conditions).runs());
+    }
+
+    #[test]
+    fn ai_off_keeps_the_local_checks_but_drops_the_network_probe() {
+        let conditions = PreflightConditions {
+            ai_enabled: false,
+            ..cold_boot()
+        };
+        let plan = plan_preflight(conditions);
+        assert_eq!(plan, PreflightPlan::WithoutModelProbe);
+        assert!(plan.runs(), "paths, hardware and icons are still wanted");
+        assert!(!plan.probes_model(), "nobody asked Ollama anything");
+    }
+
+    #[test]
+    fn low_memory_mode_also_drops_the_probe() {
+        let conditions = PreflightConditions {
+            low_memory: true,
+            ..cold_boot()
+        };
+        assert_eq!(plan_preflight(conditions), PreflightPlan::WithoutModelProbe);
+    }
+
+    #[test]
+    fn forcing_overrides_both_the_cache_and_the_gates() {
+        // The model panel's refresh button: it wants the probe precisely
+        // because AI may be off and the user is about to turn it on.
+        let conditions = PreflightConditions {
+            forced: true,
+            snapshot_covers_this_boot: true,
+            ai_enabled: false,
+            low_memory: true,
+        };
+        assert_eq!(plan_preflight(conditions), PreflightPlan::Full);
+    }
+
+    #[test]
+    fn a_legacy_snapshot_without_the_field_counts_as_probed() {
+        // v2 snapshots always probed, so defaulting `probed` to false would
+        // make every upgrade look like a skipped probe once.
+        let model: StartupPreflightModel = serde_json::from_str(
+            r#"{"ollama_url":"http://localhost:11434","ollama_reachable":true,
+                "local_models":[],"recommended_models":[]}"#,
+        )
+        .expect("a v2 model section should still deserialize");
+        assert!(model.probed);
+    }
     use std::sync::{Mutex, MutexGuard};
     use std::time::Instant;
 
@@ -579,6 +782,7 @@ mod tests {
             },
             model: StartupPreflightModel {
                 ollama_url: "http://localhost:11434".into(),
+                probed: true,
                 ollama_reachable: false,
                 local_models: Vec::new(),
                 recommended_models: Vec::new(),
@@ -641,6 +845,7 @@ mod tests {
             },
             model: StartupPreflightModel {
                 ollama_url: "http://localhost:11434".into(),
+                probed: true,
                 ollama_reachable: false,
                 local_models: Vec::new(),
                 recommended_models: Vec::new(),

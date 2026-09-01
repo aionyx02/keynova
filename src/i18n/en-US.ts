@@ -224,6 +224,8 @@ export const enUS: I18nKeys = {
       frosted: "Frosted light",
       ink: "Deep ink",
     } as Record<string, string>,
+    /** OS title bar of the settings window; passed to Rust when it is opened. */
+    windowTitle: "Keynova Settings",
     filterPlaceholder: "Filter settings… (name or key)",
     matchCount: "{count} match(es)",
     defaultHint: "Applies after the next relevant action.",
