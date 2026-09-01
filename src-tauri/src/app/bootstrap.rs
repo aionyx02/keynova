@@ -148,6 +148,9 @@ pub fn run() {
                 }
             });
 
+            // A request, not an order: `plan_preflight` decides here whether
+            // there is anything to do and how far to go. Boot no longer pays
+            // for an Ollama probe on a machine with AI switched off.
             app.state::<AppState>()._startup_preflight.ensure_started();
             prescan_apps(app);
 

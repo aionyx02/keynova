@@ -228,7 +228,10 @@ impl CommandHandler for ModelHandler {
     fn execute(&self, command: &str, payload: Value) -> CommandResult {
         match command {
             "bootstrap_snapshot" => {
-                self.startup_preflight.ensure_started();
+                // This is the model panel opening. Boot may have skipped the
+                // Ollama probe (AI off, or low-memory mode); here is where the
+                // answer is actually wanted, so ask for it now.
+                self.startup_preflight.ensure_model_probed();
                 Ok(json!(self.startup_preflight.current_status()))
             }
             "refresh_bootstrap" => {

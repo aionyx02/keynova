@@ -291,6 +291,10 @@ interface BootstrapSnapshot {
   hardware: BootstrapHardwareInfo;
   model: {
     ollama_url: string;
+    /** False when boot skipped the Ollama probe — then `ollama_reachable` is
+     *  "nobody asked", not "offline". Opening this panel triggers a real probe,
+     *  so the state is transient. */
+    probed: boolean;
     ollama_reachable: boolean;
     recommended_models: ModelCandidate[];
   };
@@ -396,12 +400,15 @@ function applyBootstrapState(
       return;
     }
     setError("");
-    if (!snapshot.model.ollama_reachable) {
-      setNotice(fmt(m.ollamaOffline, { url: snapshot.model.ollama_url }));
+    if (payload.running || !snapshot.model.probed) {
+      // An unprobed snapshot means the probe this panel just asked for has not
+      // landed yet. Saying "offline" here would be reporting a question nobody
+      // has answered.
+      setNotice(m.refreshingBootstrap);
       return;
     }
-    if (payload.running) {
-      setNotice(m.refreshingBootstrap);
+    if (!snapshot.model.ollama_reachable) {
+      setNotice(fmt(m.ollamaOffline, { url: snapshot.model.ollama_url }));
       return;
     }
     if (snapshot.warnings.length > 0) {
