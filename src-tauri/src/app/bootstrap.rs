@@ -50,8 +50,18 @@ fn cmd_show_launcher(window: tauri::WebviewWindow) -> Result<(), IpcError> {
 /// call from the webview on purpose: application commands are not ACL-gated,
 /// so opening and closing settings needs no capability change. `title` is the
 /// localized window title, which only the frontend knows.
+///
+/// TRAP: `async` is load-bearing, not decoration. A synchronous `#[tauri::command]`
+/// runs on the main thread, and `WebviewWindowBuilder::build()` deadlocks there
+/// on Windows — the window frame appears, its webview never initialises (a
+/// blank white surface), and the stalled event loop stops answering the close
+/// button. Tauri documents this on the builder itself and prescribes exactly
+/// this fix: create windows from async commands, never from sync ones.
 #[tauri::command]
-fn cmd_open_settings_window(app: tauri::AppHandle, title: Option<String>) -> Result<(), IpcError> {
+async fn cmd_open_settings_window(
+    app: tauri::AppHandle,
+    title: Option<String>,
+) -> Result<(), IpcError> {
     open_settings_window(&app, title)
 }
 
