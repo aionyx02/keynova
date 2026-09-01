@@ -12,7 +12,11 @@ export interface CommandMeta {
 export type CommandUiType =
   | { type: "Inline" }
   | { type: "Panel"; value: string }
-  | { type: "Terminal"; value: TerminalLaunchSpec };
+  | { type: "Terminal"; value: TerminalLaunchSpec }
+  // Renders nothing in the palette: the frontend opens the named OS window.
+  // The value is a window identity, mapped to a specific opener in
+  // `useExecCommand` — an unrecognised one is ignored rather than trusted.
+  | { type: "Window"; value: string };
 
 export interface BuiltinCommandResult {
   text: string;

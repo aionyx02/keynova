@@ -17,8 +17,9 @@ import type { BuiltinCommandResult } from "../../../hooks/useCommands";
 import type { TerminalLaunchSpec } from "../../../types/terminal";
 
 // Panel name → gate key, sourced entirely from feature manifests
-// (DECOUP.5 / ADR-0044). `model`/`setting` contribute no gate: the model panel
-// must stay reachable while AI is off (bootstrap), and setting is not gated.
+// (DECOUP.5 / ADR-0044). `model` contributes no gate: the model panel must stay
+// reachable while AI is off (bootstrap). Settings is no longer a panel at all —
+// it is an OS window, opened from a `Window` ui_type in `useExecCommand`.
 const PANEL_FEATURE: Readonly<Record<string, GateKey>> = manifestPanelGates();
 
 interface Deps {

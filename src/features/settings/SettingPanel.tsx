@@ -1,25 +1,36 @@
+// The settings form.
+//
+// It is the whole content of the settings window (`windows/SettingsWindow`) and
+// is no longer reachable as a palette panel: settings is the one surface people
+// read and scroll rather than type through, which a 700x50 hide-on-blur strip
+// cannot host.
+//
+// Two things follow from being a window rather than a panel:
+//
+//   - No `initialArgs`. `/setting <key>` and `/setting <key> <value>` are
+//     answered inline by the backend and never open anything, so bare
+//     `/setting` — which carries nothing — is the only way in.
+//   - No `config-reloaded` listener. Tauri's ACL gates `plugin:core:event|*`
+//     per window and `capabilities/default.json` covers only `main`, so this
+//     webview cannot subscribe to events. It is not load-bearing: every write
+//     from this form updates local state directly, and the launcher (which does
+//     hold the capability) still hears the broadcast and re-applies the theme.
+//     An edit made to `config.toml` in an external editor while this window is
+//     open is the case that no longer refreshes on its own.
+
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
-import { listen } from "@tauri-apps/api/event";
-import type { PanelProps } from "../../types/panel";
 import type { SettingEntry, SettingSchema } from "./settingTypes";
 import { SettingRow, type SettingControlKind } from "./SettingRow";
 import { useI18n } from "../../i18n/useI18n";
 import { fmt } from "../../i18n/format";
 
-interface ConfigReloadedPayload {
-  source: string;
-  changed_keys: string[];
-}
-
-interface ConfigReloadFailedPayload {
-  source: string;
-  error: string;
-}
-
-interface SettingDraftPayload {
-  key?: string;
-  value?: string;
+export interface SettingPanelProps {
+  /**
+   * Reports `launcher.theme` on load and after every save. The theme is written
+   * onto <html>, which belongs to the window shell rather than to this form.
+   */
+  onThemeChange?: (value: string | undefined) => void;
 }
 
 async function ipcDispatch<T>(route: string, payload?: Record<string, unknown>): Promise<T> {
@@ -48,34 +59,15 @@ function sectionDisplayLabel(section: string, labels: Record<string, string>): s
   return section.charAt(0).toUpperCase() + section.slice(1);
 }
 
-function parseInitialArgs(initialArgs?: string): SettingDraftPayload {
-  const value = initialArgs?.trim();
-  if (!value) return {};
-  try {
-    const parsed = JSON.parse(value) as SettingDraftPayload;
-    if (parsed && parsed.key) return parsed;
-  } catch {
-    return { key: value };
-  }
-  return {};
-}
-
 type Section = string;
 
-export function SettingPanel({ initialArgs }: PanelProps) {
+export function SettingPanel({ onThemeChange }: SettingPanelProps) {
   const s = useI18n().settings;
-  const initialDraft = parseInitialArgs(initialArgs);
   const [entries, setEntries] = useState<SettingEntry[]>([]);
-  const [activeSection, setActiveSection] = useState<Section>(
-    initialDraft.key?.split(".")[0] ?? "hotkeys",
-  );
+  const [activeSection, setActiveSection] = useState<Section>("hotkeys");
   const [schema, setSchema] = useState<SettingSchema[]>([]);
   const [filter, setFilter] = useState("");
-  const [edits, setEdits] = useState<Record<string, string>>(() =>
-    initialDraft.key && initialDraft.value !== undefined
-      ? { [initialDraft.key]: initialDraft.value }
-      : {},
-  );
+  const [edits, setEdits] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState<string | null>(null);
   const [savedKey, setSavedKey] = useState<string | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
@@ -107,29 +99,13 @@ export function SettingPanel({ initialArgs }: PanelProps) {
     return () => window.clearTimeout(timer);
   }, [loadSettings]);
 
+  // The theme is the one setting that does not render as a row: it is written
+  // onto <html>. Deriving it from `entries` means load and save feed the shell
+  // through one path, and the effect only fires when the value actually moves.
+  const themeValue = entries.find((entry) => entry.key === "launcher.theme")?.value;
   useEffect(() => {
-    if (!window.__TAURI_INTERNALS__) return;
-    const unlistenReload = listen<ConfigReloadedPayload>("config-reloaded", (event) => {
-      void loadSettings().catch(() => {});
-      const count = event.payload.changed_keys.length;
-      setSaveError(null);
-      setReloadNotice(
-        count === 0
-          ? fmt(s.reloadedFrom, { source: event.payload.source })
-          : fmt(s.reloadedCount, { count, source: event.payload.source }),
-      );
-    });
-    const unlistenFailed = listen<ConfigReloadFailedPayload>("config-reload-failed", (event) => {
-      setReloadNotice(null);
-      setSaveError(
-        fmt(s.reloadFailed, { source: event.payload.source, error: event.payload.error }),
-      );
-    });
-    return () => {
-      unlistenReload.then((fn) => fn());
-      unlistenFailed.then((fn) => fn());
-    };
-  }, [loadSettings, s]);
+    onThemeChange?.(themeValue);
+  }, [themeValue, onThemeChange]);
 
   const sections =
     schema.length > 0
@@ -282,8 +258,10 @@ export function SettingPanel({ initialArgs }: PanelProps) {
   }
 
   return (
-    <div className="kn-panel-shell overflow-hidden rounded-t-none border-t-0">
-      <div className="relative border-b border-[color:var(--kn-border)] bg-white/[0.015]">
+    // Fills the window rather than sitting in one: no shell border, no radius,
+    // and the row list — not a fixed 260 px — takes whatever height is left.
+    <div className="flex h-full min-h-0 flex-col overflow-hidden">
+      <div className="relative shrink-0 border-b border-[color:var(--kn-border)] bg-white/[0.015]">
         <div className="pointer-events-none absolute inset-y-0 left-0 z-10 w-6 bg-gradient-to-r from-[color:var(--kn-panel-bg)] to-transparent" />
         <div className="pointer-events-none absolute inset-y-0 right-0 z-10 w-6 bg-gradient-to-l from-[color:var(--kn-panel-bg)] to-transparent" />
         <div className="setting-tabs-scroll overflow-x-auto overflow-y-hidden">
@@ -308,7 +286,7 @@ export function SettingPanel({ initialArgs }: PanelProps) {
         </div>
       </div>
 
-      <div className="flex items-center gap-2 px-4 pt-2 pb-0">
+      <div className="flex shrink-0 items-center gap-2 px-4 pt-2 pb-0">
         <input
           ref={filterRef}
           value={filter}
@@ -318,7 +296,11 @@ export function SettingPanel({ initialArgs }: PanelProps) {
               e.preventDefault();
               inputRefs.current[0]?.focus();
             } else if (e.key === "Escape" && filter) {
+              // First Escape clears the filter, second closes the window.
+              // `stopPropagation` is what keeps the window-level handler in
+              // `SettingsWindow` from doing both at once.
               e.preventDefault();
+              e.stopPropagation();
               setFilter("");
             }
           }}
@@ -333,7 +315,7 @@ export function SettingPanel({ initialArgs }: PanelProps) {
         </span>
       </div>
 
-      <div className="kn-scroll max-h-[260px] space-y-3 overflow-y-auto px-4 py-3">
+      <div className="kn-scroll min-h-0 flex-1 space-y-3 overflow-y-auto px-4 py-3">
         {rows.length === 0 && (
           <p className="py-4 text-center text-xs text-[color:var(--kn-text-faint)]">
             {filtering ? s.noMatch : s.noneInSection}
@@ -371,7 +353,7 @@ export function SettingPanel({ initialArgs }: PanelProps) {
         })}
       </div>
 
-      <div className="kn-panel-footer">
+      <div className="kn-panel-footer shrink-0">
         <span>%APPDATA%\Keynova\config.toml</span>
         {saveError ? (
           <span className="ml-2 truncate text-[color:var(--kn-danger)]">{saveError}</span>

@@ -38,7 +38,11 @@ export type ResultSource =
   | { type: "other"; name: string };
 
 /** Flattened builtin command UI hint. Drops `TerminalLaunchSpec` payload by design. */
-export type BuiltinUi = { type: "inline" } | { type: "panel"; name: string } | { type: "terminal" };
+export type BuiltinUi =
+  | { type: "inline" }
+  | { type: "panel"; name: string }
+  | { type: "terminal" }
+  | { type: "window"; label: string };
 
 /** An action exposed inline on a result row. */
 export interface ActionChip {
