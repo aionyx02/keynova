@@ -72,7 +72,7 @@ impl SearchHandler {
                     json!({ "name": name, "args": args }),
                 );
                 let action_ref = self.action_arena.insert(session, action)?;
-                let hint = meta.args_hint.unwrap_or("");
+                let hint = meta.args_hint.as_deref().unwrap_or("");
                 let subtitle = if args.is_empty() && !hint.is_empty() {
                     format!("{} · {}", meta.description, hint)
                 } else {
@@ -111,7 +111,7 @@ impl SearchHandler {
                 {
                     return None;
                 }
-                let score = command_match_score(meta.name, meta.description, &q)?;
+                let score = command_match_score(&meta.name, &meta.description, &q)?;
                 Some((meta, score))
             })
             .take(limit)
