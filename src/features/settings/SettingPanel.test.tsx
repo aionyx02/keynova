@@ -6,9 +6,6 @@ import { SettingPanel } from "./SettingPanel";
 import type { SettingEntry, SettingSchema } from "./settingTypes";
 
 vi.mock("@tauri-apps/api/core", () => ({ invoke: vi.fn() }));
-vi.mock("@tauri-apps/api/event", () => ({
-  listen: vi.fn(() => Promise.resolve(() => {})),
-}));
 
 const ENTRIES: SettingEntry[] = [
   // Backend already redacts secrets on list_all, so the panel receives "".
@@ -47,7 +44,12 @@ afterEach(() => {
 
 describe("SettingPanel secret handling", () => {
   it("does not retain the plaintext secret in the field after saving", async () => {
-    render(<SettingPanel initialArgs="ai.api_key" onClose={() => {}} />);
+    render(<SettingPanel />);
+
+    // The panel opens on `hotkeys`; the fixture only defines an `ai` key, so
+    // reach the row the way a user does. (`initialArgs` is gone: settings is a
+    // window now, and bare `/setting` — the only route to it — carries nothing.)
+    fireEvent.click(await screen.findByRole("button", { name: "AI" }));
 
     const input = (await screen.findByPlaceholderText(
       "Enter a new secret value",
