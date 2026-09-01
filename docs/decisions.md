@@ -140,6 +140,15 @@ of. And `main` is `alwaysOnTop` with a 1500 ms hide-on-blur timer
 explicitly rather than wait for the timer — otherwise the new window appears
 underneath a strip of launcher.
 
+**Create windows from `async` commands only.** `WebviewWindowBuilder::build()`
+deadlocks on Windows when it runs on the main thread, which is where a
+synchronous `#[tauri::command]` runs. The failure does not look like a
+deadlock: the window frame appears, its webview never initialises so the
+content is a blank white surface, and the stalled event loop stops answering
+the close button — a window that cannot be closed. Tauri documents this on the
+builder (wry#583) and the fix is only the `async` keyword, which moves the call
+onto the runtime's thread pool. This cost an afternoon once.
+
 **A second WebView2 window must pass the same `additionalBrowserArgs`.** On
 Windows there is one browser process per user-data folder, and creating a
 webview whose environment options differ from the running one fails outright —

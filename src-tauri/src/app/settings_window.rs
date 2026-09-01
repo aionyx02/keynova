@@ -79,6 +79,10 @@ pub(crate) fn focus_settings_window(app: &tauri::AppHandle) -> bool {
 
 /// Opens settings, or focuses it if it is already open.
 ///
+/// **Must not be called from the main thread.** `WebviewWindowBuilder::build()`
+/// deadlocks there on Windows; the caller is an `async` Tauri command for that
+/// reason alone (see `cmd_open_settings_window`).
+///
 /// `title` comes from the frontend because the localized strings live there and
 /// Rust has no i18n layer. An absent or blank title falls back to the English
 /// name rather than shipping an untitled window.
