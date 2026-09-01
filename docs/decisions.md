@@ -79,6 +79,39 @@ remote hosts live only in `security.devCsp`, which Tauri injects for `tauri dev`
 alone. Rejected the alternative of rewriting the CSP string at build time —
 `devCsp` is the official mechanism and a custom build step would drift.
 
+**Settings is an OS window, not a palette panel.** It is the one surface people
+read and scroll rather than type through, and the launcher is a 700x50 strip
+that is always-on-top and hides itself on blur — the two requirements are
+opposites. Splitting it also moves the theme out of one window's DOM, which the
+restyle had already made a cross-window value. Rejected: making the launcher
+grow for settings (it would still vanish on blur), and a second Vite entry (the
+same `index.html` plus `?window=settings` splits at runtime through a dynamic
+import, which keeps the build single-input and keeps the palette, xterm and
+markdown chunks out of the settings webview entirely).
+
+**The settings window's existence is the "settings is open" state.** It is
+created on `/setting` and destroyed on close, so `get_webview_window("settings")`
+answers the question directly and no `AppState` flag can drift out of sync with
+the real window. That is what Ctrl+K and the tray's "show" item both consult
+before deciding whether to toggle the launcher or focus settings — opening
+settings hides the launcher on purpose, and re-showing an always-on-top strip
+over it would make that hide meaningless.
+
+**The settings window's size and position are not remembered.** Centred at a
+fixed size every time is predictable and needs no persistence, no migration and
+no schema key. A remembered position is also a way to restore a window onto a
+monitor that is no longer attached.
+
+**Settings opens and closes through application commands, not the window
+plugin.** Tauri's ACL gates every `plugin:core:*` call per window, and
+`capabilities/default.json` is scoped to `["main"]`, so the settings webview
+holds no core permissions — `listen`, `close` and `set_title` are all refused
+there. Application commands registered in `invoke_handler` are outside the ACL
+(this app defines no app-level permission manifest), so `cmd_open_settings_window`
+and `cmd_close_settings_window` work without touching a capability definition —
+which `security.md` requires an ADR for. The cost is that the window cannot
+subscribe to `config-reloaded`; see Unfinished in `state.md`.
+
 **Release profile is deliberately conservative.** `[profile.release]` uses strip
 plus LTO but explicitly not `opt-level = "z"` and not `panic = "abort"` —
 abort would defeat the ADR-0051 crash log.
@@ -96,6 +129,24 @@ the launcher. This is not cosmetic — focus theft closes the palette.
 one, and broke macOS universal bundling. The fix is
 `"mainBinaryName": "Keynova"` in `tauri.conf.json`. Changing either name
 re-opens the collision.
+
+**Adding a window means reading two things first.** The builder's
+`.on_window_event` handler in `app/bootstrap.rs` is App-level: it fires for
+*every* window, and it exists to stop the launcher from ever closing. Without a
+`window.label() != "main"` guard at the top it swallows the new window's close
+button and hides the launcher instead, leaving a window the user cannot get rid
+of. And `main` is `alwaysOnTop` with a 1500 ms hide-on-blur timer
+(`app/window.rs`), so anything that opens a window has to hide the launcher
+explicitly rather than wait for the timer — otherwise the new window appears
+underneath a strip of launcher.
+
+**A second WebView2 window must pass the same `additionalBrowserArgs`.** On
+Windows there is one browser process per user-data folder, and creating a
+webview whose environment options differ from the running one fails outright —
+the window simply never appears. `main` sets those args in `tauri.conf.json`
+because it needs `--disable-gpu`, so `app/settings_window.rs` reads them back
+out of the config rather than repeating the literal. Hard-coding a copy works
+until someone edits one of the two.
 
 **EventBus topics are dotted; Tauri topics are dashed.** `terminal.output` is
 emitted to the frontend as `terminal-output` via
