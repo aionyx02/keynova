@@ -30,7 +30,7 @@ pub mod workflow_pipeline;
 
 pub use action_registry::{ActionArena, ActionRegistry};
 pub use agent_observation::{prepare_observation, AgentObservationPolicy, PreparedObservation};
-pub use builtin_command_registry::BuiltinCommandRegistry;
+pub use builtin_command_registry::{BuiltinCommandRegistry, CommandOrigin};
 pub use command_router::{CommandHandler, CommandResult, CommandRouter};
 pub use event_bus::{AppEvent, EventBus};
 pub use ipc_error::IpcError;

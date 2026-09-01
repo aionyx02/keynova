@@ -29,11 +29,11 @@ pub(crate) const COMMAND_FEATURE_GUARDS: &[(&str, &str)] = &[
 pub struct HelpCommand;
 
 impl BuiltinCommand for HelpCommand {
-    fn name(&self) -> &'static str {
+    fn name(&self) -> &str {
         "help"
     }
 
-    fn description(&self) -> &'static str {
+    fn description(&self) -> &str {
         "Show available commands"
     }
 
@@ -48,15 +48,15 @@ impl BuiltinCommand for HelpCommand {
 pub struct SettingCommand;
 
 impl BuiltinCommand for SettingCommand {
-    fn name(&self) -> &'static str {
+    fn name(&self) -> &str {
         "setting"
     }
 
-    fn description(&self) -> &'static str {
+    fn description(&self) -> &str {
         "Open or edit settings"
     }
 
-    fn args_hint(&self) -> Option<&'static str> {
+    fn args_hint(&self) -> Option<&str> {
         Some("[key] [value]")
     }
 
@@ -74,11 +74,11 @@ impl BuiltinCommand for SettingCommand {
 pub struct ReloadCommand;
 
 impl BuiltinCommand for ReloadCommand {
-    fn name(&self) -> &'static str {
+    fn name(&self) -> &str {
         "reload"
     }
 
-    fn description(&self) -> &'static str {
+    fn description(&self) -> &str {
         "Reload config from disk"
     }
 
@@ -93,11 +93,11 @@ impl BuiltinCommand for ReloadCommand {
 pub struct OnboardCommand;
 
 impl BuiltinCommand for OnboardCommand {
-    fn name(&self) -> &'static str {
+    fn name(&self) -> &str {
         "onboard"
     }
 
-    fn description(&self) -> &'static str {
+    fn description(&self) -> &str {
         "Replay the onboarding tour"
     }
 
@@ -117,13 +117,13 @@ impl BuiltinCommand for OnboardCommand {
 pub struct TrCommand;
 
 impl BuiltinCommand for TrCommand {
-    fn name(&self) -> &'static str {
+    fn name(&self) -> &str {
         "tr"
     }
-    fn description(&self) -> &'static str {
+    fn description(&self) -> &str {
         "Translate text"
     }
-    fn args_hint(&self) -> Option<&'static str> {
+    fn args_hint(&self) -> Option<&str> {
         Some("<src> <dst> <text>  or  default <text>")
     }
     fn execute(&self, args: &str) -> BuiltinCommandResult {
@@ -141,10 +141,10 @@ impl BuiltinCommand for TrCommand {
 pub struct ModelCommand;
 
 impl BuiltinCommand for ModelCommand {
-    fn name(&self) -> &'static str {
+    fn name(&self) -> &str {
         "model"
     }
-    fn description(&self) -> &'static str {
+    fn description(&self) -> &str {
         "Manage AI models: switch, download, or remove"
     }
     fn execute(&self, _args: &str) -> BuiltinCommandResult {
@@ -175,13 +175,13 @@ fn setting_lookup_result_text(key: &str, current: Option<String>) -> String {
 pub struct CalCommand;
 
 impl BuiltinCommand for CalCommand {
-    fn name(&self) -> &'static str {
+    fn name(&self) -> &str {
         "cal"
     }
-    fn description(&self) -> &'static str {
+    fn description(&self) -> &str {
         "Calculator & unit conversion"
     }
-    fn args_hint(&self) -> Option<&'static str> {
+    fn args_hint(&self) -> Option<&str> {
         Some("<expr>  e.g. 2+2, 5 km to m")
     }
     fn execute(&self, _args: &str) -> BuiltinCommandResult {
@@ -195,13 +195,13 @@ impl BuiltinCommand for CalCommand {
 pub struct HistoryCommand;
 
 impl BuiltinCommand for HistoryCommand {
-    fn name(&self) -> &'static str {
+    fn name(&self) -> &str {
         "history"
     }
-    fn description(&self) -> &'static str {
+    fn description(&self) -> &str {
         "Clipboard history"
     }
-    fn args_hint(&self) -> Option<&'static str> {
+    fn args_hint(&self) -> Option<&str> {
         Some("[search]")
     }
     fn execute(&self, _args: &str) -> BuiltinCommandResult {
@@ -215,13 +215,13 @@ impl BuiltinCommand for HistoryCommand {
 pub struct SysCtlCommand;
 
 impl BuiltinCommand for SysCtlCommand {
-    fn name(&self) -> &'static str {
+    fn name(&self) -> &str {
         "system"
     }
-    fn description(&self) -> &'static str {
+    fn description(&self) -> &str {
         "System control: volume, brightness, wifi"
     }
-    fn args_hint(&self) -> Option<&'static str> {
+    fn args_hint(&self) -> Option<&str> {
         Some("volume|brightness|wifi [value]")
     }
     fn execute(&self, _args: &str) -> BuiltinCommandResult {
@@ -235,10 +235,10 @@ impl BuiltinCommand for SysCtlCommand {
 pub struct SysMonitorCommand;
 
 impl BuiltinCommand for SysMonitorCommand {
-    fn name(&self) -> &'static str {
+    fn name(&self) -> &str {
         "system_monitoring"
     }
-    fn description(&self) -> &'static str {
+    fn description(&self) -> &str {
         "CPU, RAM, Disk, Network & Process monitor"
     }
     fn execute(&self, _args: &str) -> BuiltinCommandResult {
@@ -252,11 +252,11 @@ impl BuiltinCommand for SysMonitorCommand {
 pub struct DownCommand;
 
 impl BuiltinCommand for DownCommand {
-    fn name(&self) -> &'static str {
+    fn name(&self) -> &str {
         "down"
     }
 
-    fn description(&self) -> &'static str {
+    fn description(&self) -> &str {
         "Gracefully quit Keynova"
     }
 
@@ -271,11 +271,11 @@ impl BuiltinCommand for DownCommand {
 pub struct UpdateCommand;
 
 impl BuiltinCommand for UpdateCommand {
-    fn name(&self) -> &'static str {
+    fn name(&self) -> &str {
         "update"
     }
 
-    fn description(&self) -> &'static str {
+    fn description(&self) -> &str {
         "Check for app updates"
     }
 
@@ -293,11 +293,11 @@ impl BuiltinCommand for UpdateCommand {
 pub struct DiagCommand;
 
 impl BuiltinCommand for DiagCommand {
-    fn name(&self) -> &'static str {
+    fn name(&self) -> &str {
         "diag"
     }
 
-    fn description(&self) -> &'static str {
+    fn description(&self) -> &str {
         "Export a redacted diagnostics bundle"
     }
 
@@ -315,11 +315,11 @@ impl BuiltinCommand for DiagCommand {
 pub struct RebuildSearchIndexCommand;
 
 impl BuiltinCommand for RebuildSearchIndexCommand {
-    fn name(&self) -> &'static str {
+    fn name(&self) -> &str {
         "rebuild_search_index"
     }
 
-    fn description(&self) -> &'static str {
+    fn description(&self) -> &str {
         "Rebuild the local search index"
     }
 

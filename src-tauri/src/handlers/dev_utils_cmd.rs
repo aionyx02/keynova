@@ -30,10 +30,10 @@ fn split_two(args: &str) -> Option<(&str, &str)> {
 
 pub struct UuidCmd;
 impl BuiltinCommand for UuidCmd {
-    fn name(&self) -> &'static str {
+    fn name(&self) -> &str {
         "uuid"
     }
-    fn description(&self) -> &'static str {
+    fn description(&self) -> &str {
         "Generate a UUID v4"
     }
     fn execute(&self, _args: &str) -> BuiltinCommandResult {
@@ -43,13 +43,13 @@ impl BuiltinCommand for UuidCmd {
 
 pub struct NanoidCmd;
 impl BuiltinCommand for NanoidCmd {
-    fn name(&self) -> &'static str {
+    fn name(&self) -> &str {
         "nanoid"
     }
-    fn description(&self) -> &'static str {
+    fn description(&self) -> &str {
         "Generate a nanoid (URL-safe random ID)"
     }
-    fn args_hint(&self) -> Option<&'static str> {
+    fn args_hint(&self) -> Option<&str> {
         Some("[length]  default 21")
     }
     fn execute(&self, args: &str) -> BuiltinCommandResult {
@@ -62,13 +62,13 @@ impl BuiltinCommand for NanoidCmd {
 
 pub struct PwCmd;
 impl BuiltinCommand for PwCmd {
-    fn name(&self) -> &'static str {
+    fn name(&self) -> &str {
         "pw"
     }
-    fn description(&self) -> &'static str {
+    fn description(&self) -> &str {
         "Generate a random password"
     }
-    fn args_hint(&self) -> Option<&'static str> {
+    fn args_hint(&self) -> Option<&str> {
         Some("<length> [sym|alnum|alpha]")
     }
     fn execute(&self, args: &str) -> BuiltinCommandResult {
@@ -96,13 +96,13 @@ impl BuiltinCommand for PwCmd {
 
 pub struct HashCmd;
 impl BuiltinCommand for HashCmd {
-    fn name(&self) -> &'static str {
+    fn name(&self) -> &str {
         "hash"
     }
-    fn description(&self) -> &'static str {
+    fn description(&self) -> &str {
         "Hash text (md5/sha1/sha256/sha512)"
     }
-    fn args_hint(&self) -> Option<&'static str> {
+    fn args_hint(&self) -> Option<&str> {
         Some("<algo> <text>")
     }
     fn execute(&self, args: &str) -> BuiltinCommandResult {
@@ -120,13 +120,13 @@ impl BuiltinCommand for HashCmd {
 
 pub struct B64encCmd;
 impl BuiltinCommand for B64encCmd {
-    fn name(&self) -> &'static str {
+    fn name(&self) -> &str {
         "b64enc"
     }
-    fn description(&self) -> &'static str {
+    fn description(&self) -> &str {
         "Base64 encode UTF-8 text"
     }
-    fn args_hint(&self) -> Option<&'static str> {
+    fn args_hint(&self) -> Option<&str> {
         Some("<text>")
     }
     fn execute(&self, args: &str) -> BuiltinCommandResult {
@@ -139,13 +139,13 @@ impl BuiltinCommand for B64encCmd {
 
 pub struct B64decCmd;
 impl BuiltinCommand for B64decCmd {
-    fn name(&self) -> &'static str {
+    fn name(&self) -> &str {
         "b64dec"
     }
-    fn description(&self) -> &'static str {
+    fn description(&self) -> &str {
         "Base64 decode to UTF-8 text"
     }
-    fn args_hint(&self) -> Option<&'static str> {
+    fn args_hint(&self) -> Option<&str> {
         Some("<base64>")
     }
     fn execute(&self, args: &str) -> BuiltinCommandResult {
@@ -161,13 +161,13 @@ impl BuiltinCommand for B64decCmd {
 
 pub struct UrlencCmd;
 impl BuiltinCommand for UrlencCmd {
-    fn name(&self) -> &'static str {
+    fn name(&self) -> &str {
         "urlenc"
     }
-    fn description(&self) -> &'static str {
+    fn description(&self) -> &str {
         "URL percent-encode"
     }
-    fn args_hint(&self) -> Option<&'static str> {
+    fn args_hint(&self) -> Option<&str> {
         Some("<text>")
     }
     fn execute(&self, args: &str) -> BuiltinCommandResult {
@@ -180,13 +180,13 @@ impl BuiltinCommand for UrlencCmd {
 
 pub struct UrldecCmd;
 impl BuiltinCommand for UrldecCmd {
-    fn name(&self) -> &'static str {
+    fn name(&self) -> &str {
         "urldec"
     }
-    fn description(&self) -> &'static str {
+    fn description(&self) -> &str {
         "URL percent-decode"
     }
-    fn args_hint(&self) -> Option<&'static str> {
+    fn args_hint(&self) -> Option<&str> {
         Some("<text>")
     }
     fn execute(&self, args: &str) -> BuiltinCommandResult {
@@ -204,13 +204,13 @@ impl BuiltinCommand for UrldecCmd {
 
 pub struct JsonCmd;
 impl BuiltinCommand for JsonCmd {
-    fn name(&self) -> &'static str {
+    fn name(&self) -> &str {
         "json"
     }
-    fn description(&self) -> &'static str {
+    fn description(&self) -> &str {
         "Pretty-print JSON"
     }
-    fn args_hint(&self) -> Option<&'static str> {
+    fn args_hint(&self) -> Option<&str> {
         Some("<json>")
     }
     fn execute(&self, args: &str) -> BuiltinCommandResult {
@@ -226,13 +226,13 @@ impl BuiltinCommand for JsonCmd {
 
 pub struct JsonmCmd;
 impl BuiltinCommand for JsonmCmd {
-    fn name(&self) -> &'static str {
+    fn name(&self) -> &str {
         "jsonm"
     }
-    fn description(&self) -> &'static str {
+    fn description(&self) -> &str {
         "Minify JSON"
     }
-    fn args_hint(&self) -> Option<&'static str> {
+    fn args_hint(&self) -> Option<&str> {
         Some("<json>")
     }
     fn execute(&self, args: &str) -> BuiltinCommandResult {
@@ -250,13 +250,13 @@ impl BuiltinCommand for JsonmCmd {
 
 pub struct RegexCmd;
 impl BuiltinCommand for RegexCmd {
-    fn name(&self) -> &'static str {
+    fn name(&self) -> &str {
         "regex"
     }
-    fn description(&self) -> &'static str {
+    fn description(&self) -> &str {
         "Test a regex pattern against text"
     }
-    fn args_hint(&self) -> Option<&'static str> {
+    fn args_hint(&self) -> Option<&str> {
         Some("<pattern> <text>")
     }
     fn execute(&self, args: &str) -> BuiltinCommandResult {
@@ -274,13 +274,13 @@ impl BuiltinCommand for RegexCmd {
 
 pub struct JwtCmd;
 impl BuiltinCommand for JwtCmd {
-    fn name(&self) -> &'static str {
+    fn name(&self) -> &str {
         "jwt"
     }
-    fn description(&self) -> &'static str {
+    fn description(&self) -> &str {
         "Decode a JWT (no signature verification)"
     }
-    fn args_hint(&self) -> Option<&'static str> {
+    fn args_hint(&self) -> Option<&str> {
         Some("<token>")
     }
     fn execute(&self, args: &str) -> BuiltinCommandResult {
@@ -298,13 +298,13 @@ impl BuiltinCommand for JwtCmd {
 
 pub struct ColorCmd;
 impl BuiltinCommand for ColorCmd {
-    fn name(&self) -> &'static str {
+    fn name(&self) -> &str {
         "color"
     }
-    fn description(&self) -> &'static str {
+    fn description(&self) -> &str {
         "Convert color between hex/rgb/hsl"
     }
-    fn args_hint(&self) -> Option<&'static str> {
+    fn args_hint(&self) -> Option<&str> {
         Some("<#hex | rgb(r,g,b) | hsl(h,s%,l%)>")
     }
     fn execute(&self, args: &str) -> BuiltinCommandResult {
@@ -322,13 +322,13 @@ impl BuiltinCommand for ColorCmd {
 
 pub struct KillPortCmd;
 impl BuiltinCommand for KillPortCmd {
-    fn name(&self) -> &'static str {
+    fn name(&self) -> &str {
         "killport"
     }
-    fn description(&self) -> &'static str {
+    fn description(&self) -> &str {
         "Find the process listening on a TCP port"
     }
-    fn args_hint(&self) -> Option<&'static str> {
+    fn args_hint(&self) -> Option<&str> {
         Some("<port>")
     }
     /// Preview-only builtin. Process termination must go through a backend
@@ -375,13 +375,13 @@ impl BuiltinCommand for KillPortCmd {
 
 pub struct CronCmd;
 impl BuiltinCommand for CronCmd {
-    fn name(&self) -> &'static str {
+    fn name(&self) -> &str {
         "cron"
     }
-    fn description(&self) -> &'static str {
+    fn description(&self) -> &str {
         "Explain a cron expression and show next 5 fire times"
     }
-    fn args_hint(&self) -> Option<&'static str> {
+    fn args_hint(&self) -> Option<&str> {
         Some("<expr>")
     }
     fn execute(&self, args: &str) -> BuiltinCommandResult {

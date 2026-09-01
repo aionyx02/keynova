@@ -7,6 +7,13 @@ export interface CommandMeta {
   name: string;
   description: string;
   args_hint?: string;
+  /**
+   * Where the command came from. `builtin` is compiled in; `plugin` was
+   * registered at runtime and can be removed again. A plugin can never take a
+   * builtin's name — the backend registry refuses it — so this is a label, not
+   * a trust decision the frontend has to make.
+   */
+  origin?: "builtin" | "plugin";
 }
 
 export type CommandUiType =
