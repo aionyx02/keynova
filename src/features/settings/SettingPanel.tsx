@@ -22,6 +22,7 @@ import React, { useCallback, useEffect, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import type { SettingEntry, SettingSchema } from "./settingTypes";
 import { SettingRow, type SettingControlKind } from "./SettingRow";
+import { SettingSidebar } from "./SettingSidebar";
 import { useI18n } from "../../i18n/useI18n";
 import { fmt } from "../../i18n/format";
 
@@ -52,13 +53,6 @@ const DEFAULT_SECTIONS = [
   "performance",
 ];
 
-function sectionDisplayLabel(section: string, labels: Record<string, string>): string {
-  const mapped = labels[section];
-  if (mapped) return mapped;
-  if (!section) return section;
-  return section.charAt(0).toUpperCase() + section.slice(1);
-}
-
 type Section = string;
 
 export function SettingPanel({ onThemeChange }: SettingPanelProps) {
@@ -75,6 +69,7 @@ export function SettingPanel({ onThemeChange }: SettingPanelProps) {
   const originalRef = useRef<Record<string, string>>({});
   const savedFlashRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const inputRefs = useRef<Array<HTMLElement | null>>([]);
+  const sectionRefs = useRef<Array<HTMLButtonElement | null>>([]);
   const filterRef = useRef<HTMLInputElement>(null);
 
   const loadSettings = useCallback(async () => {
@@ -125,15 +120,35 @@ export function SettingPanel({ onThemeChange }: SettingPanelProps) {
   useEffect(() => {
     if (entries.length === 0) return;
     const timer = window.setTimeout(() => {
+      // Never yank focus out of the rail. Arrowing through sections switches
+      // the content as it goes, and this effect fires on every one of those
+      // switches — without the guard it would throw the caret into the rows
+      // 50 ms into the first keypress and make the rail unusable.
+      if (sectionRefs.current.some((el) => el === document.activeElement)) return;
       inputRefs.current[0]?.focus();
     }, 50);
     return () => window.clearTimeout(timer);
   }, [entries.length, activeSection]);
 
-  function switchSection(dir: 1 | -1) {
+  function selectSection(section: string) {
+    setActiveSection(section);
+    setFilter("");
+  }
+
+  /** Moves the rail selection and keeps focus on it, so ArrowUp/ArrowDown read
+   *  as one gesture rather than a move followed by a jump. */
+  function moveSection(dir: 1 | -1) {
     const idx = sections.indexOf(activeSection);
-    const next = sections[Math.max(0, Math.min(sections.length - 1, idx + dir))];
-    if (next && next !== activeSection) setActiveSection(next);
+    const nextIdx = Math.max(0, Math.min(sections.length - 1, idx + dir));
+    const next = sections[nextIdx];
+    if (!next) return;
+    selectSection(next);
+    sectionRefs.current[nextIdx]?.focus();
+  }
+
+  function focusActiveSection() {
+    const idx = sections.indexOf(activeSection);
+    sectionRefs.current[Math.max(0, idx)]?.focus();
   }
 
   function handleInputKeyDown(
@@ -154,23 +169,17 @@ export function SettingPanel({ onThemeChange }: SettingPanelProps) {
       else inputRefs.current[rowIdx - 1]?.focus();
       return;
     }
+    // ArrowLeft crosses into the rail, which is literally to the left. A text
+    // field only gives the key up once the caret has nowhere further to go.
+    // There is deliberately no ArrowRight counterpart: nothing sits to the
+    // right of the rows, so the key stays with the caret.
     if (e.key === "ArrowLeft") {
       if (kind === "text") {
         const input = e.currentTarget as HTMLInputElement;
         if (input.selectionStart !== 0 || input.selectionEnd !== 0) return;
       }
       e.preventDefault();
-      if (!filtering) switchSection(-1);
-      return;
-    }
-    if (e.key === "ArrowRight") {
-      if (kind === "text") {
-        const input = e.currentTarget as HTMLInputElement;
-        const len = input.value.length;
-        if (input.selectionStart !== len || input.selectionEnd !== len) return;
-      }
-      e.preventDefault();
-      if (!filtering) switchSection(1);
+      focusActiveSection();
       return;
     }
     if (kind === "hotkey") {
@@ -261,32 +270,9 @@ export function SettingPanel({ onThemeChange }: SettingPanelProps) {
     // Fills the window rather than sitting in one: no shell border, no radius,
     // and the row list — not a fixed 260 px — takes whatever height is left.
     <div className="flex h-full min-h-0 flex-col overflow-hidden">
-      <div className="relative shrink-0 border-b border-[color:var(--kn-border)] bg-white/[0.015]">
-        <div className="pointer-events-none absolute inset-y-0 left-0 z-10 w-6 bg-gradient-to-r from-[color:var(--kn-panel-bg)] to-transparent" />
-        <div className="pointer-events-none absolute inset-y-0 right-0 z-10 w-6 bg-gradient-to-l from-[color:var(--kn-panel-bg)] to-transparent" />
-        <div className="setting-tabs-scroll overflow-x-auto overflow-y-hidden">
-          <div className="flex min-w-max items-center gap-0.5 px-2">
-            {sections.map((section) => (
-              <button
-                key={section}
-                onClick={() => {
-                  setActiveSection(section);
-                  setFilter("");
-                }}
-                className={`shrink-0 border-b-2 px-3 py-2 text-[12px] font-semibold whitespace-nowrap transition-colors ${
-                  !filtering && activeSection === section
-                    ? "border-[color:var(--kn-accent)] text-[color:var(--kn-text)]"
-                    : "border-transparent text-[color:var(--kn-text-faint)] hover:text-[color:var(--kn-text-soft)]"
-                }`}
-              >
-                {sectionDisplayLabel(section, s.sectionLabels)}
-              </button>
-            ))}
-          </div>
-        </div>
-      </div>
-
-      <div className="flex shrink-0 items-center gap-2 px-4 pt-2 pb-0">
+      {/* The filter spans both panes because it searches every section, not
+          the one the rail has selected. */}
+      <div className="flex shrink-0 items-center gap-2 border-b border-[color:var(--kn-border)] px-4 py-2">
         <input
           ref={filterRef}
           value={filter}
@@ -315,42 +301,57 @@ export function SettingPanel({ onThemeChange }: SettingPanelProps) {
         </span>
       </div>
 
-      <div className="kn-scroll min-h-0 flex-1 space-y-3 overflow-y-auto px-4 py-3">
-        {rows.length === 0 && (
-          <p className="py-4 text-center text-xs text-[color:var(--kn-text-faint)]">
-            {filtering ? s.noMatch : s.noneInSection}
-          </p>
-        )}
-        {rows.map((entry, rowIdx) => {
-          const isSensitive = Boolean(entry.sensitive || schemaFor(entry.key)?.sensitive);
-          const secretIsSet = isSensitive && entry.value.length > 0;
-          // Keep the secret input empty so typing produces a clean key (never
-          // appended onto the mask); the "Set" badge signals it's configured.
-          const displayValue = isSensitive
-            ? (edits[entry.key] ?? "")
-            : (edits[entry.key] ?? entry.value);
-          return (
-            <SettingRow
-              key={entry.key}
-              entry={entry}
-              fieldSchema={schemaFor(entry.key)}
-              displayValue={displayValue}
-              rowIdx={rowIdx}
-              saving={saving === entry.key}
-              saved={savedKey === entry.key && saving !== entry.key}
-              secretIsSet={secretIsSet}
-              showSection={filtering}
-              registerRef={(el) => {
-                inputRefs.current[rowIdx] = el;
-              }}
-              onChange={handleChange}
-              onSave={(key, value) => void saveValue(key, value)}
-              onReset={(key, defaultValue) => void resetValue(key, defaultValue)}
-              onBlur={(key) => void handleBlur(key)}
-              onKeyDown={handleInputKeyDown}
-            />
-          );
-        })}
+      <div className="flex min-h-0 flex-1">
+        <SettingSidebar
+          sections={sections}
+          activeSection={activeSection}
+          labels={s.sectionLabels}
+          filtering={filtering}
+          onSelect={selectSection}
+          onMove={moveSection}
+          onEnterRows={() => inputRefs.current[0]?.focus()}
+          registerRef={(el, index) => {
+            sectionRefs.current[index] = el;
+          }}
+        />
+
+        <div className="kn-scroll min-h-0 flex-1 space-y-3 overflow-y-auto px-4 py-3">
+          {rows.length === 0 && (
+            <p className="py-4 text-center text-xs text-[color:var(--kn-text-faint)]">
+              {filtering ? s.noMatch : s.noneInSection}
+            </p>
+          )}
+          {rows.map((entry, rowIdx) => {
+            const isSensitive = Boolean(entry.sensitive || schemaFor(entry.key)?.sensitive);
+            const secretIsSet = isSensitive && entry.value.length > 0;
+            // Keep the secret input empty so typing produces a clean key (never
+            // appended onto the mask); the "Set" badge signals it's configured.
+            const displayValue = isSensitive
+              ? (edits[entry.key] ?? "")
+              : (edits[entry.key] ?? entry.value);
+            return (
+              <SettingRow
+                key={entry.key}
+                entry={entry}
+                fieldSchema={schemaFor(entry.key)}
+                displayValue={displayValue}
+                rowIdx={rowIdx}
+                saving={saving === entry.key}
+                saved={savedKey === entry.key && saving !== entry.key}
+                secretIsSet={secretIsSet}
+                showSection={filtering}
+                registerRef={(el) => {
+                  inputRefs.current[rowIdx] = el;
+                }}
+                onChange={handleChange}
+                onSave={(key, value) => void saveValue(key, value)}
+                onReset={(key, defaultValue) => void resetValue(key, defaultValue)}
+                onBlur={(key) => void handleBlur(key)}
+                onKeyDown={handleInputKeyDown}
+              />
+            );
+          })}
+        </div>
       </div>
 
       <div className="kn-panel-footer shrink-0">
