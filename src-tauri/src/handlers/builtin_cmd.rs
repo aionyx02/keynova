@@ -60,10 +60,13 @@ impl BuiltinCommand for SettingCommand {
         Some("[key] [value]")
     }
 
+    /// Only bare `/setting` reaches here — `/setting <key>` and
+    /// `/setting <key> <value>` are intercepted upstream and answered inline,
+    /// which is why no arguments need to travel to the window.
     fn execute(&self, _args: &str) -> BuiltinCommandResult {
         BuiltinCommandResult {
             text: String::new(),
-            ui_type: CommandUiType::Panel("setting".into()),
+            ui_type: CommandUiType::Window("settings".into()),
         }
     }
 }
@@ -576,5 +579,19 @@ mod tests {
             setting_lookup_result_text("translation.api_key", Some("secret-value".into())),
             "translation.api_key = ********"
         );
+    }
+
+    #[test]
+    fn bare_setting_opens_the_settings_window() {
+        let result = SettingCommand.execute("");
+        assert!(
+            matches!(result.ui_type, CommandUiType::Window(ref label) if label == "settings"),
+            "expected a Window ui_type, got {:?}",
+            result.ui_type
+        );
+        // The window carries no arguments: `/setting <key> ...` never reaches
+        // this command, so anything in `text` would be dead weight the frontend
+        // would have to decide what to do with.
+        assert!(result.text.is_empty());
     }
 }

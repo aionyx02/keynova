@@ -8,6 +8,7 @@ use crate::app::dispatch::{
     cmd_show_launcher_impl,
 };
 use crate::app::migration::run_legacy_migration;
+use crate::app::settings_window::{close_settings_window, open_settings_window};
 use crate::app::shortcuts::setup_global_shortcuts;
 use crate::app::state::AppState;
 use crate::app::tray::setup_tray;
@@ -41,6 +42,23 @@ fn cmd_hide_launcher(window: tauri::WebviewWindow) -> Result<(), IpcError> {
 #[tauri::command]
 fn cmd_show_launcher(window: tauri::WebviewWindow) -> Result<(), IpcError> {
     cmd_show_launcher_impl(window)
+}
+
+/// Opens (or focuses) the settings window.
+///
+/// This is an application command rather than a `plugin:core:window|create`
+/// call from the webview on purpose: application commands are not ACL-gated,
+/// so opening and closing settings needs no capability change. `title` is the
+/// localized window title, which only the frontend knows.
+#[tauri::command]
+fn cmd_open_settings_window(app: tauri::AppHandle, title: Option<String>) -> Result<(), IpcError> {
+    open_settings_window(&app, title)
+}
+
+/// Closes the settings window. Same reasoning as `cmd_open_settings_window`.
+#[tauri::command]
+fn cmd_close_settings_window(app: tauri::AppHandle) -> Result<(), IpcError> {
+    close_settings_window(&app)
 }
 
 #[tauri::command]
@@ -164,6 +182,8 @@ pub fn run() {
             cmd_hide_launcher,
             cmd_show_launcher,
             cmd_keep_launcher_open,
+            cmd_open_settings_window,
+            cmd_close_settings_window,
         ])
         .run(context)
         .expect("error while running tauri application");
