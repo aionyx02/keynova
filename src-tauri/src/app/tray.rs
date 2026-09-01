@@ -2,6 +2,9 @@ use tauri::Manager;
 use tauri_plugin_opener::OpenerExt;
 
 const REPO_URL: &str = "https://github.com/aionyx02/keynova";
+use crate::app::settings_window::{
+    focus_settings_window, launcher_hotkey_target, settings_window_open, LauncherHotkeyTarget,
+};
 use crate::app::window::show_launcher_window;
 pub(crate) fn setup_tray(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>> {
     use tauri::menu::{Menu, MenuItem, PredefinedMenuItem};
@@ -32,8 +35,14 @@ pub(crate) fn setup_tray(app: &tauri::App) -> Result<(), Box<dyn std::error::Err
         .menu(&menu)
         .tooltip("Keynova")
         .on_menu_event(move |_tray, event| match event.id.as_ref() {
+            // This item advertises itself as Ctrl+K, so it obeys the same rule:
+            // while settings is open, "show" means show settings.
             "show" => {
-                if let Some(win) = handle.get_webview_window("main") {
+                if launcher_hotkey_target(settings_window_open(&handle))
+                    == LauncherHotkeyTarget::FocusSettings
+                {
+                    focus_settings_window(&handle);
+                } else if let Some(win) = handle.get_webview_window("main") {
                     let _ = show_launcher_window(&win);
                 }
             }
