@@ -4,6 +4,7 @@ pub(crate) mod control_server;
 pub(crate) mod dispatch;
 pub(crate) mod feature_registry;
 pub(crate) mod migration;
+pub(crate) mod settings_window;
 pub(crate) mod shortcuts;
 pub(crate) mod state;
 pub(crate) mod tray;
