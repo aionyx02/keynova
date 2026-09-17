@@ -107,3 +107,23 @@ jobs:
 
       - name: Frontend tests (vitest)
         run: npm run test
+
+  # Only the maintainer may appear on the contributor list, and a name that
+  # reaches main comes off only by rewriting history. PR-only: a push to
+  # main/dev has already passed this on its PR, and has no base to diff against.
+  # Dependabot PRs fail here by design; apply the bump on a maintainer branch.
+  commits:
+    name: commit authors
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Maintainer-authored, no co-author lines
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: node scripts/check-commit-authors.mjs "$BASE_SHA..$HEAD_SHA"

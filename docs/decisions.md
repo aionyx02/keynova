@@ -188,6 +188,13 @@ emitted to the frontend as `terminal-output` via
 `AppEvent::legacy_tauri_topic()`. Subscribing with the dotted name silently
 receives nothing.
 
+**A branch cut before 2026-09-17 carries the whole pre-rewrite history.** Its
+base is a commit that no longer exists on `dev`, so merging it re-adds every
+rewritten commit, co-author lines included. The old and new tips have identical
+trees, so `git reset --soft <new base>` moves such a branch across without
+losing work. `chore/deps-audit` was the first to hit this; `commit authors`
+fails any PR still based on the old history.
+
 **Search runs at most one background task.** `SearchService` is a single worker
 with a Condvar slot: one pending, one running. Submitting a new task cancels the
 previous through an `Arc<AtomicBool>`, and file search has a hard 800 ms

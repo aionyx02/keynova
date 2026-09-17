@@ -3,7 +3,7 @@
 Where the project actually is, what is unfinished, and what is true outside this
 repo. Updated when one of those changes — not per task, not per session.
 
-Last touched: 2026-09-01
+Last touched: 2026-09-17
 
 ## Now
 
@@ -16,9 +16,10 @@ launcher (Tauri 2 + React + Rust); AI is an inline capability, not the core.
 `feature/*` or `chore/*` off `dev` → PR → `dev` → PR → `main`. `main` is always
 releasable.
 
-Both are protected: 8 required checks (`rust` ×3, `Analyze` ×2, `npm audit`,
-`cargo audit`, `frontend`), PR required, **no approving review required** —
-GitHub forbids approving your own PR, so requiring one deadlocks a solo repo.
+Both are protected: 9 required checks (`rust` ×3, `Analyze` ×2, `npm audit`,
+`cargo audit`, `frontend`, `commit authors`), PR required, **no approving
+review required** — GitHub forbids approving your own PR, so requiring one
+deadlocks a solo repo.
 Merging is the review. Admins are not enforced, so there is an escape hatch.
 
 `dev` died once, falling 191 commits behind because work forked from `main`
@@ -116,6 +117,16 @@ Two things are genuinely blocked and must not be started:
 
 ## Outside this repo
 
+- **History rewritten 2026-09-17, twice.** First every `Co-authored-by:
+  Claude …` line was stripped with `git filter-repo`, message-only. filter-repo
+  also silently drops every signature, so a second pass re-signed all commits
+  and tags with the new key `F16ACA14B7609DEA` (the old `3EC1E7C4562A234E` is
+  retired), and the eight merges GitHub had committed now name the maintainer
+  as committer so they verify. Trees, authors and dates are unchanged; every
+  SHA older than that date changed. GitHub's read-only `refs/pull/*` still point
+  at the old commits, so old PR pages keep the co-authors — only GitHub Support
+  can purge those. The `commit authors` check exists so this is never needed
+  again.
 - Dependabot retired 2026-08-23: 21 branches and PRs `#4`–`#34` closed,
   `.github/dependabot.yml` deleted. Dependency updates are manual
   (`npm outdated` / `cargo update`, `npm audit` / `cargo audit`). CodeQL is
