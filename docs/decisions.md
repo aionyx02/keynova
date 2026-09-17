@@ -79,6 +79,65 @@ remote hosts live only in `security.devCsp`, which Tauri injects for `tauri dev`
 alone. Rejected the alternative of rewriting the CSP string at build time —
 `devCsp` is the official mechanism and a custom build step would drift.
 
+**Settings is an OS window, not a palette panel.** It is the one surface people
+read and scroll rather than type through, and the launcher is a 700x50 strip
+that is always-on-top and hides itself on blur — the two requirements are
+opposites. Splitting it also moves the theme out of one window's DOM, which the
+restyle had already made a cross-window value. Rejected: making the launcher
+grow for settings (it would still vanish on blur), and a second Vite entry (the
+same `index.html` plus `?window=settings` splits at runtime through a dynamic
+import, which keeps the build single-input and keeps the palette, xterm and
+markdown chunks out of the settings webview entirely).
+
+**The settings window's existence is the "settings is open" state.** It is
+created on `/setting` and destroyed on close, so `get_webview_window("settings")`
+answers the question directly and no `AppState` flag can drift out of sync with
+the real window. That is what Ctrl+K and the tray's "show" item both consult
+before deciding whether to toggle the launcher or focus settings — opening
+settings hides the launcher on purpose, and re-showing an always-on-top strip
+over it would make that hide meaningless.
+
+**The settings window's size and position are not remembered.** Centred at a
+fixed size every time is predictable and needs no persistence, no migration and
+no schema key. A remembered position is also a way to restore a window onto a
+monitor that is no longer attached.
+
+**Settings opens and closes through application commands, not the window
+plugin.** Tauri's ACL gates every `plugin:core:*` call per window, and
+`capabilities/default.json` is scoped to `["main"]`, so the settings webview
+holds no core permissions — `listen`, `close` and `set_title` are all refused
+there. Application commands registered in `invoke_handler` are outside the ACL
+(this app defines no app-level permission manifest), so `cmd_open_settings_window`
+and `cmd_close_settings_window` work without touching a capability definition —
+which `security.md` requires an ADR for. The cost is that the window cannot
+subscribe to `config-reloaded`; see Unfinished in `state.md`.
+
+**The startup preflight decides for itself how far to go.** It used to run the
+same work every boot; its one expensive step is a network probe for Ollama,
+which a user with AI switched off does not have. `plan_preflight` turns that
+into three outcomes — skip entirely (a snapshot already describes this boot),
+local checks only (AI off, or low-memory mode), or everything — from four
+inputs, as a pure function that tests without a running app. The snapshot
+gained `model.probed` in the same move, because otherwise a skipped probe and a
+failed one are the same `ollama_reachable: false` and the model panel would
+report Ollama offline when nobody had asked it. That panel calls
+`ensure_model_probed`, which forces the probe it specifically needs: boot-time
+laziness must not become a wrong answer on the one screen whose job is that
+answer. Rejected: a user-facing on/off setting — the two signals that matter
+(`features.ai`, `performance.low_memory_mode`) already exist, and a third knob
+describing the same intent is a knob to keep in sync.
+
+**Commands are pluggable; plugins may not shadow builtins.** The registry was
+keyed by `&'static str`, so a command could only exist if it was compiled in.
+It now carries an owned name and a `CommandOrigin`, and plugin commands can be
+registered and removed while the app runs. The single rule that keeps that from
+being a hijacking surface is enforced at registration: `register_plugin`
+refuses a name a builtin owns, and `unregister_plugin` refuses to remove one —
+`/setting` opening something other than settings is not an extension. The check
+has to live there because after registration nothing downstream can tell the
+two apart. Where plugin definitions *come from* is deliberately not decided
+here: that is a trust boundary, and this change is the mechanism only.
+
 **Release profile is deliberately conservative.** `[profile.release]` uses strip
 plus LTO but explicitly not `opt-level = "z"` and not `panic = "abort"` —
 abort would defeat the ADR-0051 crash log.
@@ -96,6 +155,33 @@ the launcher. This is not cosmetic — focus theft closes the palette.
 one, and broke macOS universal bundling. The fix is
 `"mainBinaryName": "Keynova"` in `tauri.conf.json`. Changing either name
 re-opens the collision.
+
+**Adding a window means reading two things first.** The builder's
+`.on_window_event` handler in `app/bootstrap.rs` is App-level: it fires for
+*every* window, and it exists to stop the launcher from ever closing. Without a
+`window.label() != "main"` guard at the top it swallows the new window's close
+button and hides the launcher instead, leaving a window the user cannot get rid
+of. And `main` is `alwaysOnTop` with a 1500 ms hide-on-blur timer
+(`app/window.rs`), so anything that opens a window has to hide the launcher
+explicitly rather than wait for the timer — otherwise the new window appears
+underneath a strip of launcher.
+
+**Create windows from `async` commands only.** `WebviewWindowBuilder::build()`
+deadlocks on Windows when it runs on the main thread, which is where a
+synchronous `#[tauri::command]` runs. The failure does not look like a
+deadlock: the window frame appears, its webview never initialises so the
+content is a blank white surface, and the stalled event loop stops answering
+the close button — a window that cannot be closed. Tauri documents this on the
+builder (wry#583) and the fix is only the `async` keyword, which moves the call
+onto the runtime's thread pool. This cost an afternoon once.
+
+**A second WebView2 window must pass the same `additionalBrowserArgs`.** On
+Windows there is one browser process per user-data folder, and creating a
+webview whose environment options differ from the running one fails outright —
+the window simply never appears. `main` sets those args in `tauri.conf.json`
+because it needs `--disable-gpu`, so `app/settings_window.rs` reads them back
+out of the config rather than repeating the literal. Hard-coding a copy works
+until someone edits one of the two.
 
 **EventBus topics are dotted; Tauri topics are dashed.** `terminal.output` is
 emitted to the frontend as `terminal-output` via

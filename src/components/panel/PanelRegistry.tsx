@@ -10,19 +10,19 @@ export type { PanelProps };
 // ADR-0029 supersedes the agent; inline AI is the stateless capability layer.
 //
 // DECOUP.5 (ADR-0044): feature panels now self-register via their
-// `features/<x>/manifest.ts`; only the non-feature `setting` and the
-// AI-bootstrap-exempt `model` panel remain hand-listed here.
-const SettingPanel = React.lazy(() =>
-  import("../../features/settings/SettingPanel").then((m) => ({ default: m.SettingPanel })),
-);
+// `features/<x>/manifest.ts`; only the AI-bootstrap-exempt `model` panel
+// remains hand-listed here.
+//
+// `setting` used to sit alongside it. It is now an OS window
+// (`windows/SettingsWindow`), reached through `CommandUiType::Window` rather
+// than through this table — see docs/decisions.md.
 const ModelPanel = React.lazy(() =>
   import("../../features/model-manager/ModelPanel").then((m) => ({ default: m.ModelPanel })),
 );
 
-/** 將後端回傳的 panel name 對應至 React 元件。`setting`/`model` 為非功能/豁免面板；
+/** 將後端回傳的 panel name 對應至 React 元件。`model` 為 AI 豁免面板；
  * 其餘功能面板由各自的 manifest 經 `manifestPanels()` 併入（DECOUP/ADR-0044）。 */
 export const PanelRegistry: Record<string, React.ComponentType<PanelProps>> = {
-  setting: SettingPanel as React.ComponentType<PanelProps>,
   model: ModelPanel,
   ...manifestPanels(),
 };

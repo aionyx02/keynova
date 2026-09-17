@@ -8,6 +8,7 @@ use crate::app::dispatch::{
     cmd_show_launcher_impl,
 };
 use crate::app::migration::run_legacy_migration;
+use crate::app::settings_window::{close_settings_window, open_settings_window};
 use crate::app::shortcuts::setup_global_shortcuts;
 use crate::app::state::AppState;
 use crate::app::tray::setup_tray;
@@ -41,6 +42,33 @@ fn cmd_hide_launcher(window: tauri::WebviewWindow) -> Result<(), IpcError> {
 #[tauri::command]
 fn cmd_show_launcher(window: tauri::WebviewWindow) -> Result<(), IpcError> {
     cmd_show_launcher_impl(window)
+}
+
+/// Opens (or focuses) the settings window.
+///
+/// This is an application command rather than a `plugin:core:window|create`
+/// call from the webview on purpose: application commands are not ACL-gated,
+/// so opening and closing settings needs no capability change. `title` is the
+/// localized window title, which only the frontend knows.
+///
+/// TRAP: `async` is load-bearing, not decoration. A synchronous `#[tauri::command]`
+/// runs on the main thread, and `WebviewWindowBuilder::build()` deadlocks there
+/// on Windows — the window frame appears, its webview never initialises (a
+/// blank white surface), and the stalled event loop stops answering the close
+/// button. Tauri documents this on the builder itself and prescribes exactly
+/// this fix: create windows from async commands, never from sync ones.
+#[tauri::command]
+async fn cmd_open_settings_window(
+    app: tauri::AppHandle,
+    title: Option<String>,
+) -> Result<(), IpcError> {
+    open_settings_window(&app, title)
+}
+
+/// Closes the settings window. Same reasoning as `cmd_open_settings_window`.
+#[tauri::command]
+fn cmd_close_settings_window(app: tauri::AppHandle) -> Result<(), IpcError> {
+    close_settings_window(&app)
 }
 
 #[tauri::command]
@@ -120,6 +148,9 @@ pub fn run() {
                 }
             });
 
+            // A request, not an order: `plan_preflight` decides here whether
+            // there is anything to do and how far to go. Boot no longer pays
+            // for an Ollama probe on a machine with AI switched off.
             app.state::<AppState>()._startup_preflight.ensure_started();
             prescan_apps(app);
 
@@ -140,8 +171,18 @@ pub fn run() {
             setup_main_window(app)?;
             Ok(())
         })
+        // TRAP: this handler is App-level, so it fires for *every* window.
+        // Only the launcher may survive its own close — it is a background
+        // window that hides instead of exiting. Without the label check, a
+        // second window's close button would be swallowed here and would hide
+        // the launcher instead of closing anything, leaving a window the user
+        // cannot get rid of. Anyone adding a window inherits the correct
+        // behaviour by doing nothing.
         .on_window_event(|window, event| {
             if let tauri::WindowEvent::CloseRequested { api, .. } = event {
+                if window.label() != "main" {
+                    return;
+                }
                 api.prevent_close();
                 if let Some(main) = window.app_handle().get_webview_window("main") {
                     let _ = hide_launcher_window(&main);
@@ -154,6 +195,8 @@ pub fn run() {
             cmd_hide_launcher,
             cmd_show_launcher,
             cmd_keep_launcher_open,
+            cmd_open_settings_window,
+            cmd_close_settings_window,
         ])
         .run(context)
         .expect("error while running tauri application");

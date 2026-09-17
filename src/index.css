@@ -711,24 +711,3 @@ body {
   }
 }
 
-.setting-tabs-scroll {
-  scrollbar-width: thin;
-  scrollbar-color: rgba(116, 124, 139, 0.7) rgba(20, 21, 26, 0.35);
-}
-
-.setting-tabs-scroll::-webkit-scrollbar {
-  height: 7px;
-}
-
-.setting-tabs-scroll::-webkit-scrollbar-track {
-  background: rgba(20, 21, 26, 0.35);
-}
-
-.setting-tabs-scroll::-webkit-scrollbar-thumb {
-  background: rgba(116, 124, 139, 0.78);
-  border-radius: 999px;
-}
-
-.setting-tabs-scroll::-webkit-scrollbar-thumb:hover {
-  background: var(--kn-accent);
-}

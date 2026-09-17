@@ -3,6 +3,9 @@ use std::time::{Duration, Instant};
 use serde_json::json;
 use tauri::{Emitter, Manager};
 
+use crate::app::settings_window::{
+    focus_settings_window, launcher_hotkey_target, settings_window_open, LauncherHotkeyTarget,
+};
 use crate::app::state::AppState;
 use crate::app::window::{hide_launcher_window, show_launcher_window};
 
@@ -49,6 +52,15 @@ pub(crate) fn setup_global_shortcuts(app: &tauri::AppHandle, reset_existing: boo
                     return;
                 }
                 *last = Some(now);
+            }
+            // Settings is a real window and owns the foreground while it is
+            // open; re-showing the always-on-top launcher over it would undo
+            // the hide that opening settings performed.
+            if launcher_hotkey_target(settings_window_open(&handle_k))
+                == LauncherHotkeyTarget::FocusSettings
+            {
+                focus_settings_window(&handle_k);
+                return;
             }
             if let Some(win) = handle_k.get_webview_window("main") {
                 // `is_visible` is the reliable signal on Windows/WebView2 (where
