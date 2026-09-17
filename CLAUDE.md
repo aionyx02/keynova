@@ -45,7 +45,7 @@ feature/<name>, chore/<name>  <- work branches, cut from dev
 - `main` → `dev` sync is allowed and expected. The old rule forbidding it is
   what killed `dev` once: work forked from `main`, `dev` had no legal way to
   catch up, and it fell 191 commits behind.
-- `main` and `dev` are protected. A PR needs 8 green checks; no approving
+- `main` and `dev` are protected. A PR needs 9 green checks; no approving
   review is required, because GitHub will not let a solo maintainer approve
   their own PR. The human pressing merge is the review.
 
