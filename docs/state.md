@@ -117,10 +117,13 @@ Two things are genuinely blocked and must not be started:
 
 ## Outside this repo
 
-- **History rewritten 2026-09-17.** Every `Co-authored-by: Claude …` line was
-  stripped with `git filter-repo`, message-only, and the branches and tags were
-  force-pushed; trees, authors and dates are unchanged, but every SHA older
-  than that date changed. GitHub's read-only `refs/pull/*` still point
+- **History rewritten 2026-09-17, twice.** First every `Co-authored-by:
+  Claude …` line was stripped with `git filter-repo`, message-only. filter-repo
+  also silently drops every signature, so a second pass re-signed all commits
+  and tags with the new key `F16ACA14B7609DEA` (the old `3EC1E7C4562A234E` is
+  retired), and the eight merges GitHub had committed now name the maintainer
+  as committer so they verify. Trees, authors and dates are unchanged; every
+  SHA older than that date changed. GitHub's read-only `refs/pull/*` still point
   at the old commits, so old PR pages keep the co-authors — only GitHub Support
   can purge those. The `commit authors` check exists so this is never needed
   again.
